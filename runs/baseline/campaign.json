@@ -1,0 +1,215 @@
+{
+  "campaign": {
+    "batches": [
+      {
+        "batch_id": "BATCH-01",
+        "material_lot_id": "RM-001",
+        "planned_start_hour": 0,
+        "target_kg": 2.0
+      },
+      {
+        "batch_id": "BATCH-02",
+        "material_lot_id": "RM-001",
+        "planned_start_hour": 54,
+        "target_kg": 2.0
+      },
+      {
+        "batch_id": "BATCH-03",
+        "material_lot_id": "RM-002",
+        "planned_start_hour": 108,
+        "target_kg": 2.0
+      },
+      {
+        "batch_id": "BATCH-04",
+        "material_lot_id": "RM-002",
+        "planned_start_hour": 162,
+        "target_kg": 2.0
+      },
+      {
+        "batch_id": "BATCH-05",
+        "material_lot_id": "RM-003",
+        "planned_start_hour": 216,
+        "target_kg": 2.0
+      },
+      {
+        "batch_id": "BATCH-06",
+        "material_lot_id": "RM-003",
+        "planned_start_hour": 270,
+        "target_kg": 2.0
+      },
+      {
+        "batch_id": "BATCH-07",
+        "material_lot_id": "RM-004",
+        "planned_start_hour": 324,
+        "target_kg": 2.0
+      },
+      {
+        "batch_id": "BATCH-08",
+        "material_lot_id": "RM-004",
+        "planned_start_hour": 378,
+        "target_kg": 2.0
+      },
+      {
+        "batch_id": "BATCH-09",
+        "material_lot_id": "RM-005",
+        "planned_start_hour": 432,
+        "target_kg": 2.0
+      },
+      {
+        "batch_id": "BATCH-10",
+        "material_lot_id": "RM-005",
+        "planned_start_hour": 486,
+        "target_kg": 2.0
+      },
+      {
+        "batch_id": "BATCH-11",
+        "material_lot_id": "RM-006",
+        "planned_start_hour": 540,
+        "target_kg": 2.0
+      },
+      {
+        "batch_id": "BATCH-12",
+        "material_lot_id": "RM-006",
+        "planned_start_hour": 594,
+        "target_kg": 2.0
+      }
+    ],
+    "campaign_id": "MAB-30D-001",
+    "duration_hours": 720,
+    "product": "MAB-DEMO",
+    "quality_limits": {
+      "chromatography_pressure_high_bar": 3.0,
+      "do_low_pct": 35.0,
+      "ph_high": 7.2,
+      "ph_low": 6.8,
+      "viability_low_pct": 80.0
+    }
+  },
+  "controller_mode": "traditional",
+  "scenario_fingerprint": "9be2baecb16a45ad",
+  "scenario_manifest": {
+    "campaign_seed": 20250921,
+    "scenarios": [
+      {
+        "event_type": "bioreactor_drift",
+        "ground_truth_cause": "pH probe calibration bias caused base over-addition",
+        "name": "Bioreactor pH/DO drift",
+        "scenario_id": "S01",
+        "seed": 20250922,
+        "severity": "major",
+        "target": "BATCH-01",
+        "trigger_hour": 22
+      },
+      {
+        "event_type": "viability_decline",
+        "ground_truth_cause": "media hold time reduced nutrient availability",
+        "name": "Declining cell viability",
+        "scenario_id": "S02",
+        "seed": 20250923,
+        "severity": "major",
+        "target": "BATCH-02",
+        "trigger_hour": 72
+      },
+      {
+        "event_type": "chrom_pressure",
+        "ground_truth_cause": "column fouling increased backpressure",
+        "name": "Chromatography pressure increase",
+        "scenario_id": "S03",
+        "seed": 20250924,
+        "severity": "major",
+        "target": "CHROM-01",
+        "trigger_hour": 127
+      },
+      {
+        "event_type": "equipment_failure",
+        "ground_truth_cause": "seal wear caused pump trip",
+        "name": "Transfer pump failure",
+        "scenario_id": "S04",
+        "seed": 20250925,
+        "severity": "critical",
+        "target": "PUMP-01",
+        "trigger_hour": 180
+      },
+      {
+        "event_type": "material_issue",
+        "ground_truth_cause": "supplier lot had out-of-spec osmolality",
+        "name": "Bad raw-material lot",
+        "scenario_id": "S05",
+        "seed": 20250926,
+        "severity": "critical",
+        "target": "RM-003",
+        "trigger_hour": 231
+      },
+      {
+        "event_type": "qc_delay",
+        "ground_truth_cause": "QC instrument queue exceeded capacity",
+        "name": "QC result delayed",
+        "scenario_id": "S06",
+        "seed": 20250927,
+        "severity": "moderate",
+        "target": "BATCH-05",
+        "trigger_hour": 286
+      },
+      {
+        "event_type": "oos",
+        "ground_truth_cause": "bioburden excursion during sampling",
+        "name": "Out-of-specification result",
+        "scenario_id": "S07",
+        "seed": 20250928,
+        "severity": "critical",
+        "target": "BATCH-06",
+        "trigger_hour": 343
+      },
+      {
+        "event_type": "schedule_delay",
+        "ground_truth_cause": "manual line clearance completed late",
+        "name": "Batch starts 12 hours late",
+        "scenario_id": "S08",
+        "seed": 20250929,
+        "severity": "moderate",
+        "target": "BATCH-08",
+        "trigger_hour": 397
+      },
+      {
+        "event_type": "maintenance_conflict",
+        "ground_truth_cause": "preventive maintenance was scheduled over processing",
+        "name": "Maintenance conflicts with production",
+        "scenario_id": "S09",
+        "seed": 20250930,
+        "severity": "major",
+        "target": "CHROM-01",
+        "trigger_hour": 453
+      },
+      {
+        "event_type": "operator_unavailable",
+        "ground_truth_cause": "qualified operator called out with no planned backfill",
+        "name": "Qualified operator unavailable",
+        "scenario_id": "S10",
+        "seed": 20250931,
+        "severity": "major",
+        "target": "BATCH-10",
+        "trigger_hour": 507
+      },
+      {
+        "event_type": "recurring_deviation",
+        "ground_truth_cause": "prior filter setup CAPA was ineffective",
+        "name": "Recurring deviation",
+        "scenario_id": "S11",
+        "seed": 20250932,
+        "severity": "major",
+        "target": "BATCH-10",
+        "trigger_hour": 560
+      },
+      {
+        "event_type": "compound_failure",
+        "ground_truth_cause": "pump cavitation coincided with a quarantined buffer lot",
+        "name": "Simultaneous equipment and material problem",
+        "scenario_id": "S12",
+        "seed": 20250933,
+        "severity": "critical",
+        "target": "BATCH-11",
+        "trigger_hour": 620
+      }
+    ]
+  }
+}
