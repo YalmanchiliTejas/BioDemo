@@ -8,7 +8,7 @@ class ERP:
 
     def __init__(self, state: FactoryState) -> None:
         self.state = state
-        self.suppliers = {"cell culture media": "SUPPLIER-A"}
+        self.suppliers = {"cell culture media": "SUPPLIER-A", "purification buffer": "SUPPLIER-B"}
 
     def get_material_lot(self, lot_id: str) -> dict:
         lot = self.state.materials[lot_id]
@@ -16,4 +16,3 @@ class ERP:
 
     def set_lot_status(self, lot_id: str, status: str) -> None:
         self.state.materials[lot_id].status = status
-

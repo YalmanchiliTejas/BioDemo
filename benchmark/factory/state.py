@@ -45,6 +45,11 @@ def build_factory(batch_plans: tuple[BatchPlan, ...]) -> FactoryState:
         f"RM-{i:03d}": MaterialLot(f"RM-{i:03d}", "cell culture media", 4.0)
         for i in range(1, 7)
     }
+    materials.update({
+        "BUF-000": MaterialLot("BUF-000", "purification buffer", 10.0),
+        "BUF-001": MaterialLot("BUF-001", "purification buffer", 2.0),
+        "BUF-002": MaterialLot("BUF-002", "purification buffer", 2.0),
+    })
     operators = {
         "OP-01": Operator("OP-01", ("upstream",)),
         "OP-02": Operator("OP-02", ("downstream",)),
@@ -53,4 +58,3 @@ def build_factory(batch_plans: tuple[BatchPlan, ...]) -> FactoryState:
         "QA-01": Operator("QA-01", ("release",)),
     }
     return FactoryState(0, {p.batch_id: BatchState(p) for p in batch_plans}, assets, materials, operators)
-

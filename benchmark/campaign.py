@@ -23,6 +23,7 @@ def standard_campaign() -> CampaignDefinition:
             batch_id=f"BATCH-{i:02d}",
             planned_start_hour=(i - 1) * 54,
             material_lot_id=f"RM-{((i - 1) // 2) + 1:03d}",
+            buffer_lot_id="BUF-001" if i >= 11 else "BUF-000",
         )
         for i in range(1, 13)
     )

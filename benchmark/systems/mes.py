@@ -16,10 +16,11 @@ class MES:
             "batch_id": batch_id,
             "recipe": "MAB-DEMO-v1",
             "stage": batch.stage,
+            "material_lot_id": batch.material_lot_id,
+            "buffer_lot_id": batch.buffer_lot_id,
             "yield_fraction": batch.yield_fraction,
             "operator_actions": [a for a in self.operator_actions if a["batch_id"] == batch_id],
         }
 
     def record_operator_action(self, batch_id: str, hour: int, action: str) -> None:
         self.operator_actions.append({"batch_id": batch_id, "hour": hour, "action": action})
-

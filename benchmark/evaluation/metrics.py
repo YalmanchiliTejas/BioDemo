@@ -47,7 +47,7 @@ def calculate_metrics(state: FactoryState, systems: SystemRegistry, duration_h: 
             "batch_rejection_rate": round(state.rejected_batches / len(completed), 4) if completed else 0,
             "batch_rework_rate": round(state.reworked_batches / len(completed), 4) if completed else 0,
             "repeat_deviations": sum(d["scenario_id"] == "S11" for d in systems.qms.deviations),
-            "mean_batch_release_time_hours": _avg([(b.released_hour or duration_h) - (b.actual_start_hour or 0) for b in released]),
+            "mean_batch_release_time_hours": _avg([(b.released_hour or duration_h) - (b.qc_complete_hour or 0) for b in released]),
             "right_first_time_rate": round(sum(not b.reworked for b in released) / len(released), 4) if released else 0,
         },
         "msat_process_engineering": {

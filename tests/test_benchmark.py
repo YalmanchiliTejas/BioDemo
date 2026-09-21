@@ -65,13 +65,55 @@ class BenchmarkTests(unittest.TestCase):
             records = [json.loads(line) for line in (output / "events.jsonl").read_text().splitlines()]
             self.assertEqual(len(records), len(result.events))
             self.assertTrue(all(required <= record.keys() for record in records))
-            self.assertEqual(sum(record["scenario_id"] is not None for record in records), 12)
+            self.assertEqual(sum(record["scenario_id"] is not None and record["event_failure"] != "traditional_intervention" for record in records), 12)
+            self.assertEqual(sum(record["event_failure"] == "traditional_intervention" for record in records), 12)
             self.assertTrue((output / "campaign.json").exists())
             self.assertTrue((output / "summary.json").exists())
 
     def test_unimplemented_modes_fail_closed(self) -> None:
         with self.assertRaisesRegex(ValueError, "Only the Traditional"):
             BenchmarkSimulation(mode="agentic")
+
+    def test_fault_evidence_and_quality_gates(self) -> None:
+        simulation = BenchmarkSimulation(seed=20250921)
+        simulation.run()
+        points = simulation.systems.historian.points
+        self.assertTrue(any(p.get("pH", 0) > simulation.process.limits.ph_high for p in points))
+        self.assertTrue(any(p.get("DO_pct", 100) < simulation.process.limits.do_low_pct for p in points))
+        self.assertTrue(any(p.get("pressure_bar", 0) > simulation.process.limits.chromatography_pressure_high_bar for p in points))
+        self.assertTrue(any(s["result"] == "OOS" for s in simulation.systems.lims.samples))
+        self.assertTrue(all(
+            all(s["result"] == "pass" and s["reported_hour"] <= batch.released_hour
+                for s in simulation.systems.lims.get_qc_results(batch.plan.batch_id))
+            for batch in simulation.state.batches.values() if batch.stage == "released"
+        ))
+
+    def test_material_quarantine_substitutes_before_consumption(self) -> None:
+        simulation = BenchmarkSimulation(seed=20250921)
+        simulation.run()
+        self.assertEqual(simulation.state.materials["RM-003"].status, "quarantined")
+        self.assertTrue(all(
+            batch.material_lot_id != "RM-003"
+            for batch in simulation.state.batches.values()
+            if batch.material_consumed and batch.plan.material_lot_id == "RM-003"
+        ))
+        self.assertEqual(simulation.state.batches["BATCH-06"].stage, "rejected")
+        self.assertTrue(any(s["result"] == "OOS" for s in simulation.systems.lims.get_qc_results("BATCH-06")))
+
+    def test_qms_as_of_hides_future_closure(self) -> None:
+        simulation = BenchmarkSimulation(seed=20250921)
+        simulation.run()
+        deviation = simulation.systems.qms.deviations[0]
+        visible = simulation.systems.qms.get_prior_deviations(as_of_hour=deviation["opened_hour"])
+        self.assertIsNone(visible[0]["closed_hour"])
+
+    def test_compound_incident_has_equipment_and_material_evidence(self) -> None:
+        simulation = BenchmarkSimulation(seed=20250921)
+        simulation.run()
+        self.assertEqual(simulation.state.materials["BUF-001"].status, "quarantined")
+        self.assertTrue(any(work["asset_id"] == "PUMP-01" for work in simulation.systems.cmms.work_orders))
+        self.assertEqual(simulation.state.batches["BATCH-11"].buffer_lot_id, "BUF-002")
+        self.assertTrue(simulation.state.batches["BATCH-11"].buffer_consumed)
 
 
 if __name__ == "__main__":

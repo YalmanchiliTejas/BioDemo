@@ -15,7 +15,16 @@ class QMS:
     def close_deviation(self, deviation_id: str, hour: int) -> None:
         next(d for d in self.deviations if d["deviation_id"] == deviation_id)["closed_hour"] = hour
 
-    def get_prior_deviations(self, description_contains: str = "") -> list[dict]:
+    def get_prior_deviations(self, description_contains: str = "", as_of_hour: int | None = None) -> list[dict]:
         needle = description_contains.lower()
-        return [d.copy() for d in self.deviations if needle in d["description"].lower()]
-
+        visible = []
+        for deviation in self.deviations:
+            if needle not in deviation["description"].lower():
+                continue
+            if as_of_hour is not None and deviation["opened_hour"] > as_of_hour:
+                continue
+            record = deviation.copy()
+            if as_of_hour is not None and record["closed_hour"] is not None and record["closed_hour"] > as_of_hour:
+                record["closed_hour"] = None
+            visible.append(record)
+        return visible

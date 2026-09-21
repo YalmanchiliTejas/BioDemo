@@ -19,6 +19,7 @@ class BatchPlan:
     planned_start_hour: int
     target_kg: float = 2.0
     material_lot_id: str = "RM-001"
+    buffer_lot_id: str = "BUF-000"
 
 
 @dataclass
@@ -28,10 +29,24 @@ class BatchState:
     stage_remaining_h: int = 0
     actual_start_hour: int | None = None
     released_hour: int | None = None
+    qc_complete_hour: int | None = None
     yield_fraction: float = 0.90
     hold_until_hour: int = 0
     rejected: bool = False
     reworked: bool = False
+    material_consumed: bool = False
+    material_lot_override: str | None = None
+    buffer_lot_override: str | None = None
+    buffer_consumed: bool = False
+    release_block_reason: str | None = None
+
+    @property
+    def material_lot_id(self) -> str:
+        return self.material_lot_override or self.plan.material_lot_id
+
+    @property
+    def buffer_lot_id(self) -> str:
+        return self.buffer_lot_override or self.plan.buffer_lot_id
 
 
 @dataclass
