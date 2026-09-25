@@ -68,6 +68,14 @@ class PostgresWorkflowStore:
             row = cursor.fetchone()
         return _case_from_payload(row[0]) if row else None
 
+    def list_cases(self, tenant_id: str) -> list[CaseRecord]:
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT payload FROM knowledge_cases WHERE tenant_id=%s ORDER BY updated_at DESC",
+                (tenant_id,),
+            )
+            return [_case_from_payload(row[0]) for row in cursor.fetchall()]
+
     def update_case(self, case: CaseRecord, expected_version: int) -> None:
         with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
@@ -90,6 +98,14 @@ class PostgresWorkflowStore:
     def tasks_for_case(self, case_id: str, tenant_id: str) -> list[HumanTask]:
         with self._connection.cursor() as cursor:
             cursor.execute("SELECT payload FROM knowledge_tasks WHERE tenant_id=%s AND case_id=%s", (tenant_id, case_id))
+            return [_task_from_payload(row[0]) for row in cursor.fetchall()]
+
+    def list_tasks(self, tenant_id: str) -> list[HumanTask]:
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT payload FROM knowledge_tasks WHERE tenant_id=%s ORDER BY task_id DESC",
+                (tenant_id,),
+            )
             return [_task_from_payload(row[0]) for row in cursor.fetchall()]
 
     def append(self, message: OutboxMessage) -> None:

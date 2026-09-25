@@ -23,6 +23,9 @@ def main() -> None:
     ingest.add_argument("--tenant", default="default")
     ingest.add_argument("--site")
     ingest.add_argument("--classification", default="internal")
+    serve = sub.add_parser("serve", help="run the CDMO operations API and UI")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
 
     if args.command == "run":
@@ -30,7 +33,7 @@ def main() -> None:
         print(json.dumps(result.metrics, indent=2, sort_keys=True))
     elif args.command == "replay":
         print(json.dumps(replay_summary(args.event_log), indent=2, sort_keys=True))
-    else:
+    elif args.command == "knowledge-ingest":
         from .integration.connectors import JsonlConnector
         from .knowledge.domain import AccessContext
         from .knowledge.runtime import integration_gateway_from_env
@@ -62,6 +65,15 @@ def main() -> None:
                 close_documents()
             if close_workflow:
                 close_workflow()
+    else:
+        try:
+            import uvicorn
+        except ImportError as exc:
+            raise RuntimeError("Install the 'app' extra to run the API and UI") from exc
+        uvicorn.run(
+            "benchmark.application.api:create_app", factory=True,
+            host=args.host, port=args.port,
+        )
 
 
 if __name__ == "__main__":

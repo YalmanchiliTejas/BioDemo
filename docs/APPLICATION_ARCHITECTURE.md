@@ -128,3 +128,8 @@ messages are idempotent.
 is isolated so an unavailable historian, for example, does not prevent MES, LIMS,
 or QMS from advancing their own checkpoints. Webhook connectors use the same
 gateway immediately, while REST and export connectors are normally polled.
+
+The Human and Experience layers are implemented by the operations API and static
+responsive UI. The Case Orchestrator, Model Router, and Tool Executor remain
+explicit unconfigured ports so the agent, harness, and tools can be added without
+changing the approved human-control or data contracts.

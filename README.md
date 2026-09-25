@@ -83,3 +83,22 @@ validation requirements.
 
 The [full application architecture](docs/APPLICATION_ARCHITECTURE.md) includes
 the connector runtime and the closed source-system-to-knowledge feedback loop.
+
+## Operations application
+
+The repository includes the human workflow and experience layers: investigation
+timelines, batch and shift consoles, science and quality views, a policy-driven
+approval inbox, human tasks, and an authorization audit trail. Agent, model-router,
+and tool-executor ports are present but intentionally unconfigured.
+
+```bash
+python3 -m pip install -e '.[app]'
+python3 -m benchmark serve
+```
+
+Open `http://127.0.0.1:8000`. The default development runtime uses seeded local
+data and in-memory stores so the UI can be reviewed without infrastructure.
+Set `APP_MODE=production` to use the PostgreSQL workflow/action stores and the
+configured Neo4j, MongoDB, MinIO, and optional Qdrant services.
+See [the operations application guide](docs/OPERATIONS_APPLICATION.md) for API,
+identity, runtime-mode, and agent-extension contracts.

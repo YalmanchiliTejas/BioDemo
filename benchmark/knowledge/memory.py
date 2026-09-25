@@ -145,6 +145,12 @@ class InMemoryCaseStore:
     def get_case(self, case_id: str, tenant_id: str) -> CaseRecord | None:
         return self.cases.get((tenant_id, case_id))
 
+    def list_cases(self, tenant_id: str) -> list[CaseRecord]:
+        return sorted(
+            (case for (tenant, _), case in self.cases.items() if tenant == tenant_id),
+            key=lambda case: case.updated_at, reverse=True,
+        )
+
     def update_case(self, case: CaseRecord, expected_version: int) -> None:
         current = self.get_case(case.case_id, case.tenant_id)
         if current is None:
@@ -161,6 +167,12 @@ class InMemoryCaseStore:
     def tasks_for_case(self, case_id: str, tenant_id: str) -> list[HumanTask]:
         return [task for (tenant, _), task in self.tasks.items()
                 if tenant == tenant_id and task.case_id == case_id]
+
+    def list_tasks(self, tenant_id: str) -> list[HumanTask]:
+        return sorted(
+            (task for (tenant, _), task in self.tasks.items() if tenant == tenant_id),
+            key=lambda task: task.created_at, reverse=True,
+        )
 
 
 class InMemoryOutbox:

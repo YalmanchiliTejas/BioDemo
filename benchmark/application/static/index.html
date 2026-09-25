@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Northstar BioOps</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">N</span><div><strong>Northstar</strong><small>BioOps intelligence</small></div></div>
+      <nav id="nav">
+        <button class="nav-item active" data-view="overview"><span>⌂</span>Command center</button>
+        <button class="nav-item" data-view="cases"><span>◎</span>Investigations <b id="caseBadge">0</b></button>
+        <button class="nav-item" data-view="batches"><span>▦</span>Batch & shift</button>
+        <button class="nav-item" data-view="science"><span>⌁</span>Science & quality</button>
+        <button class="nav-item" data-view="approvals"><span>✓</span>Approval inbox <b id="approvalBadge">0</b></button>
+        <button class="nav-item" data-view="audit"><span>≡</span>Audit trail</button>
+      </nav>
+      <div class="system-card">
+        <div class="live-dot"></div><div><strong>Digital thread live</strong><small>All source connectors nominal</small></div>
+      </div>
+      <div class="profile"><div class="avatar">QA</div><div><strong>Jordan Lee</strong><small>Sponsor QA · PHX-01</small></div><button>•••</button></div>
+    </aside>
+
+    <main>
+      <header>
+        <div><p class="eyebrow">PHX-01 · MONOCLONAL ANTIBODY SUITE</p><h1 id="pageTitle">Operations command center</h1></div>
+        <div class="header-actions"><button class="icon-button" aria-label="Search">⌕</button><button class="icon-button notification" aria-label="Notifications">♢</button><button class="primary" id="newCase">+ New investigation</button></div>
+      </header>
+
+      <section class="view active" id="overviewView">
+        <div class="notice"><span>✦</span><div><strong>Shift intelligence brief</strong><p>Three active investigations require attention. No critical release gates are overdue.</p></div><button data-go="cases">Review cases →</button></div>
+        <div class="metric-grid" id="metrics"></div>
+        <div class="two-column">
+          <article class="panel"><div class="panel-head"><div><p class="eyebrow">ACTIVE WORK</p><h2>Investigation queue</h2></div><button class="text-button" data-go="cases">View all</button></div><div id="overviewCases" class="case-list"></div></article>
+          <article class="panel"><div class="panel-head"><div><p class="eyebrow">QUALITY SIGNAL</p><h2>Right-first-time trend</h2></div><span class="pill good">+2.8% vs prior</span></div><div class="chart-wrap"><div class="chart-value">98.2<small>%</small></div><svg id="trendChart" viewBox="0 0 560 180" preserveAspectRatio="none"></svg><div class="axis"><span>SEP 02</span><span>SEP 08</span><span>SEP 14</span><span>SEP 20</span><span>TODAY</span></div></div></article>
+        </div>
+        <article class="panel batch-strip-panel"><div class="panel-head"><div><p class="eyebrow">MANUFACTURING</p><h2>Batch pulse</h2></div><button class="text-button" data-go="batches">Open shift console</button></div><div id="batchStrip" class="batch-strip"></div></article>
+      </section>
+
+      <section class="view" id="casesView">
+        <div class="workspace-grid"><article class="panel list-panel"><div class="panel-head"><div><p class="eyebrow">CASE QUEUE</p><h2>Investigations</h2></div><select id="caseFilter"><option>All statuses</option><option>Open</option><option>Investigating</option><option>Pending approval</option></select></div><div id="caseList" class="case-list large"></div></article><article class="panel detail-panel" id="caseDetail"><div class="empty-state"><span>◎</span><h3>Select an investigation</h3><p>Review its timeline, evidence, tasks, and proposed actions.</p></div></article></div>
+      </section>
+
+      <section class="view" id="batchesView">
+        <div class="section-intro"><div><p class="eyebrow">SHIFT 2 · 14:00–22:00</p><h2>Batch & shift console</h2><p>Current manufacturing status from connected systems of record.</p></div><div class="shift-chip"><span class="live-dot"></span>Live · refreshed just now</div></div>
+        <div id="batchGrid" class="batch-grid"></div>
+        <div class="two-column"><article class="panel"><div class="panel-head"><h2>Shift handoff</h2><span class="pill">3 notes</span></div><div class="handoff"><p><b>18:42</b> BATCH-2409 placed on procedural hold pending QA assessment.</p><p><b>17:16</b> Column pressure inspection assigned to Maintenance.</p><p><b>15:05</b> Release sample transferred to QC laboratory.</p></div></article><article class="panel"><div class="panel-head"><h2>Resource readiness</h2></div><div class="readiness"><div><span>Qualified operators</span><b>8 / 9</b><i style="--w:89%"></i></div><div><span>Critical equipment</span><b>4 / 5</b><i style="--w:80%"></i></div><div><span>Released materials</span><b>96%</b><i style="--w:96%"></i></div></div></article></div>
+      </section>
+
+      <section class="view" id="scienceView">
+        <div class="science-hero"><div><p class="eyebrow">SCIENTIST WORKSPACE</p><h2>Process and quality intelligence</h2><p>Explore approved evidence and process context. Model execution remains disconnected until your model router is installed.</p></div><div class="extension-status"><span>Model router</span><b class="offline">Not configured</b></div></div>
+        <div class="science-grid"><article class="panel"><div class="panel-head"><h2>Process signals</h2><select><option>Bioreactor · last 24h</option></select></div><div class="signal-chart"><svg viewBox="0 0 720 240" preserveAspectRatio="none"><path class="gridline" d="M0 40H720M0 100H720M0 160H720M0 220H720"/><path class="signal-area" d="M0 172 C60 164,80 150,120 158 S190 190,240 155 S310 78,360 104 S430 160,480 132 S550 54,600 88 S670 118,720 72 L720 240 L0 240Z"/><path class="signal-line" d="M0 172 C60 164,80 150,120 158 S190 190,240 155 S310 78,360 104 S430 160,480 132 S550 54,600 88 S670 118,720 72"/></svg><div class="legend"><span><i class="cyan"></i>pH deviation index</span><span><i class="amber"></i>Investigation threshold</span></div></div></article><article class="panel evidence-search"><div class="panel-head"><h2>Approved knowledge</h2></div><form id="contextSearch"><input id="contextQuery" placeholder="Search SOPs, decisions, deviations…"><button class="primary">Search</button></form><div id="contextResults" class="search-results"><div class="empty-state small"><span>⌕</span><p>Search returns permission-filtered results with exact evidence citations.</p></div></div></article></div>
+      </section>
+
+      <section class="view" id="approvalsView"><div class="section-intro"><div><p class="eyebrow">HUMAN CONTROL POINT</p><h2>Approval inbox</h2><p>Risk policy determines the independent roles required before execution.</p></div></div><div id="approvalList" class="approval-list"></div></section>
+      <section class="view" id="auditView"><article class="panel"><div class="panel-head"><div><p class="eyebrow">IMMUTABLE ACTIVITY</p><h2>Authorization & audit trail</h2></div><button class="secondary" id="exportAudit">Export JSON</button></div><div id="auditList" class="audit-list"></div></article></section>
+    </main>
+  </div>
+
+  <dialog id="caseDialog"><form method="dialog" id="caseForm"><div class="dialog-head"><div><p class="eyebrow">NEW RECORD</p><h2>Open investigation</h2></div><button value="cancel" class="icon-button">×</button></div><label>Case ID<input name="case_id" value="CASE-" required></label><label>Title<input name="title" placeholder="Concise investigation title" required></label><div class="form-row"><label>Type<select name="case_type"><option value="deviation">Deviation</option><option value="oos">OOS</option><option value="maintenance">Maintenance</option><option value="capa">CAPA</option></select></label><label>Owner<input name="owner_id" value="qa-14"></label></div><label>Related entity<input name="entity_id" placeholder="BATCH-####"></label><div class="dialog-actions"><button value="cancel" class="secondary">Cancel</button><button value="default" class="primary" id="submitCase">Open case</button></div></form></dialog>
+  <div id="toast" role="status"></div>
+  <script src="/assets/app.js"></script>
+</body>
+</html>
