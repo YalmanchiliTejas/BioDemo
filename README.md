@@ -51,3 +51,35 @@ for explicit assumptions, remaining gaps, and the calibration evidence needed
 before comparing operating models. `benchmark/factory/process.py` exposes the
 narrow process-model interface where BIOPRO-Sim, PenSimPy, or another physical
 model can later be connected without changing controllers or systems-of-record APIs.
+
+## Dynamic knowledge base
+
+The optional CDMO digital-thread layer uses Neo4j, MongoDB, PostgreSQL, MinIO,
+Qdrant, and Redpanda. It supports evidence-first ingestion, tenant-scoped event
+timelines, controlled document revisions, decisions and approvals, working cases,
+human tasks, hybrid retrieval with citations, and a durable outbox. In-memory
+adapters keep the complete application contract testable without services.
+
+```bash
+python3 -m pip install -e '.[knowledge,semantic,eventbus,documents]'
+docker compose -f docker-compose.knowledge.yml up -d
+AWS_ACCESS_KEY_ID=biopharma AWS_SECRET_ACCESS_KEY=biopharma-dev \
+  python3 -m benchmark knowledge-ingest runs/baseline/events.jsonl \
+  --tenant sponsor-a --site site-01
+```
+
+Connection settings default to the local Compose services and can be overridden
+with `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`,
+`MONGODB_URI`, and `MONGODB_DATABASE`. The retrieval entry point is
+`KnowledgeBase.context(...)`; it returns structured events, applicable rules,
+source documents, and the latest event id for each requested entity. This stable
+contract feeds the agent runtime without coupling retrieval or model-framework
+behavior to factory physics. The optional semantic adapter uses local FastEmbed
+embeddings and Qdrant; lexical and graph retrieval remain available independently.
+
+See [the knowledge-base architecture](docs/KNOWLEDGE_BASE.md) for storage
+responsibilities, security boundaries, graph relationships, and production
+validation requirements.
+
+The [full application architecture](docs/APPLICATION_ARCHITECTURE.md) includes
+the connector runtime and the closed source-system-to-knowledge feedback loop.

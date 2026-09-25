@@ -1,0 +1,107 @@
+flowchart TD
+    %% 1. Human Layer
+    subgraph L1 ["1. HUMAN LAYER (Review, Approve, Escalate)"]
+        direction LR
+        Operators([Operators])
+        QAQC([QA / QC])
+        MSAT([MSAT / Engineers / Chemists])
+        Sponsor([Sponsor QA])
+    end
+
+    %% 2. Experience Layer
+    subgraph L2 ["2. EXPERIENCE LAYER"]
+        direction LR
+        UI1[Investigation UI & Case Timeline]
+        UI2[Batch & Shift Consoles]
+        UI3[Scientist Workspace & Quality Dashboard]
+        UI4[Approval Inbox & Human Task Service]
+    end
+
+    %% 3. Agent Control Plane
+    subgraph L3 ["3. AGENT CONTROL PLANE"]
+        direction TB
+        Orchestrator{{Case Orchestrator}}
+        
+        subgraph Agents ["Agent Hierarchy"]
+            direction LR
+            Prod[Production / Maintenance]
+            Qual[Quality / Deviation / RCA / OOS]
+            Sci[Process Science / Formulation / Exp. Design]
+            Cross[CAPA / Sponsor / Release Evidence]
+        end
+        
+        Runtime[Agent Runtime & Deterministic Jobs]
+        ToolGate((Tool Gateway))
+        
+        subgraph Gateway ["Action Gateway"]
+            direction TB
+            RiskPolicy[Risk & Policy Engine]
+            HumanApproval[Human Approval Engine]
+            AuthAudit[Authorization & Audit Log]
+            
+            RiskPolicy --> HumanApproval --> AuthAudit
+        end
+    end
+
+    %% 4. Intelligence & Model Layer
+    subgraph L4 ["4. INTELLIGENCE / MODEL LAYER"]
+        direction LR
+        Router{Model Router}
+        LLM[LLMs: Reasoning, Docs, Extraction]
+        ML[Statistical / ML: SPC, Anomaly]
+        Opt[Optimization: DOE, Bayesian]
+    end
+
+    %% 5. Context & Memory Layer
+    subgraph L5 ["5. CONTEXT / MEMORY LAYER (Manufacturing Digital Thread)"]
+        direction LR
+        MemImm[(Immutable Evidence Store)]
+        MemApp[(Approved Knowledge / Docs)]
+        MemProc[(Process Knowledge Graph)]
+        MemWork[(Working Case Memory)]
+    end
+
+    %% 6. Integration Layer
+    subgraph L6 ["6. INTEGRATION LAYER (Systems of Record)"]
+        direction LR
+        API[API / Integration Gateway]
+        SysMfg[MES / eBR / PAT]
+        SysLab[LIMS / CDS / QMS]
+        SysEquip[SCADA / Historian / CMMS]
+        SysBiz[ERP / WMS / ELN]
+        
+        API --- SysMfg & SysLab & SysEquip & SysBiz
+    end
+
+    %% Floating Components
+    EventNormalizer[Event Bus & Normalizer]
+
+    %% ==========================================
+    %% Core Data & Control Flows
+    %% ==========================================
+    
+    L1 <-->|Review, Approve, Task Execution| L2
+    
+    L2 <-->|View Context & Monitor| Orchestrator
+    L2 <-->|Approve/Reject| Gateway
+    
+    %% Ingestion Flow
+    SysEquip & SysMfg & SysLab -->|Raw Signals / Data| EventNormalizer
+    EventNormalizer -->|Classified Events| Orchestrator
+    
+    %% Orchestration Flow
+    Orchestrator -->|Assign Tasks & Workflows| Agents
+    Agents -->|Execute Plans| Runtime
+    
+    %% Intelligence Flow
+    Runtime -->|Reasoning Requests| Router
+    Router --> LLM & ML & Opt
+    
+    %% Data Retrieval Flow
+    Runtime -->|Data Requests| ToolGate
+    ToolGate -->|Read & Search| L5
+    L5 -.->|Syncs Truth| L6
+    
+    %% Action Execution Flow
+    Agents -->|Propose Actions| Gateway
+    Gateway -->|Authorized Writes Only| API
