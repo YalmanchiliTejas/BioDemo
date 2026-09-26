@@ -1,9 +1,10 @@
 # Biopharma Factory Benchmark
 
-A deterministic, discrete-event MVP for benchmarking operating models in a small
-biologics factory. The current milestone intentionally implements only the shared
-factory/environment and the **Traditional** operating model. It does not contain
-an LLM or agentic controller.
+A deterministic factory benchmark plus a tenant-scoped operations application for
+reviewing cases, running bounded specialist workflows, and controlling regulated
+actions. The simulation benchmark still implements only the **Traditional**
+operating model; the operations application is a separate control-plane reference
+implementation and does not change benchmark physics.
 
 ## What is modeled
 
@@ -86,10 +87,18 @@ the connector runtime and the closed source-system-to-knowledge feedback loop.
 
 ## Operations application
 
-The repository includes the human workflow and experience layers: investigation
+The repository includes the complete base architecture: investigation
 timelines, batch and shift consoles, science and quality views, a policy-driven
-approval inbox, human tasks, and an authorization audit trail. Agent, model-router,
-and tool-executor ports are present but intentionally unconfigured.
+approval inbox, human tasks, and an authorization audit trail. The case-orchestrator
+routes four specialist families and retains the Prime Agent deviation RLM when a
+compatible checkout is available. Other specialists use the same context and human
+gate contracts with deterministic jobs until an external model harness is configured.
+A source-connector monitor can continuously ingest canonical records
+from MES, LIMS, QMS, historian, and other HTTP systems, open deduplicated deviation
+cases, and trigger the agent according to connector policy. The model router ships
+with SPC, robust anomaly, and full-factorial DOE providers behind an allow-listed
+tool gateway. Approved actions cross a separate execution gateway; production mode
+fails closed until an authoritative write adapter is configured.
 
 ```bash
 python3 -m pip install -e '.[app]'

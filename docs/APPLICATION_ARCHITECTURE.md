@@ -129,7 +129,46 @@ is isolated so an unavailable historian, for example, does not prevent MES, LIMS
 or QMS from advancing their own checkpoints. Webhook connectors use the same
 gateway immediately, while REST and export connectors are normally polled.
 
-The Human and Experience layers are implemented by the operations API and static
-responsive UI. The Case Orchestrator, Model Router, and Tool Executor remain
-explicit unconfigured ports so the agent, harness, and tools can be added without
-changing the approved human-control or data contracts.
+The operations application now supplies a first HTTP implementation of this path
+through `ConnectorMonitor`. Administrators configure it in the Source Connectors
+workspace. It persists cursors and source-record deduplication, writes each record
+through `DigitalThread.ingest_raw_event`, opens a deterministic deviation case for
+configured event types, and can invoke the Prime Agent case orchestrator. The
+file-backed monitor is intended for a single application worker; shared connector
+leases remain required for horizontally scaled deployment.
+
+The Human and Experience layers are implemented by the operations API and responsive
+UI. Tenant and site scope is applied to case, task, action, connector, audit, agent-run,
+and context reads as well as writes. The development identity headers are not an
+authentication mechanism; production deployments must replace them with trusted
+OIDC/JWT claims at the gateway.
+
+## Base implementation map
+
+| Architecture component | Base implementation |
+|---|---|
+| Case orchestrator | `CaseOrchestrator` selects a specialist from the case type and exposes one run contract. |
+| Production / maintenance | Deterministic evidence assembly plus anomaly-job capability. |
+| Quality / deviation / RCA / OOS | Prime Agent deviation harness when discovered; otherwise the deterministic runtime fails over without claiming LLM reasoning. |
+| Process science / formulation / experiment design | Deterministic evidence assembly with SPC and full-factorial DOE. |
+| CAPA / sponsor / release evidence | Deterministic evidence-completeness workflow with SPC. |
+| Agent runtime and jobs | Tenant-keyed run state plus inspectable statistical and optimization jobs. |
+| Model router | `DeterministicModelRouter`; unavailable LLM capacity is reported as unconfigured. |
+| Tool gateway | `ToolGateway` allow-lists `spc`, `anomaly`, and `doe`; manufacturing retrieval remains separately allow-listed by concept. |
+| Action gateway | Risk classification, separation-of-duties approvals, site authorization, audit, and execute-after-approval only. |
+| Context and memory | Immutable evidence, approved documents, process graph, working cases/tasks, semantic extension, and outbox. |
+| Integration | Checkpointed connectors, event normalization, monitored HTTP sources, and authoritative acknowledgement ingestion. |
+
+The non-deviation specialists intentionally use the deterministic runtime in the base
+version. Reusing the Prime process launcher without dedicated, reviewed skills would
+make their behavior depend on the deviation system prompt. They instead share the
+same context envelope, run record, tool gateway, and human-gate semantics. A future
+specialist harness can replace one route without changing the UI or API contracts.
+
+Development action execution returns a clearly identified `DEMO-ACK-*` receipt and
+ingests that acknowledgement through the digital thread so the entire feedback loop
+is demonstrable. Production discovers the MES/QMS/LIMS/CMMS/ERP connector catalog and
+enables execution only when at least one connector has a write path. Proposals must
+name `payload.source_system`; missing or read-only connectors fail closed. Knowledge
+changes only after a source-system acknowledgement
+is ingested; an action proposal or approval never edits manufacturing truth directly.

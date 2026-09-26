@@ -68,6 +68,8 @@ class ActionControlPlane:
     def propose(self, proposal: ActionProposal, access: AccessContext) -> ActionProposal:
         if proposal.tenant_id != access.tenant_id or proposal.requested_by != access.actor_id:
             raise PermissionError("proposal identity does not match authenticated actor")
+        if proposal.site_id and access.site_ids and proposal.site_id not in access.site_ids:
+            raise PermissionError("proposal site is outside the actor's authorized sites")
         if self.store.get(proposal.tenant_id, proposal.proposal_id) is not None:
             raise ValueError("proposal already exists")
         risk, roles = self.policy.evaluate(proposal.operation)
@@ -86,6 +88,8 @@ class ActionControlPlane:
         self, proposal_id: str, decision: ApprovalDecision, access: AccessContext,
     ) -> ActionProposal:
         proposal = self._required(access.tenant_id, proposal_id)
+        if proposal.site_id and access.site_ids and proposal.site_id not in access.site_ids:
+            raise PermissionError("proposal site is outside the actor's authorized sites")
         if proposal.status != ProposalStatus.PENDING:
             raise ValueError("only pending proposals can be decided")
         if decision.actor_id != access.actor_id or decision.role not in access.roles:
@@ -114,6 +118,8 @@ class ActionControlPlane:
 
     def mark_executed(self, proposal_id: str, access: AccessContext, source_record_id: str) -> ActionProposal:
         proposal = self._required(access.tenant_id, proposal_id)
+        if proposal.site_id and access.site_ids and proposal.site_id not in access.site_ids:
+            raise PermissionError("proposal site is outside the actor's authorized sites")
         if proposal.status != ProposalStatus.APPROVED:
             raise ValueError("only approved proposals may be marked executed")
         updated = replace(proposal, status=ProposalStatus.EXECUTED, updated_at=datetime.now(timezone.utc))

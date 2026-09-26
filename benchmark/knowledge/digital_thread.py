@@ -210,6 +210,32 @@ class DigitalThread:
         self.graph.relate_domain_objects(task.case_id, task.task_id, "CONTAINS", task.tenant_id)
         self._emit("human_task.assigned", task.task_id, task.tenant_id, serialize(task))
 
+    def complete_task(self, task_id: str, *, access: AccessContext) -> HumanTask:
+        task = next(
+            (item for item in self.cases.list_tasks(access.tenant_id) if item.task_id == task_id),
+            None,
+        )
+        if task is None:
+            raise KeyError(task_id)
+        if task.status != "open":
+            raise ValueError("only open tasks can be completed")
+        if task.assigned_to and task.assigned_to != access.actor_id:
+            raise PermissionError("task is assigned to another actor")
+        if not task.assigned_to and task.assigned_role.lower() not in {
+            role.lower() for role in access.roles
+        }:
+            raise PermissionError("actor does not hold the assigned task role")
+        completed = replace(
+            task, status="completed", assigned_to=task.assigned_to or access.actor_id,
+            completed_at=datetime.now(timezone.utc),
+        )
+        self.cases.put_task(completed)
+        self.graph.upsert_domain_object(
+            completed.task_id, "human_task", completed.tenant_id, serialize(completed)
+        )
+        self._emit("human_task.completed", completed.task_id, completed.tenant_id, serialize(completed))
+        return completed
+
     def record_decision(self, decision: DecisionRecord, *, access: AccessContext) -> None:
         _same_tenant(access, decision.tenant_id)
         _require_clearance(access, decision.classification)

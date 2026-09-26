@@ -6,6 +6,8 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
+from benchmark.application.execution import IntegrationActionWriter
+from benchmark.application.models import ActionProposal, ApprovalDecision, ProposalStatus, RiskLevel
 from benchmark.integration import (
     AuthorizedAction, ConnectorRunner, InMemoryCheckpointStore, IntegrationGateway, JsonlConnector, SourceRecord,
     connectors_from_settings,
@@ -101,6 +103,23 @@ class IntegrationTests(unittest.TestCase):
         )
         with self.assertRaises(PermissionError):
             self.gateway.execute_authorized(WritableTestConnector(), action, access=self.access)
+
+    def test_application_writer_routes_approved_proposal_to_named_system(self) -> None:
+        proposal = ActionProposal(
+            "ACT-03", "SPONSOR-A", "CASE-01", "close_deviation", "DEV-01",
+            {"source_system": "QMS"}, "msat-01", "Approved evidence package",
+            "SITE-01", RiskLevel.HIGH, ("qa",), ProposalStatus.APPROVED,
+            (ApprovalDecision("APR-03", "qa-01", "qa", "approved", "QA closure"),),
+            self.now, self.now,
+        )
+        executor = AccessContext(
+            "SPONSOR-A", "gateway-01", ("SITE-01",), ("system_executor",), ("internal",),
+        )
+        receipt = IntegrationActionWriter(
+            self.gateway, {"qms": WritableTestConnector()},
+        ).write(proposal, executor)
+        self.assertEqual(receipt, "QMS-ACK-ACT-03")
+        self.assertEqual(len(self.graph.events), 1)
 
     def test_connector_catalog_builds_only_configured_systems(self) -> None:
         connectors = connectors_from_settings({
