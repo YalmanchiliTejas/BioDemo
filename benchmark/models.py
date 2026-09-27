@@ -117,6 +117,12 @@ class Investigation:
     closure_hour: int
     engineer_hours: float
     systems_accessed: set[str] = field(default_factory=set)
+    required_systems: set[str] = field(default_factory=set)
+    expected_cause: str = ""
+    diagnosed_cause: str = ""
+    evidence_cited: bool = False
+    counterevidence_assessed: bool = False
+    approval_compliant: bool = True
 
 
 @dataclass(frozen=True)
@@ -135,3 +141,7 @@ class ResponsePlan:
     yield_loss: float = 0.0
     reject_batch: bool = False
     rework_batch: bool = False
+    diagnosed_cause: str = ""
+    evidence_cited: bool = False
+    counterevidence_assessed: bool = False
+    approval_compliant: bool = True

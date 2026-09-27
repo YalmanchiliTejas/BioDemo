@@ -2,9 +2,10 @@
 
 A deterministic factory benchmark plus a tenant-scoped operations application for
 reviewing cases, running bounded specialist workflows, and controlling regulated
-actions. The simulation benchmark still implements only the **Traditional**
-operating model; the operations application is a separate control-plane reference
-implementation and does not change benchmark physics.
+actions. The simulation supports a **Traditional** baseline and an inspectable
+**Agent-assisted** operating-model projection. The latter is scenario analysis,
+not empirical evidence of AI performance; the operations application remains a
+separate control-plane reference implementation and does not change benchmark physics.
 
 ## What is modeled
 
@@ -14,14 +15,15 @@ implementation and does not change benchmark physics.
 - Eight simulated systems of record: MES/eBR, historian, LIMS, QMS, CMMS, ERP,
   scheduler, and LMS
 - Twelve deterministic failure scenarios with explicit ground-truth causes
-- A Traditional controller with information-retrieval, meeting, escalation,
-  investigation, approval, and manual replanning delays
+- Traditional and agent-assisted controllers over identical seeded faults
+- A scored investigation rubric covering cause accuracy, required evidence,
+  traceability, counter-evidence, and approval compliance
 - Complete JSONL event logs plus a JSON baseline summary
 - Fault evidence in historian/LIMS records, time-gated deviations and QC results,
   consumed material inventory, and explicit QC/material/QA release gates
 
-The physical model and scenario manifest are controller-independent. Future
-controllers must consume the same `CampaignDefinition` and `ScenarioManifest`.
+The physical model and scenario manifest are controller-independent. Both
+controllers consume the same `CampaignDefinition` and `ScenarioManifest`.
 
 ## Run
 
@@ -29,6 +31,8 @@ Requires Python 3.11+ and has no runtime dependencies.
 
 ```bash
 python -m benchmark run --mode traditional --seed 20250921 --output runs/baseline
+python -m benchmark run --mode agent_assisted --seed 20250921 --output runs/agent-assisted
+python -m benchmark compare --runs 30 --output runs/comparison
 python -m benchmark replay runs/baseline/events.jsonl
 python -m unittest discover -s tests -v
 ```
@@ -41,17 +45,19 @@ The run command writes:
 
 ## Scope boundary
 
-`point_ai` and `agentic` modes are reserved but deliberately unavailable. This
-prevents later decision layers from silently changing factory physics, failures,
-materials, staffing, or quality limits before the Traditional baseline is stable.
+Both controllers consume the same campaign and fault manifest. The agent-assisted
+controller changes only explicit response, labor, evidence, and documentation
+assumptions; it cannot change the faults, quality limits, or release gates.
 
 This simulator is a benchmark abstraction, **not a validated GMP system or a
-mechanistic bioprocess model**. The metrics are illustrative, not estimates of
-real-plant performance or agent uplift. See [the fidelity assessment](docs/FIDELITY.md)
+mechanistic bioprocess model**. The metrics are illustrative projections, not
+estimates of real-plant performance or measured agent uplift. See [the fidelity assessment](docs/FIDELITY.md)
 for explicit assumptions, remaining gaps, and the calibration evidence needed
 before comparing operating models. `benchmark/factory/process.py` exposes the
 narrow process-model interface where BIOPRO-Sim, PenSimPy, or another physical
 model can later be connected without changing controllers or systems-of-record APIs.
+Use the [prospective validation study](docs/VALIDATION_STUDY.md) to convert the
+modeled business case into evidence for external time-saving and quality claims.
 
 ## Dynamic knowledge base
 

@@ -9,6 +9,7 @@ from benchmark.campaign import standard_campaign
 from benchmark.factory import build_factory
 from benchmark.scenarios import build_scenario_manifest
 from benchmark.simulation import BenchmarkSimulation
+from benchmark.evaluation.comparison import compare_modes
 from benchmark.systems import SystemRegistry
 
 
@@ -70,9 +71,28 @@ class BenchmarkTests(unittest.TestCase):
             self.assertTrue((output / "campaign.json").exists())
             self.assertTrue((output / "summary.json").exists())
 
-    def test_unimplemented_modes_fail_closed(self) -> None:
-        with self.assertRaisesRegex(ValueError, "Only the Traditional"):
+    def test_unknown_modes_fail_closed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "mode must be"):
             BenchmarkSimulation(mode="agentic")
+
+    def test_agent_assisted_mode_preserves_safety_and_improves_modeled_work(self) -> None:
+        traditional = BenchmarkSimulation(seed=77, mode="traditional").run().metrics
+        assisted = BenchmarkSimulation(seed=77, mode="agent_assisted").run().metrics
+        self.assertLess(
+            assisted["msat_process_engineering"]["total_engineer_hours"],
+            traditional["msat_process_engineering"]["total_engineer_hours"],
+        )
+        self.assertGreater(
+            assisted["investigation_output_quality"]["composite_score"],
+            traditional["investigation_output_quality"]["composite_score"],
+        )
+        self.assertEqual(assisted["investigation_output_quality"]["approval_compliance_rate"], 1.0)
+
+    def test_paired_comparison_is_labeled_as_projection(self) -> None:
+        report = compare_modes(seed=77, runs=2)
+        self.assertEqual(report["claim_status"], "modeled_projection_not_empirical_validation")
+        self.assertEqual(report["paired_runs"], 2)
+        self.assertLess(report["endpoints"]["engineer_hours"]["absolute_change"], 0)
 
     def test_fault_evidence_and_quality_gates(self) -> None:
         simulation = BenchmarkSimulation(seed=20250921)

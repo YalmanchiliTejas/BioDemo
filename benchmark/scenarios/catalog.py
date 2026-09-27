@@ -29,7 +29,9 @@ def build_scenario_manifest(seed: int) -> ScenarioManifest:
         ("S02", "Declining cell viability", 72, "viability_decline", "BATCH-02", "media hold time reduced nutrient availability", "major"),
         ("S03", "Chromatography pressure increase", 148, "chrom_pressure", "CHROM-01", "column fouling increased backpressure", "major"),
         ("S04", "Transfer pump failure", 178, "equipment_failure", "PUMP-01", "seal wear caused pump trip", "critical"),
-        ("S05", "Bad raw-material lot", 231, "material_issue", "RM-003", "supplier lot had out-of-spec osmolality", "critical"),
+        # Trigger before BATCH-05's planned start so controller-driven schedule
+        # improvements cannot cause differential exposure to an already-bad lot.
+        ("S05", "Bad raw-material lot", 208, "material_issue", "RM-003", "supplier lot had out-of-spec osmolality", "critical"),
         ("S06", "QC result delayed", 278, "qc_delay", "BATCH-04", "QC instrument queue exceeded capacity", "moderate"),
         ("S07", "Out-of-specification result", 342, "oos", "BATCH-06", "bioburden excursion during sampling", "critical"),
         ("S08", "Batch starts 12 hours late", 376, "schedule_delay", "BATCH-08", "manual line clearance completed late", "moderate"),

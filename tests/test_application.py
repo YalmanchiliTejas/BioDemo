@@ -137,6 +137,23 @@ class IntelligenceAndOrchestrationTests(unittest.TestCase):
             self.assertEqual({case.tenant_id for case in northstar}, {"demo-cdmo"})
             self.assertEqual({case.tenant_id for case in helix}, {"helix-biologics"})
             self.assertEqual([case.case_id for case in helix], ["CASE-7812"])
+            agent_case = next(case for case in northstar if case.case_id == "CASE-AGENT-1001")
+            demo_access = AccessContext(
+                "demo-cdmo", "qa-14", ("PHX-01",), ("qa",), ("internal",),
+            )
+            agent_context = services.thread.knowledge.context(
+                agent_case.title,
+                entity_ids=[reference.entity_id for reference in agent_case.entity_refs],
+                access=demo_access,
+            )
+            self.assertEqual(len(agent_context.events), 3)
+            self.assertEqual(
+                len(services.thread.cases.tasks_for_case("CASE-AGENT-1001", "demo-cdmo")), 2,
+            )
+            self.assertEqual(
+                services.action_store.get("demo-cdmo", "ACT-AGENT-1001-HOLD").status,
+                ProposalStatus.PENDING,
+            )
             access = AccessContext("helix-biologics", "qa-22", ("BOS-02",), ("qa",))
             completed = services.thread.complete_task("TASK-211", access=access)
             self.assertEqual(completed.status, "completed")

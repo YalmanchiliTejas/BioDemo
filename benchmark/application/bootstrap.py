@@ -121,6 +121,18 @@ def _seed_demo(services: ApplicationServices) -> None:
             (EntityRef("BATCH-2398", "batch"), EntityRef("CHROM-01", "asset")),
             None, now - timedelta(days=1), now - timedelta(hours=3),
         ),
+        CaseRecord(
+            "CASE-AGENT-1001", "demo-cdmo", "deviation",
+            "Dissolved oxygen excursion during seed expansion", "qa-14", "PHX-01",
+            CaseStatus.INVESTIGATING,
+            (
+                EntityRef("BATCH-AGENT-01", "batch"),
+                EntityRef("BIOREACTOR-02", "asset"),
+                EntityRef("DO-PROBE-02", "asset", "sensor"),
+            ),
+            "Probe drift, gas-delivery restriction, and increased oxygen demand remain open hypotheses",
+            now - timedelta(hours=2), now - timedelta(minutes=7),
+        ),
     )
     for case in cases:
         services.thread.open_case(case, access=access)
@@ -128,6 +140,14 @@ def _seed_demo(services: ApplicationServices) -> None:
         HumanTask("TASK-81", "CASE-2409", "demo-cdmo", "review", "Review historian pH trace", "MSAT", assigned_to="msat-05"),
         HumanTask("TASK-82", "CASE-2410", "demo-cdmo", "approval", "Approve OOS phase-I assessment", "QA"),
         HumanTask("TASK-83", "CASE-2398", "demo-cdmo", "inspection", "Inspect column inlet frit", "Maintenance", assigned_to="maint-02"),
+        HumanTask(
+            "TASK-AGENT-01", "CASE-AGENT-1001", "demo-cdmo", "verification",
+            "Confirm dissolved oxygen with the qualified portable probe", "Operator",
+        ),
+        HumanTask(
+            "TASK-AGENT-02", "CASE-AGENT-1001", "demo-cdmo", "review",
+            "Review gas-flow and agitation evidence", "MSAT", assigned_to="msat-05",
+        ),
     )
     for task in tasks:
         services.thread.assign_task(task, access=access)
@@ -143,6 +163,54 @@ def _seed_demo(services: ApplicationServices) -> None:
         "APR-81", "supervisor-02", "supervisor", "approved", "manufacturing hold authorization",
         now - timedelta(minutes=12), "Hold is proportionate to observed risk",
     ), supervisor)
+    services.actions.propose(ActionProposal(
+        "ACT-AGENT-1001-HOLD", "demo-cdmo", "CASE-AGENT-1001", "place_hold",
+        "BATCH-AGENT-01", {"reason_code": "do_excursion", "source_system": "MES"},
+        "operator-07", "Prevent downstream processing until QA reviews the excursion evidence",
+        "PHX-01",
+    ), access)
+
+    # Correlated source records give the demo agent a real evidence trail to
+    # assemble and challenge rather than a case title with no supporting facts.
+    evidence_records = (
+        ("Historian", {
+            "source_record_id": "PI-DO-1001", "timestamp": (now - timedelta(hours=2)).isoformat(),
+            "event_type": "critical_process_parameter_excursion",
+            "title": "Dissolved oxygen below action limit for 11 minutes",
+            "observed_condition": "DO decreased from 42% to 18%; approved action limit is 25%",
+            "value": 18.0, "unit": "%", "limit": 25.0,
+            "entities": [
+                {"entity_id": "BATCH-AGENT-01", "entity_type": "batch"},
+                {"entity_id": "BIOREACTOR-02", "entity_type": "asset"},
+                {"entity_id": "DO-PROBE-02", "entity_type": "asset", "role": "sensor"},
+            ],
+        }),
+        ("MES", {
+            "source_record_id": "MES-STEP-1001", "timestamp": (now - timedelta(hours=1, minutes=54)).isoformat(),
+            "event_type": "operator_response_recorded",
+            "title": "Agitation increased under approved response procedure",
+            "previous_rpm": 180, "new_rpm": 220, "do_after_response": 23.0,
+            "entities": [
+                {"entity_id": "BATCH-AGENT-01", "entity_type": "batch"},
+                {"entity_id": "BIOREACTOR-02", "entity_type": "asset"},
+            ],
+        }),
+        ("CMMS", {
+            "source_record_id": "CMMS-CAL-1001", "timestamp": (now - timedelta(days=12)).isoformat(),
+            "event_type": "calibration_completed",
+            "title": "DO probe calibration completed within tolerance",
+            "as_found_error": 1.2, "unit": "% span", "tolerance": 2.0,
+            "entities": [
+                {"entity_id": "DO-PROBE-02", "entity_type": "asset"},
+                {"entity_id": "BIOREACTOR-02", "entity_type": "asset"},
+            ],
+        }),
+    )
+    for source_system, record in evidence_records:
+        services.thread.ingest_raw_event(
+            record, access=access, source_system=source_system,
+            site_id="PHX-01", classification="internal",
+        )
     qa_access = AccessContext("demo-cdmo", "msat-05", ("PHX-01",), ("supervisor",), ("internal", "confidential"))
     services.actions.propose(ActionProposal(
         "ACT-2410-CLOSE", "demo-cdmo", "CASE-2410", "close_deviation", "DEV-2410",

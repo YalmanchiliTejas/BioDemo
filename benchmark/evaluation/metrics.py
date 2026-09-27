@@ -17,6 +17,19 @@ def calculate_metrics(state: FactoryState, systems: SystemRegistry, duration_h: 
     starts = [b for b in state.batches.values() if b.actual_start_hour is not None]
     adherence = sum((b.actual_start_hour or 0) <= b.plan.planned_start_hour + 8 for b in starts) / len(starts) if starts else 0
     investigations = state.investigations
+    quality_scores = []
+    evidence_coverage = []
+    for investigation in investigations:
+        required = investigation.required_systems
+        coverage = len(investigation.systems_accessed & required) / len(required) if required else 1.0
+        evidence_coverage.append(coverage)
+        quality_scores.append(mean([
+            float(investigation.diagnosed_cause == investigation.expected_cause),
+            coverage,
+            float(investigation.evidence_cited),
+            float(investigation.counterevidence_assessed),
+            float(investigation.approval_compliant),
+        ]))
     deviation_durations = [
         d["closed_hour"] - d["opened_hour"]
         for d in systems.qms.deviations
@@ -58,5 +71,15 @@ def calculate_metrics(state: FactoryState, systems: SystemRegistry, duration_h: 
             "mean_engineer_hours_per_investigation": _avg([i.engineer_hours for i in investigations]),
             "mean_systems_accessed_per_investigation": _avg([len(i.systems_accessed) for i in investigations]),
             "investigations_per_engineer_month": len(investigations) / 2,
+        },
+        "investigation_output_quality": {
+            "root_cause_accuracy_fraction": round(mean([
+                i.diagnosed_cause == i.expected_cause for i in investigations
+            ]), 4) if investigations else 0,
+            "mean_required_evidence_coverage_fraction": round(mean(evidence_coverage), 4) if evidence_coverage else 0,
+            "traceable_output_rate": round(mean([i.evidence_cited for i in investigations]), 4) if investigations else 0,
+            "counterevidence_assessment_rate": round(mean([i.counterevidence_assessed for i in investigations]), 4) if investigations else 0,
+            "approval_compliance_rate": round(mean([i.approval_compliant for i in investigations]), 4) if investigations else 0,
+            "composite_score": round(mean(quality_scores), 4) if quality_scores else 0,
         },
     }

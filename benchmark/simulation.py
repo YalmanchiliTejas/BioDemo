@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from .campaign import CampaignDefinition, standard_campaign
-from .controllers import TraditionalController
+from .controllers import AgentAssistedController, TraditionalController
+from .evaluation.rubric import EVIDENCE_REQUIREMENTS
 from .evaluation.metrics import calculate_metrics
 from .factory import DeterministicProcessModel, FactoryState, build_factory
 from .models import BatchState, EventRecord, Investigation, ResponsePlan, Scenario
@@ -26,8 +27,8 @@ class BenchmarkSimulation:
     start_time = datetime(2025, 1, 1, tzinfo=timezone.utc)
 
     def __init__(self, seed: int = 20250921, mode: str = "traditional") -> None:
-        if mode != "traditional":
-            raise ValueError("Only the Traditional baseline is implemented in this milestone")
+        if mode not in {"traditional", "agent_assisted"}:
+            raise ValueError("mode must be 'traditional' or 'agent_assisted'")
         self.seed = seed
         self.mode = mode
         self.campaign: CampaignDefinition = standard_campaign()
@@ -35,7 +36,7 @@ class BenchmarkSimulation:
         self.process = DeterministicProcessModel(self.campaign.quality_limits)
         self.state: FactoryState = build_factory(self.campaign.batches)
         self.systems = SystemRegistry(self.state)
-        self.controller = TraditionalController()
+        self.controller = TraditionalController() if mode == "traditional" else AgentAssistedController()
         self.events: list[EventRecord] = []
         self._scenario_by_hour = {s.trigger_hour: s for s in self.manifest.scenarios}
         self._qc_delays: dict[str, int] = {}
@@ -132,6 +133,12 @@ class BenchmarkSimulation:
             closure_hour,
             plan.engineer_hours,
             set(plan.systems),
+            set(EVIDENCE_REQUIREMENTS[scenario.event_type]),
+            scenario.ground_truth_cause,
+            plan.diagnosed_cause,
+            plan.evidence_cited,
+            plan.counterevidence_assessed,
+            plan.approval_compliant,
         ))
 
         if scenario.event_type == "qc_delay" and batch_id:
@@ -159,7 +166,7 @@ class BenchmarkSimulation:
         self._log(
             scenario.name,
             "Physical disturbance occurs; response is pending",
-            "Traditional detection, investigation, and escalation are scheduled",
+            f"{self.mode} detection, investigation, and escalation are scheduled",
             tool=None,
             information=[f"Observed signal in {scenario.target}"],
             approval=False,
@@ -357,7 +364,7 @@ class BenchmarkSimulation:
                     facts = self._gather_information(scenario, plan, batch)
                     disposition = self._perform_intervention(scenario, plan, batch)
                     self._log(
-                        "traditional_intervention", plan.action, plan.decision,
+                        f"{self.mode}_intervention", plan.action, plan.decision,
                         tool=" + ".join(plan.systems), information=facts,
                         approval=plan.approval_required,
                         time_h=plan.detection_delay_h + plan.diagnosis_delay_h + plan.intervention_delay_h,

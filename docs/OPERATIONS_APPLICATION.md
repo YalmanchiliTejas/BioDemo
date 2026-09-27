@@ -186,6 +186,18 @@ Development mode is the default and seeds reviewable in-memory data:
 python3 -m benchmark serve
 ```
 
+The seeded `CASE-AGENT-1001` is the end-to-end agentic walkthrough. It starts with
+correlated Historian, MES, and CMMS evidence for a dissolved-oxygen excursion, three
+explicit hypotheses, two human tasks, and a supervisor-gated batch-hold proposal.
+Running its specialist assembles the authorized evidence and stops at human review.
+With a configured Prime model provider, the quality route uses the full deviation
+harness; otherwise set `PRIME_DEVIATION_AGENT_ENABLED=false` to use the deterministic
+fallback without presenting a broken model route.
+
+Prime Agent requires Node 22.8 or newer and one authenticated model provider. The
+launcher will direct an interactive user to `/login`; headless application runs should
+receive the selected provider credential through the deployment secret manager.
+
 Production mode uses the deployed digital-thread adapters and PostgreSQL stores:
 
 ```bash

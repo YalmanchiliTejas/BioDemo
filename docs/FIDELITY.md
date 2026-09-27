@@ -5,10 +5,16 @@ manufacturing, QC, maintenance, staffing, or financial data have been provided.
 The numbers in `runs/baseline/summary.json` must not be interpreted as expected
 performance at a CDMO or as evidence of agent benefit.
 
+The paired `benchmark compare` report is a **modeled projection**. It is useful
+for exposing assumptions, choosing pilot endpoints, and estimating a possible
+business-case range. It is not suitable for an external claim that AI has already
+saved time or improved quality. Such a claim requires a prospective, adjudicated
+shadow study on representative cases.
+
 ## Model boundaries
 
 The simulator has a fixed 30-day clock, one product, 12 batch plans, one
-upstream train, one downstream train, one QC lab, and a Traditional controller.
+upstream train, one downstream train, one QC lab, and two operating-model controllers.
 Stage durations, target mass, base yield, fault magnitudes, response times, and
 human effort are **explicit assumptions**, not fitted distributions. The
 scenario seed changes the incident time by at most two hours. The ground-truth
@@ -28,8 +34,22 @@ Implemented fidelity safeguards:
 - QMS deviations open after detection and close at their modeled closure time.
 - Batch release requires passing QC, a released material lot, and no open
   batch-linked deviations.
-- The same campaign and seeded fault manifest are independent of any future
-  controller; non-Traditional modes currently fail closed.
+- The same campaign and seeded fault manifest are used in paired Traditional and
+  agent-assisted runs. The latter has explicit, inspectable assumptions for faster
+  retrieval/coordination and more complete investigation artifacts.
+
+## What the comparison can and cannot establish
+
+The comparison reports paired changes in engineer effort, diagnosis and
+intervention time, deviation closure, released product, evidence coverage, and a
+five-part investigation-output score. The score weights root-cause correctness,
+required-evidence coverage, source traceability, counter-evidence assessment, and
+approval compliance equally. Evidence requirements are benchmark assertions in
+`benchmark/evaluation/rubric.py`, not approved site procedures.
+
+The benchmark can detect regressions, make assumptions reviewable, and define
+quantitative acceptance criteria. Because controller timings and artifact traits
+are configured rather than observed, it cannot by itself prove causal uplift.
 
 ## Important remaining gaps
 
@@ -70,7 +90,8 @@ Implemented fidelity safeguards:
   records) and ISA-95 (manufacturing operations and system exchanges), then have
   QA/MSAT/manufacturing specialists review the mappings and intervention rules.
 - Preserve common random numbers and identical physical inputs across modes;
-  report confidence intervals and paired differences, not one 30-day run.
+  report paired differences and seed-sensitivity ranges. Add confidence intervals
+  only after the scenario distributions have been calibrated to observations.
 
 Standards references: [ISA-88](https://www.isa.org/standards-and-publications/isa-standards/isa-88-standards),
 [ISA-95](https://www.isa.org/standards-and-publications/isa-standards/isa-95-standard).

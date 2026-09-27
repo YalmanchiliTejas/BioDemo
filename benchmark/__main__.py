@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .evaluation.replay import replay_summary
+from .evaluation.comparison import compare_modes
 from .simulation import BenchmarkSimulation
 
 
@@ -12,11 +13,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Biopharma factory benchmark")
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser("run", help="run a 30-day campaign")
-    run.add_argument("--mode", default="traditional", choices=["traditional"])
+    run.add_argument("--mode", default="traditional", choices=["traditional", "agent_assisted"])
     run.add_argument("--seed", type=int, default=20250921)
     run.add_argument("--output", type=Path, default=Path("runs/baseline"))
     replay = sub.add_parser("replay", help="summarize a JSONL event log")
     replay.add_argument("event_log", type=Path)
+    compare = sub.add_parser("compare", help="run paired traditional and agent-assisted projections")
+    compare.add_argument("--seed", type=int, default=20250921)
+    compare.add_argument("--runs", type=int, default=30)
+    compare.add_argument("--output", type=Path, default=Path("runs/comparison"))
     ingest = sub.add_parser("knowledge-ingest", help="ingest a JSONL event log into the CDMO digital thread")
     ingest.add_argument("event_log", type=Path)
     ingest.add_argument("--source", default="benchmark")
@@ -33,6 +38,8 @@ def main() -> None:
         print(json.dumps(result.metrics, indent=2, sort_keys=True))
     elif args.command == "replay":
         print(json.dumps(replay_summary(args.event_log), indent=2, sort_keys=True))
+    elif args.command == "compare":
+        print(json.dumps(compare_modes(seed=args.seed, runs=args.runs, output_dir=args.output), indent=2, sort_keys=True))
     elif args.command == "knowledge-ingest":
         from .integration.connectors import JsonlConnector
         from .knowledge.domain import AccessContext

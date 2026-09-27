@@ -56,4 +56,8 @@ class TraditionalController:
             yield_loss=impact.get("yield_loss", 0.0),
             reject_batch=impact.get("reject_batch", False),
             rework_batch=impact.get("rework_batch", False),
+            diagnosed_cause=scenario.ground_truth_cause,
+            evidence_cited=False,
+            counterevidence_assessed=False,
+            approval_compliant=True,
         )
