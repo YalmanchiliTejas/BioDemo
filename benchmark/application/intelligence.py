@@ -33,6 +33,15 @@ class DeterministicModelRouter:
             "optimization.doe": ModelProvider(
                 "optimization.doe", "optimization", "Deterministic full-factorial experiment design", self._doe,
             ),
+            "optimization.recovery": ModelProvider(
+                "optimization.recovery", "optimization", "Constraint-aware recovery-plan ranking", self._recovery,
+            ),
+            "simulation.scenario": ModelProvider(
+                "simulation.scenario", "simulation", "Transparent baseline-versus-plan scenario projection", self._scenario,
+            ),
+            "economics.impact": ModelProvider(
+                "economics.impact", "economics", "Benefit, cost, and net-value calculation", self._impact,
+            ),
         }
 
     def route(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -61,7 +70,7 @@ class DeterministicModelRouter:
         ] + [{
             "provider_id": "llm.reasoning",
             "family": "llm",
-            "description": "External reasoning model supplied by the Prime Agent harness",
+            "description": "Configured dynamic or Prime reasoning runtime",
             "configured": self.llm_configured,
             "deterministic": False,
         }]
@@ -127,6 +136,71 @@ class DeterministicModelRouter:
         ]
         return {"design": "full_factorial", "factors": names, "run_count": len(runs), "runs": runs}
 
+    @staticmethod
+    def _recovery(request: dict[str, Any]) -> dict[str, Any]:
+        options = request.get("options", [])
+        weights = request.get("weights", {})
+        if not isinstance(options, list) or not options:
+            raise ValueError("options must be a non-empty list")
+        if not isinstance(weights, dict) or not weights:
+            raise ValueError("weights must be a non-empty object")
+        ranked = []
+        for index, option in enumerate(options):
+            if not isinstance(option, dict):
+                raise ValueError("each option must be an object")
+            metrics = option.get("metrics", {})
+            violations = option.get("constraint_violations", [])
+            if not isinstance(metrics, dict) or not isinstance(violations, list):
+                raise ValueError("option metrics must be an object and violations a list")
+            feasible = not violations
+            score = sum(float(metrics.get(name, 0)) * float(weight) for name, weight in weights.items())
+            ranked.append({
+                "option_id": str(option.get("option_id", f"option-{index + 1}")),
+                "feasible": feasible,
+                "score": score if feasible else None,
+                "constraint_violations": [str(value) for value in violations],
+                "metrics": metrics,
+            })
+        ranked.sort(key=lambda item: (not item["feasible"], -(item["score"] or float("-inf"))))
+        return {"ranked_options": ranked, "selected_option_id": next((item["option_id"] for item in ranked if item["feasible"]), None)}
+
+    @staticmethod
+    def _scenario(request: dict[str, Any]) -> dict[str, Any]:
+        baseline = request.get("baseline", {})
+        changes = request.get("changes", {})
+        if not isinstance(baseline, dict) or not isinstance(changes, dict):
+            raise ValueError("baseline and changes must be objects")
+        projected: dict[str, float] = {}
+        for metric, value in baseline.items():
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError("baseline metrics must be numeric")
+            delta = changes.get(metric, 0)
+            if isinstance(delta, bool) or not isinstance(delta, (int, float)):
+                raise ValueError("scenario changes must be numeric")
+            projected[str(metric)] = float(value) + float(delta)
+        return {"baseline": baseline, "changes": changes, "projected": projected}
+
+    @staticmethod
+    def _impact(request: dict[str, Any]) -> dict[str, Any]:
+        benefits = request.get("benefits", {})
+        costs = request.get("costs", {})
+        if not isinstance(benefits, dict) or not isinstance(costs, dict):
+            raise ValueError("benefits and costs must be objects")
+        numeric = lambda values: {
+            str(key): float(value) for key, value in values.items()
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+        }
+        clean_benefits, clean_costs = numeric(benefits), numeric(costs)
+        total_benefit, total_cost = sum(clean_benefits.values()), sum(clean_costs.values())
+        return {
+            "benefits": clean_benefits,
+            "costs": clean_costs,
+            "total_benefit": total_benefit,
+            "total_cost": total_cost,
+            "net_value": total_benefit - total_cost,
+            "benefit_cost_ratio": None if total_cost == 0 else total_benefit / total_cost,
+        }
+
 
 class ToolGateway:
     """Small allow-listed gateway shared by agents and HTTP callers."""
@@ -137,6 +211,9 @@ class ToolGateway:
             "spc": "statistics.spc",
             "anomaly": "statistics.anomaly",
             "doe": "optimization.doe",
+            "recovery_plan": "optimization.recovery",
+            "scenario": "simulation.scenario",
+            "impact": "economics.impact",
         }
 
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:

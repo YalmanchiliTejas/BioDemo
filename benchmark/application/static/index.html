@@ -3,71 +3,125 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Northstar BioOps</title>
-  <link rel="stylesheet" href="/assets/styles.css">
+  <meta name="description" content="Northstar BioOps deploys governed AI agents for pharmaceutical manufacturing operations.">
+  <title>Northstar BioOps — Intelligence for every batch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/landing.css">
+  <link rel="stylesheet" href="/assets/landing-extra.css">
+  <link rel="stylesheet" href="/assets/landing-sections.css">
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand"><span class="brand-mark">B</span><div><strong>BioOps</strong><small>Operations intelligence</small></div></div>
-      <label class="tenant-picker"><span>Organization</span><select id="tenantSelect" aria-label="Organization"></select></label>
-      <nav id="nav">
-        <button class="nav-item active" data-view="overview"><span>⌂</span>Command center</button>
-        <button class="nav-item" data-view="cases"><span>◎</span>Investigations <b id="caseBadge">0</b></button>
-        <button class="nav-item" data-view="batches"><span>▦</span>Batch & shift</button>
-        <button class="nav-item" data-view="science"><span>⌁</span>Science & quality</button>
-        <button class="nav-item" data-view="connectors"><span>⇄</span>Source connectors</button>
-        <button class="nav-item" data-view="control"><span>◇</span>Agent control plane</button>
-        <button class="nav-item" data-view="approvals"><span>✓</span>Approval inbox <b id="approvalBadge">0</b></button>
-        <button class="nav-item" data-view="audit"><span>≡</span>Audit trail</button>
-      </nav>
-      <div class="system-card">
-        <div class="live-dot"></div><div><strong>Digital thread live</strong><small id="connectorHealth">Source monitor ready</small></div>
+  <div class="cursor-glow" aria-hidden="true"></div>
+  <header class="site-header" id="top">
+    <a class="brand" href="#top" aria-label="Northstar home"><svg viewBox="0 0 34 34" aria-hidden="true"><path d="M17 1.5 20.7 13 32.5 17l-11.8 4L17 32.5 13.2 21 1.5 17l11.7-4L17 1.5Z"/><circle cx="17" cy="17" r="4.2"/></svg><span>Northstar</span></a>
+    <button class="menu-toggle" aria-expanded="false" aria-label="Toggle navigation"><span></span><span></span></button>
+    <nav class="site-nav" aria-label="Main navigation"><a href="#agents">Agents</a><a href="#architecture">Architecture</a><a href="#outcomes">Why Northstar</a></nav>
+    <div class="nav-actions"><a class="text-link" href="/platform">Sign in</a><button class="button button-dark demo-trigger">Book a demo <span>↗</span></button></div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-image" aria-hidden="true"><div class="hero-wash"></div></div>
+      <div class="hero-cloud cloud-one" aria-hidden="true"></div><div class="hero-cloud cloud-two" aria-hidden="true"></div>
+      <div class="hero-content">
+        <div class="hero-kicker reveal"><span class="pulse-dot"></span> Built for regulated manufacturing</div>
+        <h1 class="reveal">Every batch has a path.<br><em>Our agents find it.</em></h1>
+        <p class="hero-copy reveal">A governed AI workforce that investigates deviations, connects evidence, and keeps pharmaceutical operations moving—with your experts in control.</p>
+        <div class="hero-actions reveal"><button class="button button-dark button-large demo-trigger">Meet your agent team <span>↗</span></button><a class="button button-glass button-large" href="#agents">See them in action <span>↓</span></a></div>
       </div>
-      <div class="profile"><div class="avatar">QA</div><div><strong id="profileName">Jordan Lee</strong><small id="profileScope">Sponsor QA · PHX-01</small></div><button aria-label="Profile menu">•••</button></div>
-    </aside>
+      <div class="hero-proof reveal"><div><strong>24 / 7</strong><span>operational awareness</span></div><div><strong>GxP</strong><span>ready by design</span></div><div><strong>Human</strong><span>approval at every gate</span></div></div>
+      <a class="scroll-cue" href="#agents" aria-label="Scroll to agents"><span></span> Explore</a>
+    </section>
 
-    <main>
-      <header>
-        <div><p class="eyebrow" id="workspaceScope">PHX-01 · MANUFACTURING OPERATIONS</p><h1 id="pageTitle">Operations command center</h1></div>
-        <div class="header-actions"><button class="icon-button" aria-label="Search">⌕</button><button class="icon-button notification" aria-label="Notifications">♢</button><button class="primary" id="newCase">+ New investigation</button></div>
-      </header>
+    <section class="trust-strip" aria-label="Connected systems">
+      <p>One intelligent layer across your operation</p>
+      <div class="logo-marquee"><div class="logo-track"><span>MES</span><i></i><span>LIMS</span><i></i><span>QMS</span><i></i><span>Historian</span><i></i><span>CMMS</span><i></i><span>ERP</span><i></i><span>MES</span><i></i><span>LIMS</span><i></i><span>QMS</span><i></i><span>Historian</span><i></i><span>CMMS</span><i></i><span>ERP</span><i></i></div></div>
+    </section>
 
-      <section class="view active" id="overviewView">
-        <div class="notice"><span>✦</span><div><strong>Operations intelligence brief</strong><p id="operationsBrief">Loading tenant-scoped operating context…</p></div><button data-go="cases">Review cases →</button></div>
-        <div class="metric-grid" id="metrics"></div>
-        <div class="two-column">
-          <article class="panel"><div class="panel-head"><div><p class="eyebrow">ACTIVE WORK</p><h2>Investigation queue</h2></div><button class="text-button" data-go="cases">View all</button></div><div id="overviewCases" class="case-list"></div></article>
-          <article class="panel"><div class="panel-head"><div><p class="eyebrow">QUALITY SIGNAL</p><h2>Right-first-time trend</h2></div><span class="pill good">+2.8% vs prior</span></div><div class="chart-wrap"><div class="chart-value">98.2<small>%</small></div><svg id="trendChart" viewBox="0 0 560 180" preserveAspectRatio="none"></svg><div class="axis"><span>SEP 02</span><span>SEP 08</span><span>SEP 14</span><span>SEP 20</span><span>TODAY</span></div></div></article>
+    <section class="agents-section" id="agents">
+      <div class="section-heading reveal"><span class="section-label">01 / YOUR AGENT TEAM</span><h2>Specialists for the work<br>that cannot wait.</h2><p>Give every critical workflow a tireless operator—trained on your procedures, grounded in your evidence, and bounded by your controls.</p></div>
+      <div class="agent-stage reveal">
+        <div class="agent-tabs" role="tablist" aria-label="Agent types">
+          <button class="agent-tab active" data-agent="deviation" role="tab" aria-selected="true"><b>01</b><span>Deviation investigator</span><small>From signal to evidence-backed hypothesis</small></button>
+          <button class="agent-tab" data-agent="release" role="tab" aria-selected="false"><b>02</b><span>Batch release coordinator</span><small>Ready the record before QA asks</small></button>
+          <button class="agent-tab" data-agent="maintenance" role="tab" aria-selected="false"><b>03</b><span>Maintenance intelligence</span><small>Connect asset health to batch risk</small></button>
         </div>
-        <article class="panel batch-strip-panel"><div class="panel-head"><div><p class="eyebrow">MANUFACTURING</p><h2>Batch pulse</h2></div><button class="text-button" data-go="batches">Open shift console</button></div><div id="batchStrip" class="batch-strip"></div></article>
-      </section>
+        <div class="agent-canvas" aria-live="polite">
+          <div class="agent-topline"><div class="agent-orb"><span></span></div><div><small>NORTHSTAR AGENT</small><strong id="agentName">Deviation investigator</strong></div><span class="live-pill"><i></i> Working</span></div>
+          <div class="conversation">
+            <div class="request-card"><span class="request-avatar">QA</span><div><small>QUALITY OPERATIONS · 08:42</small><p id="agentRequest">Dissolved oxygen dropped below the action limit on Batch 24-091. Start the investigation.</p></div></div>
+            <div class="agent-workflow"><div class="workflow-head"><span class="mini-orb"></span><strong id="workflowTitle">Tracing the deviation across your digital thread</strong></div><div class="workflow-steps" id="workflowSteps"><div class="done"><i>✓</i><span><b>Historian queried</b><small>11-minute excursion isolated</small></span></div><div class="done"><i>✓</i><span><b>Calibration checked</b><small>DO-PROBE-02 within tolerance</small></span></div><div class="active"><i></i><span><b>Correlating batch events</b><small>MES, CMMS, and operator records</small></span></div></div><div class="workflow-result"><span>HYPOTHESIS READY</span><p id="agentResult">Gas-delivery restriction is the leading cause. Two verification tasks drafted; batch hold requires QA approval.</p><button>Review evidence <b>→</b></button></div></div>
+          </div>
+          <div class="canvas-footer"><span><i></i> 4 source systems connected</span><span>Evidence lineage preserved</span></div>
+        </div>
+      </div>
+    </section>
 
-      <section class="view" id="casesView">
-        <div class="workspace-grid"><article class="panel list-panel"><div class="panel-head"><div><p class="eyebrow">CASE QUEUE</p><h2>Investigations</h2></div><select id="caseFilter"><option>All statuses</option><option>Open</option><option>Investigating</option><option>Pending approval</option></select></div><div id="caseList" class="case-list large"></div></article><article class="panel detail-panel" id="caseDetail"><div class="empty-state"><span>◎</span><h3>Select an investigation</h3><p>Review its timeline, evidence, tasks, and proposed actions.</p></div></article></div>
-      </section>
+    <section class="image-break" id="platform"><div class="manufacturing-image reveal"><img src="/assets/images/pharma-manufacturing.jpg" alt="Bright modern biopharmaceutical manufacturing suite with stainless steel bioreactors" loading="lazy"><div class="image-tag"><span>PHX-01</span><strong>Your floor, continuously understood.</strong><small>Signals become context. Context becomes controlled action.</small></div></div></section>
 
-      <section class="view" id="batchesView">
-        <div class="section-intro"><div><p class="eyebrow">CURRENT OPERATIONS</p><h2>Batch & shift console</h2><p>Tenant- and site-scoped status from the working case record.</p></div><div class="shift-chip"><span class="live-dot"></span><span id="dataFreshness">Refreshing…</span></div></div>
-        <div id="batchGrid" class="batch-grid"></div>
-        <div class="two-column"><article class="panel"><div class="panel-head"><h2>Operational handoff</h2><span class="pill" id="handoffCount">0 items</span></div><div class="handoff" id="handoffList"></div></article><article class="panel"><div class="panel-head"><h2>Open work by role</h2></div><div class="readiness" id="taskLoad"></div></article></div>
-      </section>
+    <section class="architecture-section" id="architecture">
+      <div class="architecture-intro reveal"><div><span class="section-label">02 / TARGET OPERATING ARCHITECTURE</span><h2>From live factory signal<br>to governed action.</h2></div><p>Northstar is not a chatbot placed beside your systems. It is an operating layer that builds a live picture of the factory, reasons over constraints, and closes the loop only through authorized systems and people.</p></div>
+      <div class="architecture-shell reveal">
+        <div class="architecture-rail" aria-label="Northstar architecture flow">
+          <button class="architecture-node active" data-architecture="connect"><span>01</span><b>Connect</b><small>Factory systems</small></button>
+          <i class="rail-arrow">→</i>
+          <button class="architecture-node" data-architecture="understand"><span>02</span><b>Understand</b><small>Operational twin</small></button>
+          <i class="rail-arrow">→</i>
+          <button class="architecture-node" data-architecture="decide"><span>03</span><b>Decide</b><small>AI decision engine</small></button>
+          <i class="rail-arrow">→</i>
+          <button class="architecture-node" data-architecture="act"><span>04</span><b>Coordinate</b><small>Persistent agents</small></button>
+          <i class="rail-arrow">→</i>
+          <button class="architecture-node" data-architecture="govern"><span>05</span><b>Govern</b><small>Human control</small></button>
+          <i class="rail-arrow">→</i>
+          <button class="architecture-node" data-architecture="learn"><span>06</span><b>Learn</b><small>Outcome loop</small></button>
+        </div>
+        <div class="architecture-detail">
+          <div class="architecture-copy"><span id="architectureStep">01 · VALIDATED INTEGRATION FABRIC</span><h3 id="architectureTitle">Connect to manufacturing truth.</h3><p id="architectureDescription">Validated adapters collect source records, telemetry, events, and controlled documents without replacing the authoritative systems your teams already trust.</p><div class="component-tags" id="architectureTags"><span>MES / eBR</span><span>Historian / PAT</span><span>LIMS / CDS</span><span>QMS</span><span>CMMS</span><span>ERP / WMS</span></div></div>
+          <div class="architecture-visual" id="architectureVisual">
+            <div class="source-grid"><span>MES</span><span>LIMS</span><span>QMS</span><span>PAT</span><span>CMMS</span><span>ERP</span></div>
+            <div class="flow-core"><i></i><strong>VALIDATED<br>EVENT FABRIC</strong><small>APIs · events · CDC</small></div>
+            <div class="data-pulse p1"></div><div class="data-pulse p2"></div><div class="data-pulse p3"></div>
+          </div>
+        </div>
+        <div class="architecture-foundation"><span>Always underneath</span><div><b>Identity & authorization</b><b>Immutable evidence</b><b>Risk policy</b><b>Separation of duties</b><b>Complete audit trail</b></div></div>
+      </div>
+    </section>
 
-      <section class="view" id="scienceView">
-        <div class="science-hero"><div><p class="eyebrow">SCIENTIST WORKSPACE</p><h2>Process and quality intelligence</h2><p>Explore approved evidence and run inspectable statistical jobs against authorized data.</p></div><div class="extension-status"><span>Analytics router</span><b class="online" id="modelStatus">Connected</b></div></div>
-        <div class="science-grid"><article class="panel"><div class="panel-head"><h2>Process signals</h2><select><option>Bioreactor · last 24h</option></select></div><div class="signal-chart"><svg viewBox="0 0 720 240" preserveAspectRatio="none"><path class="gridline" d="M0 40H720M0 100H720M0 160H720M0 220H720"/><path class="signal-area" d="M0 172 C60 164,80 150,120 158 S190 190,240 155 S310 78,360 104 S430 160,480 132 S550 54,600 88 S670 118,720 72 L720 240 L0 240Z"/><path class="signal-line" d="M0 172 C60 164,80 150,120 158 S190 190,240 155 S310 78,360 104 S430 160,480 132 S550 54,600 88 S670 118,720 72"/></svg><div class="legend"><span><i class="cyan"></i>pH deviation index</span><span><i class="amber"></i>Investigation threshold</span></div></div></article><article class="panel evidence-search"><div class="panel-head"><h2>Approved knowledge</h2></div><form id="contextSearch"><input id="contextQuery" placeholder="Search SOPs, decisions, deviations…"><button class="primary">Search</button></form><div id="contextResults" class="search-results"><div class="empty-state small"><span>⌕</span><p>Search returns permission-filtered results with exact evidence citations.</p></div></div></article></div>
-      </section>
+    <section class="platform-section">
+      <div class="section-heading dark reveal"><span class="section-label">03 / ONE OPERATIONAL BRAIN</span><h2>The connective tissue<br>for your factory.</h2></div>
+      <div class="platform-grid">
+        <article class="feature-card feature-large reveal"><div class="feature-copy"><span class="feature-index">A</span><h3>A living digital thread</h3><p>Every batch, asset, sample, event, and decision stays connected—so an agent never acts without context.</p></div><div class="thread-visual"><div class="thread-line"></div><span class="node n1"><i>01</i>Batch 24-091</span><span class="node n2"><i>02</i>DO excursion</span><span class="node n3"><i>03</i>Probe record</span><span class="node n4"><i>04</i>QA decision</span></div></article>
+        <article class="feature-card reveal"><span class="feature-index">B</span><div class="shield-icon"><svg viewBox="0 0 80 88"><path d="M40 3 71 15v25c0 21-12 36-31 45C21 76 9 61 9 40V15L40 3Z"/><path d="m26 43 9 9 20-22"/></svg></div><h3>Governance is not an add-on</h3><p>Role-aware access, exact evidence citations, approval gates, and an immutable trail are part of every run.</p></article>
+        <article class="feature-card reveal"><span class="feature-index">C</span><div class="signal-visual"><span style="--h:32%"></span><span style="--h:48%"></span><span style="--h:39%"></span><span style="--h:72%"></span><span style="--h:58%"></span><span style="--h:88%"></span><i></i></div><h3>Signals become decisions</h3><p>Move from threshold crossing to an inspectable recommendation in minutes—not days of system hopping.</p></article>
+      </div>
+    </section>
 
-      <section class="view" id="connectorsView"><div class="section-intro"><div><p class="eyebrow">SYSTEMS OF RECORD</p><h2>Source connectors</h2><p>Poll authorized records, preserve source evidence, and trigger deviation investigations from configured signals.</p></div><button class="primary" id="newConnector">+ Add connector</button></div><div id="connectorList" class="connector-grid"></div></section>
-      <section class="view" id="controlView"><div class="section-intro"><div><p class="eyebrow">AGENT CONTROL PLANE</p><h2>Specialists, jobs, and guarded tools</h2><p>See exactly which harness, model provider, and execution boundary is active.</p></div></div><div id="controlSummary" class="control-summary"></div><div class="control-layout"><article class="panel"><div class="panel-head"><div><p class="eyebrow">SPECIALIST ROSTER</p><h2>Case agents</h2></div></div><div id="agentRoster" class="roster"></div></article><article class="panel"><div class="panel-head"><div><p class="eyebrow">INTELLIGENCE</p><h2>Configured providers</h2></div></div><div id="providerRoster" class="roster"></div></article></div></section>
-      <section class="view" id="approvalsView"><div class="section-intro"><div><p class="eyebrow">HUMAN CONTROL POINT</p><h2>Approval inbox</h2><p>Risk policy determines the independent roles required before execution.</p></div></div><div id="approvalList" class="approval-list"></div></section>
-      <section class="view" id="auditView"><article class="panel"><div class="panel-head"><div><p class="eyebrow">IMMUTABLE ACTIVITY</p><h2>Authorization & audit trail</h2></div><button class="secondary" id="exportAudit">Export JSON</button></div><div id="auditList" class="audit-list"></div></article></section>
-    </main>
-  </div>
+    <section class="outcomes-section" id="outcomes">
+      <div class="outcomes-intro reveal"><span class="section-label">04 / BUILT FOR REAL OPERATIONS</span><h2>Software that works<br>at factory speed.</h2><p>Northstar fits the way your teams already operate, then gives them the leverage to do more.</p></div>
+      <div class="outcome-list"><article class="outcome reveal"><span>01</span><h3>Operational fluency</h3><p>Agents learn your SOPs, site logic, data model, and escalation paths—not a generic process map.</p><b>↗</b></article><article class="outcome reveal"><span>02</span><h3>Explainable by default</h3><p>Every finding links back to the source record, time, identity, and reasoning that produced it.</p><b>↗</b></article><article class="outcome reveal"><span>03</span><h3>Control stays human</h3><p>Agents prepare and propose. Your authorized people decide whenever risk crosses the line.</p><b>↗</b></article><article class="outcome reveal"><span>04</span><h3>Value compounds</h3><p>Each investigation strengthens an operational memory your next run can use.</p><b>↗</b></article></div>
+    </section>
 
-  <dialog id="caseDialog"><form method="dialog" id="caseForm"><div class="dialog-head"><div><p class="eyebrow">NEW RECORD</p><h2>Open investigation</h2></div><button value="cancel" class="icon-button">×</button></div><label>Case ID<input name="case_id" value="CASE-" required></label><label>Title<input name="title" placeholder="Concise investigation title" required></label><div class="form-row"><label>Type<select name="case_type"><option value="deviation">Deviation</option><option value="oos">OOS</option><option value="maintenance">Maintenance</option><option value="capa">CAPA</option></select></label><label>Owner<input name="owner_id" value="qa-14"></label></div><label>Related entity<input name="entity_id" placeholder="BATCH-####"></label><div class="dialog-actions"><button value="cancel" class="secondary">Cancel</button><button value="default" class="primary" id="submitCase">Open case</button></div></form></dialog>
-  <dialog id="connectorDialog"><form method="dialog" id="connectorForm"><div class="dialog-head"><div><p class="eyebrow">SYSTEM OF RECORD</p><h2>Add HTTP connector</h2></div><button value="cancel" class="icon-button">×</button></div><div class="form-row"><label>Connector ID<input name="connector_id" placeholder="mes-phx" required></label><label>Name<input name="name" placeholder="PHX MES" required></label></div><div class="form-row"><label>Source system<input name="source_system" placeholder="MES" required></label><label>Site<input name="site_id" value="PHX-01" required></label></div><label>Base URL<input name="base_url" type="url" placeholder="https://mes.example" required></label><label>Records path<input name="records_path" value="/api/deviation-signals" required></label><div class="form-row"><label>Poll interval (seconds)<input name="poll_interval_seconds" type="number" min="5" max="86400" value="60" required></label><label>Trigger event types<input name="trigger_event_types" placeholder="process_alarm,oos_result"></label></div><label>Field mapping JSON<input name="field_mapping" value="{}" required></label><div class="form-row"><label>Auth header<input name="auth_header" placeholder="Authorization"></label><label>Credential environment variable<input name="auth_token_env" placeholder="MES_API_TOKEN"></label></div><div class="connector-options"><label><input name="enabled" type="checkbox" checked> Enable monitoring</label><label><input name="auto_start_agent" type="checkbox" checked> Start deviation agent automatically</label></div><p class="form-help">Credentials remain on the application host. Enter only the environment variable name.</p><div class="dialog-actions"><button value="cancel" class="secondary">Cancel</button><button value="default" class="primary">Save connector</button></div></form></dialog>
-  <div id="toast" role="status"></div>
-  <script src="/assets/app.js"></script>
+    <section class="cta-section"><div class="cta-landscape" aria-hidden="true"></div><div class="cta-cloud" aria-hidden="true"></div><div class="cta-content reveal"><span class="section-label">THE NEXT BATCH STARTS HERE</span><h2>Put your operation<br>on a clearer path.</h2><p>See how a Northstar agent handles one of your most demanding workflows.</p><div><button class="button button-dark button-large demo-trigger">Book a working session <span>↗</span></button><a class="button button-light button-large" href="/platform">Explore the platform <span>→</span></a></div></div></section>
+
+    <section class="problem-section" id="contact">
+      <div class="problem-intro reveal"><span class="section-label">START WITH THE BOTTLENECK</span><h2>What is holding<br>your operation back?</h2><p>Describe the manufacturing issue in your own words. We’ll use it to prepare a focused working session—not a generic sales presentation.</p><div class="form-assurance"><span><i>✓</i> Your process stays confidential</span><span><i>✓</i> No perfectly cleaned data required</span><span><i>✓</i> Start with one high-value workflow</span></div></div>
+      <form class="problem-form reveal" id="problemForm">
+        <div class="form-row"><label>Work email<input type="email" name="email" placeholder="you@company.com" required></label><label>Company<input type="text" name="company" placeholder="Company name" required></label></div>
+        <div class="form-row"><label>Your role<input type="text" name="role" placeholder="e.g. Site Head, QA Director"></label><label>Manufacturing site or network<input type="text" name="site" placeholder="e.g. Phoenix biologics site"></label></div>
+        <fieldset><legend>Where is the bottleneck?</legend><div class="issue-options"><label><input type="checkbox" name="area" value="quality"><span>Quality & deviations</span></label><label><input type="checkbox" name="area" value="release"><span>Batch release</span></label><label><input type="checkbox" name="area" value="schedule"><span>Scheduling & capacity</span></label><label><input type="checkbox" name="area" value="maintenance"><span>Maintenance & downtime</span></label><label><input type="checkbox" name="area" value="materials"><span>Materials & inventory</span></label><label><input type="checkbox" name="area" value="qc"><span>QC flow & testing</span></label></div></fieldset>
+        <label>Describe the issue and how your team handles it today<textarea name="problem" rows="5" placeholder="Example: When an environmental excursion occurs, QA spends two days collecting records from four systems before the investigation can begin..." required></textarea></label>
+        <div class="form-row"><label>What data is available?<textarea name="data" rows="3" placeholder="MES events, historian tags, LIMS results, spreadsheets..."></textarea></label><label>What is the operational impact?<textarea name="impact" rows="3" placeholder="Release delay, downtime, overtime, lost capacity..."></textarea></label></div>
+        <div class="form-submit"><small>By submitting, you agree that Northstar may contact you about this operational challenge.</small><button class="button button-dark button-large" type="submit">Submit your bottleneck <span>↗</span></button></div>
+      </form>
+    </section>
+  </main>
+
+  <footer><div class="footer-brand"><a class="brand" href="#top"><svg viewBox="0 0 34 34"><path d="M17 1.5 20.7 13 32.5 17l-11.8 4L17 32.5 13.2 21 1.5 17l11.7-4L17 1.5Z"/><circle cx="17" cy="17" r="4.2"/></svg><span>Northstar</span></a><p>AI agents for the teams<br>behind every medicine.</p></div><div class="footer-links"><div><small>PLATFORM</small><a href="#agents">Agents</a><a href="#platform">Digital thread</a><a href="/platform">Control plane</a></div><div><small>COMPANY</small><a href="#outcomes">Why Northstar</a><button class="demo-trigger">Contact</button></div></div><div class="footer-bottom"><span>© 2026 Northstar BioOps</span><span>Built for life-changing work.</span></div></footer>
+
+  <dialog class="demo-dialog" id="demoDialog"><button class="dialog-close" aria-label="Close dialog">×</button><div class="dialog-copy"><span class="section-label">LET’S TALK OPERATIONS</span><h2>Bring us your hardest workflow.</h2><p>Tell us where your team loses time. We’ll show you what an agent can do with it.</p></div><form id="demoForm"><label>Work email<input type="email" required placeholder="you@company.com"></label><label>What should we explore?<select><option>Deviation investigations</option><option>Batch release readiness</option><option>Asset & maintenance intelligence</option><option>Something else</option></select></label><button class="button button-dark button-large">Request a working session <span>↗</span></button><small>No generic pitch. A focused 30-minute working session.</small></form></dialog>
+  <div class="toast" role="status">Thanks — we’ll be in touch.</div>
+  <script src="/assets/landing.js"></script>
 </body>
 </html>

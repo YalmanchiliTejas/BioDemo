@@ -148,22 +148,22 @@ OIDC/JWT claims at the gateway.
 | Architecture component | Base implementation |
 |---|---|
 | Case orchestrator | `CaseOrchestrator` selects a specialist from the case type and exposes one run contract. |
-| Production / maintenance | Deterministic evidence assembly plus anomaly-job capability. |
-| Quality / deviation / RCA / OOS | Prime Agent deviation harness when discovered; otherwise the deterministic runtime fails over without claiming LLM reasoning. |
-| Process science / formulation / experiment design | Deterministic evidence assembly with SPC and full-factorial DOE. |
-| CAPA / sponsor / release evidence | Deterministic evidence-completeness workflow with SPC. |
-| Agent runtime and jobs | Tenant-keyed run state plus inspectable statistical and optimization jobs. |
-| Model router | `DeterministicModelRouter`; unavailable LLM capacity is reported as unconfigured. |
-| Tool gateway | `ToolGateway` allow-lists `spc`, `anomaly`, and `doe`; manufacturing retrieval remains separately allow-listed by concept. |
+| Persistent operating agents | Dynamic campaign-recovery, QC-flow, maintenance, materials, quality, capacity, science, and CAPA/release specialists; Prime deviation and deterministic fallback remain available. |
+| Dynamic agent runtime | Provider-neutral command or HTTP reasoning adapter, tenant-keyed persisted runs, bounded tool rounds, structured findings/gaps/tasks/proposals, and explicit recommend-only authority. |
+| Decision engine and jobs | SPC, anomaly detection, DOE, recovery-plan ranking, scenario projection, and economic-impact calculation behind an allow-listed gateway. |
+| Model router | `DeterministicModelRouter` supplies inspectable computation while configured dynamic/Prime capacity is reported separately and honestly. |
+| Tool gateway | `ToolGateway` allow-lists `spc`, `anomaly`, `doe`, `recovery_plan`, `scenario`, and `impact`; manufacturing retrieval remains separately allow-listed by concept. |
 | Action gateway | Risk classification, separation-of-duties approvals, site authorization, audit, and execute-after-approval only. |
 | Context and memory | Immutable evidence, approved documents, process graph, working cases/tasks, semantic extension, and outbox. |
 | Integration | Checkpointed connectors, event normalization, monitored HTTP sources, and authoritative acknowledgement ingestion. |
+| Learning loop | Authorized actual-outcome capture persists projected-versus-actual metrics for value attribution, calibration, and performance monitoring. |
 
-The non-deviation specialists intentionally use the deterministic runtime in the base
-version. Reusing the Prime process launcher without dedicated, reviewed skills would
-make their behavior depend on the deviation system prompt. They instead share the
-same context envelope, run record, tool gateway, and human-gate semantics. A future
-specialist harness can replace one route without changing the UI or API contracts.
+When no dynamic provider is configured, non-deviation specialists intentionally use
+the deterministic fallback rather than pretending that a reasoning model is present.
+The dynamic runtime is provider-neutral and receives the routed specialist definition,
+authorized context envelope, tool catalog, and strict output contract on every run.
+This lets a reviewed command or HTTP adapter replace the fallback without changing UI,
+API, tenancy, action-control, or audit contracts.
 
 Development action execution returns a clearly identified `DEMO-ACK-*` receipt and
 ingests that acknowledgement through the digital thread so the entire feedback loop

@@ -17,6 +17,7 @@ from benchmark.knowledge.service import KnowledgeBase
 from .connector_monitor import ConnectorMonitor
 from .control import ActionControlPlane, ActionStore, InMemoryActionStore
 from .deviation_agent import PrimeAgentDeviationOrchestrator
+from .dynamic_agents import DynamicAgentRuntime
 from .execution import ActionExecutionGateway, DemoActionWriter, IntegrationActionWriter
 from .extensions import ExtensionRegistry
 from .intelligence import DeterministicModelRouter, ToolGateway
@@ -43,9 +44,11 @@ def build_demo_services(evidence_root: Path | None = None) -> ApplicationService
     thread = DigitalThread(KnowledgeBase(graph, documents), FileEvidenceStore(root), cases, outbox)
     action_store = InMemoryActionStore()
     deviation_harness = PrimeAgentDeviationOrchestrator.from_env()
-    router = DeterministicModelRouter(llm_configured=deviation_harness is not None)
+    router = DeterministicModelRouter(llm_configured=False)
     tools = ToolGateway(router)
-    orchestrator = CaseOrchestrator(tools, deviation_harness)
+    dynamic_harness = DynamicAgentRuntime.from_env(tools, Path(__file__).resolve().parents[2])
+    router.llm_configured = dynamic_harness is not None or deviation_harness is not None
+    orchestrator = CaseOrchestrator(tools, deviation_harness, dynamic_harness)
     extensions = ExtensionRegistry(orchestrator=orchestrator, model_router=router, tool_executor=tools)
     connector_state = (
         evidence_root.parent / "connectors.json"
@@ -73,10 +76,12 @@ def build_services_from_env() -> ApplicationServices:
         "POSTGRES_DSN", "postgresql://biopharma:biopharma-dev@localhost:5432/biopharma"
     ))
     deviation_harness = PrimeAgentDeviationOrchestrator.from_env()
-    router = DeterministicModelRouter(llm_configured=deviation_harness is not None)
+    router = DeterministicModelRouter(llm_configured=False)
     tools = ToolGateway(router)
+    dynamic_harness = DynamicAgentRuntime.from_env(tools, Path(__file__).resolve().parents[2])
+    router.llm_configured = dynamic_harness is not None or deviation_harness is not None
     extensions = ExtensionRegistry(
-        orchestrator=CaseOrchestrator(tools, deviation_harness),
+        orchestrator=CaseOrchestrator(tools, deviation_harness, dynamic_harness),
         model_router=router,
         tool_executor=tools,
     )

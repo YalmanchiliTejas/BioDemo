@@ -1,0 +1,169 @@
+flowchart TB
+    %% TARGET AI-NATIVE OPERATING SYSTEM FOR PHARMACEUTICAL MANUFACTURING
+
+    subgraph FACTORY["Live pharmaceutical factory"]
+        direction LR
+        MES["MES / eBR"]
+        HIST["Historian / SCADA / PAT"]
+        LAB["LIMS / CDS"]
+        QMS["QMS"]
+        CMMS["CMMS"]
+        SUPPLY["ERP / WMS / suppliers"]
+        SCHED["APS / scheduler"]
+        PEOPLE["Workforce / LMS"]
+        EQUIPMENT["DCS / equipment systems"]
+    end
+
+    subgraph FABRIC["Validated integration fabric"]
+        direction LR
+        INGEST["APIs, events, and CDC"]
+        ADAPTERS["Validated source adapters"]
+        EVENTS["Event bus"]
+        WRITERS["Controlled write adapters"]
+    end
+
+    subgraph TWIN["Real-time operational digital twin"]
+        direction LR
+        BATCH["Batch state and genealogy"]
+        ASSET["Equipment and facility state"]
+        MATERIAL["Materials and inventory"]
+        QCSTATE["QC capacity and release state"]
+        STAFF["Skills and workforce state"]
+        PLAN["Current campaign schedule"]
+        RULES["Recipes, SOPs, and GMP constraints"]
+        ECONOMICS["Costs, due dates, and business priorities"]
+    end
+
+    subgraph BRAIN["AI operations decision engine"]
+        direction LR
+        DETECT["Event, risk, and opportunity detection"]
+        INVESTIGATE["Evidence retrieval and<br/>causal investigation"]
+        PREDICT["Duration, failure, yield, and<br/>release forecasting"]
+        OPTIMIZE["Constraint optimization and<br/>production scheduling"]
+        SIMULATE["Recovery-plan simulation"]
+        VALUE["Operational and financial<br/>impact calculation"]
+        SELECT["Plan selection, explanation,<br/>and confidence"]
+    end
+
+    subgraph AGENTS["Persistent operating agents"]
+        direction LR
+        RECOVERY["Campaign recovery agent"]
+        QCAGENT["QC flow agent"]
+        MAINTENANCE["Maintenance coordination agent"]
+        MATERIALAGENT["Material and inventory agent"]
+        QUALITYAGENT["Deviation and quality agent"]
+        CAPACITY["Capacity planning agent"]
+    end
+
+    subgraph GOVERNANCE["Human-governed control plane"]
+        direction LR
+        IDENTITY["Identity and authorization"]
+        LIMITS["Agent authority limits"]
+        POLICY["Risk and policy engine"]
+        DUTIES["Separation of duties"]
+        APPROVAL["Human approval"]
+        AUDIT["Immutable evidence and<br/>decision record"]
+    end
+
+    subgraph EXECUTION["Operational execution"]
+        direction LR
+        REPLAN["Update production schedule"]
+        WORKORDER["Create or move work orders"]
+        QCQUEUE["Reprioritize QC queue"]
+        ALLOCATE["Allocate materials and staff"]
+        HOLD["Place or release controlled holds"]
+        TASKS["Dispatch human tasks"]
+    end
+
+    subgraph EXPERIENCE["Operations experience"]
+        direction LR
+        COPILOT["Conversational operations copilot"]
+        COMMAND["Live operations command center"]
+        OPTIONS["Recovery-plan comparison"]
+        EXPLAIN["Evidence and decision explanation"]
+        KPI["Value and outcome dashboard"]
+    end
+
+    subgraph LEARNING["Outcome and continuous-improvement loop"]
+        direction LR
+        OBSERVE["Observe actual outcome"]
+        COMPARE["Projected versus actual"]
+        ATTRIBUTE["Attribute recovered value"]
+        CALIBRATE["Calibrate models and constraints"]
+        MONITOR["Safety, drift, and agent performance"]
+    end
+
+    FACTORY --> INGEST
+    INGEST --> ADAPTERS
+    ADAPTERS --> EVENTS
+    EVENTS --> TWIN
+
+    TWIN --> DETECT
+    TWIN --> INVESTIGATE
+    TWIN --> PREDICT
+    TWIN --> OPTIMIZE
+    DETECT --> AGENTS
+    INVESTIGATE --> AGENTS
+    PREDICT --> OPTIMIZE
+    OPTIMIZE --> SIMULATE
+    SIMULATE --> VALUE
+    VALUE --> SELECT
+    SELECT --> AGENTS
+
+    AGENTS --> OPTIONS
+    AGENTS --> EXPLAIN
+    AGENTS --> POLICY
+    COPILOT <--> AGENTS
+    COMMAND --> TWIN
+
+    IDENTITY --> POLICY
+    LIMITS --> POLICY
+    POLICY --> DUTIES
+    DUTIES --> APPROVAL
+    APPROVAL --> AUDIT
+    OPTIONS --> APPROVAL
+    EXPLAIN --> APPROVAL
+    APPROVAL -->|Approved| EXECUTION
+    APPROVAL -->|Rejected or revised| AGENTS
+
+    EXECUTION --> WRITERS
+    WRITERS --> FACTORY
+
+    FACTORY --> OBSERVE
+    OBSERVE --> COMPARE
+    COMPARE --> ATTRIBUTE
+    ATTRIBUTE --> KPI
+    COMPARE --> CALIBRATE
+    CALIBRATE --> PREDICT
+    CALIBRATE --> OPTIMIZE
+    CALIBRATE --> VALUE
+    AGENTS --> MONITOR
+    MONITOR --> LIMITS
+
+    OBJECTIVE["Optimization objective<br/>Maximize released product, on-time delivery, and utilization<br/>Minimize holds, downtime, overtime, and waste"]
+    CONSTRAINTS["Hard constraints<br/>GMP, validated ranges, hold times, equipment compatibility,<br/>material release, operator qualifications, maintenance, and approvals"]
+
+    OBJECTIVE --> OPTIMIZE
+    CONSTRAINTS --> OPTIMIZE
+
+    classDef source fill:#172033,stroke:#7c8da6,color:#f4f7fb;
+    classDef fabric fill:#102a43,stroke:#39a0ed,color:#f4f7fb;
+    classDef twin fill:#11352d,stroke:#42c7a5,color:#f4f7fb;
+    classDef brain fill:#2b1d46,stroke:#9b7ede,color:#f4f7fb;
+    classDef agent fill:#382052,stroke:#c084fc,color:#f4f7fb;
+    classDef governance fill:#422d13,stroke:#e5a53a,color:#f4f7fb;
+    classDef execution fill:#3c2616,stroke:#f28c45,color:#f4f7fb;
+    classDef experience fill:#163247,stroke:#49b8e8,color:#f4f7fb;
+    classDef learning fill:#20391d,stroke:#7acb63,color:#f4f7fb;
+    classDef objective fill:#3b2025,stroke:#ec6674,color:#f4f7fb;
+
+    class MES,HIST,LAB,QMS,CMMS,SUPPLY,SCHED,PEOPLE,EQUIPMENT source;
+    class INGEST,ADAPTERS,EVENTS,WRITERS fabric;
+    class BATCH,ASSET,MATERIAL,QCSTATE,STAFF,PLAN,RULES,ECONOMICS twin;
+    class DETECT,INVESTIGATE,PREDICT,OPTIMIZE,SIMULATE,VALUE,SELECT brain;
+    class RECOVERY,QCAGENT,MAINTENANCE,MATERIALAGENT,QUALITYAGENT,CAPACITY agent;
+    class IDENTITY,LIMITS,POLICY,DUTIES,APPROVAL,AUDIT governance;
+    class REPLAN,WORKORDER,QCQUEUE,ALLOCATE,HOLD,TASKS execution;
+    class COPILOT,COMMAND,OPTIONS,EXPLAIN,KPI experience;
+    class OBSERVE,COMPARE,ATTRIBUTE,CALIBRATE,MONITOR learning;
+    class OBJECTIVE,CONSTRAINTS objective;

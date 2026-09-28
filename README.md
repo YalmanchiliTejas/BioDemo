@@ -113,6 +113,9 @@ python3 -m benchmark serve
 
 Open `http://127.0.0.1:8000`. The default development runtime uses seeded local
 data and in-memory stores so the UI can be reviewed without infrastructure.
+Set `BIODEMO_DYNAMIC_AGENT_COMMAND` or `BIODEMO_DYNAMIC_AGENT_URL` to enable the
+provider-neutral dynamic specialist runtime for every agent route; without one, the
+control plane reports and uses the bounded deterministic fallback.
 Set `APP_MODE=production` to use the PostgreSQL workflow/action stores and the
 configured Neo4j, MongoDB, MinIO, and optional Qdrant services.
 See [the operations application guide](docs/OPERATIONS_APPLICATION.md) for API,

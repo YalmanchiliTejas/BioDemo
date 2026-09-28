@@ -1,9 +1,11 @@
 # Operations application
 
-The operations application implements the human, experience, control-plane, and
-deterministic intelligence layers around the manufacturing digital thread. It can
-launch the external Prime Agent deviation runtime and routes other case types to
-bounded base specialists behind the same run contract.
+The operations application implements the human, experience, control-plane, dynamic
+agent, decision-engine, integration, and learning-loop layers around the manufacturing
+digital thread. A provider-neutral reasoning runtime can operate every specialist;
+the external Prime Agent deviation runtime remains supported, and an explicitly
+reported deterministic fallback keeps development usable without claiming dynamic
+reasoning.
 
 ## User workspaces
 
@@ -44,9 +46,10 @@ Its primary routes are:
 | `GET /api/health` | Runtime and extension status |
 | `GET /api/session` | Current tenant, actor, role, site, and clearance scope |
 | `GET /api/control-plane` | Specialist, model, tool, and execution status |
-| `POST /api/intelligence/{spc|anomaly|doe}` | Run an allow-listed deterministic job |
+| `POST /api/intelligence/{spc|anomaly|doe|recovery_plan|scenario|impact}` | Run an allow-listed decision job |
 | `POST /api/cases/{id}/agent` | Route a case to its bounded specialist |
 | `GET /api/agent-runs/{id}` | Read durable agent-run and deviation-case status |
+| `POST /api/cases/{id}/agent-outcomes` | Record actual metrics for projected-versus-actual learning |
 | `POST /api/agent/tools/{concept}` | Tenant-authorized read-only manufacturing retrieval |
 | `GET/POST /api/connectors` | List or configure tenant source connectors |
 | `POST /api/connectors/{id}/sync` | Run an immediate monitored-source synchronization |
@@ -64,15 +67,46 @@ headers directly.
 - `ModelRouterPort`
 - `ToolExecutorPort`
 
-The shipped `CaseOrchestrator` registers production/maintenance,
-quality/deviation/RCA/OOS, process-science/formulation/experiment-design, and
-CAPA/sponsor/release-evidence specialists. It auto-configures
-`PrimeAgentDeviationOrchestrator` for the quality route when it finds the Prime Agent
-deviation bundle. Other routes use deterministic evidence assembly in the base build.
-The model-router and tool-executor ports are populated by `DeterministicModelRouter`
-and `ToolGateway`; they expose SPC, median/MAD anomaly detection, and bounded
-full-factorial DOE. The control-plane endpoint and UI report each provider honestly,
-including the unconfigured LLM provider when Prime is absent.
+The shipped `CaseOrchestrator` registers campaign recovery, QC flow, maintenance,
+material/inventory, quality/deviation, process-science, CAPA/release, and capacity
+planning specialists. When a dynamic provider is configured, every route uses the
+same persisted `DynamicAgentRuntime`. It executes bounded tool-request rounds and
+stores structured findings, citations, gaps, confidence, human tasks, action
+proposals, impact projections, and the human-approval authority boundary.
+
+The tool gateway exposes SPC, median/MAD anomaly detection, bounded full-factorial
+DOE, constrained recovery-plan ranking, transparent scenario projection, and
+economic-impact calculation. A model may request these tools but cannot call a shell,
+database, system connector, approval, or action writer. The control-plane API and UI
+report the selected runtime and provider honestly.
+
+Configure a dynamic runtime with either a JSON stdin/stdout command:
+
+```bash
+BIODEMO_DYNAMIC_AGENT_COMMAND='/path/to/reasoning-adapter' \
+BIODEMO_DYNAMIC_AGENT_STATE=.prime \
+python3 -m benchmark serve
+```
+
+or a provider-neutral HTTP endpoint that accepts the documented request envelope and
+returns the structured output object:
+
+```bash
+BIODEMO_DYNAMIC_AGENT_URL=https://agent-runtime.example/v1/reason \
+BIODEMO_DYNAMIC_AGENT_TOKEN=... \
+python3 -m benchmark serve
+```
+
+`BIODEMO_DYNAMIC_AGENT_TIMEOUT` defaults to 180 seconds. Set
+`BIODEMO_DYNAMIC_AGENTS_ENABLED=false` to force the hybrid Prime/deterministic path.
+Provider tokens remain process environment values and are never written into run
+snapshots.
+
+When `BIODEMO_DYNAMIC_AGENT_PROVIDER` is `auto` (the default), the application also
+discovers `../prime-agent-bio/prime-agent.sh`. It runs that provider with tools,
+skills, extensions, context files, and session persistence disabled; the only output
+accepted is the structured decision JSON. Set the provider to `disabled` to prevent
+auto-discovery or `prime` to require this path explicitly.
 
 For sibling development checkouts, the default bundle is `../prime-agent-bio`.
 Override discovery with:
@@ -100,10 +134,14 @@ manufacturing change.
 
 | Case types | Specialist | Base harness |
 |---|---|---|
-| `maintenance`, `production`, `equipment` | Production & Maintenance | Deterministic runtime + anomaly jobs |
-| `deviation`, `oos`, `rca` | Quality, Deviation, RCA & OOS | Prime deviation harness when discovered; deterministic fallback |
-| `science`, `formulation`, `experiment` | Process Science & Experiment Design | Deterministic runtime + SPC/DOE jobs |
-| `capa`, `release`, `sponsor` | CAPA, Sponsor & Release Evidence | Deterministic runtime + SPC jobs |
+| `campaign`, `recovery`, `schedule_disruption` | Campaign Recovery | Dynamic runtime; deterministic fallback |
+| `qc`, `lab`, `testing`, `sample` | QC Flow | Dynamic runtime; deterministic fallback |
+| `maintenance`, `production`, `equipment` | Maintenance Coordination | Dynamic runtime; deterministic fallback |
+| `material`, `inventory`, `supply`, `shortage` | Material & Inventory | Dynamic runtime; deterministic fallback |
+| `deviation`, `oos`, `rca` | Quality, Deviation, RCA & OOS | Dynamic runtime; Prime or deterministic fallback |
+| `science`, `formulation`, `experiment` | Process Science & Experiment Design | Dynamic runtime; deterministic fallback |
+| `capa`, `release`, `sponsor` | CAPA, Sponsor & Release Evidence | Dynamic runtime; deterministic fallback |
+| `capacity`, `planning`, `schedule` | Capacity Planning | Dynamic runtime; deterministic fallback |
 
 Unknown case types fail into the quality specialist because it has the most conservative
 human-gate policy. Adding a new specialist requires a catalog entry, a bounded job/tool

@@ -25,9 +25,24 @@ class AgentDefinition:
 
 AGENTS = (
     AgentDefinition(
-        "production-maintenance", "Production & Maintenance", "operations",
+        "campaign-recovery", "Campaign Recovery", "operations",
+        ("campaign", "recovery", "schedule_disruption"), ("anomaly",),
+        "Compares constrained recovery plans and stages schedule changes for review.",
+    ),
+    AgentDefinition(
+        "qc-flow", "QC Flow", "quality_control",
+        ("qc", "lab", "testing", "sample"), ("spc", "anomaly"),
+        "Coordinates sample, testing, capacity, and release dependencies across QC.",
+    ),
+    AgentDefinition(
+        "production-maintenance", "Maintenance Coordination", "operations",
         ("maintenance", "production", "equipment"), ("anomaly",),
-        "Triages equipment and production signals and prepares bounded human work.",
+        "Connects asset condition to batch risk and prepares bounded maintenance work.",
+    ),
+    AgentDefinition(
+        "material-inventory", "Material & Inventory", "supply",
+        ("material", "inventory", "supply", "shortage"), ("anomaly",),
+        "Traces material readiness, constraints, alternates, and affected campaigns.",
     ),
     AgentDefinition(
         "quality-deviation", "Quality, Deviation, RCA & OOS", "quality",
@@ -44,15 +59,26 @@ AGENTS = (
         ("capa", "release", "sponsor"), ("spc",),
         "Checks evidence completeness and stages CAPA or release review packages.",
     ),
+    AgentDefinition(
+        "capacity-planning", "Capacity Planning", "planning",
+        ("capacity", "planning", "schedule"), ("spc", "anomaly"),
+        "Evaluates constrained capacity options across equipment, people, materials, and QC.",
+    ),
 )
 
 
 class CaseOrchestrator:
-    """Routes cases to a specialist while preserving the Prime deviation harness."""
+    """Routes cases to dynamic specialists with bounded fallback behavior."""
 
-    def __init__(self, tools: ToolGateway, deviation_harness: Any | None = None) -> None:
+    def __init__(
+        self,
+        tools: ToolGateway,
+        deviation_harness: Any | None = None,
+        dynamic_harness: Any | None = None,
+    ) -> None:
         self.tools = tools
         self.deviation_harness = deviation_harness
+        self.dynamic_harness = dynamic_harness
         self._runs: dict[str, dict[str, Any]] = {}
         self._case_state: dict[tuple[str, str], dict[str, Any]] = {}
         self._lock = threading.RLock()
@@ -62,7 +88,8 @@ class CaseOrchestrator:
         for definition in AGENTS:
             value = asdict(definition)
             value["harness"] = (
-                "prime_agent" if definition.agent_id == "quality-deviation" and self.deviation_harness
+                "dynamic_agent_runtime" if self.dynamic_harness
+                else "prime_agent" if definition.agent_id == "quality-deviation" and self.deviation_harness
                 else "deterministic_runtime"
             )
             values.append(value)
@@ -72,6 +99,8 @@ class CaseOrchestrator:
         case = context.get("case", {})
         case_type = str(case.get("case_type", "deviation")).lower()
         agent = self._agent_for(case_type)
+        if self.dynamic_harness is not None:
+            return self.dynamic_harness.start(case_id, context, asdict(agent))
         if agent.agent_id == "quality-deviation" and self.deviation_harness is not None:
             run = self.deviation_harness.start(case_id, context)
             return {**run, "agent_id": agent.agent_id, "harness": "prime_agent"}
@@ -110,6 +139,10 @@ class CaseOrchestrator:
             return dict(run)
 
     def get(self, run_id: str) -> dict[str, Any] | None:
+        if self.dynamic_harness:
+            run = self.dynamic_harness.get(run_id)
+            if run:
+                return run
         with self._lock:
             local = self._runs.get(run_id)
         if local:
@@ -122,6 +155,10 @@ class CaseOrchestrator:
 
     def latest(self, case_id: str, tenant_id: str | None = None) -> dict[str, Any] | None:
         values: list[dict[str, Any]] = []
+        if self.dynamic_harness:
+            external = self.dynamic_harness.latest(case_id, tenant_id)
+            if external:
+                values.append(external)
         with self._lock:
             values.extend(
                 run for run in self._runs.values()
@@ -134,6 +171,10 @@ class CaseOrchestrator:
         return dict(max(values, key=lambda value: value["created_at"])) if values else None
 
     def case_state(self, case_id: str, tenant_id: str | None = None) -> dict[str, Any] | None:
+        if self.dynamic_harness:
+            state = self.dynamic_harness.case_state(case_id, tenant_id)
+            if state:
+                return state
         if self.deviation_harness:
             external = self.deviation_harness.case_state(case_id, tenant_id)
             if external:
@@ -151,3 +192,22 @@ class CaseOrchestrator:
             (agent for agent in AGENTS if case_type in agent.case_types),
             next(agent for agent in AGENTS if agent.agent_id == "quality-deviation"),
         )
+
+    def runtime_status(self) -> dict[str, Any]:
+        if self.dynamic_harness and hasattr(self.dynamic_harness, "status"):
+            return {"mode": "dynamic", **self.dynamic_harness.status()}
+        if self.deviation_harness:
+            return {"mode": "hybrid", "configured": True, "provider_id": "prime_agent"}
+        return {"mode": "deterministic_fallback", "configured": True, "provider_id": None}
+
+    def record_outcome(
+        self,
+        case_id: str,
+        tenant_id: str,
+        actual_metrics: dict[str, float],
+        actor_id: str,
+        note: str = "",
+    ) -> dict[str, Any]:
+        if not self.dynamic_harness or not hasattr(self.dynamic_harness, "record_outcome"):
+            raise RuntimeError("dynamic agent learning loop is not configured")
+        return self.dynamic_harness.record_outcome(case_id, tenant_id, actual_metrics, actor_id, note)

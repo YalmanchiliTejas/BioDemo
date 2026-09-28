@@ -74,6 +74,10 @@ def create_app(services: ApplicationServices | None = None):
     class IntelligenceInput(BaseModel):
         arguments: dict[str, Any] = Field(default_factory=dict)
 
+    class AgentOutcomeInput(BaseModel):
+        actual_metrics: dict[str, float]
+        note: str = ""
+
     class ConnectorInput(BaseModel):
         connector_id: str
         name: str
@@ -166,6 +170,7 @@ def create_app(services: ApplicationServices | None = None):
         return {
             "tenant_id": access.tenant_id,
             "agents": orchestrator.catalog() if orchestrator and hasattr(orchestrator, "catalog") else [],
+            "agent_runtime": orchestrator.runtime_status() if orchestrator and hasattr(orchestrator, "runtime_status") else {"mode": "unavailable", "configured": False},
             "models": router.status() if router and hasattr(router, "status") else [],
             "tools": tools.status() if tools and hasattr(tools, "status") else [],
             "action_execution": {
@@ -397,7 +402,7 @@ def create_app(services: ApplicationServices | None = None):
     def start_deviation_agent(case_id: str, access: AccessContext = Depends(identity)):
         orchestrator = runtime.extensions.orchestrator
         if orchestrator is None:
-            raise HTTPException(503, "Prime Agent deviation orchestrator is not configured")
+            raise HTTPException(503, "agent orchestrator is not configured")
         case = require_visible_case(case_id, access)
         entity_ids = [reference.entity_id for reference in case.entity_refs]
         context_bundle = runtime.thread.knowledge.context(
@@ -432,7 +437,7 @@ def create_app(services: ApplicationServices | None = None):
     def agent_run(run_id: str, access: AccessContext = Depends(identity)):
         orchestrator = runtime.extensions.orchestrator
         if orchestrator is None:
-            raise HTTPException(503, "Prime Agent deviation orchestrator is not configured")
+            raise HTTPException(503, "agent orchestrator is not configured")
         run = orchestrator.get(run_id)
         if run is None or run.get("tenant_id", access.tenant_id) != access.tenant_id:
             raise HTTPException(404, "agent run not found")
@@ -443,6 +448,20 @@ def create_app(services: ApplicationServices | None = None):
             **run,
             "case_state": orchestrator.case_state(run["case_id"], access.tenant_id),
         }
+
+    @app.post("/api/cases/{case_id}/agent-outcomes", status_code=201)
+    def record_agent_outcome(
+        case_id: str, value: AgentOutcomeInput, access: AccessContext = Depends(identity),
+    ):
+        require_visible_case(case_id, access)
+        if not ({"qa", "sponsor_qa", "supervisor", "msat", "system_admin"} & set(access.roles)):
+            raise HTTPException(403, "a responsible operations or quality role is required")
+        orchestrator = runtime.extensions.orchestrator
+        if orchestrator is None or not hasattr(orchestrator, "record_outcome"):
+            raise HTTPException(503, "agent learning loop is not configured")
+        return safe(lambda: orchestrator.record_outcome(
+            case_id, access.tenant_id, value.actual_metrics, access.actor_id, value.note,
+        ))
 
     allowed_agent_tools = {
         "batches", "process_steps", "process_traces", "equipment_history",
@@ -493,6 +512,10 @@ def create_app(services: ApplicationServices | None = None):
     @app.get("/", include_in_schema=False)
     def index():
         return FileResponse(static_root / "index.html")
+
+    @app.get("/platform", include_in_schema=False)
+    def platform_frontend():
+        return FileResponse(static_root / "platform.html")
 
     return app
 
