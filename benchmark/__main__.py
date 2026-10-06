@@ -28,7 +28,7 @@ def main() -> None:
     ingest.add_argument("--tenant", default="default")
     ingest.add_argument("--site")
     ingest.add_argument("--classification", default="internal")
-    serve = sub.add_parser("serve", help="run the CDMO operations API and UI")
+    serve = sub.add_parser("serve", help="run the Manufacturing OS incident-replay demo")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()

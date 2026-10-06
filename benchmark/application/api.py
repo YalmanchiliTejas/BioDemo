@@ -21,8 +21,10 @@ def create_app(services: ApplicationServices | None = None):
         raise RuntimeError("Install the 'app' extra to run the API and UI") from exc
 
     from benchmark.knowledge.domain import AccessContext, CaseRecord, CaseStatus, EntityRef, HumanTask
+    from benchmark.incident_demo import IncidentDemoService
 
     runtime = services or build_services_from_env()
+    incident_demo = IncidentDemoService()
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -77,6 +79,13 @@ def create_app(services: ApplicationServices | None = None):
     class AgentOutcomeInput(BaseModel):
         actual_metrics: dict[str, float]
         note: str = ""
+
+    class DemoAssessmentInput(BaseModel):
+        cursor: int = Field(0, ge=0)
+        live: bool = False
+
+    class DemoTaskInput(BaseModel):
+        observation: str = ""
 
     class ConnectorInput(BaseModel):
         connector_id: str
@@ -470,6 +479,29 @@ def create_app(services: ApplicationServices | None = None):
         "process_knowledge",
     }
 
+    @app.get("/api/incident-demo")
+    def incident_demo_overview() -> dict[str, Any]:
+        return incident_demo.overview()
+
+    @app.post("/api/incident-demo/reset")
+    def incident_demo_reset() -> dict[str, Any]:
+        return incident_demo.reset()
+
+    @app.post("/api/incident-demo/assess")
+    def incident_demo_assess(value: DemoAssessmentInput) -> dict[str, Any]:
+        return incident_demo.assessment(value.cursor, live=value.live)
+
+    @app.post("/api/incident-demo/tasks/{task_id}/complete")
+    def incident_demo_complete_task(task_id: str, value: DemoTaskInput) -> dict[str, Any]:
+        return safe(lambda: {
+            "task": incident_demo.complete_task(task_id, value.observation),
+            "assessment": incident_demo.assessment(len(incident_demo.data["replay_events"]))["assessment"],
+        })
+
+    @app.get("/api/incident-demo/future-match")
+    def incident_demo_future_match() -> dict[str, Any]:
+        return incident_demo.future_match()
+
     @app.post("/api/agent/tools/{concept}")
     def agent_tool(
         concept: str,
@@ -515,7 +547,7 @@ def create_app(services: ApplicationServices | None = None):
 
     @app.get("/platform", include_in_schema=False)
     def platform_frontend():
-        return FileResponse(static_root / "platform.html")
+        return FileResponse(static_root / "index.html")
 
     return app
 
