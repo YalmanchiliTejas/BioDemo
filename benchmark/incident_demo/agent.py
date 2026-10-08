@@ -75,9 +75,19 @@ def deterministic_assessment(state: dict[str, Any]) -> dict[str, Any]:
     maintenance = state["maintenance"]
     complaints = state["complaints"]
     memory = state["incident_memory"]
+    product_by_batch = {item["batch_id"]: item.get("product") for item in state.get("batches", [])}
     failing = [item for item in labs if item["status"] in {"action_limit", "out_of_specification"}]
-    bioburden = [item for item in failing if item["test"] == "bioburden"]
-    passing_final = [item for item in labs if item["sample_type"] == "finished product" and item["status"] == "pass"]
+    bioburden = [
+        item for item in failing
+        if item["test"] == "bioburden" and product_by_batch.get(item["batch_id"]) == "Famotidine Injection, USP"
+    ]
+    affected_batch_ids = {item["batch_id"] for item in bioburden}
+    passing_final = [
+        item for item in labs
+        if item["sample_type"] == "finished product" and item["status"] == "pass"
+        and item["batch_id"] in affected_batch_ids
+    ]
+    complaints = [item for item in complaints if item.get("product") == "Famotidine Injection, USP"]
     organism = next((item for item in labs if item["test"] == "organism identification"), None)
     reserve_oos = next((item for item in labs if item["sample_type"] == "finished-product reserve"), None)
     batches = sorted({item["batch_id"] for item in bioburden})
@@ -127,7 +137,7 @@ def deterministic_assessment(state: dict[str, Any]) -> dict[str, Any]:
 
     fail_ids = [item["id"] for item in bioburden]
     pass_ids = [item["id"] for item in passing_final]
-    process_ids = [item["id"] for item in process if item["equipment_id"] == "HOLD-VSL-04"]
+    process_ids = [item["id"] for item in process if item.get("batch_id") in batches]
     maintenance_ids = [item["work_order"] for item in maintenance]
     hypotheses = []
     if bioburden:

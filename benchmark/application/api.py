@@ -22,9 +22,17 @@ def create_app(services: ApplicationServices | None = None):
 
     from benchmark.knowledge.domain import AccessContext, CaseRecord, CaseStatus, EntityRef, HumanTask
     from benchmark.incident_demo import IncidentDemoService
+    from src.data import TemporalFactoryStore
+    from src.rlm import RolloutEngine
+    from src.state import BlackboardStore
 
     runtime = services or build_services_from_env()
     incident_demo = IncidentDemoService()
+    repository = Path(__file__).resolve().parents[2]
+    rlm_engine = RolloutEngine(
+        TemporalFactoryStore(repository / "data" / "v1.1" / "agent_data.json"),
+        BlackboardStore(repository / ".prime" / "rlm-blackboards"),
+    )
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -86,6 +94,13 @@ def create_app(services: ApplicationServices | None = None):
 
     class DemoTaskInput(BaseModel):
         observation: str = ""
+
+    class RLMRolloutInput(BaseModel):
+        incident_id: str
+        problem: str
+        new_evidence_ids: list[str] = Field(min_length=1)
+        as_of: str
+        mode: str = "full_os"
 
     class ConnectorInput(BaseModel):
         connector_id: str
@@ -501,6 +516,17 @@ def create_app(services: ApplicationServices | None = None):
     @app.get("/api/incident-demo/future-match")
     def incident_demo_future_match() -> dict[str, Any]:
         return incident_demo.future_match()
+
+    @app.post("/api/manufacturing-os/rollouts")
+    def manufacturing_os_rollout(value: RLMRolloutInput) -> dict[str, Any]:
+        """Run or resume one bounded RLM investigation against v1.1 agent data."""
+        return safe(lambda: rlm_engine.run(
+            incident_id=value.incident_id,
+            problem=value.problem,
+            new_evidence_ids=value.new_evidence_ids,
+            as_of=value.as_of,
+            mode=value.mode,
+        ))
 
     @app.post("/api/agent/tools/{concept}")
     def agent_tool(

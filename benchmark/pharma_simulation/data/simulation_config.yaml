@@ -1,0 +1,128 @@
+simulation:
+  seed: 42
+  batch_count: 100
+  time_zone: UTC
+  philosophy: "Normal operations are generated first; labeled deviations are injected afterward."
+
+variables:
+  relative_bioburden_signal:
+    variable: prefiltration_bioburden
+    normal_model: "bounded log-normal; median approximately 0.18 action-limit units"
+    normal_bounds: [0.02, 0.68]
+    alert_limit: 0.70
+    action_limit: 1.00
+    sampling_frequency: "one upstream sample per generated batch"
+    temporal_variability: "independent batch variation plus incident-family shift"
+    correlations: "positive association with synthetic environmental microbial signal for incident family A"
+    missing_data_rate: 0.02
+    noise_model: "multiplicative log-normal measurement noise"
+    rationale: "An abstracted ratio avoids presenting an undisclosed manufacturer's CFU specification as fact."
+    source_type: "synthetic assumption informed by microbiological-control concepts"
+    source_reference: "FDA warning letter states action-limit failures but redacts the sampling point and limit."
+    confidence: medium
+
+  relative_endotoxin_signal:
+    variable: finished_product_endotoxin
+    normal_model: "bounded log-normal; values expressed as a ratio to a synthetic specification"
+    normal_bounds: [0.03, 0.55]
+    specification_limit: 1.00
+    sampling_frequency: "one finished-product result; reserve testing only in selected scenarios"
+    temporal_variability: "batch variation; delayed reserve result in incident family A"
+    correlations: "weak in normal operations; elevated conditional probability after repeated gram-negative signal"
+    missing_data_rate: 0.00
+    noise_model: "multiplicative log-normal measurement noise"
+    rationale: "Preserves the public sequence without inventing EU/mL limits."
+    source_type: "public sequence plus synthetic parameterization"
+    source_reference: "FDA warning letter and recall announcement"
+    confidence: medium
+
+  process_temperature_delta:
+    variable: process_temperature_delta
+    normal_model: "truncated normal centered at 0 normalized deviation units"
+    normal_bounds: [-2.0, 2.0]
+    alert_limit: 1.6
+    action_limit: 2.0
+    sampling_frequency: "one summarized event per batch"
+    temporal_variability: "batch-level Gaussian variation"
+    correlations: "none imposed with microbiological incident family"
+    missing_data_rate: 0.01
+    noise_model: "additive Gaussian"
+    rationale: "Normalized deviation avoids asserting a product-specific validated temperature range."
+    source_type: "synthetic assumption"
+    source_reference: null
+    confidence: low
+
+  differential_pressure_margin:
+    variable: differential_pressure_margin
+    normal_model: "bounded beta-like distribution represented in normalized operating-margin units"
+    normal_bounds: [0.20, 1.00]
+    alert_limit: 0.20
+    action_limit: 0.00
+    sampling_frequency: "one summarized environmental-control event per batch"
+    temporal_variability: "batch-level variation with occasional short benign dip"
+    correlations: "environmental excursions can co-occur with family A but are not asserted as causal"
+    missing_data_rate: 0.01
+    noise_model: "additive bounded noise"
+    rationale: "Directionally realistic but deliberately unitless."
+    source_type: "regulatory/process-supported concept; synthetic parameterization"
+    source_reference: "FDA Sterile Drug Products Produced by Aseptic Processing guidance"
+    confidence: medium
+
+  equipment_pressure_ratio:
+    variable: equipment_pressure_ratio
+    normal_model: "truncated normal centered at 1.0"
+    normal_bounds: [0.90, 1.10]
+    alert_limit: 1.10
+    action_limit: 1.18
+    sampling_frequency: "one summarized transfer event per batch"
+    temporal_variability: "batch-level variation"
+    correlations: "family B injects an equipment excursion with benign downstream quality results"
+    missing_data_rate: 0.02
+    noise_model: "additive Gaussian"
+    rationale: "Normalized ratio supports equipment-anomaly evaluation without claiming an actual setpoint."
+    source_type: "synthetic assumption"
+    source_reference: null
+    confidence: low
+
+  hold_duration_margin:
+    variable: normalized_hold_duration_margin
+    normal_model: "bounded mixture with substantial near-limit normal operation"
+    normal_bounds: [0.00, 1.00]
+    alert_limit: null
+    action_limit: null
+    sampling_frequency: "one summarized value per generated batch"
+    temporal_variability: "batch-level variation; at least twenty normal batches near 0.90–0.99"
+    correlations: "explicitly not predictive of incident-family membership"
+    missing_data_rate: 0.00
+    noise_model: "bounded uniform mixture"
+    rationale: "Prevents a near-limit hold feature from becoming a convenient incident proxy."
+    source_type: "synthetic assumption"
+    source_reference: null
+    confidence: low
+
+  sterility_result:
+    variable: finished_product_sterility
+    normal_model: "categorical no-growth result after a minimum 14-day simulated incubation"
+    normal_bounds: null
+    alert_limit: null
+    action_limit: null
+    sampling_frequency: "one result per generated batch"
+    temporal_variability: "result availability follows collection by at least 14 days"
+    correlations: "none imposed with upstream signal"
+    missing_data_rate: 0.00
+    noise_model: "categorical"
+    rationale: "Models a credible separation between collection and completed sterility result without claiming an internal method."
+    source_type: "regulatory/process-supported concept; synthetic timing"
+    source_reference: "USP sterility-test duration concept; exact manufacturer method is unknown"
+    confidence: medium
+
+generation_controls:
+  normal_batches: 84
+  benign_abnormality_batches: 8
+  low_severity_deviation_batches: 3
+  true_incident_batches: 5
+  negative_control_minimum: 15
+  incident_families:
+    A: "Repeated microbiological excursion; three reconstructed public lot identifiers"
+    B: "Equipment/process anomaly with benign quality outcome"
+    C: "Recurring deviation with evidence suggesting prior action was ineffective"

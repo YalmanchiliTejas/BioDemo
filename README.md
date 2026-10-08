@@ -33,6 +33,102 @@ Run the test suite with:
 python3 -m unittest discover -s tests -v
 ```
 
+## Reproducible validation benchmark
+
+### v1.1 Manufacturing OS RLM
+
+The additive `data/v1.1` layer preserves the original 100 batches and adds
+`occurred_at`, `available_at`, field-level availability, evidence availability
+types, and ambiguous precursor signals with negative controls. The Manufacturing
+OS runtime is explicitly a bounded Lead RLM with a persistent Blackboard, Causal
+Hypothesis Graph, and Decision Graph. Run its four context modes with:
+
+```bash
+PYTHONPATH=. python3 run_rlm_validation.py
+```
+
+Every run performs a leakage audit before executing or reporting results. The
+canonical behavior and tool contract are in [`system.md`](system.md), and the
+implementation architecture is in [`docs/architecture.md`](docs/architecture.md).
+
+The polished replay is backed by a separate 100-batch SQLite benchmark containing
+normal variation, negative controls, benign abnormalities, and three incident
+families. Generate and validate it with:
+
+```bash
+python generate_dataset.py --seed 42
+python validate_dataset.py
+python validate_public_facts.py
+python run_validation.py
+python generate_report.py
+python run_robustness.py --seeds 20 --start-seed 100
+```
+
+The committed benchmark report uses the deterministic contextual agent so it is
+reproducible and free to run. To benchmark a configured structured-JSON LLM provider:
+
+```bash
+python run_validation.py --live
+```
+
+Live evaluation calls the provider at each replay decision point and can incur
+meaningful API usage. It fails explicitly when no provider is configured rather than
+silently presenting fallback results as an LLM benchmark.
+
+Dataset `v1.0-frozen` uses seed `42` and is frozen at the fingerprint stored in
+[`frozen_seed_42.sha256`](benchmark/pharma_simulation/data/frozen_seed_42.sha256).
+The validation step fails if generation with that seed drifts. Change the generator
+only as a versioned benchmark change—never in response to an agent score. Once a
+dataset version is frozen, improve the agent against held-out behavior rather than
+tuning the data until the agent looks good.
+
+The harness evaluates:
+
+- incident recall, precision, and false-positive rate;
+- median time-to-detection and triage accuracy;
+- evidence grounding and future leakage;
+- investigation-scope recall; and
+- hypothesis and action relevance.
+
+It runs a deterministic local-event baseline and four context ablations: current
+event only, current batch plus LIMS, current batch plus LIMS/QMS, and full OS
+context (`current_event_only`, `lims_only`, `lims_qms`, and `full_os`). A separate A/B experiment compares full context without manufacturing
+memory against memory-enabled retrieval. Evaluation labels and final outcomes live
+in benchmark-only tables and are never returned by `state_at(timestamp)`.
+
+The generator enforces a minimum modeled 14-day interval between sterility-sample
+collection and result availability. Disposition follows completed release testing,
+and shipment follows disposition. Most normal batches run on the same reconstructed
+line as the incident lots, while at least 20 normal batches have near-limit hold
+values. This prevents `LINE-A` or hold duration from acting as trivial answer keys.
+
+Key benchmark artifacts:
+
+- SQLite: [`pharma_simulation.db`](benchmark/pharma_simulation/artifacts/pharma_simulation.db)
+- Agent-safe operational layer: [`agent_data.json`](benchmark/incident_demo/data/agent_data.json)
+- Hidden evaluation layer: [`benchmark_ground_truth.json`](benchmark/incident_demo/data/benchmark_ground_truth.json)
+- UI-only replay layer: [`replay_ui.json`](benchmark/incident_demo/data/replay_ui.json)
+- Inspectable JSON: [`pharma_simulation.json`](benchmark/pharma_simulation/artifacts/pharma_simulation.json)
+- CSV exports: [`artifacts/csv`](benchmark/pharma_simulation/artifacts/csv)
+- Public facts: [`public_ground_truth.json`](benchmark/incident_demo/data/public_ground_truth.json)
+- Simulation model: [`simulation_config.yaml`](benchmark/pharma_simulation/data/simulation_config.yaml)
+- Computed results: [`benchmark_results.md`](benchmark/pharma_simulation/artifacts/benchmark_results.md)
+- Statistical validation: [`validation_report.md`](benchmark/pharma_simulation/artifacts/validation_report.md)
+- Twenty-seed robustness report: [`robustness_report.md`](benchmark/pharma_simulation/artifacts/robustness_report.md)
+- Process assumptions: [`process_assumptions.md`](benchmark/pharma_simulation/process_assumptions.md)
+- Blind SME cases: [`sme_review_cases.md`](benchmark/pharma_simulation/artifacts/sme_review_cases.md)
+- SME response template: [`sme_review_template.csv`](benchmark/pharma_simulation/artifacts/sme_review_template.csv)
+
+> This dataset is a synthetic reconstruction designed to test manufacturing
+> decision-support workflows. Public incident facts are sourced from regulatory
+> records. Internal process measurements, timings, MES/LIMS/CMMS records, and
+> equipment telemetry are synthetic and are not representations of the
+> manufacturer's actual internal data.
+
+> The benchmark tests whether the system can identify and investigate emerging
+> patterns from information available at each point in simulated time. It does not
+> establish that the system would have prevented the historical event.
+
 ## The 60-second story
 
 1. Plant Overview shows a high-risk famotidine signal among normal and low-risk work.

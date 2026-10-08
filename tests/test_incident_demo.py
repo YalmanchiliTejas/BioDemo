@@ -35,9 +35,20 @@ class IncidentDemoTests(unittest.TestCase):
         service = IncidentDemoService()
         batches = service.data["batches"]
         ids = {batch["batch_id"] for batch in batches}
-        self.assertTrue({"6133156", "6133194", "6133388"} <= ids)
-        self.assertGreaterEqual(len(batches), 10)
+        self.assertTrue({"BATCH-075", "BATCH-084", "BATCH-099"} <= ids)
+        self.assertFalse({"6133156", "6133194", "6133388"} & ids)
+        self.assertEqual(len(batches), 100)
         self.assertTrue(any(batch["status"] == "released" for batch in batches))
+        self.assertFalse(any(batch["status"] == "recalled" for batch in batches))
+        normal_line_a = [batch for batch in batches if batch["batch_id"].startswith("SYN-") and batch["production_line"] == "LINE-A"]
+        self.assertGreaterEqual(len(normal_line_a), 50)
+
+    def test_primary_replay_has_no_memory_or_scripted_agent_win(self) -> None:
+        service = IncidentDemoService()
+        self.assertEqual(service.data["incident_memory"], [])
+        titles = {event["title"] for event in service.data["replay_events"]}
+        self.assertNotIn("Recurring pattern surfaced", titles)
+        self.assertNotIn("Broader pattern recognized manually", titles)
 
     def test_replay_state_does_not_leak_final_recall_outcome(self) -> None:
         service = IncidentDemoService()
@@ -45,8 +56,8 @@ class IncidentDemoTests(unittest.TestCase):
         serialized = json.dumps(state).lower()
         self.assertNotIn("recalled", serialized)
         self.assertNotIn("pf-005", serialized)
-        batch = next(item for item in state["batches"] if item["batch_id"] == "6133156")
-        self.assertEqual(batch["disposition"], "not_available_at_current_cutoff")
+        batch = next(item for item in state["batches"] if item["batch_id"] == "BATCH-075")
+        self.assertEqual(batch["disposition"], "released")
 
     def test_severity_increases_only_as_evidence_accumulates(self) -> None:
         service = IncidentDemoService()
@@ -55,9 +66,9 @@ class IncidentDemoTests(unittest.TestCase):
         self.assertEqual((first["severity"], first["triage_level"]), ("medium", "L2"))
         self.assertEqual((repeated["severity"], repeated["triage_level"]), ("high", "L3"))
         service.complete_task("TASK-MICRO-01", "Gram-negative organism confirmed.")
-        confirmed = service.assessment(9)["assessment"]
+        confirmed = service.assessment(10)["assessment"]
         self.assertEqual(confirmed["severity"], "critical")
-        self.assertIn("LR-004", confirmed["observations"][-1]["evidence_ids"])
+        self.assertIn("LR-HUMAN-001", confirmed["observations"][-1]["evidence_ids"])
 
     def test_invalid_model_evidence_ids_are_removed(self) -> None:
         service = IncidentDemoService(provider=InvalidEvidenceProvider())
@@ -73,11 +84,15 @@ class IncidentDemoTests(unittest.TestCase):
         self.assertNotIn("FUTURE-RECALL", returned_ids)
         self.assertEqual(assessment["hypotheses"][0]["confidence"], 1.0)
 
-    def test_comparison_is_derived_from_timeline_anchors(self) -> None:
+    def test_comparison_is_derived_from_frozen_benchmark(self) -> None:
         comparison = IncidentDemoService().comparison()
-        self.assertEqual(comparison["without_os"]["pattern_recognition_minutes"], 19 * 60)
-        self.assertEqual(comparison["with_os"]["pattern_recognition_minutes"], 3)
-        self.assertEqual(comparison["label"], "SIMULATED DEMO RESULTS")
+        self.assertEqual(comparison["label"], "SIMULATED BENCHMARK RESULT")
+        self.assertTrue(comparison["dataset_fingerprint"])
+        without = dict(comparison["without_os"]["metrics"])
+        with_os = dict(comparison["with_os"]["metrics"])
+        self.assertIn("Incident recall", without)
+        self.assertIn("Incident recall", with_os)
+        self.assertGreaterEqual(float(with_os["Incident recall"].rstrip("%")), float(without["Incident recall"].rstrip("%")))
 
 
 if __name__ == "__main__":
