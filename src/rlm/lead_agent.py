@@ -13,6 +13,7 @@ class RLMConfig:
     max_depth: int = 2
     max_parallel_subtasks: int = 6
     max_total_tool_calls_per_rollout: int = 24
+    max_model_calls_per_rollout: int = 6
 
 
 class LeadManufacturingRLM:
@@ -57,6 +58,7 @@ class LeadManufacturingRLM:
         context: ToolContext,
         recursion_depth: int,
         subtasks_spawned: int,
+        model_synthesis: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         valid_ids = context.session.visible_evidence_ids()
         new_ids = [row["_evidence_id"] for row in new_evidence if row["_evidence_id"] in valid_ids]
@@ -80,6 +82,11 @@ class LeadManufacturingRLM:
             "equipment_ids": equipment,
         }
         blackboard.severity = self._severity(new_evidence, blackboard.severity)
+        if model_synthesis:
+            severity_rank = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+            model_severity = model_synthesis.get("severity")
+            if model_severity in severity_rank and severity_rank[model_severity] > severity_rank[blackboard.severity]:
+                blackboard.severity = model_severity
         for row in new_evidence:
             observation = {"statement": f"New {row['_table']} evidence became available.", "evidence_ids": [row["_evidence_id"]]}
             if observation not in blackboard.observations:
@@ -90,7 +97,8 @@ class LeadManufacturingRLM:
             for finding in findings if finding["supporting_evidence_ids"]
         )
         blackboard.open_questions = list(dict.fromkeys(
-            uncertainty for finding in findings for uncertainty in finding["uncertainties"]
+            [uncertainty for finding in findings for uncertainty in finding["uncertainties"]]
+            + ([str(item) for item in model_synthesis.get("open_questions", [])] if model_synthesis else [])
         ))
 
         domain = self._signal_domain(new_evidence[-1] if new_evidence else {})
@@ -130,10 +138,27 @@ class LeadManufacturingRLM:
                 "unknowns": blackboard.open_questions[:3],
                 "tests_or_observations_that_would_discriminate": ["targeted review of independent evidence"],
             }, valid_ids)
+        if model_synthesis:
+            for index, item in enumerate(model_synthesis.get("hypotheses", [])[:6], 1):
+                raw_id = str(item.get("hypothesis_id") or f"MODEL-{index}").upper()
+                identifier = "H-RLM-" + "".join(character for character in raw_id if character.isalnum() or character == "-")[:48]
+                graph.upsert({
+                    "hypothesis_id": identifier,
+                    "statement": str(item.get("statement", "")),
+                    "causal_parent_ids": [], "causal_child_ids": [root_id],
+                    "confidence": item.get("confidence", 0.0),
+                    "supporting_evidence_ids": item.get("supporting_evidence_ids", []),
+                    "contradicting_evidence_ids": item.get("contradicting_evidence_ids", []),
+                    "unknowns": item.get("unknowns", []),
+                    "tests_or_observations_that_would_discriminate": item.get("discriminators", []),
+                }, valid_ids)
         blackboard.causal_hypotheses = graph.to_list()
 
         pending_request = None
-        if blackboard.open_questions or domain in {"microbiology", "equipment"}:
+        if model_synthesis:
+            for request_value in model_synthesis.get("evidence_requests", [])[:3]:
+                pending_request = tools.execute("request_new_evidence", context, request_value)["request"]
+        if pending_request is None and (blackboard.open_questions or domain in {"microbiology", "equipment"}):
             request_type = "organism identification test" if domain == "microbiology" else "equipment inspection" if domain == "equipment" else "operator confirmation"
             pending_request = tools.execute("request_new_evidence", context, {
                 "evidence_type": request_type,
@@ -142,6 +167,9 @@ class LeadManufacturingRLM:
                 "priority": "high" if blackboard.severity in {"HIGH", "CRITICAL"} else "medium",
                 "decision_dependency": "scope and escalation branch",
             })["request"]
+        if model_synthesis:
+            for task_value in model_synthesis.get("tasks", [])[:3]:
+                task = tools.execute("create_investigation_task", context, task_value)["task"]
         if not blackboard.recommended_actions:
             task = tools.execute("create_investigation_task", context, {
                 "owner": "QA", "action": "Review the evidence-grounded investigation and confirm scope.",
@@ -152,7 +180,7 @@ class LeadManufacturingRLM:
             task = blackboard.recommended_actions[-1]
 
         decisions = DecisionGraph(blackboard.decision_branches)
-        dependency_ids = [pending_request["request_id"]] if pending_request else []
+        dependency_ids = [item["request_id"] for item in blackboard.pending_evidence]
         decisions.upsert({
             "decision_id": "D-CURRENT",
             "condition": f"Pending discriminating evidence supports the leading {domain} pathway.",
@@ -170,7 +198,11 @@ class LeadManufacturingRLM:
         })
         blackboard.decision_branches = decisions.to_list()
         blackboard.status = "suspended_pending_evidence" if blackboard.pending_evidence else "awaiting_human_review"
-        assessment = f"Investigation opened or resumed from {len(new_ids)} newly available evidence record(s); {len(findings)} bounded investigations completed."
+        assessment = (
+            str(model_synthesis.get("assessment"))
+            if model_synthesis and model_synthesis.get("assessment")
+            else f"Investigation opened or resumed from {len(new_ids)} newly available evidence record(s); {len(findings)} bounded investigations completed."
+        )
         output = {
             "assessment": assessment,
             "severity": blackboard.severity,

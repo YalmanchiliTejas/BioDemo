@@ -57,6 +57,24 @@ OBSERVE
 
 New evidence resumes the same incident Blackboard. The runtime does not replay a conversation transcript and does not persist private reasoning. A rollout is bounded by recursion depth, concurrent subtasks, and total tool calls.
 
+### Codex-backed agentic execution
+
+Agentic mode invokes `gpt-6-luna` through the user's authenticated Codex CLI.
+Each invocation runs in a fresh temporary directory with a read-only sandbox,
+ignored user/project rules, a strict JSON output schema, and an explicit no-tool
+instruction. Only the already-redacted request payload is supplied. The model
+drives recursive decomposition, bounded worker tool planning, compressed worker
+findings, and Lead synthesis; the model never executes factory tools directly.
+Codex event usage provides actual input, cached-input, output, and reasoning-token
+counts. Deterministic mode remains available for reproducible offline regression.
+
+The same schema-constrained stages can run directly through the OpenAI Responses
+API with `--provider openai`. The API provider reads `OPENAI_API_KEY`, sends no
+factory tools to the model, disables response storage, records API token usage,
+and retries bounded transient transport and rate-limit failures. Only the model
+transport changes; temporal retrieval, blackboards, graphs, and evaluation remain
+identical.
+
 ## Architectural decisions
 
 ### Lead RLM

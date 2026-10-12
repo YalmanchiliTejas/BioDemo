@@ -47,6 +47,32 @@ Hypothesis Graph, and Decision Graph. Run its four context modes with:
 PYTHONPATH=. python3 run_rlm_validation.py
 ```
 
+Run a real Luna-backed agentic smoke benchmark through the authenticated Codex
+CLI with:
+
+```bash
+PYTHONPATH=. python3 run_rlm_validation.py --agentic --model gpt-6-luna --smoke \
+  --output artifacts/rlm_agentic_smoke_results.json
+```
+
+Or use an OpenAI API key through the Responses API:
+
+```bash
+export OPENAI_API_KEY="..."
+PYTHONPATH=. python3 run_rlm_validation.py --agentic --provider openai \
+  --model gpt-6-luna --output artifacts/rlm_openai_luna_benchmark_results.json
+```
+
+Omit `--smoke` only after setting an explicit usage budget. The frozen dataset
+currently produces 94 eligible rollouts; at the default depth this permits up to
+564 model calls. Codex runs in an isolated temporary directory with a read-only
+sandbox and is instructed not to use tools. Factory tools remain mediated by the
+temporal runtime.
+
+For a capped diagnostic run, use `--max-rollouts-per-mode N`. Capped runs are
+marked partial and do not report recall, precision, scope, or timing as valid
+performance metrics.
+
 Every run performs a leakage audit before executing or reporting results. The
 canonical behavior and tool contract are in [`system.md`](system.md), and the
 implementation architecture is in [`docs/architecture.md`](docs/architecture.md).

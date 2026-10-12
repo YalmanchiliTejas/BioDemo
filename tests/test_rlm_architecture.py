@@ -174,3 +174,60 @@ def test_precursors_include_incident_and_negative_controls_only_in_hidden_metada
     assert len(precursors) == len(metadata) == 4
     assert sum(item["hard_failure_timestamp"] is None for item in metadata) == 2
     assert "proactive_detection_optional" not in json.dumps(precursors)
+
+
+def test_agentic_provider_drives_bounded_rollout_without_bypassing_tools(tmp_path: Path) -> None:
+    class FakeProvider:
+        provider_id = "fake.luna"
+
+        def __init__(self):
+            self.calls = 0
+
+        def snapshot(self):
+            return {
+                "model_calls": self.calls, "input_tokens": self.calls * 10,
+                "cached_input_tokens": 0, "output_tokens": self.calls * 2,
+                "reasoning_output_tokens": 0,
+            }
+
+        def decompose(self, _payload):
+            self.calls += 1
+            return {"questions": [{
+                "question": "What evidence is available for this batch?",
+                "investigation_type": "batch_context", "batch_id": "BATCH-075",
+                "equipment_id": "", "search_term": "bioburden",
+            }]}
+
+        def plan_workers(self, _payload):
+            self.calls += 1
+            return {"plans": [{
+                "question_id": "Q-D1-1",
+                "tool_requests": [{"tool_name": "get_batch_context", "arguments_json": '{"batch_id":"BATCH-075"}'}],
+            }]}
+
+        def summarize_workers(self, payload):
+            self.calls += 1
+            ids = payload["tool_packets"][0]["tool_results"][0]["result"]["evidence_ids"]
+            return {"findings": [{
+                "question_id": "Q-D1-1", "finding": "Time-valid batch evidence was retrieved.",
+                "supporting_evidence_ids": ids, "contradicting_evidence_ids": [], "uncertainties": [],
+            }]}
+
+        def synthesize(self, _payload):
+            self.calls += 1
+            return {
+                "assessment": "Model synthesis completed.", "severity": "HIGH", "open_questions": [],
+                "hypotheses": [], "evidence_requests": [], "tasks": [],
+            }
+
+    factory = store()
+    event = next(item for item in factory.event_stream() if item["evidence_id"] == "LAB-0225")
+    lead = LeadManufacturingRLM(RLMConfig(max_depth=1, max_parallel_subtasks=2, max_total_tool_calls_per_rollout=8))
+    output = RolloutEngine(factory, BlackboardStore(tmp_path), lead, FakeProvider()).run(
+        incident_id="INC-FAKE-LUNA", problem="Investigate", new_evidence_ids=["LAB-0225"],
+        as_of=event["available_at"], mode="full_os",
+    )
+    assert output["assessment"] == "Model synthesis completed."
+    assert output["rollout_metrics"]["provider_id"] == "fake.luna"
+    assert output["rollout_metrics"]["model_calls"] == 4
+    assert output["rollout_metrics"]["tool_calls"] <= 8

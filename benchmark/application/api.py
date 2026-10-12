@@ -23,15 +23,24 @@ def create_app(services: ApplicationServices | None = None):
     from benchmark.knowledge.domain import AccessContext, CaseRecord, CaseStatus, EntityRef, HumanTask
     from benchmark.incident_demo import IncidentDemoService
     from src.data import TemporalFactoryStore
-    from src.rlm import RolloutEngine
+    from src.rlm import CodexRLMProvider, OpenAIRLMProvider, RolloutEngine
     from src.state import BlackboardStore
 
     runtime = services or build_services_from_env()
     incident_demo = IncidentDemoService()
     repository = Path(__file__).resolve().parents[2]
+    provider_kind = os.getenv("BIODEMO_RLM_PROVIDER", "deterministic").lower()
+    provider_model = os.getenv("BIODEMO_RLM_MODEL", "gpt-6-luna")
+    if provider_kind == "codex":
+        rlm_provider = CodexRLMProvider(repository, model=provider_model)
+    elif provider_kind == "openai":
+        rlm_provider = OpenAIRLMProvider(repository, model=provider_model)
+    else:
+        rlm_provider = None
     rlm_engine = RolloutEngine(
         TemporalFactoryStore(repository / "data" / "v1.1" / "agent_data.json"),
         BlackboardStore(repository / ".prime" / "rlm-blackboards"),
+        provider=rlm_provider,
     )
 
     @asynccontextmanager

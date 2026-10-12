@@ -1,0 +1,11 @@
+# Dataset provenance
+
+## CHO
+
+Uhlendorff et al., *Dataset Based on Chinese Hamster Ovary (CHO) Cultivations including Turbidity, Permittivity, O2 and CO2 Measurements*, Zenodo v1, published 2026-08-11, DOI `10.5281/zenodo.20829178`. Source: https://zenodo.org/records/20829178 . Direct archive: https://zenodo.org/records/20829178/files/Dataset.zip?download=1 . Published archive MD5: `71b2a35b7df2ed11644ec9f177453772`; the downloaded copy matches. Manifest v2 records SHA-256 checksums for all 60 extracted files and preserves the original download timestamp. The validation command checks the archive and every extracted file. Zenodo API metadata reports `cc-by-4.0`, so redistribution requires attribution and license notice. The source archive and extraction manifest are under `benchmarks/cho`.
+
+## Fresenius
+
+Canonical synthetic records are the existing frozen `data/v1.1/agent_data.json`. Hidden labels and publicly documented validation facts remain in separate v1.1 files. `benchmarks/fresenius/source_manifest.json` records SHA-256 checksums and roles for all four frozen v1.1 files and the legacy seed asset; `--action validate` checks them. The requested `fresenius_famotidine_demo(2).json` filename was not present, while `benchmark/incident_demo/data/fresenius_famotidine_demo.json` exists. The generator never edits these inputs. Package v2.1 derives image-only lab review pages, discrete process-event charts and a converted local-time lab export from time-visible canonical observations, with scan-artifact seed 417 and no invented trajectories. Generated package files disclose that they are synthetic and record the source SHA-256. The source-to-record map is stored only under `benchmarks/fresenius/ground_truth`.
+
+Public case anchors: FDA [warning letter](https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/fresenius-kabi-usa-llc-733107-09222026) and [recall notice](https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/fresenius-kabi-issues-voluntary-nationwide-recall-three-lots-famotidine-injection-usp-20-mg-2-ml-10). Their later conclusions are not shown during historical replay. The synthetic source files are not representations of actual internal Fresenius documents.

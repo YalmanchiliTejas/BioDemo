@@ -8,7 +8,7 @@ from typing import Any
 
 from src.data import TemporalFactoryStore
 from src.data.temporal_store import parse_time
-from src.rlm import RolloutEngine
+from src.rlm import CodexRLMProvider, OpenAIRLMProvider, RolloutEngine
 from src.state import BlackboardStore
 
 from .benchmark_modes import BENCHMARK_MODES
@@ -52,6 +52,12 @@ def _refs(output: dict[str, Any]) -> list[str]:
 def run_benchmark(
     data_dir: str | Path = Path("data/v1.1"),
     output_path: str | Path | None = Path("artifacts/rlm_benchmark_results.json"),
+    *,
+    agentic: bool = False,
+    provider_kind: str = "codex",
+    model: str = "gpt-6-luna",
+    max_rollouts_per_mode: int | None = None,
+    modes: list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     data_dir = Path(data_dir)
     agent_path = data_dir / "agent_data.json"
@@ -60,6 +66,15 @@ def run_benchmark(
     if audit.status != "PASS":
         raise RuntimeError("benchmark blocked by leakage audit: " + "; ".join(audit.failures))
     store = TemporalFactoryStore(agent_path)
+    repository = Path(__file__).resolve().parents[2]
+    if agentic and provider_kind == "openai":
+        provider = OpenAIRLMProvider(repository, model=model)
+    elif agentic and provider_kind == "codex":
+        provider = CodexRLMProvider(repository, model=model)
+    elif agentic:
+        raise ValueError(f"unsupported agentic provider: {provider_kind}")
+    else:
+        provider = None
     ground = json.loads((data_dir / "benchmark_ground_truth.json").read_text(encoding="utf-8"))
     labels = {row["benchmark_batch_id"]: row for row in ground["batch_labels"]}
     meaningful_events = []
@@ -67,8 +82,19 @@ def run_benchmark(
         record = store.session(as_of=event["available_at"], mode="full_os", current_evidence_ids=[event["evidence_id"]]).get([event["evidence_id"]])
         if record and _meaningful(record[0]):
             meaningful_events.append((event, record[0]))
-    results: dict[str, Any] = {"dataset_version": "v1.1-frozen", "leakage_audit": audit.checks, "modes": {}}
-    for mode in BENCHMARK_MODES:
+    results: dict[str, Any] = {
+        "dataset_version": "v1.1-frozen", "leakage_audit": audit.checks,
+        "agentic": agentic, "provider": provider_kind if agentic else None,
+        "model": model if agentic else None,
+        "partial_run": max_rollouts_per_mode is not None,
+        "max_rollouts_per_mode": max_rollouts_per_mode,
+        "modes": {},
+    }
+    selected_modes = list(modes or BENCHMARK_MODES)
+    unknown_modes = set(selected_modes) - set(BENCHMARK_MODES)
+    if unknown_modes:
+        raise ValueError(f"unknown benchmark modes: {sorted(unknown_modes)}")
+    for mode in selected_modes:
         detected: dict[str, str] = {}
         outputs_by_batch: dict[str, list[tuple[str, dict[str, Any]]]] = defaultdict(list)
         rollout_metrics: list[dict[str, Any]] = []
@@ -78,7 +104,8 @@ def run_benchmark(
         completed_before_physical = total_before_physical = 0
         unnecessary_request_ids: set[tuple[str, str]] = set()
         with tempfile.TemporaryDirectory(prefix=f"biodemo-rlm-{mode}-") as temporary:
-            engine = RolloutEngine(store, BlackboardStore(Path(temporary)))
+            engine = RolloutEngine(store, BlackboardStore(Path(temporary)), provider=provider)
+            executed_rollouts = 0
             for event, record in meaningful_events:
                 batch_id = event.get("batch_id")
                 if not batch_id:
@@ -91,10 +118,19 @@ def run_benchmark(
                     # A mode cannot be triggered by a system it is not allowed
                     # to observe. The agent and prompt remain unchanged.
                     continue
+                if max_rollouts_per_mode is not None and executed_rollouts >= max_rollouts_per_mode:
+                    break
                 output = engine.run(
                     incident_id=_incident_key(store, record), problem=_problem(record),
                     new_evidence_ids=[event["evidence_id"]], as_of=event["available_at"], mode=mode,
                 )
+                executed_rollouts += 1
+                if agentic:
+                    print(
+                        f"AGENTIC PROGRESS: mode={mode} rollout={executed_rollouts} "
+                        f"event={event['evidence_id']}",
+                        flush=True,
+                    )
                 outputs_by_batch[batch_id].append((event["available_at"], output))
                 rollout_metrics.append(output["rollout_metrics"])
                 if output["severity"] in {"MEDIUM", "HIGH", "CRITICAL"} and batch_id not in detected:
@@ -151,7 +187,9 @@ def run_benchmark(
                         decision_ready_times.append(max(0.0, (parse_time(evaluated_at) - parse_time(origin)).total_seconds() / 60))
                         break
         total_detected = len(true_detected) + len(false_detected)
-        results["modes"][mode] = {
+        mode_results = {
+            "evaluated_rollouts": executed_rollouts,
+            "performance_metrics_valid": max_rollouts_per_mode is None,
             "incident_recall": len(true_detected) / len(true_batches),
             "precision": len(true_detected) / total_detected if total_detected else 0.0,
             "false_positive_rate": len(false_detected) / len(normal_batches),
@@ -166,6 +204,19 @@ def run_benchmark(
             "unnecessary_new_evidence_requests": len(unnecessary_request_ids),
             **summarize_rollouts(rollout_metrics),
         }
+        if max_rollouts_per_mode is not None:
+            for key in (
+                "incident_recall", "precision", "false_positive_rate",
+                "time_to_first_investigation_minutes", "time_to_correct_scope_minutes",
+                "time_to_decision_ready_minutes", "related_batch_recall",
+                "unnecessary_new_evidence_requests",
+            ):
+                mode_results[key] = None
+        results["modes"][mode] = mode_results
+        if output_path is not None:
+            checkpoint = Path(output_path)
+            checkpoint.parent.mkdir(parents=True, exist_ok=True)
+            checkpoint.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
     if output_path is not None:
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)

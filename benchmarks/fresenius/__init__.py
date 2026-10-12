@@ -1,0 +1,1 @@
+"""Synthetic manufacturing investigation package."""

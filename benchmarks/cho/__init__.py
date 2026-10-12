@@ -1,0 +1,1 @@
+"""Authentic CHO cultivation benchmark."""

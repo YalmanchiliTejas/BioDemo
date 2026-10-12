@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from src.tools import ToolContext, ToolRegistry
 
 from .decomposer import InvestigationQuestion
+from .provider import CodexRLMProvider
 
 
 def _compact(
@@ -96,3 +98,82 @@ def run_parallel(
     with ThreadPoolExecutor(max_workers=min(max_workers, len(questions)), thread_name_prefix="rlm-worker") as executor:
         futures = [executor.submit(investigate, question, tools, context) for question in questions]
         return [future.result() for future in futures]
+
+
+def run_agentic_parallel(
+    questions: list[InvestigationQuestion],
+    tools: ToolRegistry,
+    context: ToolContext,
+    provider: CodexRLMProvider,
+    *,
+    max_workers: int,
+) -> list[dict[str, Any]]:
+    """Plan bounded workers with Luna, execute their tools concurrently, then compress findings."""
+    question_values = [question.__dict__ for question in questions]
+    planned = provider.plan_workers({
+        "as_of": context.session.as_of,
+        "questions": question_values,
+        "available_tools": [name for name in tools.names if name not in {"request_new_evidence", "create_investigation_task"}],
+        "constraints": {"max_tool_requests_per_question": 2, "read_only": True},
+    })
+    by_id = {question.question_id: question for question in questions}
+
+    def execute_plan(plan: dict[str, Any]) -> dict[str, Any]:
+        question_id = str(plan.get("question_id", ""))
+        if question_id not in by_id:
+            return {"question_id": question_id, "tool_results": [], "error": "unknown question_id"}
+        results = []
+        for request in plan.get("tool_requests", [])[:2]:
+            name = str(request.get("tool_name", ""))
+            try:
+                arguments = json.loads(str(request.get("arguments_json", "{}")))
+                if not isinstance(arguments, dict):
+                    raise ValueError("arguments_json must decode to an object")
+                arguments["as_of"] = context.session.as_of
+                results.append({"tool_name": name, "status": "ok", "result": tools.execute(name, context, arguments)})
+            except Exception as exc:
+                results.append({"tool_name": name, "status": "error", "error": str(exc)})
+        return {"question_id": question_id, "tool_results": results}
+
+    plans = [plan for plan in planned.get("plans", []) if isinstance(plan, dict)]
+    # Preserve capacity for up to three physical-evidence requests and three
+    # human tasks during Lead synthesis. The aggregate ToolRegistry remains the
+    # hard enforcement boundary; this scheduler prevents workers from consuming
+    # the entire budget before the decision/action phase.
+    remaining_worker_budget = max(0, tools.max_calls - tools.calls - 6)
+    bounded_plans: list[dict[str, Any]] = []
+    for plan in plans:
+        permitted = min(2, remaining_worker_budget)
+        bounded_plans.append({**plan, "tool_requests": list(plan.get("tool_requests", []))[:permitted]})
+        remaining_worker_budget -= permitted
+    plans = bounded_plans
+    with ThreadPoolExecutor(max_workers=min(max_workers, max(1, len(plans))), thread_name_prefix="rlm-agentic-worker") as executor:
+        tool_packets = list(executor.map(execute_plan, plans))
+    summarized = provider.summarize_workers({
+        "as_of": context.session.as_of,
+        "questions": question_values,
+        "tool_packets": tool_packets,
+        "required_behavior": "Cite only evidence IDs present in tool results and identify counterevidence and uncertainty.",
+    })
+    allowed: dict[str, set[str]] = {}
+    for packet in tool_packets:
+        ids: set[str] = set()
+        for result in packet["tool_results"]:
+            ids.update(map(str, result.get("result", {}).get("evidence_ids", [])))
+        allowed[packet["question_id"]] = ids
+    returned = {str(item.get("question_id")): item for item in summarized.get("findings", []) if isinstance(item, dict)}
+    findings: list[dict[str, Any]] = []
+    for question in questions:
+        item = returned.get(question.question_id, {})
+        valid = allowed.get(question.question_id, set())
+        findings.append({
+            "question_id": question.question_id,
+            "question": question.question,
+            "finding": str(item.get("finding") or "No model finding returned."),
+            "supporting_evidence_ids": [str(value) for value in item.get("supporting_evidence_ids", []) if str(value) in valid],
+            "contradicting_evidence_ids": [str(value) for value in item.get("contradicting_evidence_ids", []) if str(value) in valid],
+            "uncertainties": [str(value) for value in item.get("uncertainties", [])],
+            "depth": question.depth, "batch_id": question.batch_id,
+            "equipment_id": question.equipment_id, "search_term": question.search_term,
+        })
+    return findings
