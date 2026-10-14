@@ -14,6 +14,6 @@ Data preparation is complete for the current source versions. No agent run was p
 
 When agent evaluation resumes, the next CHO step is an isolated `--benchmark cho --mode retrieval_llm --task CHO-03` run, followed by inspection of cited source sheets. Single-task execution is available to keep experiments bounded. Its result must not be described as causal accuracy: the publication supplies measurements and alignment, not verified causal labels.
 
-The next common implementation step is a raw-source adapter for the existing structured RLM. It must preserve each task's source package and `as_of` boundary, cite source locations, and use the same evaluation interface. Until then, `full_rlm` refuses to publish a score.
+The next common implementation step is a benchmark adapter for the Prime SDK runtime. It must preserve each task's source package and `as_of` boundary, cite source locations, and use the same evaluation interface. Until then, `full_rlm` refuses to publish a score.
 
 Broader unrelated Fresenius documents can be added as deterministic source-format changes linked to the existing canonical records. CHO's perturbed workbook has passed a cell-by-cell equivalence check; a future agent-output semantic-equivalence scorer is still needed. Neither extension should alter underlying observations or introduce unsupported outcomes.

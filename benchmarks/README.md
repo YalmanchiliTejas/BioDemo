@@ -2,12 +2,20 @@
 
 Two separate benchmarks share `InvestigationInput`, `run_investigation`, the conventional parser, the leakage audit, and the runner. `cho` reads original experimental workbooks. `fresenius` renders the repository's frozen v1.1 synthetic simulation into source files and stages time-valid snapshots.
 
-Downloaded CHO source files, publication-aligned references, normalized outputs, and generated Fresenius packages/maps are preserved in this workspace and ignored by Git. A clean checkout must regenerate them with the commands below. Keep evaluation-only references outside any agent-readable package.
+Downloaded CHO source files, publication-aligned references, and generated Fresenius packages/maps are preserved in this workspace and ignored by Git. A clean checkout must regenerate them with the commands below. Keep evaluation-only references outside any agent-readable package.
+
+The 156 MB CHO normalized CSVs and 12 MB perturbed workbook are disposable
+build outputs. `--action compare`, `--action data-check`, and CHO-05 runs
+recreate them from the preserved original workbooks when needed. The original
+Zenodo archive, extracted workbooks, and published aligned references remain
+local because they are source and evaluation data.
+Run `python -m benchmarks.common.benchmark_runner --benchmark cho --action clean-generated`
+after a benchmark to remove those disposable copies again.
 
 | Capability | Existing repository | Added here | Still open |
 |---|---|---|---|
 | Fresenius source data | Frozen v1.1 canonical records and temporal store | CSV/XLSX/PDF source package, scanned lab reviews, discrete event charts, local-time lab export, hidden source map and replay tasks | Broader unrelated-document perturbations |
-| Agent | Structured-record RLM, Blackboard and graphs | Shared raw-package contract and isolated baseline worker | Raw-source RLM adapter |
+| Agent | Prime SDK runtime, Blackboard and graphs | Shared raw-package contract and isolated baseline worker | Prime SDK benchmark adapter |
 | CHO | No source dataset | Verified original archive, full inventory, structural and descriptive references, fixed-format full trajectory reconstruction | Autonomous relevance, process comparison and causal evaluation |
 | Evaluation | Structured simulation metrics | Raw-package leakage checks, extraction metrics, one-pass model baselines and reports | Objective relevance labels where defensible, human baseline and broad model repeatability |
 
@@ -41,7 +49,7 @@ python -m benchmarks.common.benchmark_runner --benchmark fresenius --action repo
 
 For incremental work later, add `--task CHO-03` or `--task FRE-02` to a run command. A single-task run writes its own result file and leaves the five-task result untouched. The CHO one-pass path has a working implementation and a source-summary unit test, but its full model run has not completed; no CHO one-pass score is reported yet. The existing Fresenius agent scores were measured on the earlier v1 export package; the current v2.1 package has only data validation, not agent scores.
 
-`--mode retrieval_llm` uses one bounded reasoning call per task: the OpenAI Responses API with `OPENAI_API_KEY`, or the authenticated Codex CLI when no key is present. For CHO, the parser first computes numeric sheet summaries from the original workbook rows and retrieves at most 96 source sheets across all experiments. For Fresenius, it retrieves at most 80 source records from the staged snapshot. `--mode full_rlm` fails visibly until a raw-source adapter to the existing structured RLM is implemented. No surrogate full-RLM score is produced.
+`--mode retrieval_llm` uses one bounded OpenAI Responses API call per task and requires `OPENAI_API_KEY`. For CHO, the parser first computes numeric sheet summaries from original workbook rows and retrieves at most 96 source sheets across all experiments. For Fresenius, it retrieves at most 80 source records from the staged snapshot. `--mode full_rlm` fails visibly until the Prime SDK is connected to this benchmark interface. No surrogate full-RLM score is produced.
 
 Agent-visible files live in `cho/raw/workbooks` or a staged Fresenius snapshot. Evaluation references live in `cho/reference`, `fresenius/ground_truth`, and `data/v1.1`. The full Fresenius `raw_package` is an archive for inspection only; historical tasks always stage a fresh snapshot as of the task timestamp. Do not hand the full archive to an agent during replay.
 

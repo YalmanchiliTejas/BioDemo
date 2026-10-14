@@ -26,6 +26,7 @@ class Blackboard:
     pending_evidence: list[dict[str, Any]] = field(default_factory=list)
     completed_investigations: list[dict[str, Any]] = field(default_factory=list)
     recommended_actions: list[dict[str, Any]] = field(default_factory=list)
+    outcomes: list[dict[str, Any]] = field(default_factory=list)
     decision_branches: list[dict[str, Any]] = field(default_factory=list)
     teams_involved: list[str] = field(default_factory=list)
     evidence_ids: list[str] = field(default_factory=list)

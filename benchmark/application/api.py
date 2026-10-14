@@ -1,6 +1,7 @@
 from collections import Counter
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+import hashlib
 import os
 from pathlib import Path
 from typing import Any
@@ -22,25 +23,38 @@ def create_app(services: ApplicationServices | None = None):
 
     from benchmark.knowledge.domain import AccessContext, CaseRecord, CaseStatus, EntityRef, HumanTask
     from benchmark.incident_demo import IncidentDemoService
-    from src.data import TemporalFactoryStore
-    from src.rlm import CodexRLMProvider, OpenAIRLMProvider, RolloutEngine
+    from src.manufacturing_data import ManufacturingStore
+    from src.prime_runtime import PrimeManufacturingHarness
     from src.state import BlackboardStore
+    from src.workflows import ManufacturingInvestigationWorkflow
 
     runtime = services or build_services_from_env()
     incident_demo = IncidentDemoService()
     repository = Path(__file__).resolve().parents[2]
-    provider_kind = os.getenv("BIODEMO_RLM_PROVIDER", "deterministic").lower()
-    provider_model = os.getenv("BIODEMO_RLM_MODEL", "gpt-6-luna")
-    if provider_kind == "codex":
-        rlm_provider = CodexRLMProvider(repository, model=provider_model)
-    elif provider_kind == "openai":
-        rlm_provider = OpenAIRLMProvider(repository, model=provider_model)
-    else:
-        rlm_provider = None
-    rlm_engine = RolloutEngine(
-        TemporalFactoryStore(repository / "data" / "v1.1" / "agent_data.json"),
-        BlackboardStore(repository / ".prime" / "rlm-blackboards"),
-        provider=rlm_provider,
+    manufacturing_root = os.getenv("BIODEMO_MANUFACTURING_STORE")
+    if manufacturing_root and not (Path(manufacturing_root) / "metadata.sqlite").is_file():
+        raise RuntimeError("BIODEMO_MANUFACTURING_STORE must point to an ingested store")
+    if manufacturing_root and not os.getenv("BIODEMO_MANUFACTURING_SCOPE"):
+        raise RuntimeError("BIODEMO_MANUFACTURING_SCOPE is required for a manufacturing store")
+    manufacturing_store = ManufacturingStore(manufacturing_root) if manufacturing_root else None
+    manufacturing_scope = os.getenv("BIODEMO_MANUFACTURING_SCOPE", "default")
+    blackboard_root = repository / ".prime" / "manufacturing-blackboards"
+    if manufacturing_store:
+        namespace = hashlib.sha256(
+            f"{manufacturing_store.root}|{manufacturing_scope}".encode()
+        ).hexdigest()[:16]
+        blackboard_root = blackboard_root / namespace
+    blackboards = BlackboardStore(blackboard_root)
+    investigation_workflow = (
+        ManufacturingInvestigationWorkflow(blackboard_root, manufacturing_store,
+                                           scope=manufacturing_scope, blackboards=blackboards)
+        if manufacturing_store else None
+    )
+    prime_harness = (
+        PrimeManufacturingHarness.from_env(
+            store=manufacturing_store, blackboards=blackboards,
+            workflow=investigation_workflow, scope=manufacturing_scope,
+        ) if manufacturing_store else None
     )
 
     @asynccontextmanager
@@ -93,10 +107,6 @@ def create_app(services: ApplicationServices | None = None):
     class IntelligenceInput(BaseModel):
         arguments: dict[str, Any] = Field(default_factory=dict)
 
-    class AgentOutcomeInput(BaseModel):
-        actual_metrics: dict[str, float]
-        note: str = ""
-
     class DemoAssessmentInput(BaseModel):
         cursor: int = Field(0, ge=0)
         live: bool = False
@@ -107,9 +117,29 @@ def create_app(services: ApplicationServices | None = None):
     class RLMRolloutInput(BaseModel):
         incident_id: str
         problem: str
-        new_evidence_ids: list[str] = Field(min_length=1)
+        new_evidence_ids: list[str] = Field(default_factory=list)
         as_of: str
-        mode: str = "full_os"
+
+    class InvestigationReviewInput(BaseModel):
+        role: str
+        decision: str
+        note: str = ""
+
+    class InvestigationTaskInput(BaseModel):
+        status: str
+        note: str = ""
+
+    class InvestigationOutcomeInput(BaseModel):
+        finding: str
+        evidence_ids: list[str] = Field(min_length=1)
+        note: str = ""
+
+    class EvidenceFulfillmentInput(BaseModel):
+        evidence_ids: list[str] = Field(min_length=1)
+        note: str = ""
+
+    class InvestigationCloseInput(BaseModel):
+        note: str = ""
 
     class ConnectorInput(BaseModel):
         connector_id: str
@@ -432,7 +462,7 @@ def create_app(services: ApplicationServices | None = None):
         return runtime.thread.knowledge.context(query, entity_ids=entity_id, access=access).to_dict()
 
     @app.post("/api/cases/{case_id}/agent", status_code=202)
-    def start_deviation_agent(case_id: str, access: AccessContext = Depends(identity)):
+    def start_case_demo(case_id: str, access: AccessContext = Depends(identity)):
         orchestrator = runtime.extensions.orchestrator
         if orchestrator is None:
             raise HTTPException(503, "agent orchestrator is not configured")
@@ -482,20 +512,6 @@ def create_app(services: ApplicationServices | None = None):
             "case_state": orchestrator.case_state(run["case_id"], access.tenant_id),
         }
 
-    @app.post("/api/cases/{case_id}/agent-outcomes", status_code=201)
-    def record_agent_outcome(
-        case_id: str, value: AgentOutcomeInput, access: AccessContext = Depends(identity),
-    ):
-        require_visible_case(case_id, access)
-        if not ({"qa", "sponsor_qa", "supervisor", "msat", "system_admin"} & set(access.roles)):
-            raise HTTPException(403, "a responsible operations or quality role is required")
-        orchestrator = runtime.extensions.orchestrator
-        if orchestrator is None or not hasattr(orchestrator, "record_outcome"):
-            raise HTTPException(503, "agent learning loop is not configured")
-        return safe(lambda: orchestrator.record_outcome(
-            case_id, access.tenant_id, value.actual_metrics, access.actor_id, value.note,
-        ))
-
     allowed_agent_tools = {
         "batches", "process_steps", "process_traces", "equipment_history",
         "material_lineage", "lab_results", "deviations", "capas",
@@ -527,15 +543,80 @@ def create_app(services: ApplicationServices | None = None):
         return incident_demo.future_match()
 
     @app.post("/api/manufacturing-os/rollouts")
-    def manufacturing_os_rollout(value: RLMRolloutInput) -> dict[str, Any]:
-        """Run or resume one bounded RLM investigation against v1.1 agent data."""
-        return safe(lambda: rlm_engine.run(
-            incident_id=value.incident_id,
-            problem=value.problem,
-            new_evidence_ids=value.new_evidence_ids,
-            as_of=value.as_of,
-            mode=value.mode,
-        ))
+    def manufacturing_os_rollout(value: RLMRolloutInput,
+                                 access: AccessContext = Depends(identity)) -> dict[str, Any]:
+        """Run or resume the Prime SDK manufacturing investigation."""
+        def execute():
+            if prime_harness is None:
+                raise RuntimeError("manufacturing store and Prime SDK are not configured")
+            if investigation_workflow and access.tenant_id != manufacturing_scope:
+                raise PermissionError("investigation scope does not match tenant")
+            return prime_harness.run(
+                incident_id=value.incident_id, problem=value.problem,
+                new_evidence_ids=value.new_evidence_ids, as_of=value.as_of,
+            )
+        return safe(execute)
+
+    def required_investigation(access: AccessContext):
+        if investigation_workflow is None:
+            raise HTTPException(503, "manufacturing investigation workflow is not configured")
+        if access.tenant_id != manufacturing_scope:
+            raise HTTPException(403, "investigation scope does not match tenant")
+        return investigation_workflow
+
+    @app.get("/api/manufacturing-os/investigations/{incident_id}")
+    def manufacturing_investigation(incident_id: str,
+                                    access: AccessContext = Depends(identity)):
+        workflow = required_investigation(access)
+        return safe(lambda: workflow.get(incident_id))
+
+    @app.get("/api/manufacturing-os/investigations/{incident_id}/history")
+    def manufacturing_investigation_history(incident_id: str,
+                                            access: AccessContext = Depends(identity)):
+        workflow = required_investigation(access)
+        return safe(lambda: workflow.history(incident_id))
+
+    @app.post("/api/manufacturing-os/investigations/{incident_id}/review")
+    def manufacturing_investigation_review(incident_id: str, value: InvestigationReviewInput,
+                                           access: AccessContext = Depends(identity)):
+        workflow = required_investigation(access)
+        return safe(lambda: workflow.decide_review(
+            incident_id, actor_id=access.actor_id, roles=access.roles,
+            role=value.role, decision=value.decision, note=value.note))
+
+    @app.post("/api/manufacturing-os/investigations/{incident_id}/tasks/{task_id}")
+    def manufacturing_investigation_task(incident_id: str, task_id: str,
+                                         value: InvestigationTaskInput,
+                                         access: AccessContext = Depends(identity)):
+        workflow = required_investigation(access)
+        return safe(lambda: workflow.update_task(
+            incident_id, task_id, actor_id=access.actor_id,
+            roles=access.roles, status=value.status, note=value.note))
+
+    @app.post("/api/manufacturing-os/investigations/{incident_id}/outcomes")
+    def manufacturing_investigation_outcome(incident_id: str,
+                                            value: InvestigationOutcomeInput,
+                                            access: AccessContext = Depends(identity)):
+        workflow = required_investigation(access)
+        return safe(lambda: workflow.record_outcome(
+            incident_id, actor_id=access.actor_id, roles=access.roles,
+            finding=value.finding, evidence_ids=value.evidence_ids, note=value.note))
+
+    @app.post("/api/manufacturing-os/investigations/{incident_id}/evidence-requests/{request_id}/fulfill")
+    def manufacturing_evidence_fulfill(incident_id: str, request_id: str,
+                                       value: EvidenceFulfillmentInput,
+                                       access: AccessContext = Depends(identity)):
+        workflow = required_investigation(access)
+        return safe(lambda: workflow.fulfill_evidence_request(
+            incident_id, request_id, actor_id=access.actor_id, roles=access.roles,
+            evidence_ids=value.evidence_ids, note=value.note))
+
+    @app.post("/api/manufacturing-os/investigations/{incident_id}/close")
+    def manufacturing_investigation_close(incident_id: str, value: InvestigationCloseInput,
+                                          access: AccessContext = Depends(identity)):
+        workflow = required_investigation(access)
+        return safe(lambda: workflow.close(
+            incident_id, actor_id=access.actor_id, roles=access.roles, note=value.note))
 
     @app.post("/api/agent/tools/{concept}")
     def agent_tool(

@@ -7,8 +7,6 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
-from benchmark.application.dynamic_agents import reasoning_provider_from_env
-
 from .agent import ManufacturingAgent
 
 
@@ -35,8 +33,7 @@ class IncidentDemoService:
             "metadata": replay["metadata"], "tasks": replay["tasks"],
             "replay_events": replay["replay_events"], "public_facts": replay.get("public_facts", public["facts"]),
         })
-        repository = Path(__file__).resolve().parents[2]
-        self.agent = ManufacturingAgent(provider if provider is not None else reasoning_provider_from_env(repository))
+        self.agent = ManufacturingAgent(provider)
         self._lock = RLock()
         self._completed_tasks: dict[str, str] = {}
 

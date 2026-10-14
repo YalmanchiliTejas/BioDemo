@@ -68,17 +68,13 @@ AGENTS = (
 
 
 class CaseOrchestrator:
-    """Routes cases to dynamic specialists with bounded fallback behavior."""
+    """Demo case router; Manufacturing OS investigations use Prime SDK separately."""
 
     def __init__(
         self,
         tools: ToolGateway,
-        deviation_harness: Any | None = None,
-        dynamic_harness: Any | None = None,
     ) -> None:
         self.tools = tools
-        self.deviation_harness = deviation_harness
-        self.dynamic_harness = dynamic_harness
         self._runs: dict[str, dict[str, Any]] = {}
         self._case_state: dict[tuple[str, str], dict[str, Any]] = {}
         self._lock = threading.RLock()
@@ -87,11 +83,7 @@ class CaseOrchestrator:
         values = []
         for definition in AGENTS:
             value = asdict(definition)
-            value["harness"] = (
-                "dynamic_agent_runtime" if self.dynamic_harness
-                else "prime_agent" if definition.agent_id == "quality-deviation" and self.deviation_harness
-                else "deterministic_runtime"
-            )
+            value["harness"] = "demo_case_router"
             values.append(value)
         return values
 
@@ -99,11 +91,6 @@ class CaseOrchestrator:
         case = context.get("case", {})
         case_type = str(case.get("case_type", "deviation")).lower()
         agent = self._agent_for(case_type)
-        if self.dynamic_harness is not None:
-            return self.dynamic_harness.start(case_id, context, asdict(agent))
-        if agent.agent_id == "quality-deviation" and self.deviation_harness is not None:
-            run = self.deviation_harness.start(case_id, context)
-            return {**run, "agent_id": agent.agent_id, "harness": "prime_agent"}
         tenant_id = str(context.get("identity", {}).get("tenant_id", "default"))
         with self._lock:
             active = next((
@@ -123,7 +110,7 @@ class CaseOrchestrator:
             )
             run = {
                 "run_id": run_id, "case_id": case_id, "tenant_id": tenant_id,
-                "agent_id": agent.agent_id, "harness": "deterministic_runtime",
+                "agent_id": agent.agent_id, "harness": "demo_case_router",
                 "status": "completed", "summary": summary, "error": None,
                 "created_at": _now(), "started_at": _now(), "completed_at": _now(),
                 "session_id": None,
@@ -139,46 +126,20 @@ class CaseOrchestrator:
             return dict(run)
 
     def get(self, run_id: str) -> dict[str, Any] | None:
-        if self.dynamic_harness:
-            run = self.dynamic_harness.get(run_id)
-            if run:
-                return run
         with self._lock:
             local = self._runs.get(run_id)
-        if local:
-            return dict(local)
-        if self.deviation_harness:
-            run = self.deviation_harness.get(run_id)
-            if run:
-                return {**run, "agent_id": "quality-deviation", "harness": "prime_agent"}
-        return None
+        return dict(local) if local else None
 
     def latest(self, case_id: str, tenant_id: str | None = None) -> dict[str, Any] | None:
         values: list[dict[str, Any]] = []
-        if self.dynamic_harness:
-            external = self.dynamic_harness.latest(case_id, tenant_id)
-            if external:
-                values.append(external)
         with self._lock:
             values.extend(
                 run for run in self._runs.values()
                 if run["case_id"] == case_id and (tenant_id is None or run["tenant_id"] == tenant_id)
             )
-        if self.deviation_harness:
-            external = self.deviation_harness.latest(case_id, tenant_id)
-            if external:
-                values.append({**external, "agent_id": "quality-deviation", "harness": "prime_agent"})
         return dict(max(values, key=lambda value: value["created_at"])) if values else None
 
     def case_state(self, case_id: str, tenant_id: str | None = None) -> dict[str, Any] | None:
-        if self.dynamic_harness:
-            state = self.dynamic_harness.case_state(case_id, tenant_id)
-            if state:
-                return state
-        if self.deviation_harness:
-            external = self.deviation_harness.case_state(case_id, tenant_id)
-            if external:
-                return external
         with self._lock:
             matches = [
                 value for (tenant, candidate), value in self._case_state.items()
@@ -194,20 +155,4 @@ class CaseOrchestrator:
         )
 
     def runtime_status(self) -> dict[str, Any]:
-        if self.dynamic_harness and hasattr(self.dynamic_harness, "status"):
-            return {"mode": "dynamic", **self.dynamic_harness.status()}
-        if self.deviation_harness:
-            return {"mode": "hybrid", "configured": True, "provider_id": "prime_agent"}
-        return {"mode": "deterministic_fallback", "configured": True, "provider_id": None}
-
-    def record_outcome(
-        self,
-        case_id: str,
-        tenant_id: str,
-        actual_metrics: dict[str, float],
-        actor_id: str,
-        note: str = "",
-    ) -> dict[str, Any]:
-        if not self.dynamic_harness or not hasattr(self.dynamic_harness, "record_outcome"):
-            raise RuntimeError("dynamic agent learning loop is not configured")
-        return self.dynamic_harness.record_outcome(case_id, tenant_id, actual_metrics, actor_id, note)
+        return {"mode": "demo_case_router", "configured": True, "provider_id": None}

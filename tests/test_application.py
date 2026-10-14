@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,8 +7,6 @@ from pathlib import Path
 from benchmark.application.bootstrap import build_demo_services
 from benchmark.application.connector_monitor import ConnectorConfig, ConnectorMonitor
 from benchmark.application.control import ActionControlPlane, InMemoryActionStore
-from benchmark.application.deviation_agent import PrimeAgentDeviationOrchestrator
-from benchmark.application.dynamic_agents import DynamicAgentRuntime, PrimeJsonReasoningProvider
 from benchmark.application.execution import ActionExecutionGateway, DemoActionWriter
 from benchmark.application.intelligence import DeterministicModelRouter, ToolGateway
 from benchmark.application.models import ActionProposal, ApprovalDecision, ProposalStatus, RiskLevel
@@ -118,7 +114,7 @@ class IntelligenceAndOrchestrationTests(unittest.TestCase):
             "digital_thread": {"events": [{"event_id": "E-1"}], "documents": []},
         })
         self.assertEqual(run["agent_id"], "production-maintenance")
-        self.assertEqual(run["harness"], "deterministic_runtime")
+        self.assertEqual(run["harness"], "demo_case_router")
         self.assertEqual(run["status"], "completed")
         state = orchestrator.case_state("CASE-1", "TENANT-A")
         self.assertEqual(state["evidence_count"], 1)
@@ -182,107 +178,6 @@ class IntelligenceAndOrchestrationTests(unittest.TestCase):
             )
             self.assertTrue(receipt["source_record_id"].startswith("DEMO-ACK-"))
             self.assertEqual(context.events[0].event_type, "action_acknowledged")
-
-
-class DeviationAgentOrchestratorTests(unittest.TestCase):
-    def test_run_persists_context_session_and_final_status(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            bundle = root / "prime-agent"
-            skill = bundle / ".prime" / "agent" / "skills" / "deviation"
-            skill.mkdir(parents=True)
-            (skill / "SKILL.md").write_text("---\nname: deviation\ndescription: test\n---\n")
-            (bundle / ".prime" / "agent" / "APPEND_SYSTEM.md").write_text("Deviation system")
-            script = (
-                "import json;"
-                "print(json.dumps({'type':'session','id':'session-1'}));"
-                "print(json.dumps({'type':'message_end','message':{'role':'assistant',"
-                "'content':[{'type':'text','text':'Investigation staged'}]}}))"
-            )
-            orchestrator = PrimeAgentDeviationOrchestrator(
-                [sys.executable, "-c", script],
-                bundle,
-                root / "app",
-                api_base_url="http://127.0.0.1:8000",
-            )
-            run = orchestrator.start("CASE-01", {"case": {"case_id": "CASE-01"}})
-            completed = orchestrator.wait(run["run_id"])
-
-            self.assertEqual(completed["status"], "completed")
-            self.assertEqual(completed["session_id"], "session-1")
-            self.assertEqual(completed["summary"], "Investigation staged")
-            input_files = list((root / "app" / ".prime" / "deviation-agent-inputs").glob("*.json"))
-            self.assertEqual(len(input_files), 1)
-            stored = json.loads(input_files[0].read_text())
-            self.assertEqual(stored["case"]["case_id"], "CASE-01")
-
-
-class DynamicAgentRuntimeTests(unittest.TestCase):
-    def test_prime_json_provider_extracts_structured_assistant_decision(self) -> None:
-        decision = {"stage": "human_review", "summary": "Structured", "confidence": .5}
-        event = {"type": "message_end", "message": {"role": "assistant", "content": [{"type": "text", "text": json.dumps(decision)}]}}
-        script = f"import json; print(json.dumps({event!r}))"
-        provider = PrimeJsonReasoningProvider([sys.executable, "-c", script], Path.cwd())
-        self.assertEqual(provider.complete({"output_schema": {}})["summary"], "Structured")
-
-    def test_dynamic_specialist_uses_tools_and_persists_review_state(self) -> None:
-        class FakeProvider:
-            provider_id = "fake.reasoning"
-
-            def __init__(self) -> None:
-                self.calls = 0
-
-            def complete(self, value: dict) -> dict:
-                self.calls += 1
-                if not value["tool_results"]:
-                    return {
-                        "stage": "analysis",
-                        "summary": "Need anomaly result",
-                        "tool_requests": [{"tool_name": "anomaly", "arguments": {"values": [10, 10, 40]}}],
-                    }
-                return {
-                    "stage": "human_review",
-                    "summary": "Equipment inspection is recommended before the next run.",
-                    "confidence": .78,
-                    "findings": [{"statement": "A process signal is anomalous", "kind": "evidence", "citations": ["E-1"]}],
-                    "evidence_gaps": ["Current inspection result"],
-                    "human_tasks": [{"title": "Inspect inlet frit", "assigned_role": "Maintenance", "reason": "Confirm restriction"}],
-                    "action_proposals": [{"operation": "create_work_order", "target_id": "CHROM-01", "reason": "Probable restriction", "risk": "medium"}],
-                    "predicted_impact": {"description": "Avoid next-run delay", "metrics": {"delay_hours_avoided": 6}},
-                }
-
-        with tempfile.TemporaryDirectory() as temporary:
-            provider = FakeProvider()
-            router = DeterministicModelRouter(llm_configured=True)
-            runtime = DynamicAgentRuntime(provider, ToolGateway(router), Path(temporary))
-            orchestrator = CaseOrchestrator(ToolGateway(router), dynamic_harness=runtime)
-            run = orchestrator.start("CASE-DYN-1", {
-                "case": {"case_id": "CASE-DYN-1", "case_type": "maintenance"},
-                "identity": {"tenant_id": "TENANT-A"},
-                "digital_thread": {"events": [{"event_id": "E-1"}]},
-            })
-            completed = runtime.wait(run["run_id"])
-            self.assertEqual(completed["status"], "completed")
-            self.assertEqual(completed["harness"], "dynamic_agent_runtime")
-            self.assertEqual(provider.calls, 2)
-            state = orchestrator.case_state("CASE-DYN-1", "TENANT-A")
-            self.assertEqual(state["stage"], "human_review")
-            self.assertEqual(state["authority_boundary"], "recommend_only_human_approval_required")
-            self.assertEqual(state["tool_results"][0]["tool_name"], "anomaly")
-            self.assertEqual(state["action_proposals"][0]["operation"], "create_work_order")
-            self.assertIsNone(orchestrator.case_state("CASE-DYN-1", "TENANT-B"))
-
-            outcome = orchestrator.record_outcome(
-                "CASE-DYN-1", "TENANT-A", {"delay_hours_avoided": 5}, "qa-1", "Run completed",
-            )
-            self.assertEqual(outcome["projected_vs_actual"]["delay_hours_avoided"]["delta"], -1)
-            self.assertEqual(
-                orchestrator.case_state("CASE-DYN-1", "TENANT-A")["learning_status"],
-                "outcome_recorded_for_calibration",
-            )
-
-            reloaded = DynamicAgentRuntime(provider, ToolGateway(router), Path(temporary))
-            self.assertEqual(reloaded.case_state("CASE-DYN-1", "TENANT-A")["confidence"], .78)
 
 
 class ConnectorMonitorTests(unittest.TestCase):

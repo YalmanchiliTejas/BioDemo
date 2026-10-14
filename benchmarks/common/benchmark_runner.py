@@ -14,6 +14,7 @@ from pathlib import Path
 from benchmarks.common.agent_adapter import run_investigation
 from benchmarks.common.leakage_audit import print_audit
 from benchmarks.common.isolated_runner import run_isolated
+from benchmarks.baselines.retrieval_llm import SYSTEM_PROMPT
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -98,6 +99,9 @@ def run(benchmark: str, mode: str, *, isolated: bool = True,
         for task in tasks:
             if task["id"] == "CHO-05":
                 perturbed = ROOT / "benchmarks/cho/tasks/perturbed"
+                if not list(perturbed.glob("*.xlsx")):
+                    from benchmarks.cho.perturbations import generate
+                    generate()
                 if list(perturbed.glob("*.xlsx")):
                     if not print_audit(perturbed):
                         raise RuntimeError("CHO perturbation leakage audit failed")
@@ -178,7 +182,7 @@ def run(benchmark: str, mode: str, *, isolated: bool = True,
     result["reproducibility"] = {"python": platform.python_version(), "packages": versions,
                                   "source_sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
                                   "task_sha256": hashlib.sha256(json.dumps([row["task"] for row in outcomes], sort_keys=True).encode()).hexdigest(),
-                                  "prompt_sha256": hashlib.sha256((ROOT / "system.md").read_bytes()).hexdigest() if mode == "retrieval_llm" else None,
+                                  "prompt_sha256": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest() if mode == "retrieval_llm" else None,
                                   "adapter_code_sha256": hashlib.sha256((ROOT / "benchmarks/baselines/retrieval_llm.py" if mode == "retrieval_llm" else ROOT / "benchmarks/baselines/conventional_extraction.py").read_bytes()).hexdigest(),
                                   "config_sha256": hashlib.sha256(config_path.read_bytes()).hexdigest(),
                                   "model": "gpt-6-luna" if mode == "retrieval_llm" else None}
@@ -197,11 +201,21 @@ def main() -> None:
     parser.add_argument("--benchmark", choices=["cho", "fresenius"], required=True)
     parser.add_argument("--mode", choices=["baseline", "retrieval_llm", "full_rlm"], default="baseline")
     parser.add_argument("--task", help="Run one task ID, such as CHO-03 or FRE-02")
-    parser.add_argument("--action", choices=["run", "download", "inventory", "references", "generate", "perturb", "normalize", "compare", "audit", "report", "validate", "data-check"], default="run")
+    parser.add_argument("--action", choices=["run", "download", "inventory", "references", "generate", "perturb", "normalize", "compare", "clean-generated", "audit", "report", "validate", "data-check"], default="run")
     parser.add_argument("--no-isolation", action="store_true", help="Development only; scores are not publication eligible")
     args = parser.parse_args()
-    if args.action in {"download", "inventory", "references", "perturb", "normalize", "compare"} and args.benchmark != "cho":
+    if args.action in {"download", "inventory", "references", "perturb", "normalize", "compare", "clean-generated"} and args.benchmark != "cho":
         parser.error(f"{args.action} applies only to cho")
+    if args.action == "clean-generated":
+        generated = (
+            * (ROOT / "benchmarks/cho/tasks/normalized").glob("*.csv"),
+            * (ROOT / "benchmarks/cho/tasks/perturbed").glob("*.xlsx"),
+        )
+        bytes_removed = sum(path.stat().st_size for path in generated)
+        for path in generated:
+            path.unlink()
+        print(json.dumps({"removed_files": len(generated), "removed_bytes": bytes_removed}))
+        return
     if args.action == "generate" and args.benchmark != "fresenius":
         parser.error("generate applies only to fresenius")
     if args.action == "download":
@@ -230,6 +244,10 @@ def main() -> None:
         result = build(); print(f"Normalized {len(result['cultivations'])} cultivations from original workbooks"); return
     if args.action == "compare":
         from benchmarks.cho.compare_aggregation import compare
+        normalized = ROOT / "benchmarks/cho/tasks/normalized"
+        if not list(normalized.glob("*.csv")):
+            from benchmarks.cho.aggregation_baseline import build
+            build()
         result = compare(); print(json.dumps({key: result[key] for key in ("comparable_values", "within_tolerance", "within_tolerance_fraction", "missing_reconstruction_values")}, indent=2)); return
     if args.action == "audit":
         package = ROOT / ("benchmarks/cho/raw/workbooks" if args.benchmark == "cho" else "benchmarks/fresenius/raw_package")
@@ -270,6 +288,10 @@ def main() -> None:
         return
     if args.action == "data-check":
         if args.benchmark == "cho":
+            perturbed = ROOT / "benchmarks/cho/tasks/perturbed"
+            if not list(perturbed.glob("*.xlsx")):
+                from benchmarks.cho.perturbations import generate
+                generate()
             from benchmarks.cho.validate_perturbation import validate
             result = validate()
             print(json.dumps({"pass": result["pass"], "cells_checked": result["cells_checked"]}, indent=2))

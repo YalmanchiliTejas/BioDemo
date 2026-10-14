@@ -7,10 +7,15 @@ import time
 import urllib.request
 from collections import defaultdict
 from typing import Any
-from pathlib import Path
 
 from benchmarks.common.agent_adapter import InvestigationInput
 from .conventional_extraction import ConventionalExtraction
+
+SYSTEM_PROMPT = (
+    "Investigate only supplied evidence. Cite exact source paths and row/page. "
+    "Separate observation, hypothesis and uncertainty. Recommend human review "
+    "for regulated decisions. Return JSON."
+)
 
 
 class RetrievalLLM:
@@ -51,27 +56,9 @@ class RetrievalLLM:
         if source_summaries:
             extracted["source_summary_count"] = len(source_summaries)
         if not key:
-            from src.rlm.provider import CodexRLMProvider
-            schema = {"type": "object", "additionalProperties": False,
-                      "properties": {"assessment": {"type": "string"},
-                                     "evidence_ids": {"type": "array", "items": {"type": "string"}},
-                                     "hypotheses": {"type": "array", "items": {"type": "string"}},
-                                     "uncertainties": {"type": "array", "items": {"type": "string"}},
-                                     "human_review_actions": {"type": "array", "items": {"type": "string"}}},
-                      "required": ["assessment", "evidence_ids", "hypotheses", "uncertainties", "human_review_actions"]}
-            provider = CodexRLMProvider(Path(__file__).resolve().parents[2])
-            analysis = provider._complete("single_pass_raw_source_baseline",
-                                          {"objective": request.objective, "as_of": request.as_of,
-                                           "evidence": selected}, schema)
-            extracted["mode"] = "retrieval_llm"
-            extracted["analysis"] = analysis
-            extracted["usage"].update(provider.snapshot())
-            extracted["usage"]["retrieved_records"] = len(selected)
-            extracted["usage"]["inference_cost_usd"] = None
-            extracted["usage"]["runtime_seconds"] = round(time.monotonic()-started, 3)
-            return extracted
+            raise RuntimeError("retrieval_llm baseline requires OPENAI_API_KEY")
         body = {"model": request.configuration.get("model", "gpt-6-luna"),
-                "input": [{"role": "system", "content": "Investigate only supplied evidence. Cite exact source paths and row/page. Separate observation, hypothesis and uncertainty. Recommend human review for regulated decisions. Return JSON."},
+                "input": [{"role": "system", "content": SYSTEM_PROMPT},
                           {"role": "user", "content": json.dumps({"objective": request.objective,
                                                                    "as_of": request.as_of,
                                                                    "evidence": selected}, default=str)}]}
