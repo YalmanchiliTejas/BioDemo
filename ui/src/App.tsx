@@ -10,6 +10,7 @@ import ProjectedSavings from "./ProjectedSavings";
 import BenchmarkResults from "./BenchmarkResults";
 import FreseniusContext from "./FreseniusContext";
 import PilotCTA from "./PilotCTA";
+import InvestigationDepth from "./InvestigationDepth";
 import { elapsedDays, FDA_RECALL_URL, lotDays, unaddressedCount } from "./presentation.mjs";
 
 type Lot = { batch: string; line: string; excursion: { id: string; time: string; value: number }; released: string; shipped: string; complaint: string | null; projected: string };
@@ -41,15 +42,16 @@ function KpiCards() {
         <Card key={k.label} className="flex flex-col gap-3 p-4">
           <Text className="min-h-[2.5rem] font-medium text-tremor-content-strong">{k.label}</Text>
           <div className="grid grid-cols-2 gap-3">
-            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Scenario baseline</p>
-              <p className="text-xl font-semibold text-red-700">{show(k, k.before)}</p><p className="text-xs text-gray-500">{k.before_note}</p></div>
-            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Assumed QA response</p>
-              <p className="text-xl font-semibold text-emerald-700">{show(k, k.after)}</p><p className="text-xs text-gray-500">{k.after_note}</p></div>
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Baseline</p>
+              <p className="text-xl font-semibold text-red-700">{show(k, k.before)}</p></div>
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Assumed QA</p>
+              <p className="text-xl font-semibold text-emerald-700">{show(k, k.after)}</p></div>
           </div>
           <BadgeDelta deltaType="moderateIncrease" isIncreasePositive size="xs" className="mt-auto self-start">{k.delta}</BadgeDelta>
+          <details className="text-xs text-gray-500"><summary className="cursor-pointer">Assumptions</summary><p className="mt-1">Baseline: {k.before_note}. Assumed QA: {k.after_note}.</p></details>
         </Card>
       ))}
-      <p className="col-span-full text-xs text-gray-500">Method: elapsed UTC hours ÷ 24; shipment-to-escalation intervals exclude the endpoint, with no inclusive day counting. Sum exact lot-day intervals before rounding totals. The lead time rounds 288.86 elapsed days to about 289; all modeled outcomes depend on assumed event times.</p>
+      <details className="col-span-full text-xs text-gray-500"><summary className="cursor-pointer">Date-counting methodology · modeled outcomes</summary><p className="mt-1">Elapsed UTC hours ÷ 24; shipment-to-escalation intervals exclude the endpoint, with no inclusive day counting. Sum exact lot-day intervals before rounding totals. The lead time rounds 288.86 elapsed days to about 289; all modeled outcomes depend on assumed event times.</p></details>
     </Grid>
   );
 }
@@ -177,28 +179,39 @@ function SyntheticReplay() {
       <header>
         <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700">Synthetic workflow projection · three-line dataset · Line A incident example</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">A synthetic batch-quality scenario, replayed</h1>
-        <Callout title="Projected workflow, not measured benchmark performance" color="amber" className="mt-4">{data.disclosure} No recall prevention, manufacturing intervention or human-effort reduction was measured. Fresenius Kabi did not supply internal data or participate in, endorse or validate this demonstration.</Callout>
-        <Callout title="Public dates versus assumed simulation dates" color="gray" className="mt-4">
+        <Callout title="Synthetic replay · hypothetical outcomes" color="amber" className="mt-4">Assumed 2024–2025 operating dates and QA actions. No measured recall prevention or Fresenius endorsement. <a href={FDA_RECALL_URL} target="_blank" rel="noreferrer" className="underline">Real recall: November 2025 ↗</a></Callout>
+      </header>
+      <PilotCTA compact />
+      <KpiCards />
+      <DivergenceTimeline recorded={data.recorded_events} agent={data.agent_events} lots={view.lots} forkId="AI-EVT-006" />
+      <Grid numItemsLg={2} className="gap-6"><BioburdenTrend /><MarketExposure /></Grid>
+      <BatchTracker />
+      <details className="rounded-lg border border-gray-200 p-4"><summary className="cursor-pointer text-sm font-semibold">Public FDA facts, simulation assumptions and date methodology</summary>
+      <div className="mt-4 space-y-5">
+        <FreseniusContext />
+        <Callout title="Public dates versus assumed simulation dates" color="gray">
           The company recall announcement was November 6, 2025; FDA published it November 7, 2025. <a className="underline" href={FDA_RECALL_URL} target="_blank" rel="noreferrer">Read the public notice</a>.
           The 2024 background batches, December 2024 production event, and January–October 2025 investigation events are assigned simulation dates, not a verified Fresenius operating history. All replay dates use UTC. The modeled lead time depends on these assumptions.
         </Callout>
         <p className="mt-2 max-w-3xl text-gray-500">Within this simulation, three lots failed an upstream bioburden check. Each passed its final tests and shipped, and the pattern only surfaced
           with a customer complaint on {fmt(view.recognized.time, true)}. With the agent, the second failure on {fmt(view.escalation.time, true)} links the lots
           and escalates to QA — <span className="font-semibold text-emerald-700">about {leadDays} days earlier within this assumed scenario</span>. This is a scripted replay, not a measured prediction by the benchmark agent.</p>
-      </header>
-      <PilotCTA compact />
-      <FreseniusContext />
-      <KpiCards />
-      <BatchTracker />
-      <Grid numItemsLg={2} className="gap-6"><BioburdenTrend /><MarketExposure /></Grid>
-      <DivergenceTimeline recorded={data.recorded_events} agent={data.agent_events} lots={view.lots} forkId="AI-EVT-006" />
+      <Card>
+        <Title>Release pathway · investigation adequacy, not closure status</Title>
+        <p className="mt-3 text-sm text-gray-700">Upstream excursion recorded → batch-local assessment did not adequately assess the broader risk → QA released the batch after passing finished-product tests.</p>
+        <p className="mt-2 text-sm font-medium text-gray-700">The public record does not establish the deviation’s closure date. This replay does not assert release before closure.</p>
+        <p className="mt-2 text-xs text-gray-500">Public narrative v2. Frozen benchmark inputs and their original reports retain the earlier synthetic open-deviation assumptions. Those are simulation records, not Fresenius history, and have not been rerun against this revised presentation.</p>
+      </Card>
+      <p className="text-xs text-gray-500">{data.disclosure}</p>
+      </div></details>
+      <details className="rounded-lg border border-gray-200 p-4"><summary className="cursor-pointer text-sm font-semibold">Inside the recorded investigation · evidence, alternatives and review tasks</summary><div className="mt-4"><InvestigationDepth /></div></details>
       <LotTable />
       <EventFeeds />
       <Divider />
       <Callout title="How to read this projection" color="amber">
         <ul className="list-disc space-y-1 pl-4">{view.assumptions.map(a => <li key={a}>{a}</li>)}</ul>
       </Callout>
-      <ProjectedSavings projection={data.projection} />
+      <details className="rounded-lg border border-gray-200 p-4"><summary className="cursor-pointer text-sm font-semibold">Explore an illustrative planning model · savings unmeasured</summary><div className="mt-4"><ProjectedSavings projection={data.projection} /></div></details>
       <PilotCTA />
     </main>
   );

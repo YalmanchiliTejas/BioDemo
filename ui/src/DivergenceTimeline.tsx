@@ -40,7 +40,7 @@ export default function DivergenceTimeline({ recorded, agent, lots, forkId }: Pr
   const nodes: NodeDef[] = useMemo(() => [
     { lane: "trunk", time: at("TRAD-EVT-002"), title: "Lot 075 fails upstream", sub: "deviation opened", tone: "red", pos: "up" },
     { lane: "trunk", time: lot("BATCH-075").released, title: "Lot 075 released", sub: `ships ${fmt(lot("BATCH-075").shipped)}`, tone: "gray", pos: "down" },
-    { lane: "recorded", time: at("TRAD-EVT-007"), title: "Separate deviation", sub: "Lot 084, handled on its own", tone: "gray", pos: "up", start: true },
+    { lane: "recorded", time: at("TRAD-EVT-007"), title: "Batch-local assessment", sub: "Lot 084 · broader risk missed", tone: "gray", pos: "up", start: true },
     { lane: "recorded", time: lot("BATCH-084").released, title: "Lot 084 released", sub: `ships ${fmt(lot("BATCH-084").shipped)}`, tone: "red", pos: "down", start: true },
     { lane: "recorded", time: at("TRAD-EVT-009"), title: "Lot 099 fails upstream", sub: "3rd separate deviation", tone: "red", pos: "up" },
     { lane: "recorded", time: lot("BATCH-099").released, title: "Lot 099 released", sub: `ships ${fmt(lot("BATCH-099").shipped)}`, tone: "red", pos: "down" },
@@ -48,7 +48,7 @@ export default function DivergenceTimeline({ recorded, agent, lots, forkId }: Pr
     { lane: "recorded", time: at("TRAD-EVT-012"), title: "Reserve sample fails", sub: "endotoxin out of spec", tone: "red", pos: "down" },
     { lane: "recorded", time: at("TRAD-EVT-013"), title: "Public recall notice", sub: "FDA posting · Nov 7, 2025", tone: "red", pos: "up" },
     { lane: "agent", time: at("AI-EVT-006"), title: "Lots 075 + 084 linked", sub: "to QA · 084 held, 075 flagged", tone: "green", pos: "up", start: true },
-    { lane: "agent", time: at("AI-EVT-009"), title: "Lot 099 held", sub: "added to the open case", tone: "green", pos: "down" },
+    { lane: "agent", time: at("AI-EVT-009"), title: "Lot 099 held", sub: "linked for cross-batch QA review", tone: "green", pos: "down" },
     { lane: "agent", time: at("AI-EVT-010"), title: "Organism ID added", sub: "reviewed with all 3 lots", tone: "green", pos: "up" },
     { lane: "agent", time: at("AI-EVT-011"), title: "Complaint matches case", sub: "already under review", tone: "green", pos: "down" },
     { lane: "agent", time: at("AI-EVT-012"), title: "Critical escalation", sub: "urgent QA decision", tone: "amber", pos: "up" },
@@ -103,7 +103,8 @@ export default function DivergenceTimeline({ recorded, agent, lots, forkId }: Pr
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Title>Assumed workflow divergence · synthetic replay</Title>
-          <Text>The paths show an assumed cross-batch escalation after the second simulated failure on {fmt(fork, true)}. These are scripted tasks, not measured agent completions. Dates are assumed except the public FDA posting date. April–October is compressed; horizontal distance is not proportional to elapsed time.</Text>
+          <Text>Scripted baseline vs proposed QA workflow · assumed dates · April–October compressed.</Text>
+          <details className="mt-2 text-xs text-gray-500"><summary className="cursor-pointer">Timeline assumptions</summary>The paths show an assumed cross-batch escalation after the second simulated failure on {fmt(fork, true)}. These are scripted tasks, not measured agent completions. Dates are assumed except the public FDA posting date; horizontal distance is not proportional to elapsed time.</details>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={play} className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">
@@ -114,7 +115,7 @@ export default function DivergenceTimeline({ recorded, agent, lots, forkId }: Pr
       </div>
 
       <div data-testid="timeline-frame-summary" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-        At the current replay frame, <b>{fmt(now, true)}</b>, the projected path marks <b>{aiDone} of {work.length}</b> scripted tasks; the scenario baseline marks <b>{recDone}</b>. Task counts are replay assumptions, not evidence of real-world investigation completeness or productivity.
+        <b>{fmt(now, true)}</b> · projected path <b>{aiDone} of {work.length}</b> scripted tasks · baseline <b>{recDone}</b>. Simulated, not measured productivity.
       </div>
 
       <div className="mt-4 overflow-x-auto">

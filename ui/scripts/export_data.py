@@ -24,6 +24,7 @@ def main() -> None:
                               - datetime.fromisoformat(view['escalation']['time'].replace('Z','+00:00'))).total_seconds()/86400)
     for kpi in view['kpis']:
         if kpi['kind']=='date':kpi['delta']=f"About {view['lead_days']} days in simulation"
+        if kpi['label']=='Flagged lots held for a QA decision':kpi['before_note']='batch-local assessment; broader risk insufficiently assessed'
     data = IncidentDemoService().agent_data
     escalation = view["escalation"]["time"]
     affected = {lot["batch"] for lot in view["lots"]}
@@ -70,10 +71,21 @@ def main() -> None:
     }
 
     tracks = case["replay"]["tracks"]
-    simplify = lambda rows: [{"id": r["id"], "time": r["timestamp"], "kind": r.get("kind"), "title": r["title"],
-                              "severity": r.get("severity"), "detail": r.get("detail", "")} for r in rows]
+    def simplify(rows):
+        events=[]
+        for r in rows:
+            event={"id":r['id'],"time":r['timestamp'],"kind":r.get('kind'),"title":r['title'],
+                   "severity":r.get('severity'),"detail":r.get('detail','')}
+            if r.get('kind')=='disposition_decision':
+                # Versioned public narrative, not a rewrite of frozen source records.
+                event['title']=r['title'].split(' released')[0]+' released — simulated QA decision'
+                event['detail']='Batch-local assessment did not adequately assess broader risk. QA release followed passing finished-product tests. The public record does not establish the deviation closure date; none is asserted in this replay.'
+            events.append(event)
+        return events
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps({
+        "presentation_version": "v2-investigation-adequacy",
+        "legacy_record_notice": "This public narrative does not assert deviation closure status at release. Frozen benchmark inputs and original run outputs retain their earlier synthetic open-deviation assumptions; they were not rerun against this revised presentation.",
         "disclosure": "Synthetic reconstruction informed by public FDA materials. Background, production, lab, complaint and QA "
                       "event timestamps are simulation assumptions, including the 2024 dates. Public first-ship calendar dates "
                       "and the November 2025 recall posting anchor the scenario; time of day is assumed. "

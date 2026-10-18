@@ -95,17 +95,21 @@ export default function BenchmarkResults() {
     <header>
       <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700">Recorded benchmark batch ID · {snapshot.batch}</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">Manufacturing data → reviewable investigations</h1>
-      <p className="mt-2 max-w-3xl text-gray-500">Actual CHO and Fresenius benchmark runs. Every attempt in this batch is shown, including failures and pending checks.</p>
-      <p className="mt-3 text-sm text-gray-600">CHO: authentic laboratory measurements. Fresenius: synthetic FDA-informed reconstruction; no internal company data or endorsement.</p>
-      <a className="mt-2 inline-block text-sm text-emerald-700 underline" href="/?tab=replay">Read the Fresenius public facts and simulation assumptions ↗</a>
-      <p className="mt-2 text-xs text-gray-500">Execution dates: {executionDates.join(" / ")} (UTC). The batch ID is a local launch label, not an event date. Source-event and simulation dates differ from execution dates. This batch uses the full RLM method only; no matched method comparison is shown.</p>
+      <p className="mt-2 text-sm text-gray-600">CHO: authentic lab data · Fresenius: synthetic reconstruction · Independent scientific review pending.</p>
     </header>
     <PilotCTA compact />
-    <BenchmarkSummary />
     {snapshot.unavailable_records.length > 0 && <Callout title="Some batch records are unavailable" color="red">See the exported summary for missing run records; they have not been counted as successes.</Callout>}
     <Grid numItemsSm={2} numItemsLg={4} className="gap-4">{totals.map(k => <Card key={k.title} className="p-5">
       <Text>{k.title}</Text><p className="mt-2 text-4xl font-semibold text-gray-900">{k.value}</p><Text className="mt-2 text-xs">{k.note}</Text>
     </Card>)}</Grid>
+    <Grid numItemsLg={2} className="gap-6">
+      <Card><Title>Investigation outcomes</Title><Text>All {runs.length} attempts. Final reports ≠ scientific qualification.</Text>
+        <BarChart className="mt-5 h-72" data={outcomes} index="dataset" categories={["Final · source checks passed", "Final · source review pending", "Partial report", "Execution failed"]} colors={["emerald", "amber", "orange", "red"]} stack allowDecimals={false} yAxisWidth={28} />
+      </Card>
+      <Card><Title>Time per attempt</Title><Text>Recorded machine minutes · 30-minute case deadline.</Text>
+        <BarChart className="mt-5 h-72" data={runtime} index="case" categories={["Execution returned", "Execution failed"]} colors={["emerald", "red"]} valueFormatter={v => `${v.toFixed(1)} min`} yAxisWidth={55} />
+      </Card>
+    </Grid>
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div><Title>Inspect a recorded investigation</Title><Text>Observations and hypotheses remain distinct. Select any attempt, including the failed case.</Text></div>
@@ -118,6 +122,7 @@ export default function BenchmarkResults() {
       {run && detail && <div data-testid="case-panel" data-run-id={run.run_id}>
         <div className="mt-5 flex flex-wrap gap-2"><Badge color={final(run) ? verified(run) ? "emerald" : "amber" : "red"}>{caseLabel(run)}</Badge><Badge color="gray">Independent review pending</Badge><Badge color="gray">{minutes(run.runtime_seconds)}</Badge></div>
         <p className="mt-3 text-sm text-gray-600">{partialStatus ?? run.disclosure}</p>
+        {run.benchmark_id === "fresenius" && <p className="mt-2 text-xs text-gray-500">Legacy synthetic benchmark: these frozen records assume open deviations at release. That is not verified Fresenius history. The revised public replay leaves real closure dates unknown; these original outputs have not been rewritten or rerun.</p>}
         <div className="mt-4 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
           <div><p className="text-gray-400">Reviewed/screened units</p><p className="font-semibold">{run.coverage_reviewed ?? "—"}/{run.coverage_total ?? "—"}</p></div>
           <div><p className="text-gray-400">Automatic source checks</p><p className="font-semibold">{run.source_check_count ? `${run.automatically_verified_sources}/${run.source_check_count}` : "Unavailable"}</p></div>
@@ -126,7 +131,7 @@ export default function BenchmarkResults() {
         </div>
         <p className="mt-2 text-xs text-gray-500">Coverage units are case-specific and are not comparable across datasets. Counts do not establish critical-signal recall or scientific correctness.</p>
         {experiments.length > 0 && <div className="mt-4 rounded-lg bg-emerald-50 p-4 text-sm text-gray-700">
-          <p><b>Investigation scope: {experiments.length} experiments, {new Set(detail.coverage.map(unit => unit.entity_id).filter(Boolean)).size} reactor entities.</b> The report compares the full scoped dataset. Below, observations, hypotheses and questions are grouped by experiment; the plotted trajectory is one illustrative example.</p>
+          <p><b>Investigation scope: {experiments.length} experiments, {new Set(detail.coverage.map(unit => unit.entity_id).filter(Boolean)).size} reactor entities.</b> Explore one experiment below.</p>
           <label className="mt-3 block">Experiment <select aria-label="Investigation experiment" className="ml-2 rounded border-gray-300 text-sm" value={experiment} onChange={event => setExperimentChoice({run:selected, experiment:event.target.value})}>{experiments.map(id => <option key={id}>{id}</option>)}</select></label>
         </div>}
         {detail && <div className="mt-5 space-y-4">
@@ -139,7 +144,8 @@ export default function BenchmarkResults() {
           {partialStatus && <p className="text-xs text-gray-500">The raw agent assessment is retained in the technical artifact and may describe itself as complete. The evaluated status above takes precedence.</p>}
           {run.execution_status === "failed" && <Callout color="red" title="Runtime failure">Execution ended without a retained final report after {minutes(run.runtime_seconds)}. The recorded runtime exited with an error; wall-clock exhaustion is not established. Diagnostics are retained in the downloadable technical artifact.</Callout>}
           {run.numeric_review_items.length > 0 && <Callout color="amber" title="Numerical review remains open">Unlinked assessment literals: {run.numeric_review_items.map(item => item.literal).join(", ")}. These are not certified numerical claims.</Callout>}
-          <Grid numItemsLg={2} className="gap-5">
+          <details><summary className="cursor-pointer text-sm font-semibold">Explore observations, competing explanations and next checks</summary>
+          <Grid numItemsLg={2} className="mt-4 gap-5">
             <section><h3 className="text-sm font-semibold">Recorded model observations{experiment ? ` · ${experiment}` : ""}</h3><p className="mt-1 text-xs text-gray-500">{illustrativeFacts.length} selected excerpts from the agent report; not independently scientifically reviewed. Source checks validate extracted locations and values, not every accompanying inference. Fresenius statements describe the simulation only.</p><div className="mt-3 space-y-3">{illustrativeFacts.map((fact, i) => <div key={i} className="rounded-lg bg-gray-50 p-3">
               <p className="text-sm text-gray-700">{fact.statement}</p>
               <div className="mt-2 space-y-1">{(fact.evidence_ids ?? []).map(id => {
@@ -153,19 +159,17 @@ export default function BenchmarkResults() {
               {questions.length > 0 && <details className="mt-3"><summary className="cursor-pointer text-sm font-semibold">Unresolved questions{experiment ? ` · ${experiment}` : ""}</summary><ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-gray-600">{questions.map((q, i) => <li key={i}>{q}</li>)}</ul></details>}
             </section>
           </Grid>
+          </details>
         </div>}
         <a className="mt-5 inline-block text-sm font-medium text-emerald-700 underline" href={run.details_url} target="_blank" rel="noreferrer">Open complete recorded case data and source coordinates ↗</a>
       </div>}
     </Card>
-    <Grid numItemsLg={2} className="gap-6">
-      <Card><Title>Investigation outcomes</Title><Text>Completion and source verification are separate. No scientific qualification is claimed.</Text>
-        <BarChart className="mt-5 h-72" data={outcomes} index="dataset" categories={["Final · source checks passed", "Final · source review pending", "Partial report", "Execution failed"]} colors={["emerald", "amber", "orange", "red"]} stack allowDecimals={false} yAxisWidth={28} />
-      </Card>
-      <Card><Title>Time per attempt</Title><Text>Machine wall time in minutes. The case deadline was 30 minutes; human effort was not measured.</Text>
-        <BarChart className="mt-5 h-72" data={runtime} index="case" categories={["Execution returned", "Execution failed"]} colors={["emerald", "red"]} valueFormatter={v => `${v.toFixed(1)} min`} yAxisWidth={55} />
-        <p className="mt-2 text-xs text-gray-500">Recorded investigation timer; run-record timestamps also include orchestration overhead. A returned execution may contain a partial report.</p>
-      </Card>
-    </Grid>
+    <details className="rounded-lg border border-gray-200 p-4"><summary className="cursor-pointer text-sm font-semibold">How to read the results · methodology, dates and provenance</summary>
+      <div className="mt-4 space-y-4"><BenchmarkSummary />
+        <p className="text-xs text-gray-500">Execution dates: {executionDates.join(" / ")} (UTC). The batch ID is a local launch label, not an event date. Source-event and simulation dates differ from execution dates. This batch uses the full RLM method only; no matched method comparison is shown. Runtime uses the recorded investigation timer; timestamp differences also include orchestration overhead. No human effort was measured.</p>
+        <a className="inline-block text-sm text-emerald-700 underline" href="/?tab=replay">Fresenius public facts and simulation assumptions ↗</a>
+      </div>
+    </details>
     <Card><Title>All {runs.length} attempts in this batch</Title><Text>Top-level “incomplete” can mean a final investigation is awaiting source review. The dimensions below show the distinction.</Text>
       <Table className="mt-4"><TableHead><TableRow>{["Case", "Investigation", "Source verification", "Time", "Calculations", "Pending visual checks", "Numerical review items"].map(h => <TableHeaderCell key={h}>{h}</TableHeaderCell>)}</TableRow></TableHead>
         <TableBody>{runs.map(r => <TableRow key={r.run_id}>

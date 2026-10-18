@@ -26,3 +26,15 @@ test('Synthetic population has multiple lines and one unavailable measurement', 
   assert.equal(data.batches.filter(b => b.bioburden != null).length, 99);
   assert.equal(new Set(data.batches.map(b => b.line)).size, 3);
 });
+test('Public release narrative does not infer administrative closure status', () => {
+  assert.equal(data.presentation_version, 'v2-investigation-adequacy');
+  assert.ok(data.legacy_record_notice.includes('not rerun'));
+  const releases = data.recorded_events.filter(event => event.kind === 'disposition_decision');
+  assert.equal(releases.length, 3);
+  for (const event of releases) {
+    assert.ok(event.title.includes('simulated QA decision'));
+    assert.ok(event.detail.includes('did not adequately assess broader risk'));
+    assert.ok(event.detail.includes('does not establish the deviation closure date'));
+    assert.ok(!event.detail.includes('remained in batch-local open deviations'));
+  }
+});

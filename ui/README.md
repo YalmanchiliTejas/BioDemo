@@ -56,3 +56,17 @@ Case details are displayed only after their run ID matches the selected case;
 CHO report excerpts can be explored by experiment without mixing chart and
 hypothesis scopes. Partial-report self-descriptions stay in the technical
 artifact; evaluated status is shown in the interface.
+
+The public release narrative is versioned `v2-investigation-adequacy`: release
+after inadequate broader-risk assessment is distinguished from administrative
+deviation closure (unknown in the public record). The investigation-depth panel
+uses original FRE-01 excerpts with source coordinates, counterevidence,
+alternative explanations and proposed checks. It explicitly discloses that the
+recorded run retains earlier synthetic open-deviation assumptions. This does not
+change frozen data or establish superior performance on a revised scenario.
+
+Visual hierarchy: the measured page leads with compact status cards and outcome/
+runtime charts. The replay leads with a short synthetic-data label, model figures
+and the animated workflow. Detailed context, original report excerpts, methodology
+and the illustrative calculator are expandable below the visuals. Material
+provenance and scientific-review qualifications stay visible near the figures.

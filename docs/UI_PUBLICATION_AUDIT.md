@@ -118,3 +118,33 @@ Verification: production build, six exporter and three presentation tests, and
 browser checks at 1363×936 and 390×844. All eleven case panels, delayed-response
 race, experiment grouping, partial/failure copy, booking href, scrub/restart,
 disclosures and horizontal overflow checked. No browser exceptions.
+
+## Public release pathway v2 and recorded investigation depth
+
+The public replay now states: upstream excursion recorded → batch-local
+assessment did not adequately assess broader risk → QA release after passing
+finished-product tests. The real deviation closure date is unknown. Exported
+presentation version `v2-investigation-adequacy` updates release-event narration
+and removes wording implying administrative closure was a prerequisite or that
+an open status is established for actual Fresenius releases. This is a revised
+public illustration, not a new evaluated dataset. Source inputs, frozen run
+records and original reports remain unchanged. Both tabs disclose the legacy
+open-deviation assumption in those recorded synthetic benchmarks.
+
+An added investigation-depth panel loads the retained FRE-01 report from this
+batch and checks its run/output identifiers against the exported summary. It
+shows selected original observations (cross-batch microbiology, environmental
+signals, normal historian readings), recurring-control and analytical-error
+hypotheses, linked supporting/contradicting source coordinates, discriminating
+checks and proposed confirmation/environmental review tasks. Values, sources
+and task wording come from the report, not newly invented benchmark results.
+The panel distinguishes automatic value/location checks from source-review
+pending and scientific-review pending. No common cause or intervention outcome
+is certified. The original report still uses legacy synthetic assumptions.
+
+This shows concrete investigation work directed at broader risk and competing
+explanations. It does not establish superiority to engineers or conventional
+methods: no matched comparative results, validated real-world prevention or
+qualification of the revised narrative exist. Browser checks confirm the new
+panel, source coordinates, alternative explanation, normal process readings,
+unperformed task labels and release wording on desktop and mobile.

@@ -1,4 +1,8 @@
 export default function PilotCTA({ compact = false }: { compact?: boolean }) {
+  if (compact) return <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 px-4 py-3">
+    <p className="text-sm text-gray-700">Have a deviation to investigate? Start with a de-identified case.</p>
+    <a className="text-sm font-semibold text-emerald-700 underline" href="https://calendar.app.google/EvGcEGs8SycQKR478" target="_blank" rel="noreferrer">Request a shadow pilot ↗</a>
+  </div>;
   return <section aria-label="Request a shadow pilot" className={`rounded-xl border border-emerald-200 bg-emerald-50 ${compact ? "p-4" : "p-6"}`}>
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div className="max-w-2xl">

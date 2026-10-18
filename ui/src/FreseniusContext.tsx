@@ -22,6 +22,7 @@ export default function FreseniusContext() {
         <Title className="mt-3">FDA documented investigation gaps</Title>
         <Text className="mt-2">The September 22, 2026 warning letter describes multiple bioburden action-limit failures in famotidine manufacturing, insufficient investigation and batch release following passing finished-product tests.</Text>
         <p className="mt-3 text-sm text-gray-600">It does not provide the lot-by-lot dates and numerical failures assigned in our simulation.</p>
+        <p className="mt-2 text-sm font-medium text-gray-700">The public record does not establish the deviation closure date. Insufficient investigation does not establish that the deviation was administratively open at release.</p>
         <a className="mt-4 inline-block text-sm font-medium text-emerald-700 underline" href={WARNING_URL} target="_blank" rel="noreferrer">FDA warning letter ↗</a>
         <p className="mt-1 text-xs text-gray-400">Source: violation 1, “Endotoxin Test Failures.” Published after the 2025 recall; retrospective context, not information available to an agent in January 2025.</p>
       </Card>
