@@ -52,6 +52,18 @@ def test_ui_export_works_after_runtime_stores_have_been_offloaded(batch):
     assert len(export(batch)['runs'])==3
 
 
+def test_public_export_redacts_local_paths_without_changing_failure_records(batch):
+    path=batch/'results/evaluation'/('a'*32)/'run.json'
+    run=json.loads(path.read_text())
+    run['reason']='TimeoutError in /Users/alice/Desktop/BioDemo/src/prime_runtime/sdk_runner.mjs'
+    path.write_text(json.dumps(run)); original=path.read_bytes()
+    export(batch)
+    detail=json.loads((batch/'ui/public/benchmarks'/('a'*32+'.json')).read_text())
+    assert 'TimeoutError' in detail['diagnostic']
+    assert '/Users/alice' not in detail['diagnostic']
+    assert path.read_bytes()==original
+
+
 def test_ui_export_rejects_changed_output_instead_of_displaying_verified_numbers(batch):
     (batch/'results/evaluation'/('b'*32)/'output.json').write_text('changed')
     with pytest.raises(ValueError,match='checksum mismatch'):export(batch)

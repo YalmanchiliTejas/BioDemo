@@ -37,3 +37,22 @@ holds, earlier escalation and market-exposure changes are deterministic simulati
 outputs, not measured agent performance or actual manufacturing interventions.
 Fresenius is a synthetic reconstruction informed by public FDA-related materials;
 no internal company data, participation, endorsement or validation is implied.
+
+The public recall announcement (November 6, 2025) and FDA posting (November 7,
+2025) are linked separately from the assigned 2024–2025 simulation events. First
+shipment calendar dates match the public notice; timestamps within those days
+are assumptions. Simulated early escalation and QA holds are scripted, not RLM
+performance measurements. The planning sandbox defaults to zero assumed labor
+reduction and reports gross modeled labor value, with excluded costs listed.
+
+Publication labeling audit: [docs/UI_PUBLICATION_AUDIT.md](../docs/UI_PUBLICATION_AUDIT.md).
+Run `node --test ui/scripts/test_presentation.mjs` from the repository root to
+check exposure cutoff, elapsed-day rounding and the missing-measurement scope.
+Exports redact workstation paths; original result records remain unchanged.
+
+Shadow-pilot CTAs use the approved Google Calendar booking URL. They request a
+discussion of a de-identified deviation, not uploads of confidential records.
+Case details are displayed only after their run ID matches the selected case;
+CHO report excerpts can be explored by experiment without mixing chart and
+hypothesis scopes. Partial-report self-descriptions stay in the technical
+artifact; evaluated status is shown in the interface.

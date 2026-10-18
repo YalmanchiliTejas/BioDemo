@@ -9,6 +9,14 @@ import re
 
 ROOT=Path(__file__).resolve().parents[2]
 
+def public_text(value):
+    """Remove workstation paths from public presentation copies, preserving originals."""
+    if isinstance(value,str):
+        return re.sub(r'/(?:Users|home)/[^\s"\'<>]+', '[local path redacted]', value)
+    if isinstance(value,list):return [public_text(item) for item in value]
+    if isinstance(value,dict):return {key:public_text(item) for key,item in value.items()}
+    return value
+
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def trajectory(root,run,checks):
@@ -111,6 +119,8 @@ def export(root=ROOT):
                  'dataset_sha256':run['case'].get('package_sha256'),'output_sha256':run.get('output_sha256'),
                  'run_file_sha256':digest(path),'output_hash_matches':output_valid,'details_url':f'/benchmarks/{id}.json'}
             detail={**row,'assessment':report.get('assessment'),'cross_scope_synthesis':report.get('cross_scope_synthesis'),
+                    'presentation_notice':'Recorded model output, not independent scientific approval. Source location/value checks do not certify every inference. Workstation paths are redacted in this presentation copy; original records and hashes are retained.',
+                    'dataset_disclosure':'Authentic CHO laboratory data.' if bid=='cho' else 'Synthetic manufacturing reconstruction informed by public FDA-related materials. Factory-event dates and batch events are simulation assumptions, not verified Fresenius operating history. Public-source excerpts must be distinguished from synthetic records. No internal company data, participation, endorsement or validation.',
                     'observed_facts':report.get('observed_facts',[]),'interpretations':report.get('interpretations',[]),
                     'hypotheses':report.get('causal_hypotheses',report.get('hypotheses',[])),
                     'calculations':report.get('calculated_metrics',[]),'coverage':review.get('coverage',[]),
@@ -121,7 +131,7 @@ def export(root=ROOT):
                     'qualification_reasons':run.get('qualification',{}).get('reasons',[]),
                     'trajectory':trajectory(root,run,checks) if bid=='cho' else None,
                     'source_record':f'results/evaluation/{id}/run.json'}
-            (public/(id+'.json')).write_text(json.dumps(detail,indent=2)+'\n')
+            (public/(id+'.json')).write_text(json.dumps(public_text(detail),indent=2)+'\n')
             runs.append(row)
     payload={'batch':batch,'exported_at':datetime.now(timezone.utc).isoformat(),'runs':runs,'unavailable_records':missing,
              'source_logs':[str(p.relative_to(root)) for p in batches[batch].values()],
@@ -131,6 +141,7 @@ def export(root=ROOT):
                  'All attempts from this paired batch are included. Historical attempts remain in the detailed benchmark archive.',
                  'Runtime is machine wall time, not measured human effort. Provider usage may exclude children; unknown costs remain unknown.',
                  'No measured manual-engineer comparison, human-effort savings, confirmed root cause or production improvement is established.']}
+    payload=public_text(payload)
     destination=root/'ui/src/data/benchmarks.json';destination.parent.mkdir(parents=True,exist_ok=True)
     destination.write_text(json.dumps(payload,indent=2)+'\n')
     (public/'summary.json').write_text(json.dumps(payload,indent=2)+'\n')

@@ -23,10 +23,10 @@ export default function BenchmarkSummary() {
   const ids = (list: Run[]) => list.map(r => r.case_id).join(", ");
 
   const legend: [string, string, string][] = [
-    ["bg-emerald-500", "Final · source checks passed", "The agent finished, and every number it cited matched the original source cell automatically."],
+    ["bg-emerald-500", "Final · source checks passed", "The agent submitted a final report and recorded automatic source checks passed. This does not establish that every scientific claim is supported."],
     ["bg-amber-500", "Final · source review pending", "The agent finished, but some citations point to scanned PDFs, so a person has to look at the page to confirm them."],
-    ["bg-orange-500", "Partial report", "The agent returned a report but flagged work it did not finish."],
-    ["bg-red-500", "Execution failed", "No report came back, usually because the time budget ran out."],
+    ["bg-orange-500", "Partial report", "A report was retained, but required investigation or numerical checks remain unresolved."],
+    ["bg-red-500", "Execution failed", "Execution ended without a retained final report. Inspect the recorded diagnostic for the actual cause."],
   ];
 
   return (
@@ -36,13 +36,13 @@ export default function BenchmarkSummary() {
         <p className="mt-3 text-lg leading-relaxed text-gray-800">
           The agent ran <b>{runs.length} investigations</b>: {cho.length} on real CHO bioreactor lab data and {fre.length} on the synthetic Fresenius
           plant scenario, each with a {budget}-minute budget. <b className="text-emerald-700">{finals.length} of {runs.length}</b> ended in a final
-          investigation report, with a median run time of <b>{minutes.toFixed(0)} minutes</b>.
+          investigation report. Median recorded runtime across all attempts, including failures, was <b>{minutes.toFixed(1)} minutes</b>.
         </p>
         <ul className="mt-4 space-y-2 text-sm text-gray-600">
           <li><b className="text-gray-900">{passed.length} reports passed every automatic source check</b> ({ids(passed)}).</li>
           <li><b className="text-gray-900">{pending.length} reports are finished but waiting for a person to check citations in scanned PDFs</b> ({ids(pending)}).</li>
           {partial.length > 0 && <li><b className="text-gray-900">{partial.length} partial</b> ({ids(partial)}): a report came back with open work.</li>}
-          {failed.length > 0 && <li><b className="text-gray-900">{failed.length} failed</b> ({ids(failed)}): no report within the time budget.</li>}
+          {failed.length > 0 && <li><b className="text-gray-900">{failed.length} failed</b> ({ids(failed)}): execution failed; see the case diagnostic.</li>}
         </ul>
       </Card>
       <Card className="lg:col-span-2">
@@ -56,7 +56,7 @@ export default function BenchmarkSummary() {
           ))}
         </ul>
         <div className="mt-4 space-y-1.5 border-t border-gray-100 pt-3 text-xs text-gray-500">
-          <p>Each attempt counts once; none are filtered out.</p>
+          <p>Each recorded attempt in this batch counts once. This is not the full historical archive or a repeated reliability study.</p>
           <p>Times are the agent's machine minutes, not people's working hours.</p>
           <p>Still to come: independent expert review of the findings, and a side-by-side against engineers doing the same task.</p>
         </div>

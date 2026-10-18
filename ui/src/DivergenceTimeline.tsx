@@ -46,7 +46,7 @@ export default function DivergenceTimeline({ recorded, agent, lots, forkId }: Pr
     { lane: "recorded", time: lot("BATCH-099").released, title: "Lot 099 released", sub: `ships ${fmt(lot("BATCH-099").shipped)}`, tone: "red", pos: "down" },
     { lane: "recorded", time: at("TRAD-EVT-011"), title: "Customer complaint", sub: "pattern finally surfaces", tone: "amber", pos: "up" },
     { lane: "recorded", time: at("TRAD-EVT-012"), title: "Reserve sample fails", sub: "endotoxin out of spec", tone: "red", pos: "down" },
-    { lane: "recorded", time: at("TRAD-EVT-013"), title: "Recall · 3 lots", sub: "public announcement", tone: "red", pos: "up" },
+    { lane: "recorded", time: at("TRAD-EVT-013"), title: "Public recall notice", sub: "FDA posting · Nov 7, 2025", tone: "red", pos: "up" },
     { lane: "agent", time: at("AI-EVT-006"), title: "Lots 075 + 084 linked", sub: "to QA · 084 held, 075 flagged", tone: "green", pos: "up", start: true },
     { lane: "agent", time: at("AI-EVT-009"), title: "Lot 099 held", sub: "added to the open case", tone: "green", pos: "down" },
     { lane: "agent", time: at("AI-EVT-010"), title: "Organism ID added", sub: "reviewed with all 3 lots", tone: "green", pos: "up" },
@@ -56,7 +56,7 @@ export default function DivergenceTimeline({ recorded, agent, lots, forkId }: Pr
   ], [recorded, agent, lots]);
 
   const work = [
-    { label: "Investigate the first failure", rec: at("TRAD-EVT-003"), ai: at("AI-EVT-002") },
+    { label: "Record the first failure signal", rec: at("TRAD-EVT-002"), ai: at("AI-EVT-002") },
     { label: "Link repeat failures into one case", rec: at("TRAD-EVT-011"), ai: at("AI-EVT-006") },
     { label: "Flag shipped lots for market-action review", rec: at("TRAD-EVT-013"), ai: at("AI-EVT-006") },
     { label: "Hold affected lots before release", rec: null, ai: at("AI-EVT-009") },
@@ -94,11 +94,6 @@ export default function DivergenceTimeline({ recorded, agent, lots, forkId }: Pr
   const recDone = work.filter(w => done(w.rec)).length, aiDone = work.filter(w => done(w.ai)).length;
   const latest = (lane: Lane) => [...placed].reverse().find(n => (n.lane === lane || n.lane === "trunk") && n.x <= px + 0.5);
 
-  // Headline: when the agent path finishes its last early step, how far along is the regular process?
-  const early = work.map(w => w.ai).filter(t => t && t < "2025-06-01").sort().pop()!;
-  const earlyRec = work.filter(w => w.rec && w.rec <= early).length;
-  const earlyAi = work.filter(w => w.ai && w.ai <= early).length;
-
   const branch = (lane: "recorded" | "agent") => `M${xf},${Y.trunk} C${xf + CURVE / 2},${Y.trunk} ${xf + CURVE / 2},${Y[lane]} ${xf + CURVE},${Y[lane]} H${RIGHT}`;
   const months = ["2024-12-01", "2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01", "2025-10-15", "2025-11-01"];
   const play = () => { if (p >= 1) setP(0); setPlaying(v => !v || p >= 1); };
@@ -107,8 +102,8 @@ export default function DivergenceTimeline({ recorded, agent, lots, forkId }: Pr
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Title>Where the agent changes the process</Title>
-          <Text>Same plant, same data. Both paths run identically until the second lot fails on {fmt(fork, true)}, then they split.</Text>
+          <Title>Assumed workflow divergence · synthetic replay</Title>
+          <Text>The paths show an assumed cross-batch escalation after the second simulated failure on {fmt(fork, true)}. These are scripted tasks, not measured agent completions. Dates are assumed except the public FDA posting date. April–October is compressed; horizontal distance is not proportional to elapsed time.</Text>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={play} className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">
@@ -118,9 +113,8 @@ export default function DivergenceTimeline({ recorded, agent, lots, forkId }: Pr
         </div>
       </div>
 
-      <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-        By <b>{fmt(early, true)}</b>, the agent path has <b>{earlyAi} of {work.length}</b> investigation steps done. The regular process has <b>{earlyRec}</b>, and
-        does the rest after the complaint, {Math.round((Date.parse(work[1].rec!) - Date.parse(early)) / (30.4 * 864e5))} months later.
+      <div data-testid="timeline-frame-summary" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+        At the current replay frame, <b>{fmt(now, true)}</b>, the projected path marks <b>{aiDone} of {work.length}</b> scripted tasks; the scenario baseline marks <b>{recDone}</b>. Task counts are replay assumptions, not evidence of real-world investigation completeness or productivity.
       </div>
 
       <div className="mt-4 overflow-x-auto">
@@ -128,7 +122,7 @@ export default function DivergenceTimeline({ recorded, agent, lots, forkId }: Pr
           <defs><clipPath id="progress"><rect x={0} y={0} width={px} height={H} /></clipPath></defs>
           {/* quiet-period band */}
           <rect x={X("2025-04-22")} y={40} width={X("2025-10-12") - X("2025-04-22")} height={AXIS - 40} fill="#f9fafb" />
-          <text x={(X("2025-04-22") + X("2025-10-12")) / 2} y={AXIS - 8} textAnchor="middle" className="fill-gray-400 text-[10px]">6 quiet months</text>
+          <text x={(X("2025-04-22") + X("2025-10-12")) / 2} y={AXIS - 8} textAnchor="middle" className="fill-gray-400 text-[10px]">Compressed time</text>
           {months.map(m => (
             <g key={m}><line x1={X(m)} x2={X(m)} y1={44} y2={AXIS} stroke="#f1f5f9" />
               <text x={X(m) + 3} y={AXIS + 16} className="fill-gray-400 text-[10px]">{new Date(m).toLocaleDateString("en-US", { month: "short", year: m.endsWith("-01-01") || m === months[0] ? "2-digit" : undefined, timeZone: "UTC" })}</text></g>
@@ -137,7 +131,7 @@ export default function DivergenceTimeline({ recorded, agent, lots, forkId }: Pr
           <line x1={xf} x2={xf} y1={34} y2={AXIS} stroke="#059669" strokeDasharray="4 4" />
           <text x={xf + 6} y={30} className="fill-emerald-700 text-[11px] font-semibold">{fmt(fork, true)} · Lot 084 fails · the paths split</text>
           {/* lane names */}
-          <text x={RIGHT} y={Y.recorded - 44} textAnchor="end" className="fill-red-700 text-[12px] font-semibold">Regular process (recorded)</text>
+          <text x={RIGHT} y={Y.recorded - 44} textAnchor="end" className="fill-red-700 text-[12px] font-semibold">Scenario baseline (assumed)</text>
           <text x={RIGHT} y={Y.agent + 58} textAnchor="end" className="fill-emerald-700 text-[12px] font-semibold">With the agent (projected)</text>
           {/* faint full paths */}
           <g fill="none" strokeWidth={3} opacity={0.18}>
@@ -176,12 +170,12 @@ export default function DivergenceTimeline({ recorded, agent, lots, forkId }: Pr
         onChange={e => { setPlaying(false); setP(Number(e.target.value) / 1000); }} className="mt-2 w-full accent-emerald-600" />
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        {([["Regular process", "rec", recDone, "red", "recorded"], ["With the agent", "ai", aiDone, "emerald", "agent"]] as const).map(([name, key, count, color, lane]) => {
+        {([["Scenario baseline", "rec", recDone, "red", "recorded"], ["Projected assistance", "ai", aiDone, "emerald", "agent"]] as const).map(([name, key, count, color, lane]) => {
           const current = latest(lane);
           return (
             <div key={key} className={`rounded-lg border p-4 ${key === "ai" ? "border-emerald-200 bg-emerald-50/40" : "border-red-100 bg-red-50/30"}`}>
               <div className="flex items-center justify-between"><p className="text-sm font-semibold text-gray-900">{name}</p>
-                <Badge color={color} size="xs">{count}/{work.length} steps done</Badge></div>
+                <Badge color={color} size="xs">{count}/{work.length} scripted tasks</Badge></div>
               <ProgressBar value={(count / work.length) * 100} color={color} className="mt-3" />
               <p className="mt-3 min-h-[2.5rem] text-xs text-gray-500">{current ? <>Latest: <b className="text-gray-800">{current.title}</b> · {fmt(current.time, true)}</> : "Waiting for the first event…"}</p>
               <ul className="mt-2 space-y-2">{work.map(w => {
@@ -191,7 +185,7 @@ export default function DivergenceTimeline({ recorded, agent, lots, forkId }: Pr
                     {ok ? <RiCheckboxCircleFill className={`h-4 w-4 shrink-0 ${key === "ai" ? "text-emerald-600" : "text-red-500"}`} />
                       : t ? <RiTimeLine className="h-4 w-4 shrink-0 text-gray-300" /> : <RiCloseCircleLine className="h-4 w-4 shrink-0 text-gray-300" />}
                     <span className={ok ? "text-gray-900" : "text-gray-400"}>{w.label}</span>
-                    <span className="ml-auto whitespace-nowrap text-xs text-gray-400">{t ? (ok ? fmt(t, true) : "pending") : "never · lots released"}</span>
+                    <span className="ml-auto whitespace-nowrap text-xs text-gray-400">{t ? (ok ? fmt(t, true) : "later in replay") : "not modeled"}</span>
                   </li>);
               })}</ul>
             </div>

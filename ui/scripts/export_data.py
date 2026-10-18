@@ -5,6 +5,7 @@ Run from the repository root:  .venv/bin/python ui/scripts/export_data.py
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 from benchmark.case_comparison import ComparisonService
@@ -18,6 +19,11 @@ def main() -> None:
     case = ComparisonService().case("fresenius")
     demo = build_demo(case)
     view = demo["plant_view"]
+    # Presentation rounding only; frozen event dates and benchmark outputs stay intact.
+    view['lead_days'] = round((datetime.fromisoformat(view['recognized']['time'].replace('Z','+00:00'))
+                              - datetime.fromisoformat(view['escalation']['time'].replace('Z','+00:00'))).total_seconds()/86400)
+    for kpi in view['kpis']:
+        if kpi['kind']=='date':kpi['delta']=f"About {view['lead_days']} days in simulation"
     data = IncidentDemoService().agent_data
     escalation = view["escalation"]["time"]
     affected = {lot["batch"] for lot in view["lots"]}
@@ -68,8 +74,10 @@ def main() -> None:
                               "severity": r.get("severity"), "detail": r.get("detail", "")} for r in rows]
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps({
-        "disclosure": "Synthetic reconstruction informed by public FDA materials. Not Fresenius internal data; "
-                      "the with-agent side is a deterministic projected replay.",
+        "disclosure": "Synthetic reconstruction informed by public FDA materials. Background, production, lab, complaint and QA "
+                      "event timestamps are simulation assumptions, including the 2024 dates. Public first-ship calendar dates "
+                      "and the November 2025 recall posting anchor the scenario; time of day is assumed. "
+                      "Not Fresenius internal data; the with-agent side is a deterministic projected replay.",
         "plant_view": view,
         "projection": projection,
         "batches": batches,
