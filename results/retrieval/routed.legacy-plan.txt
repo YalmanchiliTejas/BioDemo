@@ -1,0 +1,568 @@
+┌─────────────────────────────────────┐
+│┌───────────────────────────────────┐│
+││    Query Profiling Information    ││
+│└───────────────────────────────────┘│
+└─────────────────────────────────────┘
+EXPLAIN ANALYZE SELECT * EXCLUDE(score) FROM (SELECT *,(CAST(contains(lower(name || ' ' || coalesce(value_text,'') || ' ' || coalesce(entity_id,'')),?) AS INTEGER)) AS score FROM observations) WHERE score>0 ORDER BY score DESC,id LIMIT ? OFFSET ?
+┌────────────────────────────────────────────────┐
+│┌──────────────────────────────────────────────┐│
+││               Total Time: 4.37s              ││
+│└──────────────────────────────────────────────┘│
+└────────────────────────────────────────────────┘
+┌─────────────┐
+│    QUERY    │
+└──────┬──────┘
+┌──────┴──────┐
+│EXPLAIN_...  │
+│    ──────   │
+│             │
+│    0 rows   │
+│    0.00s    │
+└──────┬──────┘
+┌──────┴──────┐
+│  PROJECTION │
+│    ──────   │
+│      #0     │
+│      #1     │
+│      #2     │
+│      #3     │
+│      #4     │
+│      #5     │
+│      #6     │
+│      #7     │
+│      #8     │
+│      #9     │
+│     #10     │
+│     #11     │
+│     #12     │
+│     #13     │
+│     #14     │
+│     #15     │
+│     #16     │
+│     #17     │
+│     #18     │
+│     #19     │
+│     #20     │
+│     #21     │
+│             │
+│             │
+│             │
+│    0 rows   │
+│    0.00s    │
+└──────┬──────┘
+┌──────┴──────┐
+│    TOP_N    │
+│    ──────   │
+│   Top: 10   │
+│             │
+│  Order By:  │
+│   #22 DESC  │
+│unnamed_subqu│
+│  ery.id ASC │
+│             │
+│             │
+│             │
+│    0 rows   │
+│    0.00s    │
+└──────┬──────┘
+┌──────┴──────┐
+│  PROJECTION │
+│    ──────   │
+│      id     │
+│  source_id  │
+│     name    │
+│  value_text │
+│ value_number│
+│     unit    │
+│ occurred_at │
+│ available_at│
+│  entity_id  │
+│validation_st│
+│     atus    │
+│ access_scope│
+│  source_ref │
+│extraction_me│
+│     thod    │
+│  confidence │
+│    sheet    │
+│  source_row │
+│ column_index│
+│    row_id   │
+│  time_value │
+│  time_basis │
+│time_evidence│
+│     _id     │
+│ is_time_axis│
+│    score    │
+│             │
+│             │
+│             │
+│    0 rows   │
+│    0.00s    │
+└──────┬──────┘
+┌──────┴──────┐
+│  PROJECTION │
+│    ──────   │
+│      id     │
+│  source_id  │
+│     name    │
+│  value_text │
+│ value_number│
+│     unit    │
+│ occurred_at │
+│ available_at│
+│  entity_id  │
+│validation_st│
+│     atus    │
+│ access_scope│
+│  source_ref │
+│extraction_me│
+│     thod    │
+│  confidence │
+│    sheet    │
+│  source_row │
+│ column_index│
+│    row_id   │
+│  time_value │
+│  time_basis │
+│time_evidence│
+│     _id     │
+│ is_time_axis│
+│             │
+│             │
+│             │
+│    0 rows   │
+│    0.00s    │
+└──────┬──────┘
+┌──────┴──────┐
+│  HASH_JOIN  │
+│    ──────   │
+│  Join Type: │
+│    INNER    │
+│             │
+│ Conditions: │
+│ source_id = ├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+│   source_id │                                                                                                                                                                                                                                 
+│             │                                                                                                                                                                                                                                 
+│             │                                                                                                                                                                                                                                 
+│             │                                                                                                                                                                                                                                 
+│    0 rows   │                                                                                                                                                                                                                                 
+│    0.00s    │                                                                                                                                                                                                                                 
+└──────┬──────┘                                                                                                                                                                                                                                 
+┌──────┴──────┐                                                                                                                                                                                                                                 
+│    UNION    │                                                                                                                                                                                                                                 
+│    ──────   │                                                                                                                                                                                                                                 
+│             │                                                                                                                                                                                                                                 
+│             │                                                                                                                                                                                                                                 
+│    0.00s    │                                                                                                                                                                                                                                 
+│             │                                                                                                                                                                                                                                 
+│             │                                                                                                                                                                                                                                 
+│             │                                                                                                                                                                                                                                 
+│             │                                                                                                                                                                                                                                 
+│             ├───────┬─────────────────────────────┬─────────────────────────────┬─────────────────────────────┬─────────────────────────────┬─────────────────────────────┬─────────────────────────────┬─────────────────────────────┬───────
+│             │       │                             │                             │                             │                             │                             │                             │                             │       
+│             │       │                             │                             │                             │                             │                             │                             │                             │       
+│             │       │                             │                             │                             │                             │                             │                             │                             │       
+│             │       │                             │                             │                             │                             │                             │                             │                             │       
+│             │       │                             │                             │                             │                             │                             │                             │                             │       
+│             │       │                             │                             │                             │                             │                             │                             │                             │       
+│    0 rows   │       │                             │                             │                             │                             │                             │                             │                             │       
+│   (0.00s)   │       │                             │                             │                             │                             │                             │                             │                             │       
+└──────┬──────┘       │                             │                             │                             │                             │                             │                             │                             │       
+┌──────┴──────┐┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐
+│    FILTER   ││    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │
+│    ──────   ││    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │
+│  (TRY_CAST  ││((available_a│               │((available_a│               │((available_a│               │((available_a│               │((available_a│               │((available_a│               │((available_a│               │((available_a│
+│(available_at││  t IS NULL) │               │  t IS NULL) │               │  t IS NULL) │               │  t IS NULL) │               │  t IS NULL) │               │  t IS NULL) │               │  t IS NULL) │               │  t IS NULL) │
+│ AS TIMESTAMP││ OR (TRY_CAST│               │ OR (TRY_CAST│               │ OR (TRY_CAST│               │ OR (TRY_CAST│               │ OR (TRY_CAST│               │ OR (TRY_CAST│               │ OR (TRY_CAST│               │ OR (TRY_CAST│
+│   WITH TIME ││(available_at│               │(available_at│               │(available_at│               │(available_at│               │(available_at│               │(available_at│               │(available_at│               │(available_at│
+│   ZONE) <=  ││ AS TIMESTAMP│               │ AS TIMESTAMP│               │ AS TIMESTAMP│               │ AS TIMESTAMP│               │ AS TIMESTAMP│               │ AS TIMESTAMP│               │ AS TIMESTAMP│               │ AS TIMESTAMP│
+│ '2026-10-17 ││   WITH TIME │               │   WITH TIME │               │   WITH TIME │               │   WITH TIME │               │   WITH TIME │               │   WITH TIME │               │   WITH TIME │               │   WITH TIME │
+│  07:11:56+00││   ZONE) <=  │               │   ZONE) <=  │               │   ZONE) <=  │               │   ZONE) <=  │               │   ZONE) <=  │               │   ZONE) <=  │               │   ZONE) <=  │               │   ZONE) <=  │
+│ '::TIMESTAMP││ '2026-10-17 │               │ '2026-10-17 │               │ '2026-10-17 │               │ '2026-10-17 │               │ '2026-10-17 │               │ '2026-10-17 │               │ '2026-10-17 │               │ '2026-10-17 │
+│   WITH TIME ││  07:11:56+00│               │  07:11:56+00│               │  07:11:56+00│               │  07:11:56+00│               │  07:11:56+00│               │  07:11:56+00│               │  07:11:56+00│               │  07:11:56+00│
+│     ZONE)   ││ '::TIMESTAMP│               │ '::TIMESTAMP│               │ '::TIMESTAMP│               │ '::TIMESTAMP│               │ '::TIMESTAMP│               │ '::TIMESTAMP│               │ '::TIMESTAMP│               │ '::TIMESTAMP│
+│             ││   WITH TIME │               │   WITH TIME │               │   WITH TIME │               │   WITH TIME │               │   WITH TIME │               │   WITH TIME │               │   WITH TIME │               │   WITH TIME │
+│             ││    ZONE))   │               │    ZONE))   │               │    ZONE))   │               │    ZONE))   │               │    ZONE))   │               │    ZONE))   │               │    ZONE))   │               │    ZONE))   │
+│             ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│             ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│    0.00s    ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│    0 rows   ││    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │
+│   (0.00s)   ││    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │
+└──────┬──────┘└──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘
+┌──────┴──────┐┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐
+│  PROJECTION ││  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │
+│    ──────   ││    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │
+│      id     ││      id     │               │      id     │               │      id     │               │      id     │               │      id     │               │      id     │               │      id     │               │      id     │
+│  source_id  ││  source_id  │               │  source_id  │               │  source_id  │               │  source_id  │               │  source_id  │               │  source_id  │               │  source_id  │               │  source_id  │
+│     name    ││     name    │               │     name    │               │     name    │               │     name    │               │     name    │               │     name    │               │     name    │               │     name    │
+│  value_text ││  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │
+│ value_number││ value_number│               │ value_number│               │ value_number│               │ value_number│               │ value_number│               │ value_number│               │ value_number│               │ value_number│
+│     unit    ││     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │
+│ occurred_at ││ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │
+│ available_at││ available_at│               │ available_at│               │ available_at│               │ available_at│               │ available_at│               │ available_at│               │ available_at│               │ available_at│
+│  entity_id  ││  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │
+│validation_st││validation_st│               │validation_st│               │validation_st│               │validation_st│               │validation_st│               │validation_st│               │validation_st│               │validation_st│
+│     atus    ││     atus    │               │     atus    │               │     atus    │               │     atus    │               │     atus    │               │     atus    │               │     atus    │               │     atus    │
+│ access_scope││ access_scope│               │ access_scope│               │ access_scope│               │ access_scope│               │ access_scope│               │ access_scope│               │ access_scope│               │ access_scope│
+│  source_ref ││  source_ref │               │  source_ref │               │  source_ref │               │  source_ref │               │  source_ref │               │  source_ref │               │  source_ref │               │  source_ref │
+│extraction_me││extraction_me│               │extraction_me│               │extraction_me│               │extraction_me│               │extraction_me│               │extraction_me│               │extraction_me│               │extraction_me│
+│     thod    ││     thod    │               │     thod    │               │     thod    │               │     thod    │               │     thod    │               │     thod    │               │     thod    │               │     thod    │
+│  confidence ││  confidence │               │  confidence │               │  confidence │               │  confidence │               │  confidence │               │  confidence │               │  confidence │               │  confidence │
+│    sheet    ││    sheet    │               │    sheet    │               │    sheet    │               │    sheet    │               │    sheet    │               │    sheet    │               │    sheet    │               │    sheet    │
+│  source_row ││  source_row │               │  source_row │               │  source_row │               │  source_row │               │  source_row │               │  source_row │               │  source_row │               │  source_row │
+│ column_index││ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│
+│    row_id   ││    row_id   │               │    row_id   │               │    row_id   │               │    row_id   │               │    row_id   │               │    row_id   │               │    row_id   │               │    row_id   │
+│  time_value ││  time_value │               │  time_value │               │  time_value │               │  time_value │               │  time_value │               │  time_value │               │  time_value │               │  time_value │
+│  time_basis ││  time_basis │               │  time_basis │               │  time_basis │               │  time_basis │               │  time_basis │               │  time_basis │               │  time_basis │               │  time_basis │
+│time_evidence││time_evidence│               │time_evidence│               │time_evidence│               │time_evidence│               │time_evidence│               │time_evidence│               │time_evidence│               │time_evidence│
+│     _id     ││     _id     │               │     _id     │               │     _id     │               │     _id     │               │     _id     │               │     _id     │               │     _id     │               │     _id     │
+│ is_time_axis││ is_time_axis│               │ is_time_axis│               │ is_time_axis│               │ is_time_axis│               │ is_time_axis│               │ is_time_axis│               │ is_time_axis│               │ is_time_axis│
+│             ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│             ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│             ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│    0 rows   ││    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │
+│    0.00s    ││    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │
+└──────┬──────┘└──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘
+┌──────┴──────┐┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐
+│    FILTER   ││  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │
+│    ──────   ││    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │
+│(CAST(contain││('b1:c88ac828│               │('b1:c88ac828│               │('b1:c88ac828│               │('b1:c88ac828│               │('b1:c88ac828│               │('b1:c88ac828│               │('b1:c88ac828│               │('b1:c88ac828│
+│ s(lower(((( ││ef36bbbc35ca3│               │ef36bbbc35ca3│               │ef36bbbc35ca3│               │ef36bbbc35ca3│               │ef36bbbc35ca3│               │ef36bbbc35ca3│               │ef36bbbc35ca3│               │ef36bbbc35ca3│
+│ (name || ' '││ 162:0:' ||  │               │ 162:1:' ||  │               │ 162:2:' ||  │               │ 162:3:' ||  │               │ 162:4:' ||  │               │ 162:5:' ||  │               │ 162:6:' ||  │               │ 162:7:' ||  │
+│ ) || '') || ││     #0)     │               │     #0)     │               │     #0)     │               │     #0)     │               │     #0)     │               │     #0)     │               │     #0)     │               │     #0)     │
+│ ' ') || ''))││ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│
+│, 'contaminat││     name    │               │     name    │               │     name    │               │     name    │               │     name    │               │     name    │               │     name    │               │     name    │
+│   ion') AS  ││  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │
+│  INTEGER) > ││   TRY_CAST  │               │   TRY_CAST  │               │   TRY_CAST  │               │   TRY_CAST  │               │   TRY_CAST  │               │   TRY_CAST  │               │   TRY_CAST  │               │   TRY_CAST  │
+│      0)     ││ (value_text │               │ (value_text │               │ (value_text │               │ (value_text │               │ (value_text │               │ (value_text │               │ (value_text │               │ (value_text │
+│             ││  AS DOUBLE) │               │  AS DOUBLE) │               │  AS DOUBLE) │               │  AS DOUBLE) │               │  AS DOUBLE) │               │  AS DOUBLE) │               │  AS DOUBLE) │               │  AS DOUBLE) │
+│             ││     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │
+│             ││ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │
+│             ││__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│
+│    0.00s    ││      t      │               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │
+│             ││__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│
+│             ││  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │
+│             ││    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │
+│             ││    letter   │               │    letter   │               │    letter   │               │    letter   │               │    letter   │               │    letter   │               │    letter   │               │    letter   │
+│             ││      #0     │               │      #0     │               │      #0     │               │      #0     │               │      #0     │               │      #0     │               │      #0     │               │      #0     │
+│             ││  time_value │               │  time_value │               │  time_value │               │  time_value │               │  time_value │               │  time_value │               │  time_value │               │  time_value │
+│             ││ (#11 IS NOT │               │ (#11 IS NOT │               │ (#11 IS NOT │               │ (#11 IS NOT │               │ (#11 IS NOT │               │ (#11 IS NOT │               │ (#11 IS NOT │               │ (#11 IS NOT │
+│             ││     NULL)   │               │     NULL)   │               │     NULL)   │               │     NULL)   │               │     NULL)   │               │     NULL)   │               │     NULL)   │               │     NULL)   │
+│             ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│             ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│             ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│    0 rows   ││    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │
+│   (0.00s)   ││    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │
+└──────┬──────┘└──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘
+┌──────┴──────┐┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐
+│  TABLE_SCAN ││  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │
+│    ──────   ││    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │
+│    Table:   ││  CAST(__row │               │  CAST(__row │               │  CAST(__row │               │  CAST(__row │               │  CAST(__row │               │  CAST(__row │               │  CAST(__row │               │  CAST(__row │
+│ "temp".main ││  AS VARCHAR)│               │  AS VARCHAR)│               │  AS VARCHAR)│               │  AS VARCHAR)│               │  AS VARCHAR)│               │  AS VARCHAR)│               │  AS VARCHAR)│               │  AS VARCHAR)│
+│   ._legacy  ││ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│
+│             ││     name    │               │     name    │               │     name    │               │     name    │               │     name    │               │     name    │               │     name    │               │     name    │
+│    Type:    ││  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │
+│  Sequential ││     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │
+│     Scan    ││ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │
+│             ││__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│
+│ Projections:││      t      │               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │
+│      id     ││__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│
+│  source_id  ││  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │
+│     name    ││    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │
+│  value_text ││    letter   │               │    letter   │               │    letter   │               │    letter   │               │    letter   │               │    letter   │               │    letter   │               │    letter   │
+│ value_number││  time_value │               │  time_value │               │  time_value │               │  time_value │               │  time_value │               │  time_value │               │  time_value │               │  time_value │
+│     unit    ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│ occurred_at ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│ available_at││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│  entity_id  ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│validation_st││    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │
+│     atus    ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│ access_scope││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│  source_ref ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│extraction_me││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│     thod    ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│  confidence ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│    sheet    ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│  source_row ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│ column_index││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│    row_id   ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│  time_value ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│  time_basis ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│time_evidence││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│     _id     ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│ is_time_axis││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│             ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│Dynamic Filte││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│     rs:     ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│  optional:  ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│   source_id ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│ IN ('c88ac82││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│8ef36bbbc35ca││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│3162', 'bf1d2││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│793e0256ab2ec││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│  08c180',   ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│'5ef700874c58││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│ 9162e3c7b1af││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│', 'd9c818187││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│11cbc0933bfb8││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│e0', 'c961c85││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│ec9351b8ee073││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│dd64', 'd5de2││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│6c94b211bdf30││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│  d69d39',   ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│'89600797339a││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│ 7f2b71e26cfd││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│', 'da8e73242││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│bdc502e55e593││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│06', 'a697209││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│034b6d9fb59f5││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│0a82', '51480││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│4a78d34457354││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│  c18f2b',   ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│'f7823c5bf846││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│ eaa729b11061││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│', '89fa8dd5e││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│b96c606fcb4e4││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│   94') AND  ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│   optional: ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│  source_id>=││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│'514804a78d34││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│ 457354c18f2b││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│' AND optiona││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│ l: source_id││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│<='f7823c5bf8││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│46eaa729b1106││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│      1'     ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│             ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│             ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│             ││             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+│    0 rows   ││    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │
+│    0.00s    ││   (0.00s)   │               │   (0.00s)   │               │   (0.00s)   │               │   (0.00s)   │               │   (0.00s)   │               │   (0.00s)   │               │   (0.00s)   │               │   (0.00s)   │
+└─────────────┘└──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘
+               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐
+               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │
+               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │
+               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │
+               │ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│               │ column_index│
+               │     name    │               │     name    │               │     name    │               │     name    │               │     name    │               │     name    │               │     name    │               │     name    │
+               │  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │               │  value_text │
+               │     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │               │     unit    │
+               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │               │ occurred_at │
+               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│
+               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │
+               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│
+               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │               │  entity_id  │
+               │    letter   │               │    letter   │               │    letter   │               │    letter   │               │    letter   │               │    letter   │               │    letter   │               │    letter   │
+               │   greatest  │               │   greatest  │               │   greatest  │               │   greatest  │               │   greatest  │               │   greatest  │               │   greatest  │               │   greatest  │
+               │(__available_│               │(__available_│               │(__available_│               │(__available_│               │(__available_│               │(__available_│               │(__available_│               │(__available_│
+               │at, json_extr│               │at, json_extr│               │at, json_extr│               │at, json_extr│               │at, json_extr│               │at, json_extr│               │at, json_extr│               │at, json_extr│
+               │  act_string │               │  act_string │               │  act_string │               │  act_string │               │  act_string │               │  act_string │               │  act_string │               │  act_string │
+               │(__field_time│               │(__field_time│               │(__field_time│               │(__field_time│               │(__field_time│               │(__field_time│               │(__field_time│               │(__field_time│
+               │ s, '/Time (h│               │ s, '/Time (h│               │ s, '/Time (h│               │ s, '/Time (h│               │ s, '/Time (h│               │ s, '/Time (h│               │ s, '/Time (h│               │ s, '/Time (h│
+               │     )'))    │               │     )'))    │               │     )'))    │               │     )'))    │               │     )'))    │               │     )'))    │               │     )'))    │               │     )'))    │
+               │ __axis_time │               │ __axis_time │               │ __axis_time │               │ __axis_time │               │ __axis_time │               │ __axis_time │               │ __axis_time │               │ __axis_time │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │
+               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │
+               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘
+               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐
+               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │
+               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │
+               │(CAST(contain│               │(CAST(contain│               │(CAST(contain│               │(CAST(contain│               │(CAST(contain│               │(CAST(contain│               │(CAST(contain│               │(CAST(contain│
+               │ s(lower(((( │               │ s(lower(((( │               │ s(lower(((( │               │ s(lower(((( │               │ s(lower(((( │               │ s(lower(((( │               │ s(lower(((( │               │ s(lower(((( │
+               │ (name || ' '│               │ (name || ' '│               │ (name || ' '│               │ (name || ' '│               │ (name || ' '│               │ (name || ' '│               │ (name || ' '│               │ (name || ' '│
+               │) || COALESCE│               │) || COALESCE│               │) || COALESCE│               │) || COALESCE│               │) || COALESCE│               │) || COALESCE│               │) || COALESCE│               │) || COALESCE│
+               │ (value_text,│               │ (value_text,│               │ (value_text,│               │ (value_text,│               │ (value_text,│               │ (value_text,│               │ (value_text,│               │ (value_text,│
+               │  '')) || ' '│               │  '')) || ' '│               │  '')) || ' '│               │  '')) || ' '│               │  '')) || ' '│               │  '')) || ' '│               │  '')) || ' '│               │  '')) || ' '│
+               │) || entity_i│               │) || entity_i│               │) || entity_i│               │) || entity_i│               │) || entity_i│               │) || entity_i│               │) || entity_i│               │) || entity_i│
+               │d)), 'contami│               │d)), 'contami│               │d)), 'contami│               │d)), 'contami│               │d)), 'contami│               │d)), 'contami│               │d)), 'contami│               │d)), 'contami│
+               │ nation') AS │               │ nation') AS │               │ nation') AS │               │ nation') AS │               │ nation') AS │               │ nation') AS │               │ nation') AS │               │ nation') AS │
+               │  INTEGER) > │               │  INTEGER) > │               │  INTEGER) > │               │  INTEGER) > │               │  INTEGER) > │               │  INTEGER) > │               │  INTEGER) > │               │  INTEGER) > │
+               │      0)     │               │      0)     │               │      0)     │               │      0)     │               │      0)     │               │      0)     │               │      0)     │               │      0)     │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │               │    0 rows   │
+               │    0.01s    │               │    0.02s    │               │    0.11s    │               │    0.01s    │               │    0.02s    │               │    0.09s    │               │    0.02s    │               │    0.02s    │
+               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘
+               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐
+               │  HASH_JOIN  │               │  HASH_JOIN  │               │  HASH_JOIN  │               │  HASH_JOIN  │               │  HASH_JOIN  │               │  HASH_JOIN  │               │  HASH_JOIN  │               │  HASH_JOIN  │
+               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │
+               │  Join Type: │               │  Join Type: │               │  Join Type: │               │  Join Type: │               │  Join Type: │               │  Join Type: │               │  Join Type: │               │  Join Type: │
+               │    INNER    │               │    INNER    │               │    INNER    │               │    INNER    │               │    INNER    │               │    INNER    │               │    INNER    │               │    INNER    │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │ Conditions: │               │ Conditions: │               │ Conditions: │               │ Conditions: │               │ Conditions: │               │ Conditions: │               │ Conditions: │               │ Conditions: │
+               │ column_key =├───────┐       │ column_key =├───────┐       │ column_key =├───────┐       │ column_key =├───────┐       │ column_key =├───────┐       │ column_key =├───────┐       │ column_key =├───────┐       │ column_key =├
+               │  column_key │       │       │  column_key │       │       │  column_key │       │       │  column_key │       │       │  column_key │       │       │  column_key │       │       │  column_key │       │       │  column_key │
+               │             │       │       │             │       │       │             │       │       │             │       │       │             │       │       │             │       │       │             │       │       │             │
+               │             │       │       │             │       │       │             │       │       │             │       │       │             │       │       │             │       │       │             │       │       │             │
+               │             │       │       │             │       │       │             │       │       │             │       │       │             │       │       │             │       │       │             │       │       │             │
+               │ 72,195 rows │       │       │ 96,608 rows │       │       │ 627,952 rows│       │       │ 72,105 rows │       │       │ 96,600 rows │       │       │ 627,900 rows│       │       │ 149,196 rows│       │       │ 149,172 rows│
+               │    0.00s    │       │       │    0.00s    │       │       │    0.01s    │       │       │    0.00s    │       │       │    0.00s    │       │       │    0.01s    │       │       │    0.00s    │       │       │    0.00s    │
+               └──────┬──────┘       │       └──────┬──────┘       │       └──────┬──────┘       │       └──────┬──────┘       │       └──────┬──────┘       │       └──────┬──────┘       │       └──────┬──────┘       │       └──────┬──────┘
+               ┌──────┴──────┐┌──────┴──────┐┌──────┴──────┐┌──────┴──────┐┌──────┴──────┐┌──────┴──────┐┌──────┴──────┐┌──────┴──────┐┌──────┴──────┐┌──────┴──────┐┌──────┴──────┐┌──────┴──────┐┌──────┴──────┐┌──────┴──────┐┌──────┴──────┐
+               │  PROJECTION ││COLUMN_D...  ││  PROJECTION ││COLUMN_D...  ││  PROJECTION ││COLUMN_D...  ││  PROJECTION ││COLUMN_D...  ││  PROJECTION ││COLUMN_D...  ││  PROJECTION ││COLUMN_D...  ││  PROJECTION ││COLUMN_D...  ││  PROJECTION │
+               │    ──────   ││             ││    ──────   ││             ││    ──────   ││             ││    ──────   ││             ││    ──────   ││             ││    ──────   ││             ││    ──────   ││             ││    ──────   │
+               │      #0     ││             ││      #0     ││             ││      #0     ││             ││      #0     ││             ││      #0     ││             ││      #0     ││             ││      #0     ││             ││      #0     │
+               │      #1     ││    0.00s    ││      #1     ││    0.00s    ││      #1     ││    0.00s    ││      #1     ││    0.00s    ││      #1     ││    0.00s    ││      #1     ││    0.00s    ││      #1     ││    0.00s    ││      #1     │
+               │      #2     ││             ││      #2     ││             ││      #2     ││             ││      #2     ││             ││      #2     ││             ││      #2     ││             ││      #2     ││             ││      #2     │
+               │      #3     ││             ││      #3     ││             ││      #3     ││             ││      #3     ││             ││      #3     ││             ││      #3     ││             ││      #3     ││             ││      #3     │
+               │      #4     ││             ││      #4     ││             ││      #4     ││             ││      #4     ││             ││      #4     ││             ││      #4     ││             ││      #4     ││             ││      #4     │
+               │      #5     ││             ││      #5     ││             ││      #5     ││             ││      #5     ││             ││      #5     ││             ││      #5     ││             ││      #5     ││             ││      #5     │
+               │      #8     ││             ││      #8     ││             ││      #8     ││             ││      #8     ││             ││      #8     ││             ││      #8     ││             ││      #8     ││             ││      #8     │
+               │      #9     ││             ││      #9     ││             ││      #9     ││             ││      #9     ││             ││      #9     ││             ││      #9     ││             ││      #9     ││             ││      #9     │
+               │             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             │
+               │             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             │
+               │             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             ││             │
+               │ 72,195 rows ││    3 rows   ││ 96,608 rows ││    4 rows   ││ 627,952 rows││   26 rows   ││ 72,105 rows ││    3 rows   ││ 96,600 rows ││    4 rows   ││ 627,900 rows││   26 rows   ││ 149,196 rows││   12 rows   ││ 149,172 rows│
+               │    0.00s    ││   (0.00s)   ││    0.00s    ││   (0.00s)   ││    0.00s    ││   (0.00s)   ││    0.00s    ││   (0.00s)   ││    0.00s    ││   (0.00s)   ││    0.00s    ││   (0.00s)   ││    0.00s    ││   (0.00s)   ││    0.00s    │
+               └──────┬──────┘└─────────────┘└──────┬──────┘└─────────────┘└──────┬──────┘└─────────────┘└──────┬──────┘└─────────────┘└──────┬──────┘└─────────────┘└──────┬──────┘└─────────────┘└──────┬──────┘└─────────────┘└──────┬──────┘
+               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐
+               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │               │    FILTER   │
+               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │
+               │ ((value_text│               │ ((value_text│               │ ((value_text│               │ ((value_text│               │ ((value_text│               │ ((value_text│               │ ((value_text│               │ ((value_text│
+               │  IS NOT NULL│               │  IS NOT NULL│               │  IS NOT NULL│               │  IS NOT NULL│               │  IS NOT NULL│               │  IS NOT NULL│               │  IS NOT NULL│               │  IS NOT NULL│
+               │) AND (value_│               │) AND (value_│               │) AND (value_│               │) AND (value_│               │) AND (value_│               │) AND (value_│               │) AND (value_│               │) AND (value_│
+               │ text != ''))│               │ text != ''))│               │ text != ''))│               │ text != ''))│               │ text != ''))│               │ text != ''))│               │ text != ''))│               │ text != ''))│
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │ 72,195 rows │               │ 96,608 rows │               │ 627,952 rows│               │ 72,105 rows │               │ 96,600 rows │               │ 627,900 rows│               │ 149,196 rows│               │ 149,172 rows│
+               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │
+               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘
+               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐
+               │    UNNEST   │               │    UNNEST   │               │    UNNEST   │               │    UNNEST   │               │    UNNEST   │               │    UNNEST   │               │    UNNEST   │               │    UNNEST   │
+               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │ 72,195 rows │               │ 96,608 rows │               │ 627,952 rows│               │ 72,105 rows │               │ 96,600 rows │               │ 627,900 rows│               │ 149,196 rows│               │ 149,172 rows│
+               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │
+               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘
+               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐
+               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │
+               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │
+               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │
+               │ __entity_id │               │ __entity_id │               │ __entity_id │               │ __entity_id │               │ __entity_id │               │ __entity_id │               │ __entity_id │               │ __entity_id │
+               │__occurred_at│               │__occurred_at│               │__occurred_at│               │__occurred_at│               │__occurred_at│               │__occurred_at│               │__occurred_at│               │__occurred_at│
+               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│               │__available_a│
+               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │               │      t      │
+               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│               │__field_times│
+               │ __axis_time │               │ __axis_time │               │ __axis_time │               │ __axis_time │               │ __axis_time │               │ __axis_time │               │ __axis_time │               │ __axis_time │
+               │unpivot_names│               │unpivot_names│               │unpivot_names│               │unpivot_names│               │unpivot_names│               │unpivot_names│               │unpivot_names│               │unpivot_names│
+               │ unpivot_list│               │ unpivot_list│               │ unpivot_list│               │ unpivot_list│               │ unpivot_list│               │ unpivot_list│               │ unpivot_list│               │ unpivot_list│
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │ 24,065 rows │               │ 24,152 rows │               │ 24,152 rows │               │ 24,035 rows │               │ 24,150 rows │               │ 24,150 rows │               │ 12,433 rows │               │ 12,431 rows │
+               │    0.00s    │               │    0.00s    │               │    0.01s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │               │    0.00s    │
+               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘
+               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐
+               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │               │  PROJECTION │
+               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │
+               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │
+               │      v1     │               │      v1     │               │      v1     │               │      v1     │               │      v1     │               │      v1     │               │      v1     │               │      v1     │
+               │      v2     │               │      v2     │               │      v2     │               │      v2     │               │      v2     │               │      v2     │               │      v2     │               │      v2     │
+               │      v3     │               │      v3     │               │      v3     │               │      v3     │               │      v3     │               │      v3     │               │      v3     │               │      v3     │
+               │ __entity_id │               │      v4     │               │      v4     │               │ __entity_id │               │      v4     │               │      v4     │               │      v4     │               │      v4     │
+               │__occurred_at│               │ __entity_id │               │      v5     │               │__occurred_at│               │ __entity_id │               │      v5     │               │      v5     │               │      v5     │
+               │__available_a│               │__occurred_at│               │      v6     │               │__available_a│               │__occurred_at│               │      v6     │               │      v6     │               │      v6     │
+               │      t      │               │__available_a│               │      v7     │               │      t      │               │__available_a│               │      v7     │               │      v7     │               │      v7     │
+               │__field_times│               │      t      │               │      v8     │               │__field_times│               │      t      │               │      v8     │               │      v8     │               │      v8     │
+               │ __axis_time │               │__field_times│               │      v9     │               │ __axis_time │               │__field_times│               │      v9     │               │      v9     │               │      v9     │
+               │             │               │ __axis_time │               │     v10     │               │             │               │ __axis_time │               │     v10     │               │     v10     │               │     v10     │
+               │             │               │             │               │     v11     │               │             │               │             │               │     v11     │               │     v11     │               │     v11     │
+               │             │               │             │               │     v12     │               │             │               │             │               │     v12     │               │     v12     │               │     v12     │
+               │             │               │             │               │     v13     │               │             │               │             │               │     v13     │               │ __entity_id │               │ __entity_id │
+               │    0.00s    │               │             │               │     v14     │               │    0.00s    │               │             │               │     v14     │               │__occurred_at│               │__occurred_at│
+               │             │               │    0.00s    │               │     ...     │               │             │               │    0.00s    │               │     ...     │               │__available_a│               │__available_a│
+               │             │               │             │               │     v17     │               │             │               │             │               │     v17     │               │      t      │               │      t      │
+               │             │               │             │               │     v18     │               │             │               │             │               │     v18     │               │__field_times│               │__field_times│
+               │             │               │             │               │     v19     │               │             │               │             │               │     v19     │               │ __axis_time │               │ __axis_time │
+               │             │               │             │               │     v20     │               │             │               │             │               │     v20     │               │             │               │             │
+               │             │               │             │               │     v21     │               │             │               │             │               │     v21     │               │             │               │             │
+               │             │               │             │               │     v22     │               │             │               │             │               │     v22     │               │             │               │             │
+               │             │               │             │               │     v23     │               │             │               │             │               │     v23     │               │             │               │             │
+               │             │               │             │               │     v24     │               │             │               │             │               │     v24     │               │    0.00s    │               │    0.00s    │
+               │             │               │             │               │     v25     │               │             │               │             │               │     v25     │               │             │               │             │
+               │             │               │             │               │     v26     │               │             │               │             │               │     v26     │               │             │               │             │
+               │             │               │             │               │ __entity_id │               │             │               │             │               │ __entity_id │               │             │               │             │
+               │             │               │             │               │__occurred_at│               │             │               │             │               │__occurred_at│               │             │               │             │
+               │             │               │             │               │__available_a│               │             │               │             │               │__available_a│               │             │               │             │
+               │             │               │             │               │      t      │               │             │               │             │               │      t      │               │             │               │             │
+               │             │               │             │               │__field_times│               │             │               │             │               │__field_times│               │             │               │             │
+               │             │               │             │               │ __axis_time │               │             │               │             │               │ __axis_time │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │ 24,065 rows │               │ 24,152 rows │               │ 24,152 rows │               │ 24,035 rows │               │ 24,150 rows │               │ 24,150 rows │               │ 12,433 rows │               │ 12,431 rows │
+               │   (0.00s)   │               │   (0.00s)   │               │    0.00s    │               │   (0.00s)   │               │   (0.00s)   │               │    0.00s    │               │   (0.00s)   │               │   (0.00s)   │
+               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘               └──────┬──────┘
+               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐               ┌──────┴──────┐
+               │  TABLE_SCAN │               │  TABLE_SCAN │               │  TABLE_SCAN │               │  TABLE_SCAN │               │  TABLE_SCAN │               │  TABLE_SCAN │               │  TABLE_SCAN │               │  TABLE_SCAN │
+               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │               │    ──────   │
+               │  Function:  │               │  Function:  │               │  Function:  │               │  Function:  │               │  Function:  │               │  Function:  │               │  Function:  │               │  Function:  │
+               │ PARQUET_SCAN│               │ PARQUET_SCAN│               │ PARQUET_SCAN│               │ PARQUET_SCAN│               │ PARQUET_SCAN│               │ PARQUET_SCAN│               │ PARQUET_SCAN│               │ PARQUET_SCAN│
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │ Projections:│               │ Projections:│               │ Projections:│               │ Projections:│               │ Projections:│               │ Projections:│               │ Projections:│               │ Projections:│
+               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │               │    __row    │
+               │      v1     │               │      v1     │               │      v1     │               │      v1     │               │      v1     │               │      v1     │               │      v1     │               │      v1     │
+               │      v2     │               │      v2     │               │      v2     │               │      v2     │               │      v2     │               │      v2     │               │      v2     │               │      v2     │
+               │      v3     │               │      v3     │               │      v3     │               │      v3     │               │      v3     │               │      v3     │               │      v3     │               │      v3     │
+               │ __entity_id │               │      v4     │               │      v4     │               │ __entity_id │               │      v4     │               │      v4     │               │      v4     │               │      v4     │
+               │__occurred_at│               │ __entity_id │               │      v5     │               │__occurred_at│               │ __entity_id │               │      v5     │               │      v5     │               │      v5     │
+               │__available_a│               │__occurred_at│               │      v6     │               │__available_a│               │__occurred_at│               │      v6     │               │      v6     │               │      v6     │
+               │      t      │               │__available_a│               │      v7     │               │      t      │               │__available_a│               │      v7     │               │      v7     │               │      v7     │
+               │__field_times│               │      t      │               │      v8     │               │__field_times│               │      t      │               │      v8     │               │      v8     │               │      v8     │
+               │             │               │__field_times│               │      v9     │               │             │               │__field_times│               │      v9     │               │      v9     │               │      v9     │
+               │ Total Files │               │             │               │     v10     │               │ Total Files │               │             │               │     v10     │               │     v10     │               │     v10     │
+               │     Read:   │               │ Total Files │               │     v11     │               │     Read:   │               │ Total Files │               │     v11     │               │     v11     │               │     v11     │
+               │      1      │               │     Read:   │               │     v12     │               │      1      │               │     Read:   │               │     v12     │               │     v12     │               │     v12     │
+               │             │               │      1      │               │     v13     │               │             │               │      1      │               │     v13     │               │ __entity_id │               │ __entity_id │
+               │ Filename(s):│               │             │               │     ...     │               │ Filename(s):│               │             │               │     ...     │               │__occurred_at│               │__occurred_at│
+               │ /Users/tejas│               │ Filename(s):│               │     v16     │               │ /Users/tejas│               │ Filename(s):│               │     v16     │               │__available_a│               │__available_a│
+               │   /Desktop  │               │ /Users/tejas│               │     v17     │               │   /Desktop  │               │ /Users/tejas│               │     v17     │               │      t      │               │      t      │
+               │   /BioDemo  │               │   /Desktop  │               │     v18     │               │   /BioDemo  │               │   /Desktop  │               │     v18     │               │__field_times│               │__field_times│
+               │ /benchmarks │               │   /BioDemo  │               │     v19     │               │ /benchmarks │               │   /BioDemo  │               │     v19     │               │             │               │             │
+               │   /runtime  │               │ /benchmarks │               │     v20     │               │   /runtime  │               │ /benchmarks │               │     v20     │               │ Total Files │               │ Total Files │
+               │  /benchmark │               │   /runtime  │               │     v21     │               │  /benchmark │               │   /runtime  │               │     v21     │               │     Read:   │               │     Read:   │
+               │-case-7113f26│               │  /benchmark │               │     v22     │               │-case-7113f26│               │  /benchmark │               │     v22     │               │      1      │               │      1      │
+               │854294d139a4e│               │-case-7113f26│               │     v23     │               │854294d139a4e│               │-case-7113f26│               │     v23     │               │             │               │             │
+               │ b6ad242a05a2│               │854294d139a4e│               │     v24     │               │ b6ad242a05a2│               │854294d139a4e│               │     v24     │               │ Filename(s):│               │ Filename(s):│
+               │ /state/store│               │ b6ad242a05a2│               │     v25     │               │ /state/store│               │ b6ad242a05a2│               │     v25     │               │ /Users/tejas│               │ /Users/tejas│
+               │/measurements│               │ /state/store│               │     v26     │               │/measurements│               │ /state/store│               │     v26     │               │   /Desktop  │               │   /Desktop  │
+               │/c88ac828ef36│               │/measurements│               │ __entity_id │               │/c88ac828ef36│               │/measurements│               │ __entity_id │               │   /BioDemo  │               │   /BioDemo  │
+               │ bbbc35ca3162│               │/c88ac828ef36│               │__occurred_at│               │ bbbc35ca3162│               │/c88ac828ef36│               │__occurred_at│               │ /benchmarks │               │ /benchmarks │
+               │-242c1b4694e9│               │ bbbc35ca3162│               │__available_a│               │-242c1b4694e9│               │ bbbc35ca3162│               │__available_a│               │   /runtime  │               │   /runtime  │
+               │47948f0590179│               │-242c1b4694e9│               │      t      │               │47948f0590179│               │-242c1b4694e9│               │      t      │               │  /benchmark │               │  /benchmark │
+               │ 037866c-0000│               │47948f0590179│               │__field_times│               │ 037866c-0003│               │47948f0590179│               │__field_times│               │-case-7113f26│               │-case-7113f26│
+               │   .parquet  │               │ 037866c-0001│               │             │               │   .parquet  │               │ 037866c-0004│               │             │               │854294d139a4e│               │854294d139a4e│
+               │             │               │   .parquet  │               │ Total Files │               │             │               │   .parquet  │               │ Total Files │               │ b6ad242a05a2│               │ b6ad242a05a2│
+               │             │               │             │               │     Read:   │               │             │               │             │               │     Read:   │               │ /state/store│               │ /state/store│
+               │             │               │             │               │      1      │               │             │               │             │               │      1      │               │/measurements│               │/measurements│
+               │             │               │             │               │             │               │             │               │             │               │             │               │/c88ac828ef36│               │/c88ac828ef36│
+               │    0.00s    │               │             │               │ Filename(s):│               │    0.00s    │               │             │               │ Filename(s):│               │ bbbc35ca3162│               │ bbbc35ca3162│
+               │             │               │    0.00s    │               │ /Users/tejas│               │             │               │    0.00s    │               │ /Users/tejas│               │-242c1b4694e9│               │-242c1b4694e9│
+               │             │               │             │               │   /Desktop  │               │             │               │             │               │   /Desktop  │               │47948f0590179│               │47948f0590179│
+               │             │               │             │               │   /BioDemo  │               │             │               │             │               │   /BioDemo  │               │ 037866c-0006│               │ 037866c-0007│
+               │             │               │             │               │ /benchmarks │               │             │               │             │               │ /benchmarks │               │   .parquet  │               │   .parquet  │
+               │             │               │             │               │   /runtime  │               │             │               │             │               │   /runtime  │               │             │               │             │
+               │             │               │             │               │  /benchmark │               │             │               │             │               │  /benchmark │               │             │               │             │
+               │             │               │             │               │-case-7113f26│               │             │               │             │               │-case-7113f26│               │             │               │             │
+               │             │               │             │               │854294d139a4e│               │             │               │             │               │854294d139a4e│               │             │               │             │
+               │             │               │             │               │ b6ad242a05a2│               │             │               │             │               │ b6ad242a05a2│               │    0.00s    │               │    0.00s    │
+               │             │               │             │               │ /state/store│               │             │               │             │               │ /state/store│               │             │               │             │
+               │             │               │             │               │/measurements│               │             │               │             │               │/measurements│               │             │               │             │
+               │             │               │             │               │/c88ac828ef36│               │             │               │             │               │/c88ac828ef36│               │             │               │             │
+               │             │               │             │               │ bbbc35ca3162│               │             │               │             │               │ bbbc35ca3162│               │             │               │             │
+               │             │               │             │               │-242c1b4694e9│               │             │               │             │               │-242c1b4694e9│               │             │               │             │
+               │             │               │             │               │47948f0590179│               │             │               │             │               │47948f0590179│               │             │               │             │
+               │             │               │             │               │ 037866c-0002│               │             │               │             │               │ 037866c-0005│               │             │               │             │
+               │             │               │             │               │   .parquet  │               │             │               │             │               │   .parquet  │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │             │               │             │               │             │               │             │               │             │               │             │               │             │               │             │
+               │ 24,065 rows │               │ 24,152 rows │               │ 24,152 rows │               │ 24,035 rows │               │ 24,150 rows │               │ 24,150 rows │               │ 12,433 rows │               │ 12,431 rows │
+               │   (0.00s)   │               │   (0.00s)   │               │    0.02s    │               │   (0.00s)   │               │   (0.00s)   │               │    0.00s    │               │   (0.00s)   │               │   (0.00s)   │
+               └─────────────┘               └─────────────┘               └─────────────┘               └─────────────┘               └─────────────┘               └─────────────┘               └─────────────┘               └─────────────┘

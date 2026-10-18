@@ -34,7 +34,7 @@ def _write_result(benchmark: str, payload: dict) -> Path:
 def run(benchmark: str, mode: str, *, isolated: bool = True,
         task_filter: str | None = None) -> dict:
     if mode == "full_rlm":
-        raise RuntimeError("Full RLM raw-source integration is not implemented; refusing to publish a surrogate score")
+        raise RuntimeError("Legacy task diagnostics do not run full_rlm; use the default case runner with --mode full_rlm --case CASE_ID")
     config_path = ROOT / "benchmarks/configs" / f"{benchmark}.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
     if benchmark == "fresenius":
@@ -179,6 +179,12 @@ def run(benchmark: str, mode: str, *, isolated: bool = True,
     result = {"benchmark": benchmark, "mode": mode, "task_filter": task_filter,
               "os_isolated_agent": isolated,
               "run_at": datetime.now(timezone.utc).isoformat(), "tasks": outcomes}
+    from benchmarks.common.engineering_work import protocol
+    result["engineering_work_protocol"] = protocol(benchmark)
+    result["engineering_productivity"] = {
+        "status": "not_measured", "value": None,
+        "reason": "Automated runs do not measure human setup, verification, rework or independently reviewed deliverables. Use the engineering-work ledger.",
+    }
     result["reproducibility"] = {"python": platform.python_version(), "packages": versions,
                                   "source_sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
                                   "task_sha256": hashlib.sha256(json.dumps([row["task"] for row in outcomes], sort_keys=True).encode()).hexdigest(),
@@ -198,12 +204,77 @@ def run(benchmark: str, mode: str, *, isolated: bool = True,
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--benchmark", choices=["cho", "fresenius"], required=True)
-    parser.add_argument("--mode", choices=["baseline", "retrieval_llm", "full_rlm"], default="baseline")
+    parser.add_argument("--benchmark", choices=["cho", "fresenius", "all"], required=True)
+    parser.add_argument("--mode", choices=["baseline", "conventional", "retrieval_llm", "full_rlm", "manual", "incumbent"], default="baseline")
     parser.add_argument("--task", help="Run one task ID, such as CHO-03 or FRE-02")
-    parser.add_argument("--action", choices=["run", "download", "inventory", "references", "generate", "perturb", "normalize", "compare", "clean-generated", "audit", "report", "validate", "data-check"], default="run")
+    parser.add_argument("--action", choices=["run", "freeze", "cases", "evaluate", "effort-template", "download", "inventory", "references", "generate", "perturb", "normalize", "compare", "clean-generated", "audit", "report", "validate", "data-check"], default="run")
+    parser.add_argument("--case", help="Frozen investigation case ID")
+    parser.add_argument("--condition", choices=["raw", "clean", "held_out", "updated", "historical"], default="raw")
+    parser.add_argument("--manifest", type=Path, help="Explicit frozen case manifest")
+    parser.add_argument("--wall-clock-seconds",type=int,help="Freeze a separate deadline variant; Fresenius full_rlm defaults to 1800 seconds")
+    parser.add_argument("--run-id", help="Saved run ID or run.json path")
+    parser.add_argument("--review", type=Path, help="Independent blinded review JSON")
+    parser.add_argument("--human-logs", type=Path, help="Observed seven-stage human-work ledger")
+    parser.add_argument("--output", type=Path, help="Case result root")
+    parser.add_argument("--operator-id")
+    parser.add_argument("--operational-triage-policy",type=Path,help="Versioned operational routing rules; recorded separately from hidden evaluation labels")
+    parser.add_argument("--prior-run", type=Path, help="Earlier completed isolated SDK run.json for an updated package")
+    parser.add_argument("--legacy-tasks", action="store_true", help="Run the preserved v1 task diagnostics rather than v2 investigation cases")
     parser.add_argument("--no-isolation", action="store_true", help="Development only; scores are not publication eligible")
     args = parser.parse_args()
+    if args.wall_clock_seconds is not None and args.wall_clock_seconds<1:
+        parser.error('wall-clock-seconds must be positive')
+    if args.benchmark == "all" and args.action != "report":
+        parser.error("all applies only to report; datasets are scored separately")
+    if args.action == "freeze":
+        from benchmarks.common.freeze import freeze_assets
+        frozen = freeze_assets(); print(json.dumps(frozen, indent=2))
+        if not frozen['pass']:raise SystemExit(1)
+        return
+    if args.action == "evaluate":
+        if not args.run_id: parser.error("evaluate requires --run-id")
+        from benchmarks.common.case_runner import evaluate_run
+        path = Path(args.run_id)
+        if not path.is_file(): path = (args.output or ROOT / "results/evaluation") / args.run_id / "run.json"
+        print(json.dumps(evaluate_run(path, args.review), indent=2)); return
+    if args.action == "effort-template":
+        from benchmarks.common.human_work import template
+        print(json.dumps(template([args.run_id] if args.run_id else []), indent=2)); return
+    if args.action in {"cases", "run", "audit"} and not args.legacy_tasks:
+        from benchmarks.common.case_protocol import prepare_case
+        case_id = args.case or args.task or ("CHO-01" if args.benchmark == "cho" else "FRE-02")
+        manifest = args.manifest or prepare_case(args.benchmark, case_id, condition=args.condition)
+        seconds=args.wall_clock_seconds
+        if seconds is None and args.action=='run' and args.benchmark=='fresenius' and args.mode=='full_rlm' and not args.manifest:
+            seconds=1800
+        if seconds is not None:
+            from benchmarks.common.case_protocol import load_case
+            from benchmarks.common.execution_policy import freeze_execution_variant
+            case=load_case(manifest)
+            if seconds!=case['budgets']['wall_clock_seconds']:
+                hard=case['budgets']['tool_calls'];policy=case.get('execution_policy',{'mode':'fixed_v1'})
+                manifest=freeze_execution_variant(manifest,Path(manifest).parent.with_name(Path(manifest).parent.name+'-'+str(seconds)+'s'),
+                    soft=policy.get('soft_tool_calls',hard),hard=hard,mode=policy['mode'],wall_clock_seconds=seconds)
+        if args.action == "cases": print(manifest); return
+        if args.action == "audit":
+            from benchmarks.common.case_audit import audit_case
+            audit = audit_case(manifest); print(json.dumps(audit, indent=2))
+            if not audit["pass"]: raise SystemExit(1)
+            return
+        from benchmarks.common.case_runner import run_case
+        mode = "conventional" if args.mode == "baseline" else args.mode
+        path = run_case(manifest, mode, output_root=args.output, isolated=not args.no_isolation, operator_id=args.operator_id, prior_run=args.prior_run,
+                        operational_triage_policy=json.loads(args.operational_triage_policy.read_text()) if args.operational_triage_policy else None)
+        print(path)
+        status = json.loads(path.read_text())["status"]
+        if status in {"invalid", "failed"}: raise SystemExit(1)
+        return
+    if args.action == "report" and not args.legacy_tasks:
+        from benchmarks.common.case_report import produce_report
+        print(produce_report(args.benchmark, root=args.output, human_logs=args.human_logs)); return
+    if args.action == "inventory" and not args.legacy_tasks:
+        from benchmarks.common.case_protocol import inventory
+        print(json.dumps(inventory(args.benchmark), indent=2)); return
     if args.action in {"download", "inventory", "references", "perturb", "normalize", "compare", "clean-generated"} and args.benchmark != "cho":
         parser.error(f"{args.action} applies only to cho")
     if args.action == "clean-generated":

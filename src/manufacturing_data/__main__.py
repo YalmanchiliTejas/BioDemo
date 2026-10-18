@@ -47,10 +47,11 @@ def main() -> None:
     ingest.add_argument("--orchestrator",choices=("cocoindex","checksum"),default="cocoindex")
     ingest.add_argument("--document-backend",choices=("auto","pypdf","docling","chandra","paddleocr-vl"),default="auto")
     ingest.add_argument("--max-rows-per-file",type=int)
+    ingest.add_argument("--workers",type=int,help="Parallel structured readers (default: up to 4)")
     query=sub.add_parser("tool",help="call one RLM data tool with JSON arguments")
     query.add_argument("name",choices=("inspect_data","infer_schema","reconcile_entities","normalize_measurements",
                         "query_data","search_evidence","verify_evidence","extract_region",
-                        "get_process_context","get_state_at"))
+                        "get_process_context","get_state_at","summarize_series","calculate_metrics","align_series"))
     query.add_argument("--store",type=Path,required=True)
     query.add_argument("--args",default="{}")
     query.add_argument("--scope",action="append",default=[])
@@ -63,7 +64,7 @@ def main() -> None:
             out["cocoindex"]=_coco_inventory(args.package.resolve(),store)
         out["ingestion"]=ingest_package(args.package,store,access_scope=args.scope,
                                          document_backend=args.document_backend,
-                                         max_rows_per_file=args.max_rows_per_file)
+                                         max_rows_per_file=args.max_rows_per_file, workers=args.workers)
     else:
         tools=ManufacturingTools(store,as_of=args.as_of,scopes=tuple(args.scope or ["default"]))
         out=tools.handlers()[args.name](**json.loads(args.args))

@@ -20,6 +20,12 @@ class Blackboard:
     severity: str = "LOW"
     scope: dict[str, Any] = field(default_factory=lambda: {"type": "unknown", "batch_ids": [], "equipment_ids": []})
     observations: list[dict[str, Any]] = field(default_factory=list)
+    observed_facts: list[dict[str, Any]] = field(default_factory=list)
+    calculated_metrics: list[dict[str, Any]] = field(default_factory=list)
+    interpretations: list[dict[str, Any]] = field(default_factory=list)
+    verification: dict[str, Any] = field(default_factory=dict)
+    investigation_review: dict[str, Any] = field(default_factory=dict)
+    cross_scope_synthesis: str = ""
     causal_hypotheses: list[dict[str, Any]] = field(default_factory=list)
     resolved_questions: list[dict[str, Any]] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)

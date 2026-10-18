@@ -2,6 +2,7 @@ from collections import Counter
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import hashlib
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,7 @@ def create_app(services: ApplicationServices | None = None):
     try:
         from fastapi import Depends, FastAPI, Header, HTTPException, Query
         from fastapi.encoders import jsonable_encoder
-        from fastapi.responses import FileResponse
+        from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
         from fastapi.staticfiles import StaticFiles
         from pydantic import BaseModel, Field
     except ImportError as exc:  # pragma: no cover - optional runtime
@@ -564,6 +565,58 @@ def create_app(services: ApplicationServices | None = None):
             raise HTTPException(403, "investigation scope does not match tenant")
         return investigation_workflow
 
+    class SourceReviewInput(BaseModel):
+        packet_sha256: str
+        decision: str
+        note: str = Field(min_length=1,max_length=10000)
+
+    @app.get('/api/manufacturing-os/evidence/{observation_id}/review-packet')
+    def source_review_packet(observation_id: str, as_of: str, access: AccessContext = Depends(identity)):
+        required_investigation(access)
+        from src.manufacturing_data.source_review import review_packet
+        return safe(lambda: review_packet(manufacturing_store,observation_id,as_of=as_of,scopes=(manufacturing_scope,)))
+
+    @app.get('/api/manufacturing-os/evidence/{observation_id}/page-image')
+    def source_page_image(observation_id: str, as_of: str, access: AccessContext = Depends(identity)):
+        required_investigation(access)
+        from src.manufacturing_data.source_review import page_image
+        return Response(safe(lambda:page_image(manufacturing_store,observation_id,as_of=as_of,scopes=(manufacturing_scope,))),
+                        media_type='image/png',headers={'Cache-Control':'no-store'})
+
+    @app.post('/api/manufacturing-os/evidence/{observation_id}/source-review')
+    def source_review_decision(observation_id: str, value: SourceReviewInput, as_of: str,
+                               access: AccessContext = Depends(identity)):
+        required_investigation(access)
+        if not set(access.roles)&{'qa','sponsor_qa','supervisor'}:raise HTTPException(403,'Source review requires a QA or supervisor role')
+        from src.manufacturing_data.source_review import record_review
+        return safe(lambda:record_review(manufacturing_store,observation_id,as_of=as_of,scopes=(manufacturing_scope,),
+            packet_sha256=value.packet_sha256,reviewer_id=access.actor_id,decision=value.decision,note=value.note))
+
+    @app.get('/manufacturing-source-review/{observation_id}',include_in_schema=False)
+    def source_review_screen(observation_id: str, as_of: str, access: AccessContext = Depends(identity)):
+        required_investigation(access)
+        # The screen uses the same scoped endpoints, and all source text is
+        # inserted with textContent. Production identity remains the app's
+        # existing development adapter until replaced by trusted OIDC claims.
+        settings=json.dumps({'id':observation_id,'as_of':as_of,'headers':{'X-Tenant-Id':access.tenant_id,
+            'X-Actor-Id':access.actor_id,'X-Roles':','.join(access.roles)}}).replace('<','\\u003c')
+        return HTMLResponse('''<!doctype html><html lang="en"><meta charset="utf-8"><title>Source citation review</title>
+<style>body{font:16px system-ui;margin:32px;color:#173b35}main{display:grid;grid-template-columns:1fr 1fr;gap:24px}img{width:100%;border:1px solid #ddd}pre{white-space:pre-wrap;overflow-wrap:anywhere}textarea{width:100%;min-height:90px}button,select{padding:10px;margin:12px 8px 12px 0}@media(max-width:800px){main{grid-template-columns:1fr}}</style>
+<h1>Compare citation with original source</h1><p>Review the visible source and extracted text. A recorded decision does not grant scientific qualification.</p>
+<p id="status">Loading source…</p><main><section><h2>Original source</h2><img id="page" hidden alt="Original cited PDF page"><pre id="original"></pre></section>
+<section><h2>Extracted citation</h2><pre id="text"></pre><h3>Source coordinates and binding</h3><pre id="binding"></pre>
+<form id="review"><label>Comparison decision <select id="decision"><option value="matches">Text matches original</option><option value="does_not_match">Text differs from original</option><option value="unreadable">Cannot determine</option></select></label>
+<label>Review note<textarea id="note" required></textarea></label><button>Record source review</button></form><pre id="receipt"></pre></section></main>
+<script>const config='''+settings+''';let packet;const base='/api/manufacturing-os/evidence/'+encodeURIComponent(config.id), query='?as_of='+encodeURIComponent(config.as_of);
+const status=document.getElementById('status');async function checked(response){if(!response.ok)throw Error(await response.text());return response;}
+(async()=>{packet=await(await checked(await fetch(base+'/review-packet'+query,{headers:config.headers}))).json();
+document.getElementById('text').textContent=packet.extracted_text;document.getElementById('binding').textContent=JSON.stringify({source:packet.source_ref,source_sha256:packet.source_sha256,packet_sha256:packet.packet_sha256},null,2);
+document.getElementById('receipt').textContent=JSON.stringify(packet.human_reviews,null,2);status.textContent=packet.review_status;
+if(packet.source_format==='.pdf'){const response=await checked(await fetch(base+'/page-image'+query,{headers:config.headers}));const img=document.getElementById('page');img.src=URL.createObjectURL(await response.blob());img.hidden=false;}
+else document.getElementById('original').textContent=packet.original_line??'Automatic original-line comparison is unavailable.';
+})().catch(e=>status.textContent=e.message);
+document.getElementById('review').onsubmit=async e=>{e.preventDefault();try{if(!packet)throw Error('Load and inspect the packet first');const result=await checked(await fetch(base+'/source-review'+query,{method:'POST',headers:{...config.headers,'Content-Type':'application/json'},body:JSON.stringify({packet_sha256:packet.packet_sha256,decision:document.getElementById('decision').value,note:document.getElementById('note').value})}));document.getElementById('receipt').textContent=JSON.stringify(await result.json(),null,2);status.textContent='Human source review recorded; automatic verification and scientific qualification unchanged.';}catch(e){status.textContent=e.message;}};</script></html>''',headers={'Cache-Control':'no-store'})
+
     @app.get("/api/manufacturing-os/investigations/{incident_id}")
     def manufacturing_investigation(incident_id: str,
                                     access: AccessContext = Depends(identity)):
@@ -618,6 +671,124 @@ def create_app(services: ApplicationServices | None = None):
         return safe(lambda: workflow.close(
             incident_id, actor_id=access.actor_id, roles=access.roles, note=value.note))
 
+    from benchmark.case_comparison import ComparisonService
+    from benchmark.application.demo_runs import DemoRuns
+    case_comparison = ComparisonService(repository)
+    demo_runs = DemoRuns(repository)
+    app.state.demo_runs = demo_runs
+
+    class DemoRunInput(BaseModel):
+        milestone: int = Field(default=1, ge=0, le=20)
+
+    @app.get("/api/demo")
+    def demo_payload() -> dict[str, Any]:
+        from benchmark.case_comparison.demo import build_demo
+        return {"cases": [{**build_demo(case_comparison.case(case_id)),
+                           "agent": demo_runs.availability(case_id)}
+                          for case_id in ("fresenius", "cho")]}
+
+    @app.post("/api/demo/{case_id}/runs", status_code=202)
+    def start_demo_agent(case_id: str, value: DemoRunInput,
+                         access: AccessContext = Depends(identity)):
+        from benchmark.case_comparison.demo import build_demo
+        def start():
+            data = build_demo(case_comparison.case(case_id))
+            if value.milestone >= len(data["stages"]):
+                raise ValueError("unknown timeline milestone")
+            cutoff = data["stages"][value.milestone]["time"]
+            return demo_runs.start(case_id, access.tenant_id, as_of=cutoff)
+        return safe(start)
+
+    @app.get("/api/demo/runs/{run_id}")
+    def demo_agent_status(run_id: str, access: AccessContext = Depends(identity)):
+        return safe(lambda: demo_runs.get(run_id, access.tenant_id))
+
+    @app.get("/api/case-comparison")
+    def case_comparison_index() -> dict[str, Any]:
+        """Available benchmark case studies and dashboard sections."""
+        return case_comparison.dashboard()
+
+    @app.get("/api/case-comparison/cho/series")
+    def case_comparison_cho_series(
+        cultivation: str,
+        variables: str = "",
+        max_points: int = Query(240, ge=10, le=1200),
+    ) -> dict[str, Any]:
+        """Downsampled aligned trajectories for the CHO process view."""
+        names = [name.strip() for name in variables.split("|") if name.strip()]
+        return safe(lambda: case_comparison.series(cultivation, names, max_points))
+
+    @app.get("/api/case-comparison/{case_id}")
+    def case_comparison_case(case_id: str) -> dict[str, Any]:
+        """Full comparison payload for one case study (all sections)."""
+        return safe(lambda: case_comparison.case(case_id))
+
+    @app.get("/api/pilot-comparison")
+    def pilot_comparison(access: AccessContext = Depends(identity)) -> dict[str, Any]:
+        """Serve the one-command pilot comparison (comparison.json + report summary)."""
+        import json
+
+        configured = os.getenv("BIODEMO_PILOT_COMPARISON_DIR")
+        comparison_dir = Path(configured) if configured else repository / "runs" / "my-comparison"
+        comparison_file = comparison_dir / "comparison.json"
+        if not comparison_file.is_file():
+            raise HTTPException(404, f"pilot comparison not found in {comparison_dir}; "
+                                     "run python3 -m src.prime_runtime.compare ... --output runs/my-comparison")
+
+        def load_json(name: str) -> Any | None:
+            path = comparison_dir / name
+            if not path.is_file():
+                return None
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return None
+
+        comparison = load_json("comparison.json") or {}
+        agent = load_json("agent_report.json") or {}
+        cited = load_json("cited_evidence.json")
+        metrics = dict(agent.get("rollout_metrics", {})) if isinstance(agent, dict) else {}
+        for key in ("prime_log", "prime_tool_calls"):
+            metrics.pop(key, None)
+        hypotheses = agent.get("causal_hypotheses", []) if isinstance(agent, dict) else []
+        timeline: dict[str, Any] = {"as_of": comparison.get("as_of"),
+                                    "evidence_min": None, "evidence_max": None,
+                                    "evidence_count": 0, "by_month": []}
+        if isinstance(cited, list) and cited:
+            dates = sorted(str(r.get("available_at", "")) for r in cited if r.get("available_at"))
+            if dates:
+                timeline.update(evidence_min=dates[0], evidence_max=dates[-1])
+            timeline["evidence_count"] = len(cited)
+            counts: dict[str, int] = {}
+            for stamp in dates:
+                counts[stamp[:7]] = counts.get(stamp[:7], 0) + 1
+            timeline["by_month"] = [{"month": month, "count": counts[month]}
+                                    for month in sorted(counts)]
+        return jsonable_encoder({
+            "directory": str(comparison_dir),
+            "comparison": comparison,
+            "timeline": timeline,
+            "agent": {
+                "assessment": agent.get("assessment"),
+                "report_status":agent.get('report_status','incomplete'),
+                "investigation_review":agent.get('investigation_review',{}),
+                "cross_scope_synthesis":agent.get('cross_scope_synthesis',''),
+                "observed_facts":agent.get('observed_facts',[]),
+                "interpretations":agent.get('interpretations',[]),
+                "severity": agent.get("severity"),
+                "scope": agent.get("scope"),
+                "evidence_ids": agent.get("evidence_ids", [])[:200],
+                "evidence_count": len(agent.get("evidence_ids", [])),
+                "causal_hypotheses": hypotheses[:12],
+                "hypothesis_count": len(agent.get("causal_hypotheses", [])),
+                "open_questions": (agent.get("open_questions", []) or [])[:20],
+                "pending_evidence_requests": agent.get("pending_evidence_requests", []),
+                "rollout_metrics": metrics,
+            },
+            "cited_evidence_preview": (cited[:20] if isinstance(cited, list) else []),
+            "cited_evidence_count": len(cited) if isinstance(cited, list) else 0,
+        })
+
     @app.post("/api/agent/tools/{concept}")
     def agent_tool(
         concept: str,
@@ -659,11 +830,63 @@ def create_app(services: ApplicationServices | None = None):
 
     @app.get("/", include_in_schema=False)
     def index():
-        return FileResponse(static_root / "index.html")
+        return FileResponse(static_root / "summary.html")
 
     @app.get("/platform", include_in_schema=False)
     def platform_frontend():
-        return FileResponse(static_root / "index.html")
+        return RedirectResponse("/")
+
+    @app.get("/landing", include_in_schema=False)
+    def landing_page():
+        return RedirectResponse("/")
+
+    @app.get("/comparison", include_in_schema=False)
+    def comparison_page():
+        """Compatibility link to the single demo page."""
+        return RedirectResponse("/")
+
+    @app.get("/comparison/detail", include_in_schema=False)
+    def comparison_detail_page():
+        """Compatibility link to the single demo page."""
+        return RedirectResponse("/")
+
+    @app.get("/benchmark", include_in_schema=False)
+    def benchmark_report():
+        """Current all-attempt publication view; never infer scientific approval."""
+        from scripts.build_publication import load_results, example, dashboard
+        results=load_results(repository)
+        results['investigation_example']=example(repository)
+        return HTMLResponse(dashboard(results),headers={"Cache-Control":"no-store"})
+
+    @app.get("/benchmark-details", include_in_schema=False)
+    def benchmark_details():
+        from benchmark.case_comparison.report import build_report
+        return HTMLResponse(build_report(ComparisonService(repository)),
+                            headers={"Cache-Control": "no-store"})
+
+    @app.get("/benchmark-artifact/{name}", include_in_schema=False)
+    def publication_artifact(name: str):
+        allowed={'BENCHMARK_RESULTS.json','BENCHMARK_REPORT.md','FAILURE_ANALYSIS.md',
+                 'REPRODUCE.md','PUBLIC_DEMO_SUMMARY.md','PUBLIC_SOURCE_AUDIT.json'}
+        if name not in allowed or not (repository/name).is_file():
+            raise HTTPException(status_code=404,detail="Publication artifact unavailable")
+        return FileResponse(repository/name)
+
+    @app.get("/benchmark-source/{name}", include_in_schema=False)
+    def publication_source(name: str):
+        # Only publicly sourced CHO workbooks; no arbitrary paths, labels or
+        # simulated private records are exposed by this endpoint.
+        manifest=repository/'benchmarks/cho/source_manifest.json'
+        allowed={Path(m['installed_path']).name for m in json.loads(manifest.read_text()).get('members',[]) if m['installed_path'].endswith('.xlsx')}
+        if name not in allowed:
+            raise HTTPException(status_code=404,detail="Public source unavailable")
+        source=repository/'benchmarks/cho/raw/workbooks'/name
+        if not source.is_file():raise HTTPException(status_code=404,detail="Public source unavailable")
+        return FileResponse(source,filename=name)
+
+    @app.get("/benchmark-report", include_in_schema=False)
+    def legacy_benchmark_report():
+        return RedirectResponse("/benchmark")
 
     return app
 

@@ -57,6 +57,8 @@ def test_prime_bridge_enforces_cutoff_scope_citations_and_persists_graph(tmp_pat
         "hypotheses": [{"hypothesis_id": "H1", "statement": "Possible process issue",
                         "supporting_evidence_ids": [evidence_id],
                         "contradicting_evidence_ids": [], "confidence": 0.25,
+                        "contradicting_evidence_status":"not_searched",
+                        "contradicting_evidence_absence_reason":"Test investigation has not searched for counterevidence.",
                         "unknowns": ["Mechanism unknown"]}],
         "tasks": [{"owner": "QA", "action": "Review source status", "priority": "high",
                    "evidence_ids": [evidence_id], "reason": "Human review"}],

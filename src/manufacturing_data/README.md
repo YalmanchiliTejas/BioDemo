@@ -9,7 +9,7 @@ Python 3.11+ is required. Install the batch pipeline and, if needed, Docling:
 
 ```bash
 python3 -m pip install -e '.[manufacturing-data,manufacturing-documents]'
-python3 -m src.manufacturing_data ingest /path/to/raw_package --store /path/to/private_store
+python3 -m src.manufacturing_data ingest /path/to/raw_package --store /path/to/private_store --workers 4
 python3 -m src.manufacturing_data tool inspect_data --store /path/to/private_store
 python3 -m src.manufacturing_data tool search_evidence --store /path/to/private_store --args '{"query":"bioburden"}'
 python3 -m src.manufacturing_data tool query_data --store /path/to/private_store --args '{"sql":"SELECT name, avg(value_number) FROM observations GROUP BY name"}'
@@ -49,12 +49,37 @@ grant access only through these tools.
 
 ## Data model and tool calls
 
-SQLite holds sources, sheets/columns, source records, observations, candidate
-entities, relationships, timestamps, validation states, and exact source
-locations. Original bytes are copied by SHA-256 into a private directory.
-Polars writes numerical observations as Parquet shards. DuckDB executes bounded
-read-only SQL over only the shards visible to the current scope and time. Pint
-converts units and Pandera validates numerical conversion and Parquet export.
+Structured ingestion uses up to four workbook workers (`--workers N`). Excel
+is read with fastexcel/Calamine; CSV and Parquet use Polars. Each sheet's headers
+and column counts are checked, blank rows retain their original coordinates,
+and duplicate headers produce an explicit ingestion error. Numeric Excel cells
+retain native precision; mixed columns preserve numeric XML values and actual
+text identifiers. Each stored partition has an integrity checksum.
+
+Workers write wide sheet rows directly as Arrow batches to compressed Parquet
+in `measurements/`. These rows include measurements, other source values, row
+numbers, timestamps, candidate entity IDs, and field publication times. SQLite
+holds source checksums, sheet manifests, column schemas, candidate entities,
+and compact relationships. Structured cells are never inserted into SQLite.
+Original bytes are copied by SHA-256 into a private directory. Document and
+legacy observations remain supported in SQLite.
+
+DuckDB builds a lazy `observations` view over authorized sheet partitions.
+It expands cells into the existing evidence shape only while querying;
+source locations and evidence IDs are derived from sheet, physical row, and
+column. Scope, source availability, and per-field time cutoffs apply before
+results reach the RLM. Numeric `query_data` queries retain their existing
+contract. Inspection and entity tools aggregate in DuckDB, and the bridge
+validates only returned evidence IDs rather than loading every cell into Python.
+External access is disabled except for the exact authorized partition paths;
+agent SQL can reference only the public `observations` relation.
+
+The pipeline signature is now `0.6.0-verified-columnar`. Reingesting an existing
+store rebuilds changed/old-format structured sources. New structured evidence
+IDs use `b1:<source>:<sheet-index>:<row>:<column>`; existing legacy evidence IDs
+remain readable until that source is reindexed. Start a new investigation after
+migration rather than resuming a report containing old structured IDs. The
+existing ten tool names are unchanged; three deterministic analysis tools are added.
 
 The Prime bridge exposes `inspect_data`, `infer_schema`,
 `reconcile_entities`, `normalize_measurements`, `query_data`,
@@ -114,3 +139,33 @@ The evaluator is separate from the agent tools and reads hidden benchmark
 references only after extraction. [Measured results](../../results/manufacturing_data_layer.json)
 and [limitations](../../docs/manufacturing_data_layer.md) describe the current
 coverage. No RLM investigation or decision workflow was run for these results.
+
+## Full CHO ingestion measurement
+
+The full dataset (12 workbooks, 192 sheets, 3,251,506 rows, 25,195,350
+populated cells) ingested into a fresh store in 23.239 seconds with four
+workers. Repeating unchanged ingestion took 0.295 seconds. SQLite contained
+192 sheet manifests, 36 candidate entities, 24 relationships, and zero
+structured observations/records. Sheet Parquet files occupied 102,997,071 bytes.
+A numeric aggregate took 3.814 seconds, inspection took 7.094 seconds, and a
+batch lookup of 1,000 evidence IDs took 0.240 seconds. These measurements cover
+`ingest_package` and tool execution; they exclude optional CocoIndex inventory
+and agent investigation. Tests ran concurrently during the repeat timing.
+See [the recorded result](../../results/columnar_ingestion.json) for versions,
+source checksums, and per-workbook timings.
+
+To reproduce full ingestion with the command-line interface:
+
+```bash
+python3 -m src.manufacturing_data ingest benchmarks/cho/raw/workbooks \
+  --store /private/tmp/cho-columnar-store --orchestrator checksum --workers 4
+```
+
+
+## Deterministic investigation verification
+
+`summarize_series`, `calculate_metrics` and `align_series` complement the
+existing scoped tools. The runtime prepares source-backed statistics and anomaly
+patterns before model inference and verifies structured numerical claims before
+submission. Reports separate facts, calculations, interpretations and hypotheses.
+See [verification behavior, policy configuration and migration](../../docs/deterministic_verification.md).

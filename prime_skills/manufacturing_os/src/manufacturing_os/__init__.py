@@ -22,6 +22,7 @@ def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
         token = os.environ.get("BIODEMO_PRIME_BRIDGE_TOKEN")
     if not base or not token:
         raise RuntimeError("Manufacturing OS bridge is not configured")
+    payload={**payload,'_caller':{'depth':int(os.environ.get('RLM_DEPTH','0'))}}
     request = Request(base.rstrip("/") + path,
                       data=json.dumps(payload).encode("utf-8"),
                       headers={"Authorization": f"Bearer {token}",
@@ -44,7 +45,37 @@ def call_tool(name: str, **arguments: Any) -> dict[str, Any]:
 
 
 def submit_report(report: dict[str, Any]) -> dict[str, Any]:
-    return _post("/report", report)
+    return _post('/subreport' if int(os.environ.get('RLM_DEPTH','0'))>0 else '/report', report)
+
+def submit_subreport(report: dict[str, Any]) -> dict[str, Any]:
+    return _post('/subreport',report)
+
+def validate_report(report: dict[str, Any]) -> dict[str, Any]:
+    return _post('/validate-report',report)
+
+
+def work_queue(limit: int = 20) -> dict[str, Any]:
+    return _post('/work-queue', {'limit': limit})
+
+
+def allocate_work(**kwargs: Any) -> dict[str, Any]:
+    return _post('/allocate-work', kwargs)
+
+
+def save_progress(update: dict[str, Any]) -> dict[str, Any]:
+    return _post('/progress', update)
+
+
+def assemble_report(**kwargs: Any) -> dict[str, Any]:
+    return _post('/assemble-report', kwargs)
+
+
+def stopping_decision(**kwargs: Any) -> dict[str, Any]:
+    return _post('/stopping-decision', kwargs)
+
+
+def evidence_packet(requests: list[dict[str, Any]]) -> dict[str, Any]:
+    return call_tool('evidence_packet', requests=requests)
 
 
 def inspect_data(**kwargs: Any) -> dict[str, Any]:
@@ -87,7 +118,21 @@ def get_state_at(**kwargs: Any) -> dict[str, Any]:
     return call_tool("get_state_at", **kwargs)
 
 
+def summarize_series(**kwargs: Any) -> dict:
+    return call_tool("summarize_series", **kwargs)
+
+
+def calculate_metrics(**kwargs: Any) -> dict:
+    return call_tool("calculate_metrics", **kwargs)
+
+
+def align_series(**kwargs: Any) -> dict:
+    return call_tool("align_series", **kwargs)
+
+
 __all__ = ["context", "call_tool", "submit_report", "inspect_data",
+           "validate_report", "submit_subreport", "work_queue", "allocate_work", "save_progress",
+           "assemble_report", "stopping_decision", "evidence_packet",
            "infer_schema", "reconcile_entities", "normalize_measurements",
            "query_data", "search_evidence", "verify_evidence", "extract_region",
-           "get_process_context", "get_state_at"]
+           "get_process_context", "get_state_at", "summarize_series", "calculate_metrics", "align_series"]

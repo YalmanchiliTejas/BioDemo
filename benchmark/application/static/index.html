@@ -4,13 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="AI Operating System for pharmaceutical manufacturing — reconstructed incident demo.">
-  <title>Manufacturing OS · Incident Replay</title>
-  <link rel="stylesheet" href="/assets/incident.css">
+  <title>Lotic · Incident Replay</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23101828'/%3E%3Cpath d='M7 11c5 0 6 5 11 5' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 21c5 0 6-5 11-5' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M18 16h8' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/assets/incident.css?v=2">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark">M</span><div><strong>Manufacturing OS</strong><small>AI operating system for pharmaceutical manufacturing</small></div></div>
+    <div class="brand"><span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8c5 0 6 4 11 4"/><path d="M4 16c5 0 6-4 11-4"/><path d="M15 12h5"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg></span><div><strong>Lotic</strong><small>AI operating system for pharmaceutical manufacturing</small></div></div>
     <div class="topbar-center"><span class="live-dot"></span><span>FAMOTIDINE INCIDENT RECONSTRUCTION</span></div>
+    <a class="source-link" href="/comparison">Benchmark comparison →</a>
     <a class="source-link" href="https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/fresenius-kabi-usa-llc-733107-09222026" target="_blank" rel="noreferrer">FDA source ↗</a>
   </header>
   <div class="disclosure-bar"><div><span>SYNTHETIC DEMO</span> Reconstructed simulation based on publicly documented FDA findings. Operational telemetry shown in this demo is synthetic.</div><div class="provenance-legend" aria-label="Evidence provenance legend"><b class="provenance public">PUBLIC FDA FACT</b><b class="provenance synthetic">SYNTHETIC FACTORY SIGNAL</b><b class="provenance inference">AI INFERENCE</b><b class="provenance human">HUMAN DECISION</b></div></div>
@@ -22,6 +24,7 @@
         <button class="nav-item" data-view="replay"><span>02</span><b>Incident replay</b><small>Before vs. with OS</small></button>
         <button class="nav-item" data-view="investigation"><span>03</span><b>Investigation</b><small>Evidence and reasoning</small></button>
         <button class="nav-item" data-view="coordination"><span>04</span><b>Coordination</b><small>Human action loop</small></button>
+        <button class="nav-item" data-view="prime"><span>05</span><b>Live investigation</b><small>Prime agent + review</small></button>
       </nav>
       <div class="agent-status"><div class="agent-orb">AI</div><div><span>ONE ORCHESTRATING AGENT</span><strong id="agentModeLabel">Deterministic fallback ready</strong></div></div>
       <div class="sidebar-loop"><span>Detect</span><i>→</i><span>Triage</span><i>→</i><span>Investigate</span><i>→</i><span>Coordinate</span><i>→</i><span>Learn</span></div>
@@ -42,8 +45,9 @@
       </section>
 
       <section class="view" id="replayView">
-        <div class="view-heading compact"><div><p class="eyebrow">INCIDENT REPLAY · FRESENIUS KABI FAMOTIDINE</p><h1>Watch the decision loop change.</h1><p>Both modes receive the same reconstructed factory signals. Only the operating model changes.</p></div><div class="mode-toggle" role="group" aria-label="Replay mode"><button class="active" data-mode="without">Without OS</button><button data-mode="with">With Manufacturing OS</button></div></div>
+        <div class="view-heading compact"><div><p class="eyebrow">INCIDENT REPLAY · FRESENIUS KABI FAMOTIDINE</p><h1>Watch the decision loop <em>change.</em></h1><p>Both modes receive the same reconstructed factory signals. Only the operating model changes.</p></div><div class="mode-toggle" role="group" aria-label="Replay mode"><button class="active" data-mode="without">Without OS</button><button data-mode="with">With Manufacturing OS</button></div></div>
         <div class="replay-toolbar panel"><div class="replay-controls"><button class="primary" id="playReplay">▶ Replay Incident</button><button class="secondary" id="pauseReplay">Pause</button><button class="text-button" id="resetReplay">Reset</button></div><div class="replay-clock"><span>SIMULATED PLANT TIME</span><strong id="replayClock">JAN 08 · 09:04</strong></div><label class="live-model-toggle"><input type="checkbox" id="liveModel"><span>Use configured live LLM</span></label><div class="progress-track"><i id="replayProgress"></i></div></div>
+        <article class="panel" id="modeContrast" aria-live="polite"><div class="contrast-grid"><div class="contrast-side manual"><span>WITHOUT OS · AT THIS PLANT TIME</span><strong id="contrastWithout">No signal yet</strong><small id="contrastWithoutSub">Records stay in source systems.</small></div><div class="versus">VS</div><div class="contrast-side os"><span>WITH MANUFACTURING OS · SAME TIMESTAMP</span><strong id="contrastWith">No signal yet</strong><small id="contrastWithSub">Agent sees the same events, connected.</small></div></div><p id="contrastDelta">Start the replay — the delta appears event by event, no mode switching needed.</p></article>
         <div class="replay-layout">
           <article class="panel timeline-panel"><div class="panel-head"><div><p class="eyebrow" id="timelineModeLabel">FRAGMENTED SYSTEM TIMELINE</p><h2>Event stream</h2></div><span id="eventCount" class="count-pill">0 events</span></div><div class="timeline" id="replayTimeline"><div class="empty"><span>▶</span><p>Start the replay to stream the incident chronologically.</p></div></div></article>
           <aside class="panel decision-panel" id="decisionPanel"><div class="panel-head"><div><p class="eyebrow">CURRENT DECISION STATE</p><h2 id="decisionTitle">Waiting for signal</h2></div><span class="severity normal" id="decisionSeverity">NORMAL</span></div><div id="decisionContent" class="decision-content"><p class="muted">The system only sees evidence available at the current replay time.</p></div><div class="knowledge-cutoff"><span>KNOWLEDGE CUTOFF</span><strong id="knowledgeCutoff">No events received</strong><small id="evidenceCount">0 evidence records visible</small></div></aside>
@@ -63,14 +67,41 @@
       </section>
 
       <section class="view" id="coordinationView">
-        <div class="view-heading compact"><div><p class="eyebrow">SHARED INCIDENT STATE</p><h1>Coordinate the response.<br>Update the assessment.</h1><p>Complete human work, attach the finding, and watch the Manufacturing Agent reason over the new evidence.</p></div><div class="coordination-risk"><span>CURRENT RISK</span><strong id="coordinationSeverity">HIGH</strong><small id="coordinationChange">Awaiting microbiology confirmation</small></div></div>
+        <div class="view-heading compact"><div><p class="eyebrow">SHARED INCIDENT STATE</p><h1>Coordinate the <em>response.</em><br>Update the assessment.</h1><p>Complete human work, attach the finding, and watch the Manufacturing Agent reason over the new evidence.</p></div><div class="coordination-risk"><span>CURRENT RISK</span><strong id="coordinationSeverity">HIGH</strong><small id="coordinationChange">Awaiting microbiology confirmation</small></div></div>
+        <article class="panel" id="learningLoop"><div class="panel-head"><div><p class="eyebrow">CONTINUAL LEARNING LOOP · SIMULATED</p><h2>Each incident makes the next one faster</h2></div><span class="count-pill" id="learningStage">0/4 stages</span></div><div class="learn-grid"><div class="learn-step" id="learn1"><b>1 · Human finding</b><p>Complete Microbiology task below.</p><small>Pending</small></div><div class="learn-step" id="learn2"><b>2 · Agent reassesses</b><p>Severity + actions update with new evidence.</p><small>Pending</small></div><div class="learn-step" id="learn3"><b>3 · Memory stored</b><p>Resolved package becomes retrievable memory.</p><small>Pending</small></div><div class="learn-step" id="learn4"><b>4 · Next signal is faster</b><p>Test future signal: 89% match, prior actions suggested at event 1.</p><small>Pending</small></div></div></article>
         <div class="coordination-layout"><article class="panel"><div class="panel-head"><div><p class="eyebrow">FUNCTIONAL WORK</p><h2>Investigation tasks</h2></div><span class="count-pill" id="taskCount">5 open</span></div><div id="taskList" class="task-list"></div></article><aside class="coordination-aside"><article class="panel assessment-card"><p class="eyebrow">AGENT REASSESSMENT</p><div id="reassessment"><h2>Waiting for a human finding.</h2><p>Complete the Microbiology task to add organism evidence to the incident state.</p></div></article><article class="panel memory-card"><div class="panel-head"><div><p class="eyebrow">LEARNING LAYER</p><h2>Incident memory</h2></div><button class="secondary" id="testMemory">Test future signal</button></div><div id="memoryResult"><p>Once resolved, the structured evidence, hypotheses, actions, and outcome become retrievable incident memory.</p></div></article></aside></div>
+      <section class="view" id="primeView">
+        <div class="view-heading compact"><div><p class="eyebrow">LIVE PRIME INVESTIGATION · SCOPED EVIDENCE ONLY</p><h1>Run the real agent.<br><em>Keep the human in charge.</em></h1><p>This tab talks to <code>POST /api/manufacturing-os/rollouts</code> — the Prime Agent SDK investigation over your ingested store. Everything else on this page is a synthetic replay; this panel is live and strictly scoped.</p></div><div class="coordination-risk"><span>PRIME RUNTIME</span><strong id="primeAvailability">Checking…</strong><small id="primeAvailabilityHint">Probing investigation workflow</small></div></div>
+        <div class="prime-layout">
+          <article class="panel"><div class="panel-head"><div><p class="eyebrow">START / RESUME</p><h2>Prime rollout</h2></div><span class="provenance inference">LIVE AGENT</span></div>
+            <div class="prime-form">
+              <label>Incident ID<input id="primeIncident" value="MFG-2025-014"></label>
+              <label>Objective<textarea id="primeProblem" rows="3">Investigate bioburden excursion scope, related batches, and evidence-backed next steps.</textarea></label>
+              <div class="prime-row"><label>As of (ISO-8601)<input id="primeAsOf" value="2026-10-13T00:00:00Z"></label><label>New evidence IDs (comma-separated, optional)<input id="primeEvidence" placeholder="observation-id-1, observation-id-2"></label></div>
+              <div class="prime-actions"><button class="primary" id="primeRun">▶ Start / resume Prime investigation</button><button class="secondary" id="primeRefresh">Refresh report</button><button class="text-button" id="primeHistoryBtn">History</button></div>
+              <p class="prime-note" id="primeStatus">No live investigation loaded yet. Starting a rollout can take several minutes; the same incident ID resumes the saved Prime session.</p>
+            </div>
+          </article>
+          <aside class="coordination-aside">
+            <article class="panel"><div class="panel-head"><div><p class="eyebrow">HUMAN REVIEW GATE</p><h2>Approve or reject</h2></div></div>
+              <div class="prime-form"><div class="prime-row"><label>Role<select id="primeRole"><option value="qa">qa</option><option value="sponsor_qa">sponsor_qa</option><option value="supervisor">supervisor</option><option value="msat">msat</option></select></label><label>Decision<select id="primeDecision"><option value="approved">approved</option><option value="rejected">rejected</option></select></label></div>
+              <label>Note<input id="primeNote" placeholder="Review rationale"></label>
+              <div class="prime-actions"><button class="secondary" id="primeReview">Submit review</button><button class="text-button" id="primeClose">Close case</button></div>
+              <p class="prime-note">Approval does not execute batch disposition, release, or CAPA. Closure needs completed tasks, resolved evidence requests, and required review.</p></div>
+            </article>
+            <article class="panel"><div class="panel-head"><div><p class="eyebrow">RECORD OUTCOME</p><h2>QA finding</h2></div></div>
+              <div class="prime-form"><label>Finding<input id="primeFinding" placeholder="Source-cited outcome statement"></label><label>Evidence IDs (comma-separated)<input id="primeOutcomeEvidence" placeholder="observation-id"></label><div class="prime-actions"><button class="secondary" id="primeOutcome">Record outcome</button></div></div>
+            </article>
+          </aside>
+        </div>
+        <article class="panel"><div class="panel-head"><div><p class="eyebrow">CURRENT INVESTIGATION REPORT</p><h2 id="primeReportTitle">No report yet</h2></div><span class="severity normal" id="primeSeverity">UNKNOWN</span></div><div id="primeReport" class="prime-report"><p class="muted">Run a rollout or refresh an existing incident to load its workflow report (signals, hypothesis checks, triage, tasks, requests, decisions, outcomes).</p></div></article>
+        <article class="panel hidden" id="primeHistoryPanel"><div class="panel-head"><div><p class="eyebrow">APPEND-ONLY HISTORY</p><h2>Updates</h2></div><button class="text-button" id="primeHistoryHide">Hide</button></div><div id="primeHistory" class="prime-history"></div></article>
       </section>
     </main>
   </div>
 
   <dialog id="taskDialog"><form method="dialog" id="taskForm"><div class="dialog-head"><div><p class="eyebrow">HUMAN FINDING</p><h2 id="taskDialogTitle">Complete task</h2></div><button value="cancel" class="dialog-close" aria-label="Close">×</button></div><input type="hidden" id="taskDialogId"><label>Observation<textarea id="taskObservation" rows="4" required></textarea></label><p class="dialog-note">This becomes new evidence. The agent will reassess, but disposition authority remains with QA.</p><div class="dialog-actions"><button value="cancel" class="secondary">Cancel</button><button value="default" class="primary">Submit finding & reassess</button></div></form></dialog>
   <div class="toast" id="toast" role="status"></div>
-  <script src="/assets/incident.js"></script>
+  <script src="/assets/incident.js?v=4"></script>
 </body>
 </html>

@@ -38,7 +38,9 @@ def test_ingest_provenance_incremental_and_entity_link(workspace):
     temp=next(o for o in context["records"] if o["name"]=="Temperature (degC)")
     assert tools.verify_evidence(observation_id=temp["id"])["value_matches"]
     assert tools.extract_region(source_id=temp["source_id"],row=2,column="Temperature (degC)")["data"]=={"Temperature (degC)":"37"}
-    assert len(list(store.numerical.glob("*.parquet")))==1
+    assert len(list(store.measurements.glob("*.parquet")))==1
+    with store.connect() as con:
+        assert con.execute("SELECT count(*) FROM observations").fetchone()[0]==0
 
 def test_historical_and_scope_filters(workspace):
     source,store=workspace
@@ -83,14 +85,14 @@ def test_cross_entity_context_respects_time(workspace):
     later=ManufacturingTools(store,as_of="2024-04-01T00:00:00Z")
     assert "EQ7" in later.get_process_context(entity_id="B1")["related_entities"]
 
-def test_manufacturing_tools_expose_ten_data_operations(workspace):
+def test_manufacturing_tools_expose_data_and_deterministic_analysis_operations(workspace):
     source,store=workspace
     (source/"data.csv").write_text("batch_id,result\nB1,7\n")
     ingest_package(source,store)
     tools=ManufacturingTools(store)
     assert {"inspect_data","infer_schema","reconcile_entities","normalize_measurements",
             "query_data","search_evidence","verify_evidence","extract_region",
-            "get_process_context","get_state_at"} == set(tools.handlers())
+            "get_process_context","get_state_at","summarize_series","calculate_metrics","align_series"} == set(tools.handlers())
     assert tools.search_evidence(query="B1")["evidence_ids"]
 
 def test_zip_ingestion_rejects_traversal(workspace,tmp_path):

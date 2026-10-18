@@ -1,0 +1,239 @@
+...........................FF....................s..........ssFF........ [ 43%]
+...................................................................F.... [ 86%]
+......................                                                   [100%]
+=================================== FAILURES ===================================
+_________ test_sdk_depth_routes_child_over_http_and_lead_can_finalize __________
+
+case = (<src.prime_runtime.bridge.ManufacturingBridge object at 0x1087f81a0>, <src.manufacturing_data.tools.ManufacturingTool...75e3aebf1846:0:3:1', 'source_id': '161c9c77094375e3aebf1846', 'name': 'batch_id', 'value_text': 'third/R1', ...}, ...])
+tmp_path = PosixPath('/private/var/folders/hf/qh_kn2w56nn3gcymbv9dm2m00000gn/T/pytest-of-tejas/pytest-177/test_sdk_depth_routes_child_ov0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1070890f0>
+
+    def test_sdk_depth_routes_child_over_http_and_lead_can_finalize(case,tmp_path,monkeypatch):
+        import importlib.util
+        bridge,_,prepared,_=case
+        client_path=Path(__file__).resolve().parents[1]/'prime_skills/manufacturing_os/src/manufacturing_os/__init__.py'
+        spec=importlib.util.spec_from_file_location('investigation_skill_test',client_path)
+        client=importlib.util.module_from_spec(spec);spec.loader.exec_module(client)
+>       bridge.start()
+
+tests/test_investigation_review.py:160: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/prime_runtime/bridge.py:485: in start
+    self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socketserver.py:457: in __init__
+    self.server_bind()
+/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/server.py:148: in server_bind
+    socketserver.TCPServer.server_bind(self)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <http.server.ThreadingHTTPServer object at 0x1087f8440>
+
+    def server_bind(self):
+        """Called by constructor to bind the socket.
+    
+        May be overridden.
+    
+        """
+        if self.allow_reuse_address and hasattr(socket, "SO_REUSEADDR"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Since Linux 6.12.9, SO_REUSEPORT is not allowed
+        # on other address families than AF_INET/AF_INET6.
+        if (
+            self.allow_reuse_port and hasattr(socket, "SO_REUSEPORT")
+            and self.address_family in (socket.AF_INET, socket.AF_INET6)
+        ):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+>       self.socket.bind(self.server_address)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socketserver.py:478: PermissionError
+______ test_host_timeout_preserves_incomplete_checkpoint_and_partial_logs ______
+
+case = (<src.prime_runtime.bridge.ManufacturingBridge object at 0x11b92d940>, <src.manufacturing_data.tools.ManufacturingTool...fd0713fde076:0:3:1', 'source_id': '6166939a6da6fd0713fde076', 'name': 'batch_id', 'value_text': 'third/R1', ...}, ...])
+tmp_path = PosixPath('/private/var/folders/hf/qh_kn2w56nn3gcymbv9dm2m00000gn/T/pytest-of-tejas/pytest-177/test_host_timeout_preserves_in0')
+
+    def test_host_timeout_preserves_incomplete_checkpoint_and_partial_logs(case,tmp_path):
+        import sys
+        import subprocess
+        from src.prime_runtime.harness import PrimeManufacturingHarness
+        bridge,_,_,_=case
+        host=tmp_path/'host.py';host.write_text('import time\nprint("host initialized",flush=True)\ntime.sleep(10)\n')
+        harness=PrimeManufacturingHarness(command=[sys.executable,str(host)],store=bridge.store,
+            blackboards=bridge.blackboards,workflow=bridge.workflow,scope=bridge.scope,runtime_root=tmp_path/'runtime')
+        harness.timeout_seconds=3
+        with pytest.raises(subprocess.TimeoutExpired):
+>           harness.run(incident_id='cancelled',problem='Investigate available evidence',new_evidence_ids=[],as_of=bridge.as_of)
+
+tests/test_investigation_review.py:183: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/prime_runtime/harness.py:79: in run
+    ).start()
+      ^^^^^^^
+src/prime_runtime/bridge.py:485: in start
+    self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socketserver.py:457: in __init__
+    self.server_bind()
+/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/server.py:148: in server_bind
+    socketserver.TCPServer.server_bind(self)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <http.server.ThreadingHTTPServer object at 0x10652f610>
+
+    def server_bind(self):
+        """Called by constructor to bind the socket.
+    
+        May be overridden.
+    
+        """
+        if self.allow_reuse_address and hasattr(socket, "SO_REUSEADDR"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Since Linux 6.12.9, SO_REUSEPORT is not allowed
+        # on other address families than AF_INET/AF_INET6.
+        if (
+            self.allow_reuse_port and hasattr(socket, "SO_REUSEPORT")
+            and self.address_family in (socket.AF_INET, socket.AF_INET6)
+        ):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+>       self.socket.bind(self.server_address)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socketserver.py:478: PermissionError
+__________ test_prime_harness_rejects_missing_report_without_fallback __________
+
+tmp_path = PosixPath('/private/var/folders/hf/qh_kn2w56nn3gcymbv9dm2m00000gn/T/pytest-of-tejas/pytest-177/test_prime_harness_rejects_mis0')
+
+    def test_prime_harness_rejects_missing_report_without_fallback(tmp_path):
+        store, boards, workflow, evidence_id, _future_id = setup_case(tmp_path)
+        fake = tmp_path / "incomplete_prime.py"
+        fake.write_text('print("{\\"type\\":\\"session\\",\\"id\\":\\"unused\\"}")\n')
+        harness = PrimeManufacturingHarness(
+            command=[sys.executable, str(fake)], store=store, blackboards=boards,
+            workflow=workflow, scope="tenant_a", runtime_root=tmp_path / "prime")
+        with pytest.raises(RuntimeError, match="without submitting"):
+>           harness.run(incident_id="incomplete", problem="Investigate",
+                        new_evidence_ids=[evidence_id], as_of="2024-02-01T00:00:00Z")
+
+tests/test_prime_runtime.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/prime_runtime/harness.py:79: in run
+    ).start()
+      ^^^^^^^
+src/prime_runtime/bridge.py:485: in start
+    self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socketserver.py:457: in __init__
+    self.server_bind()
+/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/server.py:148: in server_bind
+    socketserver.TCPServer.server_bind(self)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <http.server.ThreadingHTTPServer object at 0x14af10f50>
+
+    def server_bind(self):
+        """Called by constructor to bind the socket.
+    
+        May be overridden.
+    
+        """
+        if self.allow_reuse_address and hasattr(socket, "SO_REUSEADDR"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Since Linux 6.12.9, SO_REUSEPORT is not allowed
+        # on other address families than AF_INET/AF_INET6.
+        if (
+            self.allow_reuse_port and hasattr(socket, "SO_REUSEPORT")
+            and self.address_family in (socket.AF_INET, socket.AF_INET6)
+        ):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+>       self.socket.bind(self.server_address)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socketserver.py:478: PermissionError
+___________ test_sdk_transport_uses_session_api_protocol_and_resumes ___________
+
+tmp_path = PosixPath('/private/var/folders/hf/qh_kn2w56nn3gcymbv9dm2m00000gn/T/pytest-of-tejas/pytest-177/test_sdk_transport_uses_sessio0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x14af4aa50>
+
+    def test_sdk_transport_uses_session_api_protocol_and_resumes(tmp_path, monkeypatch):
+        store, boards, workflow, evidence_id, _ = setup_case(tmp_path)
+        fake = tmp_path / "fake_sdk_host.py"
+        fake.write_text('''
+    import json, os, sys
+    from pathlib import Path
+    sys.path.insert(0, os.environ["SKILL_SRC"])
+    from manufacturing_os import context, submit_report
+    request = json.load(sys.stdin)
+    assert request["skill_paths"] and request["prompt"]
+    assert not request["session_file"] or Path(request["session_file"]).is_file()
+    session_file = Path(request["session_dir"]) / "sdk-session.jsonl"
+    session_file.write_text('{"type":"session","id":"sdk-session"}\\n')
+    identifier = context()["seed_evidence"][0]["_evidence_id"]
+    submit_report({"assessment":"SDK host submitted cited evidence", "severity":"MEDIUM",
+                   "evidence_ids":[identifier], "hypotheses":[], "open_questions":[],
+                   "evidence_requests":[], "tasks":[], "decision_branches":[]})
+    print(json.dumps({"type":"session", "id":"sdk-session", "file":str(session_file)}))
+    print(json.dumps({"type":"message_end", "message":{"role":"assistant",
+                    "usage":{"input":11,"output":7,"cacheRead":2,"cost":{"total":0.01}}}}))
+    ''')
+        monkeypatch.setenv("SKILL_SRC", str(Path(__file__).resolve().parents[1] /
+                                           "prime_skills/manufacturing_os/src"))
+        harness = PrimeManufacturingHarness(
+            command=[sys.executable, str(fake)], store=store, blackboards=boards,
+            workflow=workflow, scope="tenant_a", runtime_root=tmp_path / "prime")
+>       first = harness.run(incident_id="sdk-case", problem="Investigate",
+                            new_evidence_ids=[evidence_id], as_of="2024-02-01T00:00:00Z")
+
+tests/test_prime_runtime.py:170: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/prime_runtime/harness.py:79: in run
+    ).start()
+      ^^^^^^^
+src/prime_runtime/bridge.py:485: in start
+    self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socketserver.py:457: in __init__
+    self.server_bind()
+/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/server.py:148: in server_bind
+    socketserver.TCPServer.server_bind(self)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <http.server.ThreadingHTTPServer object at 0x129a09e00>
+
+    def server_bind(self):
+        """Called by constructor to bind the socket.
+    
+        May be overridden.
+    
+        """
+        if self.allow_reuse_address and hasattr(socket, "SO_REUSEADDR"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Since Linux 6.12.9, SO_REUSEPORT is not allowed
+        # on other address families than AF_INET/AF_INET6.
+        if (
+            self.allow_reuse_port and hasattr(socket, "SO_REUSEPORT")
+            and self.address_family in (socket.AF_INET, socket.AF_INET6)
+        ):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+>       self.socket.bind(self.server_address)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socketserver.py:478: PermissionError
+_______________ ChoCaseTests.test_recorded_prime_pilot_is_wired ________________
+
+self = <test_case_comparison.ChoCaseTests testMethod=test_recorded_prime_pilot_is_wired>
+
+    def test_recorded_prime_pilot_is_wired(self) -> None:
+        replay = self.case["replay"]
+        ai_run = replay.get("ai_run")
+>       self.assertIsNotNone(ai_run, "run the pilot or restore runs/cho-comparison")
+E       AssertionError: unexpectedly None : run the pilot or restore runs/cho-comparison
+
+tests/test_case_comparison.py:283: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_investigation_review.py::test_sdk_depth_routes_child_over_http_and_lead_can_finalize
+FAILED tests/test_investigation_review.py::test_host_timeout_preserves_incomplete_checkpoint_and_partial_logs
+FAILED tests/test_prime_runtime.py::test_prime_harness_rejects_missing_report_without_fallback
+FAILED tests/test_prime_runtime.py::test_sdk_transport_uses_session_api_protocol_and_resumes
+FAILED tests/test_case_comparison.py::ChoCaseTests::test_recorded_prime_pilot_is_wired
+5 failed, 158 passed, 3 skipped in 60.46s (0:01:00)

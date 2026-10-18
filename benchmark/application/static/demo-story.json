@@ -1,0 +1,3085 @@
+{
+  "cases": [
+    {
+      "presentation_version": 7,
+      "plant_view": {
+        "escalation": {
+          "time": "2025-01-04T12:25:00Z",
+          "id": "AI-EVT-006",
+          "batches": [
+            "BATCH-075",
+            "BATCH-084"
+          ]
+        },
+        "recognized": {
+          "time": "2025-10-20T09:00:00Z",
+          "id": "TRAD-EVT-011"
+        },
+        "reserve_failure": {
+          "time": "2025-10-27T14:10:00Z",
+          "id": "TRAD-EVT-012"
+        },
+        "recall": {
+          "time": "2025-11-07T00:00:00Z",
+          "id": "TRAD-EVT-013"
+        },
+        "first_signal": "2024-12-01T12:00:00Z",
+        "lead_days": 288,
+        "lots": [
+          {
+            "batch": "BATCH-075",
+            "line": "LINE-A",
+            "made": "2024-12-01T06:40:00Z",
+            "excursion": {
+              "id": "LAB-0225",
+              "time": "2024-12-01T12:00:00Z",
+              "value": 1.23
+            },
+            "released": "2024-12-16T00:28:32Z",
+            "shipped": "2025-01-02T00:00:00Z",
+            "complaint": "2025-10-20T09:00:00Z",
+            "recorded": "released_and_shipped",
+            "projected": "shipped_before_warning"
+          },
+          {
+            "batch": "BATCH-084",
+            "line": "LINE-A",
+            "made": "2025-01-04T07:05:00Z",
+            "excursion": {
+              "id": "LAB-0255",
+              "time": "2025-01-04T12:25:00Z",
+              "value": 1.48
+            },
+            "released": "2025-01-19T05:48:14Z",
+            "shipped": "2025-02-04T00:00:00Z",
+            "complaint": null,
+            "recorded": "released_and_shipped",
+            "projected": "held"
+          },
+          {
+            "batch": "BATCH-099",
+            "line": "LINE-A",
+            "made": "2025-03-12T06:55:00Z",
+            "excursion": {
+              "id": "LAB-0300",
+              "time": "2025-03-12T12:15:00Z",
+              "value": 1.71
+            },
+            "released": "2025-03-27T08:52:04Z",
+            "shipped": "2025-04-15T00:00:00Z",
+            "complaint": null,
+            "recorded": "released_and_shipped",
+            "projected": "held"
+          }
+        ],
+        "kpis": [
+          {
+            "label": "Repeat pattern recognized",
+            "before": "2025-10-20",
+            "after": "2025-01-04",
+            "before_note": "when a customer complaint arrived",
+            "after_note": "when the second lot failed upstream",
+            "delta": "288 days earlier",
+            "kind": "date"
+          },
+          {
+            "label": "Flagged lots that reached customers",
+            "before": 3,
+            "after": 1,
+            "before_note": "all released after passing final tests",
+            "after_note": "shipped before the pattern existed",
+            "delta": "2 fewer",
+            "kind": "count"
+          },
+          {
+            "label": "Flagged lots held for a QA decision",
+            "before": 0,
+            "after": 2,
+            "before_note": "each closed out on its own",
+            "after_note": "held until the investigation decides",
+            "delta": "+2",
+            "kind": "count"
+          },
+          {
+            "label": "Investigations running",
+            "before": 3,
+            "after": 1,
+            "before_note": "separate, batch-by-batch deviations",
+            "after_note": "one linked, cross-batch case",
+            "delta": "1 shared case",
+            "kind": "count"
+          }
+        ],
+        "assumptions": [
+          "Data is a synthetic reconstruction informed by public FDA materials, not Fresenius internal records.",
+          "The \u201cwith agent\u201d track is a deterministic replay. It assumes QA accepts the escalation and holds affected lots that are not yet released.",
+          "The agent recommends; people decide. It does not prove the root cause or that the real recall would have been avoided."
+        ]
+      },
+      "id": "fresenius",
+      "name": "Fresenius Kabi",
+      "title": "The famotidine recall, replayed with the agent on the line.",
+      "intro": "Three lots failed an upstream bioburden check over three months. Each passed its final tests and shipped, and the pattern only surfaced when a customer complaint arrived more than ten months after the first failure. Here is the same year without the agent, and projected with it.",
+      "badge": "Synthetic reconstruction \u00b7 projected replay",
+      "clock": "Case chronology \u00b7 milestones spaced equally",
+      "stages": [
+        {
+          "label": "First abnormal result",
+          "time": "2024-12-01T12:00:00Z",
+          "clock": "Case date",
+          "without": {
+            "title": "Bioburden action limit exceeded",
+            "detail": "A normalized upstream signal crossed its action limit.",
+            "kind": "Recorded case",
+            "source_ids": [
+              "TRAD-EVT-002"
+            ],
+            "time": "2024-12-01T12:00:00Z"
+          },
+          "with": {
+            "title": "Investigate the first excursion",
+            "detail": "The OS flags the abnormal result for investigation. A recurring pattern is not established yet.",
+            "kind": "Modeled OS replay",
+            "source_ids": [
+              "AI-EVT-002"
+            ],
+            "time": "2024-12-01T12:00:00Z"
+          },
+          "divergence": "Both workflows see the first signal. The OS keeps the evidence in a connected investigation.",
+          "comparison": {
+            "evidence": [
+              {
+                "id": "LAB-0225",
+                "batch": "BATCH-075",
+                "value": 1.23,
+                "limit": 1.0,
+                "time": "2024-12-01T12:00:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              }
+            ],
+            "without": {
+              "title": "Recorded batch-local actions",
+              "scope": "The chronology has no recorded cross-batch escalation at this cutoff.",
+              "actions": [],
+              "decision": "No action recorded yet.",
+              "qualification": "Absence in this reconstructed chronology does not prove what real investigators knew."
+            },
+            "with": {
+              "title": "Linked investigation recommendation",
+              "scope": "Single excursion; recurrence not established.",
+              "actions": [
+                {
+                  "id": "AI-EVT-002",
+                  "text": "L2 \u00b7 medium risk",
+                  "time": "2024-12-01T12:00:00Z",
+                  "evidence_ids": [
+                    "LAB-0225"
+                  ]
+                }
+              ],
+              "decision": "Investigate the first excursion and seek more evidence; root cause remains unconfirmed.",
+              "qualification": "Deterministic replay output. Use Run agent for a separate live investigation."
+            },
+            "change": "No cross-batch divergence established yet.",
+            "proof": "This demonstrates a difference in investigation scope in the replay. Human time saved and outcome improvement have not been measured."
+          },
+          "source_records": [
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-01T12:00:00Z",
+                "sample_collected_at": "2024-12-01T10:40:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.23,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0225",
+                "test": "bioburden",
+                "result": "1.23 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0075",
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-01T10:50:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 0.71,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": null,
+                "status": "alert",
+                "provenance": "synthetic_factory_signal"
+              }
+            }
+          ]
+        },
+        {
+          "label": "Second affected batch",
+          "time": "2025-01-04T12:25:00Z",
+          "clock": "Case date",
+          "without": {
+            "title": "Bioburden action limit exceeded",
+            "detail": "A normalized upstream signal crossed its action limit.",
+            "kind": "Recorded case",
+            "source_ids": [
+              "TRAD-EVT-006"
+            ],
+            "time": "2025-01-04T12:25:00Z"
+          },
+          "with": {
+            "title": "Connect the pattern across batches",
+            "detail": "The OS links the repeated microbiological signal and recommends a broader escalation for human approval.",
+            "kind": "Modeled OS replay",
+            "source_ids": [
+              "AI-EVT-006"
+            ],
+            "time": "2025-01-04T12:25:00Z"
+          },
+          "divergence": "The paths diverge here: the local workflow handles another batch; the OS recognizes recurrence across batches.",
+          "comparison": {
+            "evidence": [
+              {
+                "id": "LAB-0225",
+                "batch": "BATCH-075",
+                "value": 1.23,
+                "limit": 1.0,
+                "time": "2024-12-01T12:00:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              },
+              {
+                "id": "LAB-0255",
+                "batch": "BATCH-084",
+                "value": 1.48,
+                "limit": 1.0,
+                "time": "2025-01-04T12:25:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              }
+            ],
+            "without": {
+              "title": "Recorded batch-local actions",
+              "scope": "The chronology has no recorded cross-batch escalation at this cutoff.",
+              "actions": [
+                {
+                  "id": "TRAD-EVT-003",
+                  "text": "Deviation opened",
+                  "time": "2024-12-01T12:18:00Z",
+                  "evidence_ids": [
+                    "DEV-0003"
+                  ]
+                },
+                {
+                  "id": "TRAD-DISPO-BATCH-075",
+                  "text": "BATCH-075 released \u2014 recorded disposition",
+                  "time": "2024-12-16T00:28:32Z",
+                  "evidence_ids": [
+                    "BATCH-075"
+                  ]
+                }
+              ],
+              "decision": "Disposition 'released' recorded after passing release testing. Upstream excursions remained in batch-local open deviations.",
+              "qualification": "Absence in this reconstructed chronology does not prove what real investigators knew."
+            },
+            "with": {
+              "title": "Linked investigation recommendation",
+              "scope": "BATCH-075 + BATCH-084",
+              "actions": [
+                {
+                  "id": "AI-EVT-006",
+                  "text": "L3 \u00b7 high risk",
+                  "time": "2025-01-04T12:25:00Z",
+                  "evidence_ids": [
+                    "LAB-0225",
+                    "LAB-0255"
+                  ]
+                }
+              ],
+              "decision": "Recommend a broader QA-led investigation; human approval required. Root cause remains unconfirmed.",
+              "qualification": "Deterministic replay output. Use Run agent for a separate live investigation."
+            },
+            "change": "Link BATCH-075 + BATCH-084 in one QA-led investigation.",
+            "proof": "This demonstrates a difference in investigation scope in the replay. Human time saved and outcome improvement have not been measured."
+          },
+          "source_records": [
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-01T12:00:00Z",
+                "sample_collected_at": "2024-12-01T10:40:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.23,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0225",
+                "test": "bioburden",
+                "result": "1.23 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-02T09:43:50Z",
+                "sample_collected_at": "2024-12-01T15:43:50Z",
+                "sample_type": "finished product",
+                "test_name": "relative_endotoxin_signal",
+                "numerical_result": 0.1326,
+                "categorical_result": null,
+                "unit": "specification ratio",
+                "specification_limit": 1.0,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0226",
+                "test": "relative_endotoxin_signal",
+                "result": "0.13 specification ratio",
+                "limit": "1.00 normalized specification"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-15T19:24:01Z",
+                "sample_collected_at": "2024-12-01T15:43:50Z",
+                "sample_type": "finished product",
+                "test_name": "sterility",
+                "numerical_result": null,
+                "categorical_result": "no growth",
+                "unit": null,
+                "specification_limit": null,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0227",
+                "test": "sterility",
+                "result": "no growth",
+                "limit": "categorical"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-04T12:25:00Z",
+                "sample_collected_at": "2025-01-04T11:05:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.48,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0255",
+                "test": "bioburden",
+                "result": "1.48 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "deviations",
+              "record": {
+                "deviation_id": "DEV-0003",
+                "batch_id": "BATCH-075",
+                "opened_at": "2024-12-01T12:18:00Z",
+                "closed_at": null,
+                "category": "microbiology",
+                "severity": "high",
+                "description": "Deviation opened for an action-level upstream microbiological signal.",
+                "investigation_status": "open",
+                "root_cause": null,
+                "capa": null,
+                "recurrence_flag": 0,
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal",
+                "timestamp": "2024-12-01T12:18:00Z"
+              }
+            },
+            {
+              "collection": "maintenance",
+              "record": {
+                "work_order": "WO-0008",
+                "timestamp": "2025-01-03T21:05:00Z",
+                "equipment_id": "VESSEL-01",
+                "work_type": "inspection",
+                "description": "Planned equipment inspection.",
+                "action": "Inspection completed; observations recorded.",
+                "status": "closed",
+                "linked_batch_id": "BATCH-084",
+                "provenance": "synthetic_factory_signal",
+                "batch_id": "BATCH-084"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0075",
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-01T10:50:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 0.71,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": null,
+                "status": "alert",
+                "provenance": "synthetic_factory_signal"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0085",
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-04T11:15:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 0.86,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": null,
+                "status": "alert",
+                "provenance": "synthetic_factory_signal"
+              }
+            }
+          ]
+        },
+        {
+          "label": "Third affected batch",
+          "time": "2025-03-12T12:15:00Z",
+          "clock": "Case date",
+          "without": {
+            "title": "Bioburden action limit exceeded",
+            "detail": "A normalized upstream signal crossed its action limit.",
+            "kind": "Recorded case",
+            "source_ids": [
+              "TRAD-EVT-009"
+            ],
+            "time": "2025-03-12T12:15:00Z"
+          },
+          "with": {
+            "title": "Keep the wider investigation open",
+            "detail": "The OS maintains the cross-batch risk assessment as a third excursion becomes available.",
+            "kind": "Modeled OS replay",
+            "source_ids": [
+              "AI-EVT-009"
+            ],
+            "time": "2025-03-12T12:15:00Z"
+          },
+          "divergence": "New evidence extends the same investigation instead of starting another isolated review.",
+          "comparison": {
+            "evidence": [
+              {
+                "id": "LAB-0225",
+                "batch": "BATCH-075",
+                "value": 1.23,
+                "limit": 1.0,
+                "time": "2024-12-01T12:00:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              },
+              {
+                "id": "LAB-0255",
+                "batch": "BATCH-084",
+                "value": 1.48,
+                "limit": 1.0,
+                "time": "2025-01-04T12:25:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              },
+              {
+                "id": "LAB-0300",
+                "batch": "BATCH-099",
+                "value": 1.71,
+                "limit": 1.0,
+                "time": "2025-03-12T12:15:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              }
+            ],
+            "without": {
+              "title": "Recorded batch-local actions",
+              "scope": "The chronology has no recorded cross-batch escalation at this cutoff.",
+              "actions": [
+                {
+                  "id": "TRAD-EVT-007",
+                  "text": "Deviation opened",
+                  "time": "2025-01-04T12:43:00Z",
+                  "evidence_ids": [
+                    "DEV-0005"
+                  ]
+                },
+                {
+                  "id": "TRAD-DISPO-BATCH-084",
+                  "text": "BATCH-084 released \u2014 recorded disposition",
+                  "time": "2025-01-19T05:48:14Z",
+                  "evidence_ids": [
+                    "BATCH-084"
+                  ]
+                }
+              ],
+              "decision": "Disposition 'released' recorded after passing release testing. Upstream excursions remained in batch-local open deviations.",
+              "qualification": "Absence in this reconstructed chronology does not prove what real investigators knew."
+            },
+            "with": {
+              "title": "Linked investigation recommendation",
+              "scope": "BATCH-075 + BATCH-084 + BATCH-099",
+              "actions": [
+                {
+                  "id": "AI-EVT-009",
+                  "text": "L3 \u00b7 high risk",
+                  "time": "2025-03-12T12:15:00Z",
+                  "evidence_ids": [
+                    "LAB-0225",
+                    "LAB-0255",
+                    "LAB-0300"
+                  ]
+                }
+              ],
+              "decision": "Recommend a broader QA-led investigation; human approval required. Root cause remains unconfirmed.",
+              "qualification": "Deterministic replay output. Use Run agent for a separate live investigation."
+            },
+            "change": "Link BATCH-075 + BATCH-084 + BATCH-099 in one QA-led investigation.",
+            "proof": "This demonstrates a difference in investigation scope in the replay. Human time saved and outcome improvement have not been measured."
+          },
+          "source_records": [
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-01T12:00:00Z",
+                "sample_collected_at": "2024-12-01T10:40:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.23,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0225",
+                "test": "bioburden",
+                "result": "1.23 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-02T09:43:50Z",
+                "sample_collected_at": "2024-12-01T15:43:50Z",
+                "sample_type": "finished product",
+                "test_name": "relative_endotoxin_signal",
+                "numerical_result": 0.1326,
+                "categorical_result": null,
+                "unit": "specification ratio",
+                "specification_limit": 1.0,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0226",
+                "test": "relative_endotoxin_signal",
+                "result": "0.13 specification ratio",
+                "limit": "1.00 normalized specification"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-15T19:24:01Z",
+                "sample_collected_at": "2024-12-01T15:43:50Z",
+                "sample_type": "finished product",
+                "test_name": "sterility",
+                "numerical_result": null,
+                "categorical_result": "no growth",
+                "unit": null,
+                "specification_limit": null,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0227",
+                "test": "sterility",
+                "result": "no growth",
+                "limit": "categorical"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-04T12:25:00Z",
+                "sample_collected_at": "2025-01-04T11:05:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.48,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0255",
+                "test": "bioburden",
+                "result": "1.48 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-05T09:11:25Z",
+                "sample_collected_at": "2025-01-04T15:11:25Z",
+                "sample_type": "finished product",
+                "test_name": "relative_endotoxin_signal",
+                "numerical_result": 0.2093,
+                "categorical_result": null,
+                "unit": "specification ratio",
+                "specification_limit": 1.0,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0256",
+                "test": "relative_endotoxin_signal",
+                "result": "0.21 specification ratio",
+                "limit": "1.00 normalized specification"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-19T01:02:49Z",
+                "sample_collected_at": "2025-01-04T15:11:25Z",
+                "sample_type": "finished product",
+                "test_name": "sterility",
+                "numerical_result": null,
+                "categorical_result": "no growth",
+                "unit": null,
+                "specification_limit": null,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0257",
+                "test": "sterility",
+                "result": "no growth",
+                "limit": "categorical"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-099",
+                "timestamp": "2025-03-12T12:15:00Z",
+                "sample_collected_at": "2025-03-12T10:55:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.71,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0300",
+                "test": "bioburden",
+                "result": "1.71 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "deviations",
+              "record": {
+                "deviation_id": "DEV-0003",
+                "batch_id": "BATCH-075",
+                "opened_at": "2024-12-01T12:18:00Z",
+                "closed_at": null,
+                "category": "microbiology",
+                "severity": "high",
+                "description": "Deviation opened for an action-level upstream microbiological signal.",
+                "investigation_status": "open",
+                "root_cause": null,
+                "capa": null,
+                "recurrence_flag": 0,
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal",
+                "timestamp": "2024-12-01T12:18:00Z"
+              }
+            },
+            {
+              "collection": "deviations",
+              "record": {
+                "deviation_id": "DEV-0005",
+                "batch_id": "BATCH-084",
+                "opened_at": "2025-01-04T12:43:00Z",
+                "closed_at": null,
+                "category": "microbiology",
+                "severity": "high",
+                "description": "Deviation opened for an action-level upstream microbiological signal.",
+                "investigation_status": "open",
+                "root_cause": null,
+                "capa": null,
+                "recurrence_flag": 0,
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal",
+                "timestamp": "2025-01-04T12:43:00Z"
+              }
+            },
+            {
+              "collection": "maintenance",
+              "record": {
+                "work_order": "WO-0008",
+                "timestamp": "2025-01-03T21:05:00Z",
+                "equipment_id": "VESSEL-01",
+                "work_type": "inspection",
+                "description": "Planned equipment inspection.",
+                "action": "Inspection completed; observations recorded.",
+                "status": "closed",
+                "linked_batch_id": "BATCH-084",
+                "provenance": "synthetic_factory_signal",
+                "batch_id": "BATCH-084"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0075",
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-01T10:50:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 0.71,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": null,
+                "status": "alert",
+                "provenance": "synthetic_factory_signal"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0085",
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-04T11:15:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 0.86,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": null,
+                "status": "alert",
+                "provenance": "synthetic_factory_signal"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0100",
+                "batch_id": "BATCH-099",
+                "timestamp": "2025-03-12T11:05:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 1.09,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": "gram-negative morphology",
+                "status": "action",
+                "provenance": "synthetic_factory_signal"
+              }
+            }
+          ]
+        },
+        {
+          "label": "Organism identified",
+          "time": "2025-03-14T12:15:00Z",
+          "clock": "Case date",
+          "without": {
+            "title": "Organism identification available",
+            "detail": "A microbiology finding is available for human verification.",
+            "kind": "Recorded case",
+            "source_ids": [
+              "TRAD-EVT-010"
+            ],
+            "time": "2025-03-14T12:15:00Z"
+          },
+          "with": {
+            "title": "Update the evidence and uncertainty",
+            "detail": "The OS reassesses the broader microbiological risk using the newly available identification.",
+            "kind": "Modeled OS replay",
+            "source_ids": [
+              "AI-EVT-010"
+            ],
+            "time": "2025-03-14T12:15:00Z"
+          },
+          "divergence": "The additional evidence is reviewed in the context of the earlier affected batches.",
+          "comparison": {
+            "evidence": [
+              {
+                "id": "LAB-0225",
+                "batch": "BATCH-075",
+                "value": 1.23,
+                "limit": 1.0,
+                "time": "2024-12-01T12:00:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              },
+              {
+                "id": "LAB-0255",
+                "batch": "BATCH-084",
+                "value": 1.48,
+                "limit": 1.0,
+                "time": "2025-01-04T12:25:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              },
+              {
+                "id": "LAB-0300",
+                "batch": "BATCH-099",
+                "value": 1.71,
+                "limit": 1.0,
+                "time": "2025-03-12T12:15:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              }
+            ],
+            "without": {
+              "title": "Recorded batch-local actions",
+              "scope": "The chronology has no recorded cross-batch escalation at this cutoff.",
+              "actions": [
+                {
+                  "id": "TRAD-DISPO-BATCH-084",
+                  "text": "BATCH-084 released \u2014 recorded disposition",
+                  "time": "2025-01-19T05:48:14Z",
+                  "evidence_ids": [
+                    "BATCH-084"
+                  ]
+                },
+                {
+                  "id": "TRAD-DEV-DEV-0009",
+                  "text": "Deviation DEV-0009 opened (batch-local)",
+                  "time": "2025-03-12T12:33:00Z",
+                  "evidence_ids": [
+                    "DEV-0009",
+                    "BATCH-099"
+                  ]
+                }
+              ],
+              "decision": "Deviation opened for an action-level upstream microbiological signal.",
+              "qualification": "Absence in this reconstructed chronology does not prove what real investigators knew."
+            },
+            "with": {
+              "title": "Linked investigation recommendation",
+              "scope": "BATCH-075 + BATCH-084 + BATCH-099",
+              "actions": [
+                {
+                  "id": "AI-EVT-010",
+                  "text": "L3 \u00b7 high risk",
+                  "time": "2025-03-14T12:15:00Z",
+                  "evidence_ids": [
+                    "LAB-0225",
+                    "LAB-0255",
+                    "LAB-0300"
+                  ]
+                }
+              ],
+              "decision": "Recommend a broader QA-led investigation; human approval required. Root cause remains unconfirmed.",
+              "qualification": "Deterministic replay output. Use Run agent for a separate live investigation."
+            },
+            "change": "Link BATCH-075 + BATCH-084 + BATCH-099 in one QA-led investigation.",
+            "proof": "This demonstrates a difference in investigation scope in the replay. Human time saved and outcome improvement have not been measured."
+          },
+          "source_records": [
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-01T12:00:00Z",
+                "sample_collected_at": "2024-12-01T10:40:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.23,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0225",
+                "test": "bioburden",
+                "result": "1.23 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-02T09:43:50Z",
+                "sample_collected_at": "2024-12-01T15:43:50Z",
+                "sample_type": "finished product",
+                "test_name": "relative_endotoxin_signal",
+                "numerical_result": 0.1326,
+                "categorical_result": null,
+                "unit": "specification ratio",
+                "specification_limit": 1.0,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0226",
+                "test": "relative_endotoxin_signal",
+                "result": "0.13 specification ratio",
+                "limit": "1.00 normalized specification"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-15T19:24:01Z",
+                "sample_collected_at": "2024-12-01T15:43:50Z",
+                "sample_type": "finished product",
+                "test_name": "sterility",
+                "numerical_result": null,
+                "categorical_result": "no growth",
+                "unit": null,
+                "specification_limit": null,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0227",
+                "test": "sterility",
+                "result": "no growth",
+                "limit": "categorical"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-04T12:25:00Z",
+                "sample_collected_at": "2025-01-04T11:05:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.48,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0255",
+                "test": "bioburden",
+                "result": "1.48 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-05T09:11:25Z",
+                "sample_collected_at": "2025-01-04T15:11:25Z",
+                "sample_type": "finished product",
+                "test_name": "relative_endotoxin_signal",
+                "numerical_result": 0.2093,
+                "categorical_result": null,
+                "unit": "specification ratio",
+                "specification_limit": 1.0,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0256",
+                "test": "relative_endotoxin_signal",
+                "result": "0.21 specification ratio",
+                "limit": "1.00 normalized specification"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-19T01:02:49Z",
+                "sample_collected_at": "2025-01-04T15:11:25Z",
+                "sample_type": "finished product",
+                "test_name": "sterility",
+                "numerical_result": null,
+                "categorical_result": "no growth",
+                "unit": null,
+                "specification_limit": null,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0257",
+                "test": "sterility",
+                "result": "no growth",
+                "limit": "categorical"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-099",
+                "timestamp": "2025-03-12T12:15:00Z",
+                "sample_collected_at": "2025-03-12T10:55:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.71,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0300",
+                "test": "bioburden",
+                "result": "1.71 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-099",
+                "timestamp": "2025-03-13T10:55:12Z",
+                "sample_collected_at": "2025-03-12T16:55:12Z",
+                "sample_type": "finished product",
+                "test_name": "relative_endotoxin_signal",
+                "numerical_result": 0.1872,
+                "categorical_result": null,
+                "unit": "specification ratio",
+                "specification_limit": 1.0,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0301",
+                "test": "relative_endotoxin_signal",
+                "result": "0.19 specification ratio",
+                "limit": "1.00 normalized specification"
+              }
+            },
+            {
+              "collection": "deviations",
+              "record": {
+                "deviation_id": "DEV-0003",
+                "batch_id": "BATCH-075",
+                "opened_at": "2024-12-01T12:18:00Z",
+                "closed_at": null,
+                "category": "microbiology",
+                "severity": "high",
+                "description": "Deviation opened for an action-level upstream microbiological signal.",
+                "investigation_status": "open",
+                "root_cause": null,
+                "capa": null,
+                "recurrence_flag": 0,
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal",
+                "timestamp": "2024-12-01T12:18:00Z"
+              }
+            },
+            {
+              "collection": "deviations",
+              "record": {
+                "deviation_id": "DEV-0005",
+                "batch_id": "BATCH-084",
+                "opened_at": "2025-01-04T12:43:00Z",
+                "closed_at": null,
+                "category": "microbiology",
+                "severity": "high",
+                "description": "Deviation opened for an action-level upstream microbiological signal.",
+                "investigation_status": "open",
+                "root_cause": null,
+                "capa": null,
+                "recurrence_flag": 0,
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal",
+                "timestamp": "2025-01-04T12:43:00Z"
+              }
+            },
+            {
+              "collection": "deviations",
+              "record": {
+                "deviation_id": "DEV-0009",
+                "batch_id": "BATCH-099",
+                "opened_at": "2025-03-12T12:33:00Z",
+                "closed_at": null,
+                "category": "microbiology",
+                "severity": "high",
+                "description": "Deviation opened for an action-level upstream microbiological signal.",
+                "investigation_status": "open",
+                "root_cause": null,
+                "capa": null,
+                "recurrence_flag": 0,
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal",
+                "timestamp": "2025-03-12T12:33:00Z"
+              }
+            },
+            {
+              "collection": "maintenance",
+              "record": {
+                "work_order": "WO-0008",
+                "timestamp": "2025-01-03T21:05:00Z",
+                "equipment_id": "VESSEL-01",
+                "work_type": "inspection",
+                "description": "Planned equipment inspection.",
+                "action": "Inspection completed; observations recorded.",
+                "status": "closed",
+                "linked_batch_id": "BATCH-084",
+                "provenance": "synthetic_factory_signal",
+                "batch_id": "BATCH-084"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0075",
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-01T10:50:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 0.71,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": null,
+                "status": "alert",
+                "provenance": "synthetic_factory_signal"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0085",
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-04T11:15:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 0.86,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": null,
+                "status": "alert",
+                "provenance": "synthetic_factory_signal"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0100",
+                "batch_id": "BATCH-099",
+                "timestamp": "2025-03-12T11:05:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 1.09,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": "gram-negative morphology",
+                "status": "action",
+                "provenance": "synthetic_factory_signal"
+              }
+            }
+          ]
+        },
+        {
+          "label": "Field signal arrives",
+          "time": "2025-10-20T09:00:00Z",
+          "clock": "Case date",
+          "without": {
+            "title": "Field signal received",
+            "detail": "A complaint was entered for assessment.",
+            "kind": "Recorded case",
+            "source_ids": [
+              "TRAD-EVT-011"
+            ],
+            "time": "2025-10-20T09:00:00Z"
+          },
+          "with": {
+            "title": "Reassess an already escalated pattern",
+            "detail": "The OS incorporates the field signal into the existing high-risk investigation.",
+            "kind": "Modeled OS replay",
+            "source_ids": [
+              "AI-EVT-011"
+            ],
+            "time": "2025-10-20T09:00:00Z"
+          },
+          "divergence": "The field signal expands the recorded case; the modeled OS already recognized recurrence at the second excursion.",
+          "comparison": {
+            "evidence": [
+              {
+                "id": "LAB-0225",
+                "batch": "BATCH-075",
+                "value": 1.23,
+                "limit": 1.0,
+                "time": "2024-12-01T12:00:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              },
+              {
+                "id": "LAB-0255",
+                "batch": "BATCH-084",
+                "value": 1.48,
+                "limit": 1.0,
+                "time": "2025-01-04T12:25:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              },
+              {
+                "id": "LAB-0300",
+                "batch": "BATCH-099",
+                "value": 1.71,
+                "limit": 1.0,
+                "time": "2025-03-12T12:15:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              }
+            ],
+            "without": {
+              "title": "Recorded batch-local actions",
+              "scope": "The field signal has now expanded the recorded case.",
+              "actions": [
+                {
+                  "id": "TRAD-DISPO-BATCH-099",
+                  "text": "BATCH-099 released \u2014 recorded disposition",
+                  "time": "2025-03-27T08:52:04Z",
+                  "evidence_ids": [
+                    "BATCH-099"
+                  ]
+                },
+                {
+                  "id": "TRAD-EVT-011",
+                  "text": "Field signal received",
+                  "time": "2025-10-20T09:00:00Z",
+                  "evidence_ids": [
+                    "CMP-0001"
+                  ]
+                }
+              ],
+              "decision": "A complaint was entered for assessment.",
+              "qualification": "Absence in this reconstructed chronology does not prove what real investigators knew."
+            },
+            "with": {
+              "title": "Linked investigation recommendation",
+              "scope": "BATCH-075 + BATCH-084 + BATCH-099",
+              "actions": [
+                {
+                  "id": "AI-EVT-011",
+                  "text": "L3 \u00b7 high risk",
+                  "time": "2025-10-20T09:00:00Z",
+                  "evidence_ids": [
+                    "LAB-0225",
+                    "LAB-0255",
+                    "LAB-0300"
+                  ]
+                }
+              ],
+              "decision": "Recommend a broader QA-led investigation; human approval required. Root cause remains unconfirmed.",
+              "qualification": "Deterministic replay output. Use Run agent for a separate live investigation."
+            },
+            "change": "Link BATCH-075 + BATCH-084 + BATCH-099 in one QA-led investigation.",
+            "proof": "This demonstrates a difference in investigation scope in the replay. Human time saved and outcome improvement have not been measured."
+          },
+          "source_records": [
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-01T12:00:00Z",
+                "sample_collected_at": "2024-12-01T10:40:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.23,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0225",
+                "test": "bioburden",
+                "result": "1.23 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-02T09:43:50Z",
+                "sample_collected_at": "2024-12-01T15:43:50Z",
+                "sample_type": "finished product",
+                "test_name": "relative_endotoxin_signal",
+                "numerical_result": 0.1326,
+                "categorical_result": null,
+                "unit": "specification ratio",
+                "specification_limit": 1.0,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0226",
+                "test": "relative_endotoxin_signal",
+                "result": "0.13 specification ratio",
+                "limit": "1.00 normalized specification"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-15T19:24:01Z",
+                "sample_collected_at": "2024-12-01T15:43:50Z",
+                "sample_type": "finished product",
+                "test_name": "sterility",
+                "numerical_result": null,
+                "categorical_result": "no growth",
+                "unit": null,
+                "specification_limit": null,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0227",
+                "test": "sterility",
+                "result": "no growth",
+                "limit": "categorical"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-04T12:25:00Z",
+                "sample_collected_at": "2025-01-04T11:05:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.48,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0255",
+                "test": "bioburden",
+                "result": "1.48 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-05T09:11:25Z",
+                "sample_collected_at": "2025-01-04T15:11:25Z",
+                "sample_type": "finished product",
+                "test_name": "relative_endotoxin_signal",
+                "numerical_result": 0.2093,
+                "categorical_result": null,
+                "unit": "specification ratio",
+                "specification_limit": 1.0,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0256",
+                "test": "relative_endotoxin_signal",
+                "result": "0.21 specification ratio",
+                "limit": "1.00 normalized specification"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-19T01:02:49Z",
+                "sample_collected_at": "2025-01-04T15:11:25Z",
+                "sample_type": "finished product",
+                "test_name": "sterility",
+                "numerical_result": null,
+                "categorical_result": "no growth",
+                "unit": null,
+                "specification_limit": null,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0257",
+                "test": "sterility",
+                "result": "no growth",
+                "limit": "categorical"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-099",
+                "timestamp": "2025-03-12T12:15:00Z",
+                "sample_collected_at": "2025-03-12T10:55:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.71,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0300",
+                "test": "bioburden",
+                "result": "1.71 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-099",
+                "timestamp": "2025-03-13T10:55:12Z",
+                "sample_collected_at": "2025-03-12T16:55:12Z",
+                "sample_type": "finished product",
+                "test_name": "relative_endotoxin_signal",
+                "numerical_result": 0.1872,
+                "categorical_result": null,
+                "unit": "specification ratio",
+                "specification_limit": 1.0,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0301",
+                "test": "relative_endotoxin_signal",
+                "result": "0.19 specification ratio",
+                "limit": "1.00 normalized specification"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-099",
+                "timestamp": "2025-03-26T21:10:28Z",
+                "sample_collected_at": "2025-03-12T16:55:12Z",
+                "sample_type": "finished product",
+                "test_name": "sterility",
+                "numerical_result": null,
+                "categorical_result": "no growth",
+                "unit": null,
+                "specification_limit": null,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0302",
+                "test": "sterility",
+                "result": "no growth",
+                "limit": "categorical"
+              }
+            },
+            {
+              "collection": "deviations",
+              "record": {
+                "deviation_id": "DEV-0003",
+                "batch_id": "BATCH-075",
+                "opened_at": "2024-12-01T12:18:00Z",
+                "closed_at": null,
+                "category": "microbiology",
+                "severity": "high",
+                "description": "Deviation opened for an action-level upstream microbiological signal.",
+                "investigation_status": "open",
+                "root_cause": null,
+                "capa": null,
+                "recurrence_flag": 0,
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal",
+                "timestamp": "2024-12-01T12:18:00Z"
+              }
+            },
+            {
+              "collection": "deviations",
+              "record": {
+                "deviation_id": "DEV-0005",
+                "batch_id": "BATCH-084",
+                "opened_at": "2025-01-04T12:43:00Z",
+                "closed_at": null,
+                "category": "microbiology",
+                "severity": "high",
+                "description": "Deviation opened for an action-level upstream microbiological signal.",
+                "investigation_status": "open",
+                "root_cause": null,
+                "capa": null,
+                "recurrence_flag": 0,
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal",
+                "timestamp": "2025-01-04T12:43:00Z"
+              }
+            },
+            {
+              "collection": "deviations",
+              "record": {
+                "deviation_id": "DEV-0009",
+                "batch_id": "BATCH-099",
+                "opened_at": "2025-03-12T12:33:00Z",
+                "closed_at": null,
+                "category": "microbiology",
+                "severity": "high",
+                "description": "Deviation opened for an action-level upstream microbiological signal.",
+                "investigation_status": "open",
+                "root_cause": null,
+                "capa": null,
+                "recurrence_flag": 0,
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal",
+                "timestamp": "2025-03-12T12:33:00Z"
+              }
+            },
+            {
+              "collection": "maintenance",
+              "record": {
+                "work_order": "WO-0008",
+                "timestamp": "2025-01-03T21:05:00Z",
+                "equipment_id": "VESSEL-01",
+                "work_type": "inspection",
+                "description": "Planned equipment inspection.",
+                "action": "Inspection completed; observations recorded.",
+                "status": "closed",
+                "linked_batch_id": "BATCH-084",
+                "provenance": "synthetic_factory_signal",
+                "batch_id": "BATCH-084"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0075",
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-01T10:50:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 0.71,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": null,
+                "status": "alert",
+                "provenance": "synthetic_factory_signal"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0085",
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-04T11:15:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 0.86,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": null,
+                "status": "alert",
+                "provenance": "synthetic_factory_signal"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0100",
+                "batch_id": "BATCH-099",
+                "timestamp": "2025-03-12T11:05:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 1.09,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": "gram-negative morphology",
+                "status": "action",
+                "provenance": "synthetic_factory_signal"
+              }
+            },
+            {
+              "collection": "complaints",
+              "record": {
+                "complaint_id": "CMP-0001",
+                "product": "Famotidine Injection, USP",
+                "lot": "BATCH-075",
+                "timestamp": "2025-10-20T09:00:00Z",
+                "description": "Complaint describing a reported pyrogenic-type symptom pattern; lot assignment and wording are reconstructed.",
+                "severity": "high",
+                "outcome": "under investigation",
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal"
+              }
+            }
+          ]
+        },
+        {
+          "label": "Reserve sample confirms risk",
+          "time": "2025-10-27T14:10:00Z",
+          "clock": "Case date",
+          "without": {
+            "title": "Reserve-sample result available",
+            "detail": "A reserve result exceeded the normalized specification.",
+            "kind": "Recorded case",
+            "source_ids": [
+              "TRAD-EVT-012"
+            ],
+            "time": "2025-10-27T14:10:00Z"
+          },
+          "with": {
+            "title": "Recommend critical escalation",
+            "detail": "Accumulated microbiological evidence leads to a critical escalation recommendation for human review.",
+            "kind": "Modeled OS replay",
+            "source_ids": [
+              "AI-EVT-012"
+            ],
+            "time": "2025-10-27T14:10:00Z"
+          },
+          "divergence": "Both paths now have stronger evidence. The OS has carried a linked evidence trail through the investigation.",
+          "comparison": {
+            "evidence": [
+              {
+                "id": "LAB-0225",
+                "batch": "BATCH-075",
+                "value": 1.23,
+                "limit": 1.0,
+                "time": "2024-12-01T12:00:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              },
+              {
+                "id": "LAB-0255",
+                "batch": "BATCH-084",
+                "value": 1.48,
+                "limit": 1.0,
+                "time": "2025-01-04T12:25:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              },
+              {
+                "id": "LAB-0300",
+                "batch": "BATCH-099",
+                "value": 1.71,
+                "limit": 1.0,
+                "time": "2025-03-12T12:15:00Z",
+                "unit": "action-limit ratio",
+                "basis": "Synthetic source record"
+              }
+            ],
+            "without": {
+              "title": "Recorded batch-local actions",
+              "scope": "The field signal has now expanded the recorded case.",
+              "actions": [
+                {
+                  "id": "TRAD-DISPO-BATCH-099",
+                  "text": "BATCH-099 released \u2014 recorded disposition",
+                  "time": "2025-03-27T08:52:04Z",
+                  "evidence_ids": [
+                    "BATCH-099"
+                  ]
+                },
+                {
+                  "id": "TRAD-EVT-011",
+                  "text": "Field signal received",
+                  "time": "2025-10-20T09:00:00Z",
+                  "evidence_ids": [
+                    "CMP-0001"
+                  ]
+                }
+              ],
+              "decision": "A complaint was entered for assessment.",
+              "qualification": "Absence in this reconstructed chronology does not prove what real investigators knew."
+            },
+            "with": {
+              "title": "Linked investigation recommendation",
+              "scope": "BATCH-075 + BATCH-084 + BATCH-099",
+              "actions": [
+                {
+                  "id": "AI-EVT-012",
+                  "text": "L3 \u00b7 critical risk",
+                  "time": "2025-10-27T14:10:00Z",
+                  "evidence_ids": [
+                    "LAB-0225",
+                    "LAB-0255",
+                    "LAB-0300"
+                  ]
+                }
+              ],
+              "decision": "Recommend a broader QA-led investigation; human approval required. Root cause remains unconfirmed.",
+              "qualification": "Deterministic replay output. Use Run agent for a separate live investigation."
+            },
+            "change": "Link BATCH-075 + BATCH-084 + BATCH-099 in one QA-led investigation.",
+            "proof": "This demonstrates a difference in investigation scope in the replay. Human time saved and outcome improvement have not been measured."
+          },
+          "source_records": [
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-01T12:00:00Z",
+                "sample_collected_at": "2024-12-01T10:40:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.23,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0225",
+                "test": "bioburden",
+                "result": "1.23 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-02T09:43:50Z",
+                "sample_collected_at": "2024-12-01T15:43:50Z",
+                "sample_type": "finished product",
+                "test_name": "relative_endotoxin_signal",
+                "numerical_result": 0.1326,
+                "categorical_result": null,
+                "unit": "specification ratio",
+                "specification_limit": 1.0,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0226",
+                "test": "relative_endotoxin_signal",
+                "result": "0.13 specification ratio",
+                "limit": "1.00 normalized specification"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-15T19:24:01Z",
+                "sample_collected_at": "2024-12-01T15:43:50Z",
+                "sample_type": "finished product",
+                "test_name": "sterility",
+                "numerical_result": null,
+                "categorical_result": "no growth",
+                "unit": null,
+                "specification_limit": null,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0227",
+                "test": "sterility",
+                "result": "no growth",
+                "limit": "categorical"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-04T12:25:00Z",
+                "sample_collected_at": "2025-01-04T11:05:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.48,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0255",
+                "test": "bioburden",
+                "result": "1.48 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-05T09:11:25Z",
+                "sample_collected_at": "2025-01-04T15:11:25Z",
+                "sample_type": "finished product",
+                "test_name": "relative_endotoxin_signal",
+                "numerical_result": 0.2093,
+                "categorical_result": null,
+                "unit": "specification ratio",
+                "specification_limit": 1.0,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0256",
+                "test": "relative_endotoxin_signal",
+                "result": "0.21 specification ratio",
+                "limit": "1.00 normalized specification"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-19T01:02:49Z",
+                "sample_collected_at": "2025-01-04T15:11:25Z",
+                "sample_type": "finished product",
+                "test_name": "sterility",
+                "numerical_result": null,
+                "categorical_result": "no growth",
+                "unit": null,
+                "specification_limit": null,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0257",
+                "test": "sterility",
+                "result": "no growth",
+                "limit": "categorical"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-099",
+                "timestamp": "2025-03-12T12:15:00Z",
+                "sample_collected_at": "2025-03-12T10:55:00Z",
+                "sample_type": "upstream process sample",
+                "test_name": "relative_bioburden_signal",
+                "numerical_result": 1.71,
+                "categorical_result": null,
+                "unit": "action-limit ratio",
+                "specification_limit": null,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "status": "action_limit",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0300",
+                "test": "bioburden",
+                "result": "1.71 action-limit ratio",
+                "limit": "1.00 normalized action limit"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-099",
+                "timestamp": "2025-03-13T10:55:12Z",
+                "sample_collected_at": "2025-03-12T16:55:12Z",
+                "sample_type": "finished product",
+                "test_name": "relative_endotoxin_signal",
+                "numerical_result": 0.1872,
+                "categorical_result": null,
+                "unit": "specification ratio",
+                "specification_limit": 1.0,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0301",
+                "test": "relative_endotoxin_signal",
+                "result": "0.19 specification ratio",
+                "limit": "1.00 normalized specification"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-099",
+                "timestamp": "2025-03-26T21:10:28Z",
+                "sample_collected_at": "2025-03-12T16:55:12Z",
+                "sample_type": "finished product",
+                "test_name": "sterility",
+                "numerical_result": null,
+                "categorical_result": "no growth",
+                "unit": null,
+                "specification_limit": null,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "pass",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0302",
+                "test": "sterility",
+                "result": "no growth",
+                "limit": "categorical"
+              }
+            },
+            {
+              "collection": "lab_results",
+              "record": {
+                "batch_id": "BATCH-075",
+                "timestamp": "2025-10-27T14:10:00Z",
+                "sample_collected_at": "2025-10-27T11:10:00Z",
+                "sample_type": "finished-product reserve",
+                "test_name": "relative_endotoxin_signal",
+                "numerical_result": 1.37,
+                "categorical_result": null,
+                "unit": "specification ratio",
+                "specification_limit": 1.0,
+                "alert_limit": null,
+                "action_limit": null,
+                "status": "out_of_specification",
+                "organism": null,
+                "provenance": "synthetic_factory_signal",
+                "id": "LAB-0303",
+                "test": "relative_endotoxin_signal",
+                "result": "1.37 specification ratio",
+                "limit": "1.00 normalized specification"
+              }
+            },
+            {
+              "collection": "deviations",
+              "record": {
+                "deviation_id": "DEV-0003",
+                "batch_id": "BATCH-075",
+                "opened_at": "2024-12-01T12:18:00Z",
+                "closed_at": null,
+                "category": "microbiology",
+                "severity": "high",
+                "description": "Deviation opened for an action-level upstream microbiological signal.",
+                "investigation_status": "open",
+                "root_cause": null,
+                "capa": null,
+                "recurrence_flag": 0,
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal",
+                "timestamp": "2024-12-01T12:18:00Z"
+              }
+            },
+            {
+              "collection": "deviations",
+              "record": {
+                "deviation_id": "DEV-0005",
+                "batch_id": "BATCH-084",
+                "opened_at": "2025-01-04T12:43:00Z",
+                "closed_at": null,
+                "category": "microbiology",
+                "severity": "high",
+                "description": "Deviation opened for an action-level upstream microbiological signal.",
+                "investigation_status": "open",
+                "root_cause": null,
+                "capa": null,
+                "recurrence_flag": 0,
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal",
+                "timestamp": "2025-01-04T12:43:00Z"
+              }
+            },
+            {
+              "collection": "deviations",
+              "record": {
+                "deviation_id": "DEV-0009",
+                "batch_id": "BATCH-099",
+                "opened_at": "2025-03-12T12:33:00Z",
+                "closed_at": null,
+                "category": "microbiology",
+                "severity": "high",
+                "description": "Deviation opened for an action-level upstream microbiological signal.",
+                "investigation_status": "open",
+                "root_cause": null,
+                "capa": null,
+                "recurrence_flag": 0,
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal",
+                "timestamp": "2025-03-12T12:33:00Z"
+              }
+            },
+            {
+              "collection": "maintenance",
+              "record": {
+                "work_order": "WO-0008",
+                "timestamp": "2025-01-03T21:05:00Z",
+                "equipment_id": "VESSEL-01",
+                "work_type": "inspection",
+                "description": "Planned equipment inspection.",
+                "action": "Inspection completed; observations recorded.",
+                "status": "closed",
+                "linked_batch_id": "BATCH-084",
+                "provenance": "synthetic_factory_signal",
+                "batch_id": "BATCH-084"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0075",
+                "batch_id": "BATCH-075",
+                "timestamp": "2024-12-01T10:50:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 0.71,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": null,
+                "status": "alert",
+                "provenance": "synthetic_factory_signal"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0085",
+                "batch_id": "BATCH-084",
+                "timestamp": "2025-01-04T11:15:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 0.86,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": null,
+                "status": "alert",
+                "provenance": "synthetic_factory_signal"
+              }
+            },
+            {
+              "collection": "environmental_monitoring",
+              "record": {
+                "sample_id": "EM-0100",
+                "batch_id": "BATCH-099",
+                "timestamp": "2025-03-12T11:05:00Z",
+                "location": "process support area",
+                "sample_type": "relative microbial environmental signal",
+                "result": 1.09,
+                "alert_limit": 0.7,
+                "action_limit": 1.0,
+                "organism": "gram-negative morphology",
+                "status": "action",
+                "provenance": "synthetic_factory_signal"
+              }
+            },
+            {
+              "collection": "complaints",
+              "record": {
+                "complaint_id": "CMP-0001",
+                "product": "Famotidine Injection, USP",
+                "lot": "BATCH-075",
+                "timestamp": "2025-10-20T09:00:00Z",
+                "description": "Complaint describing a reported pyrogenic-type symptom pattern; lot assignment and wording are reconstructed.",
+                "severity": "high",
+                "outcome": "under investigation",
+                "public_or_synthetic": "synthetic",
+                "provenance": "synthetic_factory_signal"
+              }
+            }
+          ]
+        }
+      ],
+      "improvements": [],
+      "productivity": {
+        "label": "Human hours per quality-qualified investigation",
+        "paired": false,
+        "sides": {
+          "traditional": {
+            "value": null,
+            "correctly_completed": null,
+            "assigned": 0,
+            "person_hours": null
+          },
+          "ai": {
+            "value": null,
+            "correctly_completed": 0,
+            "assigned": 6,
+            "person_hours": null
+          }
+        },
+        "detail": "Includes setup, preparation, investigation, verification, corrections, coordination and ongoing configuration across all attempts."
+      },
+      "measurement_note": "The earlier 67% diagnosis-time and 59% effort reductions came from assigned simulation assumptions. They are not evidence of agent productivity.",
+      "improvement_note": "Measured engineering productivity is pending. The replay supports an inspectable scope difference, not a measured time-saving claim.",
+      "outcome": "The OS connects recurring signals earlier in the reconstructed case and prepares a broader investigation for human review."
+    },
+    {
+      "presentation_version": 7,
+      "id": "cho",
+      "name": "CHO bioprocess",
+      "title": "From experimental tables to a reviewable comparison.",
+      "intro": "Follow the work from raw cultivation data through alignment, analysis and engineering review.",
+      "badge": "Illustrative workflow \u00b7 OS comparison not measured",
+      "clock": "Workflow stages \u00b7 no elapsed time implied",
+      "stages": [
+        {
+          "label": "Raw tables",
+          "time": null,
+          "clock": "Workflow stage",
+          "without": {
+            "title": "Read experimental workbooks",
+            "detail": "Extract workbook rows and sheet structure.",
+            "kind": "Recorded pipeline",
+            "source_ids": [
+              "CHO-01"
+            ],
+            "time": null
+          },
+          "with": {
+            "title": "Organize the raw evidence",
+            "detail": "Designed to identify experiments, reactors and source measurements in one investigation.",
+            "kind": "Illustrative OS workflow",
+            "source_ids": [],
+            "time": null
+          },
+          "divergence": "Start from the same raw experimental tables.",
+          "comparison": {
+            "evidence": [],
+            "without": {
+              "title": "Workbook rows and sheet structure",
+              "scope": "Extract workbook rows and sheet structure.",
+              "actions": [],
+              "decision": "Recorded pipeline output",
+              "qualification": "The conventional parser is not a timed human engineering baseline."
+            },
+            "with": {
+              "title": "Source-linked experiment and reactor inventory",
+              "scope": "Designed to identify experiments, reactors and source measurements in one investigation.",
+              "actions": [],
+              "decision": "Proposed output; awaiting a validated agent result",
+              "qualification": "Illustrative workflow, not a recorded OS result."
+            },
+            "change": "Expected output: source-linked experiment and reactor inventory.",
+            "proof": "Verify every recovered identity against a workbook cell."
+          }
+        },
+        {
+          "label": "Alignment",
+          "time": null,
+          "clock": "Workflow stage",
+          "without": {
+            "title": "Reconstruct cultivation trajectories",
+            "detail": "The conventional pipeline normalizes measurements into cultivation trajectories.",
+            "kind": "Recorded pipeline",
+            "source_ids": [
+              "CHO-02"
+            ],
+            "time": null
+          },
+          "with": {
+            "title": "Link identities, units and time axes",
+            "detail": "Designed to align measurements while retaining source references and unresolved gaps.",
+            "kind": "Illustrative OS workflow",
+            "source_ids": [],
+            "time": null
+          },
+          "divergence": "The intended change is to make alignment and its evidence part of the investigation.",
+          "comparison": {
+            "evidence": [],
+            "without": {
+              "title": "Normalized cultivation trajectories",
+              "scope": "The conventional pipeline normalizes measurements into cultivation trajectories.",
+              "actions": [],
+              "decision": "Recorded pipeline output",
+              "qualification": "The conventional parser is not a timed human engineering baseline."
+            },
+            "with": {
+              "title": "Mapping decisions, units and unresolved alignment gaps",
+              "scope": "Designed to align measurements while retaining source references and unresolved gaps.",
+              "actions": [],
+              "decision": "Proposed output; awaiting a validated agent result",
+              "qualification": "Illustrative workflow, not a recorded OS result."
+            },
+            "change": "Expected output: mapping decisions, units and unresolved alignment gaps.",
+            "proof": "Validate reconstructed values against evaluation references."
+          }
+        },
+        {
+          "label": "Analysis",
+          "time": null,
+          "clock": "Workflow stage",
+          "without": {
+            "title": "Engineering interpretation needed",
+            "detail": "The parser does not perform the cultivation investigation; this task was not scored.",
+            "kind": "Not measured",
+            "source_ids": [
+              "CHO-03"
+            ],
+            "time": null
+          },
+          "with": {
+            "title": "Investigate differences",
+            "detail": "Designed to compare cultivations and propose evidence-linked explanations with uncertainty.",
+            "kind": "Illustrative OS workflow",
+            "source_ids": [],
+            "time": null
+          },
+          "divergence": "The intended divergence: move from prepared data to an evidence-linked investigation.",
+          "comparison": {
+            "evidence": [],
+            "without": {
+              "title": "Data reconstruction; no scored engineering interpretation",
+              "scope": "The parser does not perform the cultivation investigation; this task was not scored.",
+              "actions": [],
+              "decision": "Outcome not measured",
+              "qualification": "The conventional parser is not a timed human engineering baseline."
+            },
+            "with": {
+              "title": "An evidence-linked comparison of specific cultivation differences",
+              "scope": "Designed to compare cultivations and propose evidence-linked explanations with uncertainty.",
+              "actions": [],
+              "decision": "Proposed output; awaiting a validated agent result",
+              "qualification": "Illustrative workflow, not a recorded OS result."
+            },
+            "change": "Expected output: an evidence-linked comparison of specific cultivation differences.",
+            "proof": "Require cited measurements and independent review of each claimed difference."
+          }
+        },
+        {
+          "label": "Validation",
+          "time": null,
+          "clock": "Workflow stage",
+          "without": {
+            "title": "Validate findings separately",
+            "detail": "Engineering validation time and decisions were not recorded.",
+            "kind": "Not measured",
+            "source_ids": [],
+            "time": null
+          },
+          "with": {
+            "title": "Check claims and uncertainty",
+            "detail": "Designed to flag constant or confounded channels and withhold unsupported optimization claims.",
+            "kind": "Illustrative OS workflow",
+            "source_ids": [],
+            "time": null
+          },
+          "divergence": "The intended improvement is fewer unsupported conclusions; this needs a scored comparison.",
+          "comparison": {
+            "evidence": [],
+            "without": {
+              "title": "No recorded claim-validation outcome",
+              "scope": "Engineering validation time and decisions were not recorded.",
+              "actions": [],
+              "decision": "Outcome not measured",
+              "qualification": "The conventional parser is not a timed human engineering baseline."
+            },
+            "with": {
+              "title": "Explicit checks for constant channels, confounding and unsupported causal claims",
+              "scope": "Designed to flag constant or confounded channels and withhold unsupported optimization claims.",
+              "actions": [],
+              "decision": "Proposed output; awaiting a validated agent result",
+              "qualification": "Illustrative workflow, not a recorded OS result."
+            },
+            "change": "Expected output: explicit checks for constant channels, confounding and unsupported causal claims.",
+            "proof": "Check whether the agent rejects unsupported optimization conclusions."
+          }
+        },
+        {
+          "label": "Review",
+          "time": null,
+          "clock": "Workflow stage",
+          "without": {
+            "title": "Prepare the engineering review",
+            "detail": "End-to-end review and human effort were not measured.",
+            "kind": "Not measured",
+            "source_ids": [],
+            "time": null
+          },
+          "with": {
+            "title": "Prepare a reviewable comparison",
+            "detail": "Designed to present the source evidence, findings and open questions for human approval.",
+            "kind": "Illustrative OS workflow",
+            "source_ids": [],
+            "time": null
+          },
+          "divergence": "The target is correctly completed work per human-hour, including setup and verification.",
+          "comparison": {
+            "evidence": [],
+            "without": {
+              "title": "No timed, reviewed end-to-end deliverable",
+              "scope": "End-to-end review and human effort were not measured.",
+              "actions": [],
+              "decision": "Outcome not measured",
+              "qualification": "The conventional parser is not a timed human engineering baseline."
+            },
+            "with": {
+              "title": "A reviewable comparison with open questions and traceable calculations",
+              "scope": "Designed to present the source evidence, findings and open questions for human approval.",
+              "actions": [],
+              "decision": "Proposed output; awaiting a validated agent result",
+              "qualification": "Illustrative workflow, not a recorded OS result."
+            },
+            "change": "Expected output: a reviewable comparison with open questions and traceable calculations.",
+            "proof": "Measure all setup and review effort; count only accepted deliverables."
+          }
+        }
+      ],
+      "improvements": [],
+      "productivity": {
+        "label": "Human hours per quality-qualified investigation",
+        "paired": false,
+        "sides": {
+          "traditional": {
+            "value": null,
+            "correctly_completed": null,
+            "assigned": 0,
+            "person_hours": null
+          },
+          "ai": {
+            "value": null,
+            "correctly_completed": null,
+            "assigned": 16,
+            "person_hours": null
+          }
+        },
+        "detail": "Includes setup, preparation, investigation, verification, corrections, coordination and ongoing configuration across all attempts."
+      },
+      "workload": {
+        "label": "Published CHO-K1 cultivation dataset (Zenodo DOI 10.5281/zenodo.20829178)",
+        "version": "cho-v1",
+        "license": "CC-BY-4.0 \u2014 attribution required for redistribution",
+        "archive_md5": "71b2a35b7df2ed11644ec9f177453772",
+        "records": "12 workbooks \u00b7 192 worksheets \u00b7 3,251,506 data rows \u00b7 24 cultivations \u00b7 48 publication-aligned CSVs",
+        "provenance": "Authentic cultivation measurements from the published dataset. The publisher's aligned CSVs are a reconstruction reference, not independently verified biological truth.",
+        "disclaimer": "Aligned CSVs and descriptive summaries were evaluation-only; the recorded pipeline read the original workbooks. No causal labels exist for this dataset."
+      },
+      "observation": {
+        "difference": "EXP008 \u2014 Reflection (arb. Unit): R02 mean 0.01159 vs R01 mean -0.1309 (normalized \u0394 = +0.650). Largest recorded descriptive reactor-pair difference.",
+        "classification": "observed",
+        "flags": [],
+        "variables": [
+          {
+            "variable": "Reflection (arb. Unit)",
+            "normalized_delta": 0.6501863630331192,
+            "r01_mean": -0.1308646574042541,
+            "r02_mean": 0.011586431207879973,
+            "flags": []
+          },
+          {
+            "variable": "Conductivity (mS/cm)",
+            "normalized_delta": 0.46127578136222924,
+            "r01_mean": 11.924249375859112,
+            "r02_mean": 12.466215513926226,
+            "flags": []
+          },
+          {
+            "variable": "Aeration rate O2 (sL/h)",
+            "normalized_delta": 0.1879024361174113,
+            "r01_mean": 0.0806096623523121,
+            "r02_mean": 0.15155083339563732,
+            "flags": []
+          },
+          {
+            "variable": "fc (kHz)",
+            "normalized_delta": 0.1488813521842327,
+            "r01_mean": 404.58444590454775,
+            "r02_mean": 436.98058378570346,
+            "flags": []
+          },
+          {
+            "variable": "O2 fraction inlet (%)",
+            "normalized_delta": 0.10355872613843757,
+            "r01_mean": 22.595425501659186,
+            "r02_mean": 24.705848781634405,
+            "flags": []
+          },
+          {
+            "variable": "C (896kHz)",
+            "normalized_delta": 0.0939357087967696,
+            "r01_mean": 6.472125940499652,
+            "r02_mean": 7.4599441033325755,
+            "flags": []
+          }
+        ],
+        "hypotheses": {
+          "status": "not_measured",
+          "reason": "The recorded baseline stops at data reconstruction; it produced no hypotheses, ranking, or next-analysis statements."
+        },
+        "supporting_evidence": {
+          "status": "observed",
+          "records": [
+            "EXP008_batch_R01_inline.csv",
+            "EXP008_batch_R02_inline.csv"
+          ],
+          "classification": "evaluation_reference",
+          "detail": "Publisher-aligned CSVs; available for analysis, evaluation-only in this benchmark."
+        },
+        "contradictory_evidence": {
+          "status": "not_measured",
+          "reason": "The recorded baseline stops at data reconstruction; it produced no hypotheses, ranking, or next-analysis statements."
+        },
+        "next_analysis": {
+          "status": "not_measured",
+          "reason": "The recorded baseline stops at data reconstruction; it produced no hypotheses, ranking, or next-analysis statements."
+        }
+      },
+      "source_previews": [
+        {
+          "file": "EXP001_batch.xlsx",
+          "sheet": "R01_inline_CO2",
+          "rows": 24066,
+          "columns": [
+            "Time (h)",
+            "Dissolved CO2 (%-sat)",
+            "Status"
+          ],
+          "preview": [
+            [
+              "Time (h)",
+              "Dissolved CO2 (%-sat)",
+              "Status"
+            ],
+            [
+              "0",
+              "17.3037033081055",
+              "Ok"
+            ],
+            [
+              "0.008333333333333333",
+              "16.8677978515625",
+              "Ok"
+            ],
+            [
+              "0.01666666666666667",
+              "16.8027992248535",
+              "Ok"
+            ],
+            [
+              "0.03333333333333333",
+              "17.0971069335938",
+              "Ok"
+            ],
+            [
+              "0.04166666666666666",
+              "16.7595043182373",
+              "Ok"
+            ]
+          ]
+        },
+        {
+          "file": "EXP001_batch.xlsx",
+          "sheet": "R02_inline_Permittivity",
+          "rows": 24151,
+          "columns": [
+            "Time (h)",
+            "Conductivity (mS/cm)",
+            "Permittivity (pF/cm)",
+            "fc (kHz)",
+            "DeltaEps (pF/cm)",
+            "Alpha",
+            "Fitting Quality (Cole fit R2)",
+            "Fitting Error (Cole fit RMSE)",
+            "C (300kHz)",
+            "C (374kHz)",
+            "C (466kHz)",
+            "C (580kHz)",
+            "C (720kHz)",
+            "C (896kHz)",
+            "C (1118kHz)",
+            "C (1392kHz)",
+            "C (1729kHz)",
+            "C (2155kHz)",
+            "C (2689kHz)",
+            "C (3347kHz)",
+            "C (4158kHz)",
+            "C (5188kHz)",
+            "C (6447kHz)",
+            "C (8030kHz)",
+            "C (9995kHz)",
+            "Status"
+          ],
+          "preview": [
+            [
+              "Time (h)",
+              "Conductivity (mS/cm)",
+              "Permittivity (pF/cm)",
+              "fc (kHz)",
+              "DeltaEps (pF/cm)",
+              "Alpha",
+              "Fitting Quality (Cole fit R2)",
+              "Fitting Error (Cole fit RMSE)",
+              "C (300kHz)",
+              "C (374kHz)",
+              "C (466kHz)",
+              "C (580kHz)",
+              "C (720kHz)",
+              "C (896kHz)",
+              "C (1118kHz)",
+              "C (1392kHz)",
+              "C (1729kHz)",
+              "C (2155kHz)",
+              "C (2689kHz)",
+              "C (3347kHz)"
+            ],
+            [
+              "0",
+              "12.6021003723145",
+              "-0.359459012746811",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0"
+            ],
+            [
+              "0.008333333333333333",
+              "12.6021003723145",
+              "-0.359459012746811",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0"
+            ],
+            [
+              "0.01666666666666667",
+              "12.6021003723145",
+              "-0.359459012746811",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0"
+            ],
+            [
+              "0.025",
+              "12.6021003723145",
+              "-0.359459012746811",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0"
+            ],
+            [
+              "0.03333333333333333",
+              "12.4496002197266",
+              "-0.0295055005699396",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0",
+              "0"
+            ]
+          ]
+        },
+        {
+          "file": "EXP001_batch.xlsx",
+          "sheet": "R02_online_NaOH",
+          "rows": 24027,
+          "columns": [
+            "Time (h)",
+            "Cumulative NaOH weight (g)"
+          ],
+          "preview": [
+            [
+              "Time (h)",
+              "Cumulative NaOH weight (g)"
+            ],
+            [
+              "0",
+              "0"
+            ],
+            [
+              "0.008333333333333333",
+              "0"
+            ],
+            [
+              "0.01666666666666667",
+              "0"
+            ],
+            [
+              "0.025",
+              "0"
+            ],
+            [
+              "0.03333333333333333",
+              "0"
+            ]
+          ]
+        },
+        {
+          "file": "EXP008_batch.xlsx",
+          "sheet": "R01_inline_CO2",
+          "rows": 25913,
+          "columns": [
+            "Time (h)",
+            "Dissolved CO2 (%-sat)",
+            "Status"
+          ],
+          "preview": [
+            [
+              "Time (h)",
+              "Dissolved CO2 (%-sat)",
+              "Status"
+            ],
+            [
+              "0",
+              "19.1039714813232",
+              "Ok"
+            ],
+            [
+              "0.008333333333333333",
+              "19.0717391967773",
+              "Ok"
+            ],
+            [
+              "0.01666666666666667",
+              "19.0832386016846",
+              "Ok"
+            ],
+            [
+              "0.025",
+              "18.7728824615479",
+              "Ok"
+            ],
+            [
+              "0.03333333333333333",
+              "18.9660911560059",
+              "Ok"
+            ]
+          ]
+        },
+        {
+          "file": "EXP008_batch.xlsx",
+          "sheet": "R02_inline_Permittivity",
+          "rows": 25933,
+          "columns": [
+            "Time (h)",
+            "Conductivity (mS/cm)",
+            "Permittivity (pF/cm)",
+            "fc (kHz)",
+            "DeltaEps (pF/cm)",
+            "Alpha",
+            "Fitting Quality (Cole fit R2)",
+            "Fitting Error (Cole fit RMSE)",
+            "C (300kHz)",
+            "C (374kHz)",
+            "C (466kHz)",
+            "C (580kHz)",
+            "C (720kHz)",
+            "C (896kHz)",
+            "C (1118kHz)",
+            "C (1392kHz)",
+            "C (1729kHz)",
+            "C (2155kHz)",
+            "C (2689kHz)",
+            "C (3347kHz)",
+            "C (4158kHz)",
+            "C (5188kHz)",
+            "C (6447kHz)",
+            "C (8030kHz)",
+            "C (9995kHz)",
+            "Status"
+          ],
+          "preview": [
+            [
+              "Time (h)",
+              "Conductivity (mS/cm)",
+              "Permittivity (pF/cm)",
+              "fc (kHz)",
+              "DeltaEps (pF/cm)",
+              "Alpha",
+              "Fitting Quality (Cole fit R2)",
+              "Fitting Error (Cole fit RMSE)",
+              "C (300kHz)",
+              "C (374kHz)",
+              "C (466kHz)",
+              "C (580kHz)",
+              "C (720kHz)",
+              "C (896kHz)",
+              "C (1118kHz)",
+              "C (1392kHz)",
+              "C (1729kHz)",
+              "C (2155kHz)",
+              "C (2689kHz)",
+              "C (3347kHz)"
+            ],
+            [
+              "0",
+              "12.4018630981445",
+              "-0.20402804017067",
+              "485.138885498047",
+              "0.0144096417352557",
+              "0.0998326763510704",
+              "0.00170010328292847",
+              "0.243830189108849",
+              "0.20856024324894",
+              "0.13676805794239",
+              "0.208641737699509",
+              "0.0990733206272125",
+              "0.0604725517332554",
+              "0.129706919193268",
+              "0.0631655156612396",
+              "0.0516387373209",
+              "0.0270410515367985",
+              "0.0155159700661898",
+              "0.0212255343794823",
+              "0.0196705404669046"
+            ],
+            [
+              "0.008333333333333333",
+              "12.3834171295166",
+              "-0.14905247092247",
+              "485.138885498047",
+              "0.0144096417352557",
+              "0.0998326763510704",
+              "0.00170010328292847",
+              "0.243830189108849",
+              "0.465861469507217",
+              "0.306177049875259",
+              "0.402718365192413",
+              "0.26228067278862",
+              "0.181421384215355",
+              "0.220687419176102",
+              "0.118312239646912",
+              "0.0933209657669067",
+              "0.0597203522920609",
+              "0.0424653328955173",
+              "0.0409062616527081",
+              "0.0345895066857338"
+            ],
+            [
+              "0.01666666666666667",
+              "12.3506698608398",
+              "-0.0695780366659164",
+              "484.060424804688",
+              "0.023566598072648",
+              "0.099838450551033",
+              "0.033882737159729",
+              "0.245177716016769",
+              "0.844282865524292",
+              "0.711422681808472",
+              "0.712880551815033",
+              "0.508289098739624",
+              "0.380172848701477",
+              "0.43497896194458",
+              "0.246360257267952",
+              "0.186240538954735",
+              "0.136611849069595",
+              "0.113450981676579",
+              "0.070818230509758",
+              "0.0690469145774841"
+            ],
+            [
+              "0.025",
+              "12.3214235305786",
+              "0.00861341785639524",
+              "483.098327636719",
+              "0.0555236898362637",
+              "0.0998357310891151",
+              "0.327636480331421",
+              "0.24469219148159",
+              "1.31324648857117",
+              "1.11311089992523",
+              "1.04219567775726",
+              "0.784420728683472",
+              "0.602656722068787",
+              "0.566747903823853",
+              "0.366600692272186",
+              "0.274146378040314",
+              "0.206632375717163",
+              "0.157629892230034",
+              "0.10527665168047",
+              "0.102260053157806"
+            ],
+            [
+              "0.03333333333333333",
+              "12.290020942688",
+              "0.103176951408386",
+              "478.403106689453",
+              "0.231734275817871",
+              "0.0997757688164711",
+              "0.755050241947174",
+              "0.243659004569054",
+              "1.69329690933228",
+              "1.51490676403046",
+              "1.34846377372742",
+              "1.03067433834076",
+              "0.800771057605743",
+              "0.703455150127411",
+              "0.493593603372574",
+              "0.364381790161133",
+              "0.276428759098053",
+              "0.215951457619667",
+              "0.140606477856636",
+              "0.132533684372902"
+            ]
+          ]
+        },
+        {
+          "file": "EXP008_batch.xlsx",
+          "sheet": "R02_online_NaOH",
+          "rows": 25915,
+          "columns": [
+            "Time (h)",
+            "Cumulative NaOH weight (g)"
+          ],
+          "preview": [
+            [
+              "Time (h)",
+              "Cumulative NaOH weight (g)"
+            ],
+            [
+              "0",
+              "0.01"
+            ],
+            [
+              "0.008333333333333333",
+              "0.01"
+            ],
+            [
+              "0.01666666666666667",
+              "0.01"
+            ],
+            [
+              "0.025",
+              "0.01"
+            ],
+            [
+              "0.03333333333333333",
+              "0.01"
+            ]
+          ]
+        }
+      ],
+      "reconstruction": [
+        {
+          "id": "workbooks_parsed",
+          "label": "Workbooks parsed without manual mappings \u2014 CHO-01",
+          "group": "Data ingestion & reconstruction",
+          "definition": "Share of the 12 original workbooks and 192 worksheets parsed without supplied tags or mappings.",
+          "traditional": {
+            "value": 1.0,
+            "display": "12/12",
+            "classification": "observed",
+            "classification_label": "Observed",
+            "detail": "Deterministic parser over the original workbooks; 0 manual corrections, 0 clarification requests.",
+            "unit": "of",
+            "available": true
+          },
+          "ai": {
+            "value": null,
+            "display": "Not measured",
+            "classification": "not_measured",
+            "classification_label": "Not measured",
+            "detail": "No AI OS run over the CHO dataset is recorded in this repository. The only recorded execution is the conventional pipeline in results/cho/baseline_results.json.",
+            "unit": null,
+            "available": false
+          },
+          "delta": null,
+          "sources": [
+            {
+              "artifact": "cho_parser",
+              "path": "results/cho/baseline_results.json",
+              "available": true
+            }
+          ],
+          "note": "1,344 structural column mappings and 3,251,506 source rows were processed."
+        },
+        {
+          "id": "full_series_reconstruction",
+          "label": "Full trajectory reconstruction agreement \u2014 CHO-02",
+          "group": "Data ingestion & reconstruction",
+          "definition": "Reconstructed trajectory values within normalized absolute error \u2264 0.01 of the publisher's alignment.",
+          "traditional": {
+            "value": 0.999052,
+            "display": "99.905%",
+            "classification": "verified",
+            "classification_label": "Verified",
+            "detail": "10,986,364 of 10,996,791 comparable values; 497 reference values had no reconstructed counterpart.",
+            "unit": null,
+            "available": true
+          },
+          "ai": {
+            "value": null,
+            "display": "Not measured",
+            "classification": "not_measured",
+            "classification_label": "Not measured",
+            "detail": "No AI OS run over the CHO dataset is recorded in this repository. The only recorded execution is the conventional pipeline in results/cho/baseline_results.json.",
+            "unit": null,
+            "available": false
+          },
+          "delta": null,
+          "sources": [
+            {
+              "artifact": "cho_full_series",
+              "path": "benchmarks/cho/reports/full_series_comparison.json",
+              "available": true
+            }
+          ],
+          "note": "The publisher alignment is a reconstruction reference. The normalization uses sheet-naming conventions and does not demonstrate autonomous schema inference."
+        },
+        {
+          "id": "source_rows_extracted",
+          "label": "Source rows extracted \u2014 CHO-01",
+          "group": "Data ingestion & reconstruction",
+          "definition": "Data rows read from the original worksheets.",
+          "traditional": {
+            "value": 3251506.0,
+            "display": "3,251,506 rows",
+            "classification": "observed",
+            "classification_label": "Observed",
+            "detail": null,
+            "unit": null,
+            "available": true
+          },
+          "ai": {
+            "value": null,
+            "display": "Not measured",
+            "classification": "not_measured",
+            "classification_label": "Not measured",
+            "detail": "No AI OS run over the CHO dataset is recorded in this repository. The only recorded execution is the conventional pipeline in results/cho/baseline_results.json.",
+            "unit": null,
+            "available": false
+          },
+          "delta": null,
+          "sources": [
+            {
+              "artifact": "cho_parser",
+              "path": "results/cho/baseline_results.json",
+              "available": true
+            }
+          ],
+          "note": null
+        }
+      ],
+      "measurement_note": "No paired OS comparison or measured human effort exists for this workflow. An agent report still needs engineering validation.",
+      "improvement_note": "Intended improvements, not measured gains. The existing CHO run validates conventional data reconstruction; it does not establish OS productivity or time savings.",
+      "outcome": "The proposed OS workflow carries the evidence into analysis and review. A paired run is needed to measure its effect."
+    }
+  ]
+}

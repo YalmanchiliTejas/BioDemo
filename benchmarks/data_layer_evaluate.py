@@ -22,8 +22,12 @@ def cho(store: Path) -> dict:
     with _connect(store) as con:
         columns={(row["path"],row["sheet"],row["column_index"]):row["name"]
                  for row in con.execute("SELECT s.path,c.sheet,c.column_index,c.name FROM source_columns c JOIN sources s ON s.id=c.source_id")}
-        entities={row[0] for row in con.execute("SELECT DISTINCT entity_id FROM observations WHERE entity_id IS NOT NULL")}
-        obs_count=con.execute("SELECT count(*) FROM observations").fetchone()[0]
+        from src.manufacturing_data import ManufacturingStore
+        bulk=ManufacturingStore(store)
+        scopes=tuple(row[0] for row in con.execute('SELECT DISTINCT access_scope FROM sources'))
+        counts=bulk.select('SELECT entity_id,count(*) AS count FROM observations GROUP BY entity_id',scopes=scopes)
+        entities={row['entity_id'] for row in counts if row['entity_id']}
+        obs_count=sum(row['count'] for row in counts)
         sources=con.execute("SELECT count(*) FROM sources WHERE extraction_status='indexed'").fetchone()[0]
         hashes={row["path"]:row["sha256"] for row in con.execute("SELECT path,sha256 FROM sources")}
         signatures=sorted({row[0] for row in con.execute("SELECT pipeline_version FROM sources")})
@@ -66,7 +70,12 @@ def fresenius(store: Path) -> dict:
                         source_values[(rel,sheet.title,cell.coordinate)]=cell.value
             book.close()
     with _connect(store) as con:
-        observations=[dict(row) for row in con.execute("SELECT s.path,o.source_ref,o.value_text,o.extraction_method FROM observations o JOIN sources s ON s.id=o.source_id")]
+        from src.manufacturing_data import ManufacturingStore
+        bulk=ManufacturingStore(store)
+        scopes=tuple(row[0] for row in con.execute('SELECT DISTINCT access_scope FROM sources'))
+        observations=bulk.select('SELECT source_ref,value_text,extraction_method FROM observations',scopes=scopes)
+        for row in observations:
+            row['path']=json.loads(row['source_ref'])['path']
         sources=con.execute("SELECT count(*) FROM sources WHERE extraction_status='indexed'").fetchone()[0]
         hashes={row["path"]:row["sha256"] for row in con.execute("SELECT path,sha256 FROM sources")}
         signatures=sorted({row[0] for row in con.execute("SELECT pipeline_version FROM sources")})

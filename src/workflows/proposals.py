@@ -22,7 +22,12 @@ def create_investigation_task(context: ProposalContext, arguments: dict[str, Any
     owner = str(arguments.get("owner", ""))
     if owner not in OWNERS:
         raise ValueError(f"owner must be one of {sorted(OWNERS)}")
-    visible = context.session.visible_evidence_ids() | context.additional_visible_evidence_ids
+    requested_ids = list(dict.fromkeys(map(str,arguments.get("evidence_ids",[]))))
+    if hasattr(context.session,'store'):
+        visible = {row['_evidence_id'] for row in context.session.get(requested_ids)}
+    else:
+        visible = context.session.visible_evidence_ids()
+    visible |= context.additional_visible_evidence_ids
     evidence_ids = [str(value) for value in arguments.get("evidence_ids", []) if str(value) in visible]
     task = {
         "task_id": f"IT-{len(context.blackboard.recommended_actions) + 1:03d}",

@@ -28,20 +28,18 @@ class ManufacturingSession:
         record["parameter"] = row["name"]
         record["value"] = row["value_number"] if row["value_number"] is not None else row["value_text"]
         kind = self._entity_kind(row["entity_id"]) if row["entity_id"] else None
-        if kind in {"batch", "run"}:
-            record["batch_id"] = row["entity_id"]
+        if kind == 'run':
+            record['run_id'] = row['entity_id']
+            if '/' in row['entity_id']:
+                record['experiment_id'] = row['entity_id'].rsplit('/',1)[0]
+        elif kind == 'batch':
+            record['batch_id'] = row['entity_id']
         elif kind == "equipment":
             record["equipment_id"] = row["entity_id"]
         return record
 
     def get(self, identifiers: Iterable[str]) -> list[dict]:
-        rows = []
-        for identifier in dict.fromkeys(map(str, identifiers)):
-            found = self.store.visible(as_of=self.as_of, scopes=self.scopes,
-                                       observation_id=identifier, limit=1)
-            if found:
-                rows.append(self._rlm_record(found[0]))
-        return rows
+        return [self._rlm_record(row) for row in self.store.get_many(identifiers,as_of=self.as_of,scopes=self.scopes)]
 
     def visible_evidence_ids(self) -> set[str]:
         return {row["id"] for row in self.store.visible(as_of=self.as_of,

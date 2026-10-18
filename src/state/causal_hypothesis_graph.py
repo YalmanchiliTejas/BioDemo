@@ -20,7 +20,13 @@ class CausalHypothesisGraph:
             "statement": str(node.get("statement", "")),
             "causal_parent_ids": list(dict.fromkeys(map(str, node.get("causal_parent_ids", [])))),
             "causal_child_ids": list(dict.fromkeys(map(str, node.get("causal_child_ids", [])))),
-            "confidence": max(0.0, min(1.0, float(confidence))),
+            "confidence": None,
+            "legacy_agent_confidence": node.get('legacy_agent_confidence',node.get('confidence')),
+            "confidence_basis":"not statistically calibrated; numerical agent judgment is retained only for audit",
+            "evidence_assessment": ('contested' if node.get('supporting_evidence_ids') and node.get('contradicting_evidence_ids') else
+                                    'support_only; counterevidence search unresolved' if node.get('supporting_evidence_ids') else 'insufficient_evidence'),
+            "causal_status":"unverified_hypothesis",
+            "temporal_claim_ids":list(node.get('temporal_claim_ids',[])),
             "supporting_evidence_ids": [
                 str(value) for value in node.get("supporting_evidence_ids", [])
                 if str(value) in valid_evidence_ids
@@ -34,6 +40,10 @@ class CausalHypothesisGraph:
                 str, node.get("tests_or_observations_that_would_discriminate", [])
             ))),
         }
+        for role in ('supporting','contradicting'):
+            clean[role+'_evidence_status']=node.get(role+'_evidence_status',
+                'found' if clean[role+'_evidence_ids'] else 'not_searched')
+            clean[role+'_evidence_absence_reason']=node.get(role+'_evidence_absence_reason')
         self.nodes[identifier] = clean
 
     def validate(self, valid_evidence_ids: set[str]) -> list[str]:

@@ -18,12 +18,20 @@ class ConventionalExtraction:
         started = time.monotonic()
         capture_records = request.configuration.get("capture_records", True)
         summarize_numeric = request.configuration.get("summarize_numeric", False)
+        preview_rows = request.configuration.get("capture_preview_rows")
+        trace_sink = None
+        if request.configuration.get("trace_path"):
+            from benchmarks.common.trace import TraceSink
+            trace_sink = TraceSink(request.configuration["trace_path"], request.configuration["case_id"], request.configuration["run_id"])
         records: list[dict[str, Any]] = []
         files: list[dict[str, Any]] = []
         for path in sorted(request.input_package.rglob("*")):
             if not path.is_file() or path.name == "package_manifest.json":
                 continue
             relative = str(path.relative_to(request.input_package))
+            if trace_sink:
+                from benchmarks.common.trace import now
+                trace_start = now()
             if path.suffix.lower() == ".csv":
                 with path.open(newline="", encoding="utf-8-sig") as stream:
                     reader = csv.DictReader(stream)
@@ -32,7 +40,7 @@ class ConventionalExtraction:
                     for line, row in enumerate(reader, 2):
                         if not any(value for value in row.values()):
                             continue
-                        if capture_records:
+                        if capture_records and (preview_rows is None or line <= preview_rows + 1):
                             records.append({"values": row, "source": relative, "row": line,
                                             "record_id": row.get("_evidence_id") or row.get("record_id")})
                         count += 1
@@ -53,7 +61,7 @@ class ConventionalExtraction:
                         if not any(cell is not None for cell in cells):
                             continue
                         row = {columns[i]: value for i, value in enumerate(cells) if i < len(columns) and value is not None}
-                        if capture_records:
+                        if capture_records and (preview_rows is None or line <= preview_rows + 1):
                             records.append({"values": row, "source": relative, "sheet": sheet.title, "row": line,
                                             "record_id": row.get("_evidence_id") or row.get("record_id")})
                         if summarize_numeric:
@@ -100,6 +108,9 @@ class ConventionalExtraction:
                     if line.strip():
                         records.append({"values": {"text": line}, "source": relative, "line": line_number})
                 files.append({"path": relative, "type": "txt"})
+            if trace_sink:
+                trace_sink.emit(actor="pipeline", stage="ingestion", action="parse_source_file", started_at=trace_start,
+                                source_refs=[relative], tool="conventional_extraction", output_refs=["output.json#files"])
         return {"mode": "conventional", "objective": request.objective, "as_of": request.as_of,
                 "files": files, "records": records, "hypotheses": [], "actions": [],
                 "usage": {"runtime_seconds": round(time.monotonic() - started, 3),

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import csv
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import importlib.util
 import io
@@ -21,7 +24,7 @@ from .models import Observation, SourceRef
 from .store import ManufacturingStore
 
 SUPPORTED = {".csv", ".tsv", ".xlsx", ".xlsm", ".parquet", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".txt", ".log", ".md", ".json"}
-PIPELINE_VERSION = "0.4.0"
+PIPELINE_VERSION = "0.6.0-verified-columnar"
 TIME_WORDS = ("time", "timestamp", "date", "recorded", "collected", "sampled", "occurred")
 AVAIL_WORDS = ("available", "released", "approved", "reviewed", "reported")
 ENTITY_WORDS = {"batch": "batch", "lot": "batch", "run": "run", "reactor": "equipment", "equipment": "equipment", "sample": "sample", "site": "site", "campaign": "campaign", "process": "process"}
@@ -317,70 +320,103 @@ def _members(package: Path) -> Iterator[tuple[str, bytes, str | None, int]]:
         raise ValueError("input must be a folder or ZIP")
 
 def ingest_package(package: str | Path, store: ManufacturingStore, *, access_scope: str = "default",
-                   document_backend: str = "auto", max_rows_per_file: int | None = None) -> dict:
+                   document_backend: str = "auto", max_rows_per_file: int | None = None,
+                   workers: int | None = None) -> dict:
     """Copy immutable source bytes and incrementally index changed files. Never alters input."""
     package = Path(package).resolve()
     if document_backend not in {"auto", "docling", "pypdf", "chandra", "paddleocr-vl"}:
         raise ValueError("document_backend must be auto, pypdf, docling, chandra, or paddleocr-vl")
+    if max_rows_per_file is not None and max_rows_per_file < 1:
+        raise ValueError("max_rows_per_file must be positive")
+    workers = workers if workers is not None else min(4, os.cpu_count() or 1)
+    if workers < 1 or workers > 32:
+        raise ValueError("workers must be between 1 and 32")
+    started = time.monotonic()
     capabilities = _routing_capabilities() if document_backend == "auto" else {}
     result = {"files_seen": 0, "files_indexed": 0, "files_preserved_unsupported":0,
-              "observations": 0, "unchanged": 0, "errors": [], "routes": []}
-    for rel, content, modified, permissions in _members(package):
-        result["files_seen"] += 1
-        safe_availability=(datetime.fromtimestamp(package.stat().st_mtime,timezone.utc).isoformat()
-                           if package.suffix.lower()==".zip" else modified)
-        digest = store.digest(content)
-        sid = hashlib.sha256(f"{package}|{rel}|{access_scope}".encode()).hexdigest()[:24]
-        parse_path = store.originals / digest[:2] / (digest + Path(rel).suffix.lower())
-        parse_path.parent.mkdir(exist_ok=True)
-        if not parse_path.exists():
-            parse_path.write_bytes(content)
-            parse_path.chmod(0o400)
-        route = _route_file(rel, parse_path, document_backend)
-        cache_signature = (f"{PIPELINE_VERSION}|requested={document_backend}|"
-                           f"route={route['kind']}|capabilities={json.dumps(capabilities,sort_keys=True)}|"
-                           f"rows={max_rows_per_file if max_rows_per_file is not None else 'all'}")
-        with store.connect() as con:
-            prior = con.execute("SELECT sha256,extraction_status,pipeline_version,routing_json FROM sources WHERE id=?",
-                                (sid,)).fetchone()
-        if prior and prior["sha256"] == digest and prior["extraction_status"] in {"indexed","preserved_unsupported"} and prior["pipeline_version"] == cache_signature:
-            result["unchanged"] += 1
-            result["routes"].append({"path": rel, **(json.loads(prior["routing_json"]) if prior["routing_json"] else route),
-                                      "unchanged": True})
-            continue
-        with store.connect() as con:
-            con.execute("DELETE FROM observations WHERE source_id=?", (sid,))
-            con.execute("DELETE FROM records WHERE source_id=?", (sid,))
-            con.execute("DELETE FROM relations WHERE source_id=?", (sid,))
-            con.execute("DELETE FROM source_columns WHERE source_id=?", (sid,))
-            original_path=f"{package}!/{rel}" if package.suffix.lower()==".zip" else str(package/rel)
-            values=(sid,rel,original_path,digest,len(content),modified,
-                    None if Path(rel).suffix.lower() in STRUCTURED else safe_availability,
-                    access_scope,Path(rel).suffix.lower(),"pending",None,cache_signature,permissions,
-                    json.dumps(route,sort_keys=True))
-            if prior:
-                con.execute("UPDATE sources SET path=?,original_path=?,sha256=?,size_bytes=?,modified_at=?,available_at=?,access_scope=?,format=?,extraction_status=?,error=?,pipeline_version=?,original_mode=?,routing_json=? WHERE id=?",
-                            (*values[1:],sid))
-            else:
-                con.execute("INSERT INTO sources VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",values)
+              "observations": 0, "unchanged": 0, "errors": [], "routes": [], "workers": workers}
+    from .columnar import prepare_source
+    pending = []
+
+    def finish(job):
+        sid, rel, route, future = job
         try:
-            if route["kind"] == "unsupported":
-                route["selected_backend"] = "preserve"
-                with store.connect() as con:
-                    con.execute("UPDATE sources SET extraction_status='preserved_unsupported',routing_json=? WHERE id=?",
-                                (json.dumps(route,sort_keys=True),sid))
-                result["files_preserved_unsupported"]+=1
-                result["routes"].append({"path":rel,**route})
+            prepared = future.result()
+            store.commit_columnar(sid, prepared)
+            route.update(selected_backend="structured", reader="fastexcel-polars", storage="parquet_rows",
+                         extraction_methods=[Path(rel).suffix.lower().lstrip('.')],
+                         ingestion_seconds=prepared['seconds'], sheets=len(prepared['sheets']),
+                         rows=sum(s['row_count'] for s in prepared['sheets']))
+            with store.connect() as con:
+                con.execute("UPDATE sources SET extraction_status='indexed',routing_json=? WHERE id=?",
+                            (json.dumps(route,sort_keys=True),sid))
+            result['files_indexed'] += 1
+            result['observations'] += prepared['observations']
+        except Exception as exc:
+            with store.connect() as con:
+                con.execute("UPDATE sources SET extraction_status='error',error=? WHERE id=?",(str(exc),sid))
+            result['errors'].append({'path':rel,'error':str(exc)})
+        result['routes'].append({'path':rel,**route})
+
+    with ThreadPoolExecutor(max_workers=workers,thread_name_prefix='workbook') as executor:
+        for rel, content, modified, permissions in _members(package):
+            result["files_seen"] += 1
+            safe_availability=(datetime.fromtimestamp(package.stat().st_mtime,timezone.utc).isoformat()
+                               if package.suffix.lower()==".zip" else modified)
+            digest = store.digest(content)
+            sid = hashlib.sha256(f"{package}|{rel}|{access_scope}".encode()).hexdigest()[:24]
+            parse_path = store.originals / digest[:2] / (digest + Path(rel).suffix.lower())
+            parse_path.parent.mkdir(exist_ok=True)
+            if not parse_path.exists():
+                parse_path.write_bytes(content)
+                parse_path.chmod(0o400)
+            route = _route_file(rel, parse_path, document_backend)
+            cache_signature = (f"{PIPELINE_VERSION}|requested={document_backend}|"
+                               f"route={route['kind']}|capabilities={json.dumps(capabilities,sort_keys=True)}|"
+                               f"rows={max_rows_per_file if max_rows_per_file is not None else 'all'}")
+            with store.connect() as con:
+                prior = con.execute("SELECT sha256,extraction_status,pipeline_version,routing_json FROM sources WHERE id=?",
+                                    (sid,)).fetchone()
+            with store.connect() as con:
+                partitions_exist = all(Path(row[0]).is_file() and row[1] for row in con.execute(
+                    "SELECT parquet_path,parquet_sha256 FROM sheets WHERE source_id=?",(sid,)))
+            if partitions_exist and prior and prior["sha256"] == digest and prior["extraction_status"] in {"indexed","preserved_unsupported"} and prior["pipeline_version"] == cache_signature:
+                result["unchanged"] += 1
+                result["routes"].append({"path": rel, **(json.loads(prior["routing_json"]) if prior["routing_json"] else route),
+                                          "unchanged": True})
                 continue
-            if route["kind"] == "structured":
-                with store.connect() as con:
-                    for sheet,headers in _headers(parse_path):
-                        con.executemany("INSERT OR REPLACE INTO source_columns VALUES (?,?,?,?,?)",
-                                        [(sid,sheet,i,name,_unit(name)) for i,name in enumerate(headers,1)])
-                observations = _make_observations(sid,rel,parse_path,access_scope,safe_availability,max_rows=max_rows_per_file)
-                count = store.add_observations(observations)
-                route["selected_backend"] = "structured"
-            else:
+            with store.connect() as con:
+                con.execute("DELETE FROM observations WHERE source_id=?", (sid,))
+                con.execute("DELETE FROM records WHERE source_id=?", (sid,))
+                con.execute("DELETE FROM relations WHERE source_id=?", (sid,))
+                con.execute("DELETE FROM source_columns WHERE source_id=?", (sid,))
+                original_path=f"{package}!/{rel}" if package.suffix.lower()==".zip" else str(package/rel)
+                values=(sid,rel,original_path,digest,len(content),modified,
+                        None if Path(rel).suffix.lower() in STRUCTURED else safe_availability,
+                        access_scope,Path(rel).suffix.lower(),"pending",None,cache_signature,permissions,
+                        json.dumps(route,sort_keys=True))
+                if prior:
+                    con.execute("UPDATE sources SET path=?,original_path=?,sha256=?,size_bytes=?,modified_at=?,available_at=?,access_scope=?,format=?,extraction_status=?,error=?,pipeline_version=?,original_mode=?,routing_json=? WHERE id=?",
+                                (*values[1:],sid))
+                else:
+                    con.execute("INSERT INTO sources VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",values)
+            try:
+                if route["kind"] == "unsupported":
+                    route["selected_backend"] = "preserve"
+                    with store.connect() as con:
+                        con.execute("UPDATE sources SET extraction_status='preserved_unsupported',routing_json=? WHERE id=?",
+                                    (json.dumps(route,sort_keys=True),sid))
+                    result["files_preserved_unsupported"]+=1
+                    result["routes"].append({"path":rel,**route})
+                    continue
+                if route["kind"] == "structured":
+                    future = executor.submit(prepare_source,sid,rel,parse_path,access_scope,
+                                             safe_availability,store.measurements,max_rows_per_file)
+                    pending.append((sid,rel,route,future))
+                    # Bound live workbook buffers rather than enqueueing the complete package.
+                    if len(pending) >= workers:
+                        finish(pending.pop(0))
+                    continue
                 attempts = []
                 for backend in route["candidates"]:
                     try:
@@ -399,22 +435,25 @@ def ingest_package(package: str | Path, store: ManufacturingStore, *, access_sco
                 if attempts:
                     route["attempts"] = attempts
                     route["fallback_used"] = True
-            store.export_numerical(sid)
-            with store.connect() as con:
-                route["extraction_methods"] = [row[0] for row in con.execute(
-                    "SELECT DISTINCT extraction_method FROM observations WHERE source_id=? ORDER BY extraction_method",
-                    (sid,))]
-            if "tesseract" in route["extraction_methods"]:
-                route["ocr_used"] = True
-            with store.connect() as con:
-                con.execute("UPDATE sources SET extraction_status='indexed',routing_json=? WHERE id=?",
-                            (json.dumps(route,sort_keys=True),sid))
-            result["files_indexed"] += 1; result["observations"] += count
-            result["routes"].append({"path":rel,**route})
-        except Exception as exc:
-            with store.connect() as con:
-                con.execute("UPDATE sources SET extraction_status='error',error=?,routing_json=? WHERE id=?",
-                            (str(exc),json.dumps(route,sort_keys=True),sid))
-            result["errors"].append({"path":rel,"error":str(exc)})
-            result["routes"].append({"path":rel,**route})
+                store.export_numerical(sid)
+                with store.connect() as con:
+                    route["extraction_methods"] = [row[0] for row in con.execute(
+                        "SELECT DISTINCT extraction_method FROM observations WHERE source_id=? ORDER BY extraction_method",
+                        (sid,))]
+                if "tesseract" in route["extraction_methods"]:
+                    route["ocr_used"] = True
+                with store.connect() as con:
+                    con.execute("UPDATE sources SET extraction_status='indexed',routing_json=? WHERE id=?",
+                                (json.dumps(route,sort_keys=True),sid))
+                result["files_indexed"] += 1; result["observations"] += count
+                result["routes"].append({"path":rel,**route})
+            except Exception as exc:
+                with store.connect() as con:
+                    con.execute("UPDATE sources SET extraction_status='error',error=?,routing_json=? WHERE id=?",
+                                (str(exc),json.dumps(route,sort_keys=True),sid))
+                result["errors"].append({"path":rel,"error":str(exc)})
+                result["routes"].append({"path":rel,**route})
+        for job in pending:
+            finish(job)
+    result['runtime_seconds'] = round(time.monotonic()-started,3)
     return result

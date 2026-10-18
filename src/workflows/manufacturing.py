@@ -28,13 +28,16 @@ class ManufacturingInvestigationWorkflow:
     """Turns a completed RLM rollout into a reviewable, time-scoped case."""
 
     def __init__(self, root: str | Path, manufacturing_store: ManufacturingStore,
-                 *, scope: str = "default", blackboards: BlackboardStore | None = None) -> None:
+                 *, scope: str = "default", blackboards: BlackboardStore | None = None,
+                 triage_policy: dict | None = None) -> None:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.db = self.root / "investigations.sqlite"
         self.manufacturing_store = manufacturing_store
         self.scope = scope
         self.blackboards = blackboards
+        from .triage import validate_policy
+        self.triage_policy = validate_policy(triage_policy)
         with self._connect() as con:
             con.executescript("""
                 CREATE TABLE IF NOT EXISTS cases (
@@ -65,13 +68,8 @@ class ManufacturingInvestigationWorkflow:
         return value
 
     def _visible(self, identifiers: list[str], as_of: str) -> dict[str, dict]:
-        rows = {}
-        for identifier in dict.fromkeys(map(str, identifiers)):
-            found = self.manufacturing_store.visible(
-                scopes=(self.scope,), as_of=as_of, observation_id=identifier, limit=1,
-            )
-            if found:
-                rows[identifier] = found[0]
+        rows = {row['id']:row for row in self.manufacturing_store.get_many(
+            identifiers, scopes=(self.scope,), as_of=as_of)}
         if len(rows) != len(set(identifiers)):
             raise ValueError("report cites evidence unavailable at this scope and timestamp")
         return rows
@@ -81,19 +79,21 @@ class ManufacturingInvestigationWorkflow:
         entities = list(dict.fromkeys(str(value) for value in entities if value))
         if not entities:
             return []
+        # Instrument "Ok" rows are not deviation signals. Keep one source-backed
+        # representative of each categorical signal per entity rather than adding
+        # millions of unrelated status cells to the report's citation set.
         placeholders = ",".join("?" for _ in entities)
-        with self.manufacturing_store.connect() as con:
-            rows = con.execute(
-                "SELECT o.id FROM observations o JOIN sources s ON s.id=o.source_id "
-                "WHERE o.access_scope=? AND o.entity_id IN (" + placeholders + ") "
-                "AND (lower(o.name) LIKE '%status%' OR lower(o.name) LIKE '%severity%' "
-                "OR lower(o.name) LIKE '%classification%' OR lower(o.name) LIKE '%disposition%') "
-                "AND (o.available_at IS NULL OR julianday(o.available_at)<=julianday(?)) "
-                "AND (s.available_at IS NULL OR julianday(s.available_at)<=julianday(?)) "
-                "AND s.extraction_status='indexed'",
-                (self.scope, *entities, as_of, as_of),
-            ).fetchall()
-        return [row["id"] for row in rows]
+        rows = self.manufacturing_store.select(
+            "SELECT entity_id,lower(trim(value_text)) AS category,min(id) AS id,count(*) AS matching_observations "
+            "FROM observations WHERE entity_id IN (" + placeholders + ") "
+            "AND (lower(name) LIKE '%status%' OR lower(name) LIKE '%severity%' "
+            "OR lower(name) LIKE '%classification%' OR lower(name) LIKE '%disposition%') "
+            "AND lower(trim(value_text)) IN ('critical','out of specification','oos','fail','failed',"
+            "'action','action limit','deviation','nonconforming','alert','warning') "
+            "GROUP BY entity_id,lower(trim(value_text))",
+            entities, scopes=(self.scope,), as_of=as_of,
+        )
+        return [row['id'] for row in rows]
 
     @staticmethod
     def _signal(row: dict) -> str | None:
@@ -113,28 +113,16 @@ class ManufacturingInvestigationWorkflow:
             return "alert"
         return None
 
-    @staticmethod
-    def _triage(signals: list[dict]) -> dict:
-        reliable = [s for s in signals if s["validation_status"] in {"source_transcribed", "normalized"}]
-        batches = {str(s["entity_id"]) for s in reliable if s.get("entity_id")}
-        levels = {s["signal"] for s in reliable}
-        if "critical" in levels:
-            level, reason = "L3", "An explicit critical or failed source status is present."
-        elif len(batches) >= 2 and ("action" in levels or "critical" in levels):
-            level, reason = "L2", "Action-level source statuses recur across at least two linked entities."
-        elif levels:
-            level, reason = "L1", "An explicit alert or action source status needs investigation."
-        else:
-            level, reason = "unclassified", "No verified categorical deviation status is available."
-        roles = {"L1": ["qa"], "L2": ["qa", "msat"],
-                 "L3": ["qa", "sponsor_qa"]}.get(level, [])
-        return {"level": level, "reason": reason, "provisional": True,
-                "required_review_roles": roles, "policy": "illustrative; site SOP controls final triage"}
+    def _triage(self, signals: list[dict]) -> dict:
+        from .triage import classify
+        return classify(signals,self.triage_policy)
 
     def _test_hypotheses(self, hypotheses: list[dict], visible: dict[str, dict],
-                         as_of: str) -> list[dict]:
+                         as_of: str, verified: dict | None = None) -> list[dict]:
         tools = ManufacturingTools(self.manufacturing_store, as_of=as_of, scopes=(self.scope,))
-        verified: dict[str, dict] = {}
+        verified = dict(verified or {})
+        identifiers={str(i) for h in hypotheses for key in ('supporting_evidence_ids','contradicting_evidence_ids') for i in h.get(key,[])}
+        verified.update(tools.verify_many([visible[i] for i in identifiers if i in visible and i not in verified]))
         tested = []
         for hypothesis in hypotheses:
             support = list(dict.fromkeys(map(str, hypothesis.get("supporting_evidence_ids", []))))
@@ -147,7 +135,7 @@ class ManufacturingInvestigationWorkflow:
                     verified[identifier] = tools.verify_evidence(observation_id=identifier)
                 check = verified[identifier]
                 checks.append({"evidence_id": identifier,
-                               "role": "support" if identifier in support else "contradiction",
+                               "role": "support_and_contradiction" if identifier in support and identifier in contradiction else "support" if identifier in support else "contradiction",
                                "source_ref": visible[identifier]["source_ref"],
                                "source_integrity": check["source_integrity"],
                                "value_matches": check["value_matches"],
@@ -165,27 +153,35 @@ class ManufacturingInvestigationWorkflow:
                            "statement": hypothesis["statement"], "status": status,
                            "evidence_checks": checks,
                            "unknowns": hypothesis.get("unknowns", []),
+                           "supporting_evidence_status":hypothesis.get("supporting_evidence_status","found" if support else "not_searched"),
+                           "contradicting_evidence_status":hypothesis.get("contradicting_evidence_status","found" if contradiction else "not_searched"),
+                           "supporting_evidence_absence_reason":hypothesis.get("supporting_evidence_absence_reason"),
+                           "contradicting_evidence_absence_reason":hypothesis.get("contradicting_evidence_absence_reason"),
                            "discriminating_tests": hypothesis.get("tests_or_observations_that_would_discriminate", []),
                            "root_cause_confirmed": False})
         return tested
 
     def record_rollout(self, incident_id: str, as_of: str, objective: str,
-                       rollout: dict) -> dict:
+                       rollout: dict, *, sync_blackboard: bool = True) -> dict:
         incident_id = self._safe_id(incident_id)
         cited_ids = list(dict.fromkeys(map(str, rollout.get("evidence_ids", []))))
-        discovered_ids = self._related_status_ids(as_of, rollout.get("related_batches", []))
+        discovered_ids = self._related_status_ids(as_of, rollout.get("related_batches", []) + rollout.get("related_runs", []))
         evidence_ids = list(dict.fromkeys(cited_ids + discovered_ids))
         visible = self._visible(evidence_ids, as_of)
+        source_checks=dict(rollout.get('verification',{}).get('evidence_checks',{}))
+        potential=[row for row in visible.values() if self._signal(row)]
+        tools=ManufacturingTools(self.manufacturing_store,as_of=as_of,scopes=(self.scope,))
+        source_checks.update(tools.verify_many([row for row in potential if row['id'] not in source_checks]))
         signals = []
         for identifier, row in visible.items():
             classification = self._signal(row)
-            if classification:
+            if classification and source_checks[identifier]["source_integrity"] and source_checks[identifier]["value_matches"] is True:
                 signals.append({"evidence_id": identifier, "signal": classification,
                                 "entity_id": row["entity_id"],
                                 "source_ref": row["source_ref"],
                                 "validation_status": row["validation_status"]})
         triage = self._triage(signals)
-        tests = self._test_hypotheses(rollout.get("causal_hypotheses", []), visible, as_of)
+        tests = self._test_hypotheses(rollout.get("causal_hypotheses", []), visible, as_of, rollout.get("verification",{}).get("evidence_checks",{}))
         with self._connect() as con:
             prior = con.execute("SELECT report_json FROM cases WHERE incident_id=? AND scope=?",
                                 (incident_id, self.scope)).fetchone()
@@ -200,7 +196,11 @@ class ManufacturingInvestigationWorkflow:
                 "status": "pending" if triage["required_review_roles"] else "not_requested",
                 "required_roles": triage["required_review_roles"], "decisions": []}
             changed = bool(previous and (
-                previous["triage"]["level"] != triage["level"] or
+                _json(previous["triage"]) != _json(triage) or
+                _json(previous.get("calculated_metrics",[])) != _json(rollout.get("calculated_metrics",[])) or
+                _json(previous.get("evidence_scope",{})) != _json(rollout.get("scope",{})) or
+                _json(previous.get('investigation_review',{})) != _json(rollout.get('investigation_review',{})) or
+                previous.get('cross_scope_synthesis','') != rollout.get('cross_scope_synthesis','') or
                 set(evidence_ids) != set(previous["evidence_ids"]) or
                 _json(tests) != _json(previous["hypothesis_tests"]) or
                 _json(rollout.get("decision_branches", [])) != _json(previous["decision_branches"])))
@@ -212,8 +212,19 @@ class ManufacturingInvestigationWorkflow:
                       else "awaiting_review" if triage["required_review_roles"]
                       else "investigating")
             report = {"incident_id": incident_id, "scope": self.scope, "as_of": as_of,
+                      "report_type":rollout.get('report_type','partial_investigation'),
+                      "report_status":rollout.get('report_status','incomplete'),
+                      "investigation_review":rollout.get('investigation_review',{}),
+                      "cross_scope_synthesis":rollout.get('cross_scope_synthesis',''),
+                      "temporal_claims":rollout.get('temporal_claims',[]),
                       "objective": objective, "assessment": rollout.get("assessment"),
                       "deviation_signals": signals, "triage": triage,
+                      "severity": triage["severity"], "agent_proposed_severity": rollout.get("agent_proposed_severity",rollout.get("severity")),
+                      "verification": rollout.get("verification",{}),
+                      "observed_facts":rollout.get("observed_facts",[]),
+                      "calculated_metrics":rollout.get("calculated_metrics",[]),
+                      "interpretations":rollout.get("interpretations",[]),
+                      "evidence_scope":rollout.get("scope",{}),"examined_scope":rollout.get("examined_scope"),
                       "hypothesis_tests": tests, "evidence_ids": evidence_ids,
                       "rlm_cited_evidence_ids": cited_ids,
                       "workflow_discovered_evidence_ids": [item for item in discovered_ids
@@ -229,7 +240,7 @@ class ManufacturingInvestigationWorkflow:
             con.execute("INSERT INTO updates (incident_id,scope,event_type,actor_id,occurred_at,payload_json) VALUES (?,?,?,?,?,?)",
                         (incident_id, self.scope, "rollout", "manufacturing-rlm", report["updated_at"],
                          _json({"as_of": as_of, "signal_count": len(signals), "triage": triage["level"]})))
-        if self.blackboards:
+        if self.blackboards and sync_blackboard:
             blackboard = self.blackboards.load(incident_id)
             if blackboard is not None:
                 blackboard.evidence_ids = list(dict.fromkeys(blackboard.evidence_ids + discovered_ids))

@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Evidence-backed benchmark comparison: traditional workflow vs AI operating layer across two case studies.">
+  <title>Lotic · Benchmark Case Comparison</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23101828'/%3E%3Cpath d='M7 11c5 0 6 5 11 5' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M7 21c5 0 6-5 11-5' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M18 16h8' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/assets/comparison.css?v=1">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/landing">
+      <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8c5 0 6 4 11 4"/><path d="M4 16c5 0 6-4 11-4"/><path d="M15 12h5"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg></span>
+      <div><strong>Lotic</strong><small>AI operating system for pharmaceutical manufacturing</small></div>
+    </a>
+    <div class="topbar-center"><span>BENCHMARK CASE COMPARISON · TRADITIONAL VS AI OS</span></div>
+    <div class="topbar-links">
+      <a href="/comparison">← Benchmark summary</a>
+      <a href="/benchmark-report">Full benchmark report</a>
+      <a href="/">Incident demo</a>
+      <button class="secondary small-button" id="presentationToggle" title="60–90s guided walkthrough">▶ Presentation mode</button>
+    </div>
+  </header>
+  <div class="disclosure-bar">
+    <div><span class="tag">EVIDENCE-BACKED</span><span id="disclosureText">Every value is read from recorded benchmark artifacts; missing measurements render as “Not measured”.</span></div>
+    <div class="classification-legend" id="classificationLegend" aria-label="Result classification legend"></div>
+  </div>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <p class="eyebrow">Case study</p>
+      <nav id="caseSelector" aria-label="Case study"></nav>
+      <p class="eyebrow">View</p>
+      <nav id="viewSelector" aria-label="Comparison views"></nav>
+      <div class="case-status" id="caseStatus"><span>CASE STATUS</span><strong>Loading…</strong></div>
+    </aside>
+
+    <main>
+      <section class="view" id="compareView">
+        <div id="caseHero"></div>
+        <div class="metric-grid" id="headlineGrid"></div>
+        <div class="compare-toolbar">
+          <span class="muted" id="differencesNote">Viewing the full scorecard — every recorded metric, both workflows.</span>
+          <button class="secondary" id="differencesToggle" aria-pressed="false">Show only differences</button>
+        </div>
+        <article class="panel" id="scorecardPanel">
+          <div class="panel-head">
+            <div><p class="eyebrow" id="scorecardEyebrow">SCORECARD</p><h2 id="scorecardTitle">Traditional workflow vs AI OS</h2></div>
+          </div>
+          <div class="panel-body" id="scorecardBody"></div>
+        </article>
+        <article class="panel hidden" id="differencesPanel">
+          <div class="panel-head">
+            <div><p class="eyebrow">SHOW ONLY DIFFERENCES</p><h2>What changed between the two workflows</h2></div>
+            <span class="count-pill" id="differencesCount">0 findings</span>
+          </div>
+          <div class="panel-body"><div class="diff-grid" id="differencesBody"></div></div>
+        </article>
+        <article class="panel" id="effortPanel">
+          <div class="panel-head">
+            <div><p class="eyebrow">EFFORT BREAKDOWN</p><h2>Where the time goes — only measured categories</h2></div>
+          </div>
+          <div class="panel-body"><div class="effort-grid" id="effortBody"></div></div>
+        </article>
+        <article class="panel" id="chainPanel">
+          <div class="panel-head">
+            <div><p class="eyebrow" id="chainEyebrow">ISSUE IDENTIFIED CHAIN</p><h2 id="chainTitle">Evidence → batches → hypotheses → escalation</h2></div>
+            <span class="count-pill" id="chainMoment"></span>
+          </div>
+          <div class="panel-body"><div class="chain" id="chainBody"></div></div>
+        </article>
+        <article class="panel" id="findingsPanel">
+          <div class="panel-head">
+            <div><p class="eyebrow">CLASSIFIED FINDINGS</p><h2>Verified, observed, modeled — and what is not measured</h2></div>
+          </div>
+          <div class="panel-body"><div class="findings-grid" id="findingsBody"></div></div>
+        </article>
+      </section>
+
+      <section class="view" id="replayView">
+        <div class="view-heading">
+          <div>
+            <p class="eyebrow">SYNCHRONIZED REPLAY · SHARED BENCHMARK CLOCK</p>
+            <h1>Same data, two decision loops — <em>watch where they diverge.</em></h1>
+            <p class="lead" id="replayLead"></p>
+          </div>
+          <div class="heading-actions"><span class="count-pill" id="replayStatusPill">Loading</span></div>
+        </div>
+        <div class="replay-toolbar" id="replayToolbar">
+          <div class="controls">
+            <button class="primary" id="replayPlay">▶ Play</button>
+            <button class="secondary" id="replayPause">Pause</button>
+            <button class="secondary" id="replayStep">Step →</button>
+            <button class="text-button" id="replayRestart">Restart</button>
+            <label class="muted" style="font-size:12px">speed
+              <select id="replaySpeed" title="Simulated case time advanced per wall-clock second">
+                <option value="8">8 days/s</option>
+                <option value="32" selected>32 days/s</option>
+                <option value="128">128 days/s</option>
+                <option value="0">instant</option>
+              </select>
+            </label>
+          </div>
+          <div class="replay-clock">
+            <span>SIMULATION TIME</span>
+            <strong id="replayClockText">—</strong>
+            <small id="replayElapsed">elapsed 0</small>
+          </div>
+        </div>
+        <div class="shared-track" id="sharedTrack" aria-hidden="false"></div>
+        <div class="divergence-strip" id="divergenceStrip"></div>
+        <div class="replay-layout">
+          <article class="panel track-column" id="traditionalColumn">
+            <div class="track-head"><div><p class="eyebrow">TRADITIONAL WORKFLOW</p><h2 id="traditionalTitle">Reconstructed case workflow</h2></div><span class="count-pill" id="traditionalCount">0</span></div>
+            <div class="panel-body" id="traditionalBody"></div>
+          </article>
+          <article class="panel track-column" id="aiColumn">
+            <div class="track-head"><div><p class="eyebrow">AI OPERATING LAYER</p><h2 id="aiTitle">Deterministic agent replay</h2></div><span class="count-pill" id="aiCount">0</span></div>
+            <div class="panel-body" id="aiBody"></div>
+          </article>
+        </div>
+        <div id="choProcessPanel"></div>
+        <article class="panel" id="wallclockPanel">
+          <div class="panel-head"><div><p class="eyebrow">WALL-CLOCK RUNTIME</p><h2>Recorded machine execution (not human labor)</h2></div></div>
+          <div class="panel-body" id="wallclockBody"></div>
+        </article>
+        <article class="panel" id="guardrailsPanel">
+          <div class="panel-head"><div><p class="eyebrow">REPLAY GUARDRAILS</p><h2>Why this replay stays time-valid</h2></div></div>
+          <div class="panel-body" id="guardrailsBody"></div>
+        </article>
+      </section>
+
+      <section class="view" id="evidenceView">
+        <div class="view-heading">
+          <div>
+            <p class="eyebrow">EVIDENCE</p>
+            <h1>Retrieved, used, missed, interpreted — <em>per workflow.</em></h1>
+            <p class="lead" id="evidenceLead"></p>
+          </div>
+        </div>
+        <article class="panel">
+          <div class="panel-head">
+            <div><p class="eyebrow">EVIDENCE MATRIX</p><h2 id="evidenceTitle">Every status is computed from recorded traces and annotations</h2></div>
+            <span class="count-pill" id="evidenceCount">0 items</span>
+          </div>
+          <div class="panel-body" id="evidenceBody"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">ANNOTATIONS</p><h2>Recorded notes, unverified findings, and reference roles</h2></div></div>
+          <div class="panel-body"><div class="annotations" id="annotationsBody"></div></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <div class="presentation-bar hidden" id="presentationBar">
+    <small>PRESENTATION</small>
+    <div class="steps" id="presentationSteps"></div>
+    <div class="spacer"></div>
+    <button class="secondary small-button" id="presentationPrev">← Prev</button>
+    <button class="primary small-button" id="presentationNext">Next →</button>
+    <button class="text-button" id="presentationExit" style="color:#d0d5dd">Exit (Esc)</button>
+  </div>
+
+  <div class="drawer-backdrop hidden" id="drawerBackdrop"></div>
+  <aside class="drawer hidden" id="drawer" role="dialog" aria-modal="false" aria-label="Detail"></aside>
+
+  <script src="/assets/comparison.js?v=1"></script>
+</body>
+</html>

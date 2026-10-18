@@ -19,8 +19,19 @@ class QueryRequest(ToolRequest):
     sql: str
 
 class SearchRequest(ToolRequest):
-    query: str
-    mode: Literal["lexical","semantic"] = "lexical"
+    query: str = Field(max_length=4096)
+    mode: Literal["lexical","semantic","hybrid"] = "lexical"
+    evidence_type: Literal['auto','exact','structured','narrative'] = 'auto'
+    observation_id: str | None = None
+    source_id: str | None = None
+    entity_id: str | None = None
+    metric: str | None = None
+    value_text: str | None = None
+    sheet: str | None = None
+    source_row: int | None = Field(default=None,ge=1)
+    time_min: float | None = Field(default=None,allow_inf_nan=False)
+    time_max: float | None = Field(default=None,allow_inf_nan=False)
+    time_basis: Literal['elapsed_hours','calendar_hours','unresolved'] | None = None
 
 class EvidenceRequest(ToolRequest):
     observation_id: str
@@ -41,6 +52,16 @@ class RegionRequest(ToolRequest):
     region: tuple[float,float,float,float] | None = None
     backend: str = "auto"
 
+class MetricRequest(ToolRequest):
+    metrics: list[dict] = Field(min_length=1,max_length=32)
+
+class AlignmentRequest(ToolRequest):
+    left: dict
+    right: dict
+    method: Literal['exact','nearest','linear'] = 'exact'
+    tolerance_hours: float = Field(default=0,ge=0,allow_inf_nan=False)
+    allow_time_reordering: bool = False
+
 class ManufacturingTools:
     """The main RLM calls these functions; this class does no investigation planning."""
     def __init__(self, store: ManufacturingStore, *, as_of: str | None = None,
@@ -48,9 +69,13 @@ class ManufacturingTools:
         self.store = store
         self.as_of = as_of
         self.scopes = scopes
+        self._analyses = {}
+        self._retrieval = None
 
     def _visibility(self, arg: dict) -> dict:
         request = ToolRequest.model_validate({"as_of":self.as_of,"scopes":list(self.scopes),**arg})
+        if self.as_of and request.as_of is None:
+            raise PermissionError("cannot remove the session historical cutoff")
         if self.as_of and request.as_of:
             def instant(value: str) -> datetime:
                 dt=datetime.fromisoformat(value.replace("Z","+00:00"))
@@ -72,50 +97,81 @@ class ManufacturingTools:
 
     def inspect_data(self, **kwargs) -> dict:
         sources = self._sources(kwargs)
-        obs = self._obs(kwargs,scan_all=True)
-        by_source = Counter(o["source_id"] for o in obs)
+        visibility = self._visibility(kwargs)
+        summary = self.store.summarize(as_of=visibility['as_of'],scopes=visibility['scopes'])
+        by_source = Counter()
+        variables = Counter()
+        for item in summary:
+            by_source[item['source_id']] += item['count']
+            variables[item['name']] += item['count']
         by_schema=defaultdict(lambda:defaultdict(set))
         with self.store.connect() as con:
             for source in sources:
-                for col in con.execute("SELECT sheet,name FROM source_columns WHERE source_id=? ORDER BY column_index",(source["id"],)):
-                    by_schema[source["id"]][col["sheet"] or "<file>"].add(col["name"])
-        return {"sources":[{"id":s["id"],"path":s["path"],"sha256":s["sha256"],
-                            "format":s["format"],"status":s["extraction_status"],
-                            "observations":by_source[s["id"]],
-                            "sheets":{k:sorted(v) for k,v in by_schema[s["id"]].items()}} for s in sources],
-                "variables":dict(Counter(o["name"] for o in obs)),
-                "evidence_ids":[o["id"] for o in obs[:1000]],
-                "evidence_id_count":len(obs)}
+                for col in con.execute("SELECT sheet,name FROM source_columns WHERE source_id=? ORDER BY column_index",(source['id'],)):
+                    by_schema[source['id']][col['sheet'] or '<file>'].add(col['name'])
+        ids = self._sample_ids(visibility,summary)
+        return {'sources':[{'id':s['id'],'path':s['path'],'sha256':s['sha256'],
+                            'format':s['format'],'status':s['extraction_status'],
+                            'observations':by_source[s['id']],
+                            'sheets':{k:sorted(v) for k,v in by_schema[s['id']].items()}} for s in sources],
+                'variables':dict(variables),'evidence_ids':ids,'evidence_id_count':sum(by_source.values())}
+
+    def _sample_ids(self, visibility: dict, summary=None) -> list[str]:
+        if summary is None:
+            summary=self.store.summarize(as_of=visibility['as_of'],scopes=visibility['scopes'])
+        # Round-robin across sources and series before taking additional anchors.
+        # Includes ordinary endpoints as well as extrema; no anomaly-only filter.
+        groups=defaultdict(list)
+        for row in summary:
+            groups[row['source_id']].append(row)
+        ordered=[]
+        for index in range(max((len(v) for v in groups.values()),default=0)):
+            ordered.extend(v[index] for _,v in sorted(groups.items()) if index<len(v))
+        ids=[]
+        keys=('first_id','last_id','minimum_id','maximum_id','sample_id')
+        for index,row in enumerate(ordered):
+            anchors=list(dict.fromkeys(row[key] for key in keys if row.get(key)))
+            if anchors:ids.append(anchors[index%len(anchors)])
+        for key in keys:
+            ids.extend(row[key] for row in ordered if row.get(key))
+        return list(dict.fromkeys(ids))[:1000]
 
     def infer_schema(self, **kwargs) -> dict:
-        obs = self._obs(kwargs,scan_all=True)
-        sources=self._sources(kwargs)
-        names={o["name"] for o in obs}
+        v = self._visibility(kwargs)
+        summary = self.store.summarize(as_of=v['as_of'],scopes=v['scopes'])
+        grouped = defaultdict(list)
+        for row in summary:
+            grouped[row['name']].append(row)
         with self.store.connect() as con:
-            for source in sources:
-                names.update(row[0] for row in con.execute("SELECT name FROM source_columns WHERE source_id=?",(source["id"],)))
+            for source in self._sources(kwargs):
+                for row in con.execute('SELECT name FROM source_columns WHERE source_id=?',(source['id'],)):
+                    grouped[row[0]]
         mappings=[]
-        for name in sorted(names):
-            norm = re.sub(r"[^a-z0-9]+","_",name.lower()).strip("_")
-            role = ("time" if any(x in norm for x in ("timestamp","time","date")) else
-                    "entity_identifier" if any(x in norm for x in ("batch","lot","run","reactor","equipment","sample")) else
-                    "measurement" if any(o["value_number"] is not None for o in obs if o["name"]==name) else "text")
-            units = sorted({o["unit"] for o in obs if o["name"]==name and o["unit"]})
-            mappings.append({"source_name":name,"suggested_role":role,"units":units,
-                             "status":"proposed","evidence_ids":[o["id"] for o in obs if o["name"]==name][:5]})
-        return {"mappings":mappings,"evidence_ids":[o["id"] for o in obs[:1000]],
-                "evidence_id_count":len(obs)}
+        for name, rows in sorted(grouped.items()):
+            norm = re.sub(r'[^a-z0-9]+','_',name.lower()).strip('_')
+            role = ('time' if any(x in norm for x in ('timestamp','time','date')) else
+                    'entity_identifier' if any(x in norm for x in ('batch','lot','run','reactor','equipment','sample')) else
+                    'measurement' if any(o['numeric_count'] for o in rows) else 'text')
+            mappings.append({'source_name':name,'suggested_role':role,
+                             'units':sorted({o['unit'] for o in rows if o['unit']}),
+                             'status':'proposed','evidence_ids':[o['sample_id'] for o in rows][:5]})
+        from .terminology import canonical
+        for item in mappings:
+            item['terminology']=[canonical(item['source_name'],unit) for unit in item['units'] or [None]]
+        return {'mappings':mappings,'evidence_ids':self._sample_ids(v,summary),
+                'evidence_id_count':sum(r['count'] for r in summary)}
 
     def reconcile_entities(self, **kwargs) -> dict:
-        obs = self._obs(kwargs,scan_all=True)
-        grouped=defaultdict(list)
-        for o in obs:
-            if o["entity_id"]: grouped[o["entity_id"]].append(o)
-        return {"candidates":[{"entity_id":key,"source_ids":sorted({r["source_id"] for r in rows}),
-                                "observation_count":len(rows),"status":"candidate",
-                                "evidence_ids":[r["id"] for r in rows[:10]]} for key,rows in grouped.items()],
-                "unlinked_observations":sum(not o["entity_id"] for o in obs),
-                "evidence_ids":[o["id"] for o in obs[:1000]],"evidence_id_count":len(obs)}
+        v = self._visibility(kwargs)
+        rows = self.store.select('SELECT entity_id,list(DISTINCT source_id) AS source_ids,count(*) AS observation_count,'
+                                 'min(id) AS sample_id FROM observations GROUP BY entity_id',
+                                 as_of=v['as_of'],scopes=v['scopes'])
+        return {'candidates':[{'entity_id':r['entity_id'],'source_ids':sorted(r['source_ids']),
+                                'observation_count':r['observation_count'],'status':'candidate',
+                                'evidence_ids':[r['sample_id']]} for r in rows if r['entity_id']],
+                'unlinked_observations':sum(r['observation_count'] for r in rows if not r['entity_id']),
+                'evidence_ids':self._sample_ids(v),
+                'evidence_id_count':sum(r['observation_count'] for r in rows)}
 
     def normalize_measurements(self, **kwargs) -> dict:
         req = UnitRequest.model_validate({"as_of":self.as_of,"scopes":list(self.scopes),**kwargs})
@@ -125,7 +181,7 @@ class ManufacturingTools:
         import pandera.polars as pa
         registry = pint.UnitRegistry()
         wanted=set(req.observation_ids)
-        rows=[o for o in self._obs({"as_of":req.as_of,"scopes":req.scopes},scan_all=True) if o["id"] in wanted]
+        rows=self.store.get_many(sorted(wanted),as_of=req.as_of,scopes=req.scopes)
         output=[]
         for o in rows:
             item={"observation_id":o["id"],"original_value":o["value_number"],"original_unit":o["unit"]}
@@ -146,86 +202,71 @@ class ManufacturingTools:
         sql=req.sql.strip()
         if not re.match(r"(?is)^select\s",sql) or ";" in sql or re.search(r"(?i)\b(read_csv|read_parquet|read_json|copy|attach|install|load|pragma|create|delete|insert|update|drop|alter|call|export|import)\b",sql):
             raise ValueError("only a single SELECT over the observations table is allowed")
+        if not re.search(r"(?i)\bfrom\s+observations\b", sql):
+            raise ValueError("unknown table; query the observations table, e.g. "
+                             "SELECT id, name, value_number, unit FROM observations WHERE name = 'pH'")
         import duckdb
-        source_ids={s["id"] for s in self._sources({"as_of":req.as_of,"scopes":req.scopes})
-                    if s["extraction_status"]=="indexed"}
-        paths=[str(p) for source_id in source_ids for p in self.store.numerical.glob(f"{source_id}-*.parquet")]
-        con=duckdb.connect(database=":memory:")
-        try:
-            if paths:
-                if req.as_of:
-                    con.execute("CREATE TABLE observations AS SELECT * FROM read_parquet(?,union_by_name=true) WHERE available_at IS NULL OR TRY_CAST(available_at AS TIMESTAMPTZ)<=TRY_CAST(? AS TIMESTAMPTZ)",
-                                [paths,req.as_of])
-                else:
-                    con.execute("CREATE TABLE observations AS SELECT * FROM read_parquet(?,union_by_name=true)",[paths])
-            else:
-                con.execute("CREATE TABLE observations (id VARCHAR,source_id VARCHAR,name VARCHAR,value_number DOUBLE,unit VARCHAR,occurred_at VARCHAR,available_at VARCHAR,entity_id VARCHAR,access_scope VARCHAR)")
-            con.execute("SET enable_external_access=false")
-            cursor=con.execute("SELECT * FROM ("+sql+") LIMIT ? OFFSET ?",[req.limit,req.offset])
+        with duckdb.connect(':memory:',config={'enable_external_access':False}) as parser:
+            if parser.get_table_names(sql) != {'observations'} or re.search(r'(?i)\b(query|query_table|sqlite_scan|parquet_scan)\s*\(',sql):
+                raise ValueError('query only the scoped observations table')
+        with self.store.query_connection(as_of=req.as_of,scopes=req.scopes,numeric_only=True) as con:
+            cursor=con.execute('SELECT * FROM ('+sql+') LIMIT ? OFFSET ?',[req.limit,req.offset])
             columns=[x[0] for x in cursor.description]
             values=[list(row) for row in cursor.fetchall()]
-            citations=[str(row[columns.index("id")]) for row in values] if "id" in columns else []
-            return {"columns":columns,"rows":values,"evidence_ids":citations,
-                    "provenance_status":"row_ids" if citations else "aggregate_lineage_unresolved",
-                    "source_count":len(source_ids),"parquet_shards":len(paths)}
-        finally: con.close()
+            citations=list(dict.fromkeys(str(row[columns.index(key)]) for row in values for key in ('id','time_evidence_id') if key in columns and row[columns.index(key)] is not None))
+        source_ids={s['id'] for s in self._sources({'as_of':req.as_of,'scopes':req.scopes}) if s['extraction_status']=='indexed'}
+        with self.store.connect() as metadata:
+            shards=sum(metadata.execute('SELECT count(*) FROM sheets WHERE source_id=?',(sid,)).fetchone()[0] for sid in source_ids)
+        return {'columns':columns,'rows':values,'evidence_ids':citations,
+                'provenance_status':'row_ids' if citations else 'aggregate_lineage_unresolved',
+                'source_count':len(source_ids),'parquet_shards':shards}
 
     def search_evidence(self, **kwargs) -> dict:
         req=SearchRequest.model_validate({"as_of":self.as_of,"scopes":list(self.scopes),**kwargs})
-        rows=self._obs({"as_of":req.as_of,"scopes":req.scopes},scan_all=True)
-        if req.mode=="semantic":
-            try:
-                from fastembed import TextEmbedding
-            except ImportError as exc:
-                raise RuntimeError("Install the existing semantic extra to use local semantic search") from exc
-            candidates=[o for o in rows if o["name"]=="document_text" and o["value_text"]]
-            model=TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
-            vectors=list(model.embed([req.query]+[o["value_text"] for o in candidates]))
-            if not vectors:
-                return {"records":[],"evidence_ids":[],"search_method":"semantic_local"}
-            query_vector=vectors[0]
-            ranked=sorted(zip(candidates,vectors[1:]),
-                          key=lambda pair:float(query_vector@pair[1]),reverse=True)
-            selected=[o for o,_ in ranked[req.offset:req.offset+req.limit]]
-            return {"records":selected,"evidence_ids":[o["id"] for o in selected],
-                    "search_method":"semantic_local"}
-        terms=[term.lower() for term in re.findall(r"\w+",req.query) if len(term)>1]
-        hits=[]
-        for o in rows:
-            hay=f"{o['name']} {o['value_text'] or ''} {o['entity_id'] or ''}".lower()
-            score=sum(term in hay for term in terms)
-            if score: hits.append((score,o))
-        hits.sort(key=lambda x:(-x[0],x[1]["id"]))
-        selected=[o for _,o in hits[req.offset:req.offset+req.limit]]
-        return {"records":selected,"evidence_ids":[o["id"] for o in selected],
-                "search_method":"lexical", "truncated_input":False}
+        self._visibility(req.model_dump())
+        if req.time_min is not None and req.time_max is not None and req.time_min>req.time_max:
+            raise ValueError('time_min must be <= time_max')
+        from .retrieval import RetrievalEngine
+        if self._retrieval is None:
+            self._retrieval=RetrievalEngine(self.store)
+        return self._retrieval.search(req)
 
     def verify_evidence(self, **kwargs) -> dict:
         req=EvidenceRequest.model_validate({"as_of":self.as_of,"scopes":list(self.scopes),**kwargs})
         matches=self._obs({"as_of":req.as_of,"scopes":req.scopes},observation_id=req.observation_id)
         if not matches: raise KeyError("evidence not visible")
         o=matches[0]
-        with self.store.connect() as con:
-            source=dict(con.execute("SELECT * FROM sources WHERE id=?",(o["source_id"],)).fetchone())
-        path=self.store.originals/source["sha256"][:2]/(source["sha256"]+Path(source["path"]).suffix.lower())
-        integrity=hashlib.sha256(path.read_bytes()).hexdigest()==source["sha256"]
-        ref=o["source_ref"]
-        observed=None
-        if source["format"] in {".csv",".tsv",".xlsx",".xlsm",".parquet"} and ref["row"] is not None:
+        return self.verify_many(matches)[req.observation_id]
+
+    def verify_many(self, rows: list[dict]) -> dict:
+        from .verification import verify_originals
+        return verify_originals(self.store,rows)
+
+    @staticmethod
+    def _source_row(path: Path, sheet_name: str | None, row_number: int | None):
+        if row_number is None:
+            return None
+        if path.suffix.lower() in {'.xlsx','.xlsm'}:
+            from openpyxl import load_workbook
+            workbook=load_workbook(path,read_only=True,data_only=True)
+            try:
+                sheets=[workbook[sheet_name]] if sheet_name in workbook.sheetnames else ([] if sheet_name else list(workbook))
+                for sheet in sheets:
+                    if row_number < 2 or (sheet.max_row is not None and row_number>sheet.max_row):
+                        continue
+                    header=next(sheet.iter_rows(min_row=1,max_row=1,values_only=True),())
+                    headers=[str(v) if v is not None else f'column_{i}' for i,v in enumerate(header,1)]
+                    values=next(sheet.iter_rows(min_row=row_number,max_row=row_number,values_only=True),None)
+                    if values is not None:
+                        return sheet.title,dict(zip(headers,values))
+            finally:
+                workbook.close()
+        else:
             from .ingest import _rows
             for sheet,row,headers,values in _rows(path):
-                if sheet==ref["sheet"] and row==ref["row"]:
-                    observed=str(dict(zip(headers,values)).get(ref["column"]))
-                    break
-        elif o["extraction_method"]=="pypdf":
-            from .ingest import _document_observations
-            for candidate in _document_observations(o["source_id"],source["path"],path,o["access_scope"],o["available_at"],"pypdf"):
-                if candidate.observation_id==o["id"]:
-                    observed=candidate.value_text; break
-        return {"observation_id":o["id"],"source_integrity":integrity,
-                "value_matches":observed==o["value_text"] if observed is not None else None,
-                "observed":observed,"validation_status":o["validation_status"],
-                "source_ref":ref,"evidence_ids":[o["id"]]}
+                if sheet==sheet_name and row==row_number:
+                    return sheet,dict(zip(headers,values))
+        return None
 
     def extract_region(self, **kwargs) -> dict:
         req=RegionRequest.model_validate({"as_of":self.as_of,"scopes":list(self.scopes),**kwargs})
@@ -233,14 +274,24 @@ class ManufacturingTools:
         if source is None: raise KeyError("source not visible")
         path=self.store.originals/source["sha256"][:2]/(source["sha256"]+Path(source["path"]).suffix.lower())
         if source["format"] in {".csv",".tsv",".xlsx",".xlsm",".parquet"}:
-            from .ingest import _rows
-            for sheet,row,headers,values in _rows(path):
-                if (req.sheet is None or sheet==req.sheet) and row==req.row:
-                    data=dict(zip(headers,values))
-                    return {"source_id":req.source_id,"sheet":sheet,"row":row,
-                            "data":{req.column:data.get(req.column)} if req.column else data,
-                            "status":"source_transcribed"}
-            return {"status":"region_not_found"}
+            found=self._source_row(path,req.sheet,req.row)
+            if not found:
+                return {'status':'region_not_found'}
+            sheet,data=found
+            # A visible source can also contain future rows or fields. Apply the
+            # same cell visibility rule before returning an original region.
+            visible=self.store.select(
+                "SELECT name FROM observations WHERE source_id=? "
+                "AND TRY_CAST(json_extract_string(source_ref,'$.row') AS BIGINT)=? "
+                "AND json_extract_string(source_ref,'$.sheet') IS NOT DISTINCT FROM ?",
+                [req.source_id,req.row,sheet],as_of=req.as_of,scopes=req.scopes)
+            allowed={row['name'] for row in visible}
+            data={name:value for name,value in data.items() if name in allowed}
+            if req.column:
+                data={req.column:data[req.column]} if req.column in data else {}
+            if not data:
+                return {'status':'region_not_found'}
+            return {'source_id':req.source_id,'sheet':sheet,'row':req.row,'data':data,'status':'source_transcribed'}
         if source["format"]==".pdf":
             from pypdf import PdfReader
             pages=PdfReader(str(path)).pages
@@ -306,6 +357,37 @@ class ManufacturingTools:
         return {"as_of":req.as_of,"records":records,"evidence_ids":[o["id"] for o in records],
                 "warnings":warnings,"temporal_integrity":"row_level_only" if warnings else "field_level_if_supplied"}
 
+    def analysis(self, **kwargs):
+        from .analysis import DeterministicAnalysis
+        v=self._visibility(kwargs)
+        key=(v['as_of'],tuple(sorted(v['scopes'])))
+        if key not in self._analyses:
+            self._analyses[key]=DeterministicAnalysis(self.store,as_of=v['as_of'],scopes=key[1])
+        return self._analyses[key]
+
+    def summarize_series(self, **kwargs) -> dict:
+        v=self._visibility(kwargs)
+        prepared=self.analysis(**kwargs).prepare()
+        rows=prepared['series']
+        for key in ('source_id','entity_id','name','sheet'):
+            if key in kwargs: rows=[r for r in rows if r[key]==kwargs[key]]
+        selected=rows[v['offset']:v['offset']+v['limit']]
+        anomalies=[a for a in prepared['anomalies'] if all(key not in kwargs or a.get(key)==kwargs[key] for key in ('source_id','entity_id','name','sheet'))]
+        return {'series':selected,'series_count':len(rows),'anomalies':anomalies[:v['limit']],
+                'limitations':prepared['limitations'],
+                'evidence_ids':list(dict.fromkeys(i for r in selected for i in r['evidence_ids']))}
+
+    def calculate_metrics(self, **kwargs) -> dict:
+        req=MetricRequest.model_validate({'as_of':self.as_of,'scopes':list(self.scopes),**kwargs})
+        analysis=self.analysis(as_of=req.as_of,scopes=req.scopes)
+        metrics=[analysis.calculate(spec) for spec in req.metrics]
+        return {'metrics':metrics,'evidence_ids':list(dict.fromkeys(i for m in metrics for i in m['evidence_ids']))}
+
+    def align_series(self, **kwargs) -> dict:
+        req=AlignmentRequest.model_validate({'as_of':self.as_of,'scopes':list(self.scopes),**kwargs})
+        return self.analysis(as_of=req.as_of,scopes=req.scopes).align(req.left,req.right,method=req.method,
+                tolerance_hours=req.tolerance_hours,limit=req.limit,offset=req.offset,allow_time_reordering=req.allow_time_reordering)
+
     def handlers(self) -> dict[str,Any]:
         def typed(method):
             def call(**kwargs):
@@ -313,4 +395,4 @@ class ManufacturingTools:
             return call
         return {name:typed(getattr(self,name)) for name in ("inspect_data","infer_schema","reconcile_entities",
                 "normalize_measurements","query_data","search_evidence","verify_evidence",
-                "extract_region","get_process_context","get_state_at")}
+                "extract_region","get_process_context","get_state_at","summarize_series","calculate_metrics","align_series")}

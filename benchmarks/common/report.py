@@ -10,7 +10,10 @@ ROOT = Path(__file__).resolve().parents[2]
 def generate(benchmark: str) -> Path:
     result_path = ROOT / "results" / benchmark / "baseline_results.json"
     result = json.loads(result_path.read_text(encoding="utf-8"))
-    lines = [f"# {benchmark.upper()} benchmark report", "", "## Dataset and provenance", ""]
+    from benchmarks.common.engineering_work import HEADLINE
+    lines = [f"# {benchmark.upper()} benchmark report", "", f"Primary endpoint: **{HEADLINE}**.", "",
+             "This automated extraction report does not measure human effort or reviewed engineering work. See `docs/engineering_work_benchmarks.md` for A. total effort, B. unfamiliar data and C. trustworthiness, and the comparison report for any collected effort ledgers.", "",
+             "## Dataset and provenance", ""]
     def show(value: object) -> str:
         return "N/A" if value is None else str(value)
     if benchmark == "cho":
