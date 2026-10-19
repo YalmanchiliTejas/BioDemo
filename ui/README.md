@@ -70,3 +70,12 @@ runtime charts. The replay leads with a short synthetic-data label, model figure
 and the animated workflow. Detailed context, original report excerpts, methodology
 and the illustrative calculator are expandable below the visuals. Material
 provenance and scientific-review qualifications stay visible near the figures.
+
+Launch credibility corrections are documented in
+[LAUNCH_SCIENTIFIC_CREDIBILITY_PASS.md](../docs/LAUNCH_SCIENTIFIC_CREDIBILITY_PASS.md).
+Public narratives now use explicitly editorial, output-hash-bound publication
+reviews; original unreviewed reports are linked as legacy artifacts. Do not
+replace raw report text with these notes or promote old runs' scientific status.
+The replay cost model, held-lot strip and exposure plot are removed. Run
+`node --test ui/scripts/test_public_reviews.mjs` from the repository root and
+use `ui/scripts/check_publication.cjs` with Playwright for the all-case phrase scan.

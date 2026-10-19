@@ -6,7 +6,6 @@ import {
 import { RiAlertLine, RiShieldCheckLine } from "@remixicon/react";
 import raw from "./data/fresenius.json";
 import DivergenceTimeline from "./DivergenceTimeline";
-import ProjectedSavings from "./ProjectedSavings";
 import BenchmarkResults from "./BenchmarkResults";
 import FreseniusContext from "./FreseniusContext";
 import PilotCTA from "./PilotCTA";
@@ -31,16 +30,17 @@ const leadDays = Math.round(elapsedDays(view.escalation.time, view.recognized.ti
 const unaddressed = (projected: boolean) => lotDays(view.lots, projected ? view.escalation.time : view.recognized.time, projected);
 
 function KpiCards() {
-  const cards = [...view.kpis.map(k => k.kind === "date" ? { ...k, delta: `About ${leadDays} days in simulation` } : k), {
+  const cards = [...view.kpis.filter(k => k.label !== "Flagged lots held for a QA decision").map(k => k.kind === "date" ? { ...k, delta: `About ${leadDays} days in simulation` } : k), {
     label: "Flagged-lot days in market, unaddressed", before: unaddressed(false), after: unaddressed(true), kind: "count",
     before_note: "until assumed complaint time", after_note: "until assumed escalation time", delta: `${(unaddressed(false) - unaddressed(true)).toFixed(1)} fewer modeled lot-days`,
   }];
   const show = (k: Kpi, v: string | number) => (k.kind === "date" ? fmt(String(v), true) : typeof v === "number" ? k.label.startsWith("Flagged-lot days") ? v.toFixed(1) : Math.round(v).toLocaleString() : v);
   return (
-    <Grid numItemsSm={2} numItemsLg={5} className="gap-4">
+    <Grid numItemsSm={2} numItemsLg={4} className="gap-4">
       {cards.map(k => (
         <Card key={k.label} className="flex flex-col gap-3 p-4">
           <Text className="min-h-[2.5rem] font-medium text-tremor-content-strong">{k.label}</Text>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-800">Illustrative, assumed outcome</p>
           <div className="grid grid-cols-2 gap-3">
             <div><p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Baseline</p>
               <p className="text-xl font-semibold text-red-700">{show(k, k.before)}</p></div>
@@ -51,6 +51,7 @@ function KpiCards() {
           <details className="text-xs text-gray-500"><summary className="cursor-pointer">Assumptions</summary><p className="mt-1">Baseline: {k.before_note}. Assumed QA: {k.after_note}.</p></details>
         </Card>
       ))}
+      <p className="col-span-full text-xs text-amber-800">QA acceptance, holds, dates and counterfactual outcomes are scripted. These figures are not measured agent performance or demonstrated recall prevention.</p>
       <details className="col-span-full text-xs text-gray-500"><summary className="cursor-pointer">Date-counting methodology · modeled outcomes</summary><p className="mt-1">Elapsed UTC hours ÷ 24; shipment-to-escalation intervals exclude the endpoint, with no inclusive day counting. Sum exact lot-day intervals before rounding totals. The lead time rounds 288.86 elapsed days to about 289; all modeled outcomes depend on assumed event times.</p></details>
     </Grid>
   );
@@ -162,8 +163,8 @@ function EventFeeds() {
             <TabPanel key={i}><List className="mt-2">{events.map(e => (
               <ListItem key={e.id} className="items-start gap-4 py-3">
                 <span className="w-24 shrink-0 text-xs text-gray-400">{fmt(e.time, true)}</span>
-                <div className="flex-1"><p className="text-sm font-medium text-tremor-content-strong">{e.title}</p><p className="text-xs text-gray-500">{e.detail.slice(0, 160)}</p></div>
-                <Badge color={sevColor(e.severity)} size="xs">{e.severity}</Badge>
+                <div className="flex-1"><p className="text-sm font-medium text-tremor-content-strong">{i === 1 ? "Proposed QA assessment · scripted" : e.title}</p><p className="text-xs text-gray-500">{i === 1 ? "Editorial replay label: prompt QA review under the site’s escalation procedure. No approved routing policy or severity meanings are supplied." : e.detail}</p></div>
+                <Badge color="gray" size="xs">{i === 1 ? "Proposed" : "Scenario event"}</Badge>
               </ListItem>))}</List></TabPanel>
           ))}
         </TabPanels>
@@ -184,8 +185,7 @@ function SyntheticReplay() {
       <PilotCTA compact />
       <KpiCards />
       <DivergenceTimeline recorded={data.recorded_events} agent={data.agent_events} lots={view.lots} forkId="AI-EVT-006" />
-      <Grid numItemsLg={2} className="gap-6"><BioburdenTrend /><MarketExposure /></Grid>
-      <BatchTracker />
+      <BioburdenTrend />
       <details className="rounded-lg border border-gray-200 p-4"><summary className="cursor-pointer text-sm font-semibold">Public FDA facts, simulation assumptions and date methodology</summary>
       <div className="mt-4 space-y-5">
         <FreseniusContext />
@@ -211,7 +211,6 @@ function SyntheticReplay() {
       <Callout title="How to read this projection" color="amber">
         <ul className="list-disc space-y-1 pl-4">{view.assumptions.map(a => <li key={a}>{a}</li>)}</ul>
       </Callout>
-      <details className="rounded-lg border border-gray-200 p-4"><summary className="cursor-pointer text-sm font-semibold">Explore an illustrative planning model · savings unmeasured</summary><div className="mt-4"><ProjectedSavings projection={data.projection} /></div></details>
       <PilotCTA />
     </main>
   );

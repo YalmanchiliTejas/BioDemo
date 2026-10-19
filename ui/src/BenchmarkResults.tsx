@@ -3,18 +3,19 @@ import { Badge, BarChart, Callout, Card, Grid, Table, TableBody, TableCell, Tabl
 import snapshot from "./data/benchmarks.json";
 import BenchmarkSummary from "./BenchmarkSummary";
 import PilotCTA from "./PilotCTA";
+import PublicationReview from "./PublicationReview";
 
 type Run = (typeof snapshot.runs)[number];
 type Source = { path?: string; sheet?: string; cell?: string; row?: number; column?: string; page?: number; span?: string };
 type Fact = { statement: string; evidence_ids?: string[]; classification?: string };
 type Check = { observation_id: string; source_ref: Source; value_matches: boolean | null; source_integrity: boolean };
 type Trajectory = { source: string; limitation: string; selection: string; series: { label: string; sheet: string; column: string; points: { time_hours: number; value: number }[] }[] };
-type Detail = { run_id: string; assessment: string | null; cross_scope_synthesis: string | null; observed_facts: Fact[]; hypotheses: Fact[]; open_questions: string[]; source_checks: Check[]; diagnostic: string | null; trajectory: Trajectory | null; coverage: {entity_id: string | null}[] };
+type Detail = { run_id: string; output_sha256: string | null; assessment: string | null; cross_scope_synthesis: string | null; observed_facts: Fact[]; hypotheses: Fact[]; open_questions: string[]; source_checks: Check[]; diagnostic: string | null; trajectory: Trajectory | null; coverage: {entity_id: string | null}[] };
 const runs = snapshot.runs as Run[];
 const executionDates = [...new Set(runs.flatMap(run => [run.started_at, run.ended_at].filter(Boolean).map(time => new Date(time!).toISOString().slice(0, 10))))].sort();
 const final = (run: Run) => run.investigation_status === "complete";
 const verified = (run: Run) => ["automatically_verified", "verified_with_human_review"].includes(run.source_verification_status);
-const caseLabel = (run: Run) => run.execution_status === "failed" ? "Execution failed" : !final(run) ? "Partial report" : run.label;
+const caseLabel = (run: Run) => run.execution_status === "failed" ? "Execution failed" : !final(run) ? "Partial result — scientific and source review pending" : run.label;
 const minutes = (seconds: number | null) => seconds == null ? "Not measured" : `${(seconds / 60).toFixed(1)} min`;
 const coordinates = (source: Source) => [source.path, source.sheet, source.cell ?? (source.row ? `row ${source.row}, ${source.column ?? ""}` : null), source.page ? `page ${source.page}` : null, source.span].filter(Boolean).join(" · ");
 
@@ -53,7 +54,7 @@ export default function BenchmarkResults() {
     fetch(run.details_url, { signal: controller.signal }).then(async response => {
       if (!response.ok) throw new Error("Recorded case details could not be loaded.");
       const result = await response.json();
-      if (result.run_id !== run.run_id) throw new Error("Case data does not match the requested run.");
+      if (result.run_id !== run.run_id || result.output_sha256 !== run.output_sha256) throw new Error("Case data does not match the requested run and output hash.");
       return result;
     }).then(result => { if (active) setLoaded(result); }).catch(error => { if (active && error.name !== "AbortError") setLoadError({id:run.run_id, message:error.message}); });
     return () => { active = false; controller.abort(); };
@@ -80,15 +81,7 @@ export default function BenchmarkResults() {
   const experiments = [...new Set((detail?.coverage ?? []).map(unit => unit.entity_id?.match(/EXP\d+/)?.[0]).filter((id): id is string => Boolean(id)))].sort();
   const chartExperiment = detail?.trajectory?.source.match(/EXP\d+/)?.[0];
   const experiment = experimentChoice?.run === selected ? experimentChoice.experiment : chartExperiment ?? experiments[0] ?? "";
-  const groupOf = (fact: Fact) => fact.statement.match(/EXP\d+/)?.[0] ?? (fact.evidence_ids ?? []).map(id => detail?.source_checks.find(check => check.observation_id === id)?.source_ref.path?.match(/EXP\d+/)?.[0]).find(Boolean);
-  const inGroup = (fact: Fact) => !experiments.length || groupOf(fact) === experiment;
-  const illustrativeFacts = [...(detail?.observed_facts ?? [])].filter(inGroup).sort((a, b) => {
-    const priority = (fact: Fact) => /viability|\bVCD\b|cell density|bioburden|endotoxin/i.test(fact.statement) ? 2 : /growth|lactate|glucose|divergence/i.test(fact.statement) ? 1 : 0;
-    return priority(b) - priority(a);
-  }).slice(0, 3);
   const sourceLine = chartExperiment === experiment ? detail?.trajectory : null;
-  const hypotheses = (detail?.hypotheses ?? []).filter(inGroup);
-  const questions = (detail?.open_questions ?? []).filter(question => !experiments.length || question.match(/EXP\d+/)?.[0] === experiment);
   const partialStatus = run && !final(run) && run.execution_status !== "failed" ? `Partial report; ${run.numeric_review_items.length} assessment numbers lack source links and ${run.pending_source_reviews ?? "unknown"} source check(s) remain pending.` : null;
 
   return <div className="space-y-6" data-testid="measured-benchmarks">
@@ -122,7 +115,7 @@ export default function BenchmarkResults() {
       {run && detail && <div data-testid="case-panel" data-run-id={run.run_id}>
         <div className="mt-5 flex flex-wrap gap-2"><Badge color={final(run) ? verified(run) ? "emerald" : "amber" : "red"}>{caseLabel(run)}</Badge><Badge color="gray">Independent review pending</Badge><Badge color="gray">{minutes(run.runtime_seconds)}</Badge></div>
         <p className="mt-3 text-sm text-gray-600">{partialStatus ?? run.disclosure}</p>
-        {run.benchmark_id === "fresenius" && <p className="mt-2 text-xs text-gray-500">Legacy synthetic benchmark: these frozen records assume open deviations at release. That is not verified Fresenius history. The revised public replay leaves real closure dates unknown; these original outputs have not been rewritten or rerun.</p>}
+        {run.benchmark_id === "fresenius" && <p className="mt-2 text-xs text-gray-500">Legacy synthetic benchmark: the earlier synthetic deviation-state assumptions are not verified Fresenius history and have not been rerun. The revised public narrative leaves real deviation closure dates unknown.</p>}
         <div className="mt-4 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
           <div><p className="text-gray-400">Reviewed/screened units</p><p className="font-semibold">{run.coverage_reviewed ?? "—"}/{run.coverage_total ?? "—"}</p></div>
           <div><p className="text-gray-400">Automatic source checks</p><p className="font-semibold">{run.source_check_count ? `${run.automatically_verified_sources}/${run.source_check_count}` : "Unavailable"}</p></div>
@@ -140,28 +133,15 @@ export default function BenchmarkResults() {
             <p className="mt-2 break-words text-xs text-gray-500">{sourceLine.source} · {sourceLine.series.map(s => `${s.sheet} / ${s.column}`).join(" · ")}</p>
             <p className="mt-1 text-xs text-gray-500">{sourceLine.limitation}</p><details className="mt-1 text-xs text-gray-400"><summary className="cursor-pointer">Example selection</summary>{sourceLine.selection}</details>
           </section>}
-          {detail.assessment && final(run) && <details><summary className="cursor-pointer text-sm font-semibold">Investigation assessment · full scope</summary><p className="mt-2 whitespace-pre-wrap text-sm text-gray-600">{detail.assessment}</p></details>}
           {partialStatus && <p className="text-xs text-gray-500">The raw agent assessment is retained in the technical artifact and may describe itself as complete. The evaluated status above takes precedence.</p>}
           {run.execution_status === "failed" && <Callout color="red" title="Runtime failure">Execution ended without a retained final report after {minutes(run.runtime_seconds)}. The recorded runtime exited with an error; wall-clock exhaustion is not established. Diagnostics are retained in the downloadable technical artifact.</Callout>}
           {run.numeric_review_items.length > 0 && <Callout color="amber" title="Numerical review remains open">Unlinked assessment literals: {run.numeric_review_items.map(item => item.literal).join(", ")}. These are not certified numerical claims.</Callout>}
-          <details><summary className="cursor-pointer text-sm font-semibold">Explore observations, competing explanations and next checks</summary>
-          <Grid numItemsLg={2} className="mt-4 gap-5">
-            <section><h3 className="text-sm font-semibold">Recorded model observations{experiment ? ` · ${experiment}` : ""}</h3><p className="mt-1 text-xs text-gray-500">{illustrativeFacts.length} selected excerpts from the agent report; not independently scientifically reviewed. Source checks validate extracted locations and values, not every accompanying inference. Fresenius statements describe the simulation only.</p><div className="mt-3 space-y-3">{illustrativeFacts.map((fact, i) => <div key={i} className="rounded-lg bg-gray-50 p-3">
-              <p className="text-sm text-gray-700">{fact.statement}</p>
-              <div className="mt-2 space-y-1">{(fact.evidence_ids ?? []).map(id => {
-                const check = detail.source_checks.find(c => c.observation_id === id);
-                return <p key={id} className="break-words text-xs text-gray-500">{check ? coordinates(check.source_ref) : id}{check?.value_matches === null ? " · review pending" : ""}</p>;
-              })}</div>
-            </div>)}</div></section>
-            <section><h3 className="text-sm font-semibold">Competing explanations{experiment ? ` · ${experiment}` : ""} · not verified causes</h3><div className="mt-3 space-y-3">{hypotheses.slice(0, 3).map((hypothesis, i) => <p key={i} className="rounded-lg bg-amber-50 p-3 text-sm text-gray-700">{hypothesis.statement}</p>)}</div>
-              {hypotheses.length === 0 && <p className="mt-3 text-sm text-gray-500">No experiment-specific hypothesis excerpt is available here. See the full report for cross-experiment interpretation.</p>}
-              {hypotheses.some(h => /\bfeed\b/i.test(h.statement)) && <p className="mt-3 text-xs text-gray-500">Feed-log termination alone does not establish physical feed interruption. Delivery records and operating strategy still require review.</p>}
-              {questions.length > 0 && <details className="mt-3"><summary className="cursor-pointer text-sm font-semibold">Unresolved questions{experiment ? ` · ${experiment}` : ""}</summary><ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-gray-600">{questions.map((q, i) => <li key={i}>{q}</li>)}</ul></details>}
-            </section>
-          </Grid>
-          </details>
+          <PublicationReview caseId={run.case_id} report={detail} experiment={experiment} />
         </div>}
-        <a className="mt-5 inline-block text-sm font-medium text-emerald-700 underline" href={run.details_url} target="_blank" rel="noreferrer">Open complete recorded case data and source coordinates ↗</a>
+        <details className="mt-5 text-xs text-gray-500"><summary className="cursor-pointer">Legacy raw artifact · contains unreviewed original claims</summary>
+          <p className="mt-2">Original agent assertions, including disputed causal/routing wording, are preserved for audit. They are not validated public findings. Publication notes above are separate editorial corrections, not new agent output.</p>
+          <a className="mt-2 inline-block font-medium text-emerald-700 underline" href={run.details_url} target="_blank" rel="noreferrer">Download legacy raw case data and unchanged source coordinates ↗</a>
+        </details>
       </div>}
     </Card>
     <details className="rounded-lg border border-gray-200 p-4"><summary className="cursor-pointer text-sm font-semibold">How to read the results · methodology, dates and provenance</summary>
@@ -174,7 +154,7 @@ export default function BenchmarkResults() {
       <Table className="mt-4"><TableHead><TableRow>{["Case", "Investigation", "Source verification", "Time", "Calculations", "Pending visual checks", "Numerical review items"].map(h => <TableHeaderCell key={h}>{h}</TableHeaderCell>)}</TableRow></TableHead>
         <TableBody>{runs.map(r => <TableRow key={r.run_id}>
           <TableCell><button onClick={() => setSelected(r.run_id)} className="font-semibold text-emerald-700 underline">{r.case_id}</button><p className="text-xs text-gray-400">{r.benchmark_id === "cho" ? "Laboratory data" : "Synthetic scenario"}</p></TableCell>
-          <TableCell><Badge color={final(r) ? "emerald" : "red"}>{r.execution_status === "failed" ? "Execution failed" : final(r) ? "Final report" : "Partial report"}</Badge></TableCell>
+          <TableCell><Badge color={final(r) ? "emerald" : "red"}>{r.execution_status === "failed" ? "Execution failed" : final(r) ? "Final report" : "Partial result"}</Badge></TableCell>
           <TableCell>{verified(r) ? "Checks passed" : r.source_verification_status === "human_review_pending" ? "Visual review pending" : "Unavailable"}</TableCell>
           <TableCell>{minutes(r.runtime_seconds)}</TableCell><TableCell>{r.calculation_count ?? "—"}</TableCell><TableCell>{r.pending_source_reviews ?? "—"}</TableCell><TableCell>{r.execution_status === "failed" ? "Unavailable" : r.numeric_review_items.length}</TableCell>
         </TableRow>)}</TableBody>
