@@ -218,7 +218,7 @@ function SyntheticReplay() {
 
 export default function App() {
   return <main className="mx-auto max-w-7xl px-6 py-8">
-    <p className="mb-4 text-sm font-semibold tracking-tight text-emerald-800">lotic · Manufacturing AI OS</p>
+    <p className="mb-4 text-sm font-semibold tracking-tight text-emerald-800">Manufacturing AI OS</p>
     <TabGroup defaultIndex={new URLSearchParams(window.location.search).get("tab") === "replay" ? 0 : 1}><TabList variant="solid"><Tab>Synthetic workflow replay</Tab><Tab>Measured benchmarks</Tab></TabList>
       <TabPanels><TabPanel><SyntheticReplay /></TabPanel><TabPanel className="mt-8"><BenchmarkResults /></TabPanel></TabPanels>
     </TabGroup>

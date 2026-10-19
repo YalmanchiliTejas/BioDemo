@@ -15,7 +15,7 @@ export default function ProjectedSavings({ projection }: Props) {
   }));
   return <Card>
     <Title>Planning sandbox · savings are unmeasured</Title>
-    <Text>Every input below is an illustrative assumption, not an industry average or a measured Lotic result. Calendar delays do not establish labor savings. Use pilot measurements before making a business case.</Text>
+    <Text>Every input below is an illustrative assumption, not an industry average or a measured benchmark result. Calendar delays do not establish labor savings. Use pilot measurements before making a business case.</Text>
     <div className="mt-5 grid gap-5 lg:grid-cols-2">
       <div className="rounded-lg border border-gray-200 p-4">
         {[
