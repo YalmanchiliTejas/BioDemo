@@ -58,6 +58,12 @@ def run_case(manifest_path, mode, *, output_root=None, isolated=True, operator_i
         run.update(status='not_tested',reason='Requires observed hands-on workflow; no marketing comparison or fabricated output.' if mode in ('manual','incumbent') else 'Updated SDK trial requires --prior-run from the earlier completed isolated investigation.' if case.get('update_requires_prior_run') else case['condition_reason'])
         sink.emit(actor='evaluator',stage='setup',action='comparison_not_executed',status='unresolved')
     else:
+        with sink.interval(actor='evaluator',stage='setup',action='materialize_case_inputs') as event:
+            # Inputs come from the shared checksum cache or remote store; the
+            # audit below still verifies every byte against the frozen manifest.
+            from .input_store import materialize
+            inputs=materialize(manifest_path)
+            event.update(downloaded_input_count=len(inputs['downloaded']),linked_input_count=len(inputs['linked']))
         with sink.interval(actor='evaluator',stage='verification',action='leakage_and_version_audit'):
             run['audit']=audit_case(manifest_path)
         if not run['audit']['pass']:

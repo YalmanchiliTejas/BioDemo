@@ -8,6 +8,7 @@ import tempfile
 import os
 import signal
 from pathlib import Path
+from src.paths import DEFAULT_PRIME_BUNDLE
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -39,7 +40,7 @@ def _profile(extra_hidden=(), package=None) -> str:
         # are not. Metadata traversal stays available for normal imports.
         roots = [ROOT / "src", ROOT / "benchmarks/common", ROOT / "benchmarks/baselines",
                  ROOT / "prime_skills", ROOT / ".venv", Path(sys.prefix), Path(sys.base_prefix), package.parent,
-                 Path(os.environ.get("PRIME_AGENT_BUNDLE_ROOT", ROOT.parent / "prime-agent-bio")),
+                 Path(os.environ.get("PRIME_AGENT_BUNDLE_ROOT", DEFAULT_PRIME_BUNDLE)),
                  Path("/usr"), Path("/System"), Path("/Library"), Path("/opt"), Path("/dev"),
                  Path("/private/var/db"), Path("/private/etc"), Path("/etc"), Path(__file__).parent]
         if shutil.which("node"):
