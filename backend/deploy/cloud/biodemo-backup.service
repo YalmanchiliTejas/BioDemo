@@ -1,0 +1,10 @@
+[Unit]
+Description=Encrypted off-host BioDemo database backup
+Requires=docker.service
+After=docker.service
+RequiresMountsFor=/srv/biodemo
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/biodemo/app/backend/deploy/cloud
+ExecStart=/usr/bin/docker compose --profile operations run --rm backup

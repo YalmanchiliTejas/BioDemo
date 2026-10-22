@@ -1,0 +1,38 @@
+services:
+  api:
+    build:
+      context: ../../..
+      dockerfile: backend/deploy/cmo-ingestion/Dockerfile
+      target: api
+    env_file:
+      - ../../.env.local
+    environment:
+      CMO_INGESTION_ROOT: /data/ingestion
+      CMO_PACKAGES_ROOT: /packages
+      CMO_REPORT_PATH: /reports/report.json
+      DOCLING_ARTIFACTS_PATH: /models
+      HF_HUB_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      DO_NOT_TRACK: "1"
+    volumes:
+      - state:/data
+      - ../../benchmarks/cmo_ingestion/generated:/packages:ro
+      - ../../results/cmo_ingestion:/reports:ro
+      - ../../.cache/cmo-docling-models:/models:ro
+    networks: [local]
+    security_opt: [no-new-privileges:true]
+  web:
+    build:
+      context: ../../..
+      dockerfile: backend/deploy/cmo-ingestion/Dockerfile
+      target: web
+    ports: ["127.0.0.1:8080:80"]
+    depends_on: [api]
+    networks: [local]
+    security_opt: [no-new-privileges:true]
+volumes:
+  state:
+networks:
+  local:
+    internal: true

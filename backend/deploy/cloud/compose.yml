@@ -1,0 +1,130 @@
+name: biodemo-cloud
+x-control: &control
+  image: ${CONTROL_IMAGE:?Set a built control image digest}
+  restart: unless-stopped
+  read_only: true
+  tmpfs: ["/tmp:rw,nosuid,nodev,size=64m"]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  mem_limit: 512m
+  pids_limit: 128
+  environment: &environment
+    DEPLOYMENT_TENANT: ${DEPLOYMENT_TENANT:?Set a deployment tenant}
+    ARTIFACT_BUCKET: ${ARTIFACT_BUCKET:?Set a private versioned Spaces bucket}
+    SPACES_ENDPOINT: ${SPACES_ENDPOINT:?Set the regional HTTPS Spaces endpoint}
+    SPACES_REGION: ${SPACES_REGION:?Set Spaces region}
+    SPACES_CREDENTIALS_FILE: /run/secrets/spaces_credentials
+    OBJECT_MASTER_KEY_FILE: /run/secrets/object_master_key
+  networks: [control, outbound]
+services:
+  backup:
+    <<: *control
+    profiles: [operations]
+    restart: "no"
+    user: "0:0"
+    command: [python, -m, src.cloud_backend.backup]
+    environment:
+      <<: *environment
+      ARTIFACT_BUCKET: ${BACKUP_BUCKET:?Set a separate backup bucket}
+      SPACES_CREDENTIALS_FILE: /run/secrets/backup_credentials
+    secrets: [backup_credentials, object_master_key]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /srv/biodemo/backup-staging:/backups
+  edge:
+    image: ${CADDY_IMAGE:?Set a pinned Caddy image digest}
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?Set the API DNS name}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /srv/biodemo/caddy:/data
+    networks: [control, outbound]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    pids_limit: 128
+  api:
+    <<: *control
+    user: "10001:10001"
+    environment:
+      <<: *environment
+      DATABASE_URL_FILE: /run/secrets/api_database_url
+      OIDC_ISSUER: ${OIDC_ISSUER:?Set the trusted issuer}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:?Set the audience}
+      OIDC_JWKS_URL: ${OIDC_JWKS_URL:?Set the trusted HTTPS JWKS URL}
+    secrets: [api_database_url, spaces_credentials, object_master_key, db_ca]
+    depends_on:
+      db: {condition: service_healthy}
+  dispatcher:
+    <<: *control
+    # Trusted host administrator: Docker socket is equivalent to root.
+    user: "0:0"
+    command: [python, -m, src.cloud_backend.entrypoint, dispatcher]
+    environment:
+      <<: *environment
+      DATABASE_URL_FILE: /run/secrets/dispatcher_database_url
+      AGENT_IMAGE: ${AGENT_IMAGE:?Set the approved agent image digest}
+      EGRESS_PROXY_CONTAINER: biodemo-egress
+      BIODEMO_PRIME_MODEL: ${BIODEMO_PRIME_MODEL:?Set the approved provider/model}
+      MODEL_SECRET_ENV: ${MODEL_SECRET_ENV:?Set the provider credential variable name}
+      MODEL_SECRET_FILE: /run/secrets/model_secret
+      MAX_ACTIVE_AGENTS: "2"
+    secrets: [dispatcher_database_url, spaces_credentials, object_master_key, model_secret, db_ca]
+    volumes: [/var/run/docker.sock:/var/run/docker.sock]
+    depends_on:
+      db: {condition: service_healthy}
+      egress: {condition: service_started}
+  db:
+    image: ${POSTGRES_IMAGE:?Set a pinned PostgreSQL 17 image digest}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: migration_admin
+      POSTGRES_DB: investigations
+      POSTGRES_PASSWORD_FILE: /run/secrets/migration_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets: [migration_password, db_server_cert, db_server_key]
+    volumes:
+      - /srv/biodemo/postgres:/var/lib/postgresql/data
+      - ../../src/cloud_backend/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+      - ../../src/cloud_backend/runtime_roles.sql:/docker-entrypoint-initdb.d/20-roles.sql:ro
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks: [control]
+    security_opt: [no-new-privileges:true]
+    shm_size: 128m
+    mem_limit: 1g
+    pids_limit: 256
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U migration_admin -d investigations"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    # Queries and statement text can contain PHI; use only metadata application audit.
+    command: [postgres, -c, log_statement=none, -c, log_min_error_statement=panic,
+              -c, ssl=on, -c, ssl_cert_file=/run/secrets/db_server_cert,
+              -c, ssl_key_file=/run/secrets/db_server_key,
+              -c, hba_file=/etc/postgresql/pg_hba.conf]
+  egress:
+    image: ${SQUID_IMAGE:?Set a pinned Ubuntu Squid image digest}
+    container_name: biodemo-egress
+    restart: unless-stopped
+    volumes: ["./squid.conf:/etc/squid/squid.conf:ro"]
+    networks: [outbound]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    pids_limit: 128
+networks:
+  control:
+    internal: true
+  outbound: {}
+secrets:
+  api_database_url: {file: ./secrets/api_database_url}
+  dispatcher_database_url: {file: ./secrets/dispatcher_database_url}
+  migration_password: {file: ./secrets/migration_password}
+  spaces_credentials: {file: ./secrets/spaces_credentials.json}
+  object_master_key: {file: ./secrets/object_master_key}
+  model_secret: {file: ./secrets/model_secret}
+  db_ca: {file: ./secrets/db_server.crt}
+  db_server_cert: {file: ./secrets/db_server.crt}
+  db_server_key: {file: ./secrets/db_server.key}
+  backup_credentials: {file: ./secrets/backup_credentials.json}

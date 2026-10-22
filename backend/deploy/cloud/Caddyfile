@@ -1,0 +1,14 @@
+{
+    admin off
+}
+{$API_DOMAIN} {
+    # Access logs stay disabled: URLs and bodies must not enter shared logs.
+    request_body {
+        max_size 65MB
+    }
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options nosniff
+    }
+    reverse_proxy api:8000
+}

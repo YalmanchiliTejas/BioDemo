@@ -1,0 +1,29 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - cryptsetup
+  - unattended-upgrades
+  - ca-certificates
+write_files:
+  - path: /etc/ssh/sshd_config.d/90-biodemo.conf
+    permissions: '0644'
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin prohibit-password
+      X11Forwarding no
+      AllowTcpForwarding no
+  - path: /etc/docker/daemon.json
+    permissions: '0644'
+    content: |
+      {"data-root":"/srv/biodemo/docker", "live-restore":true, "log-driver":"local", "log-opts":{"max-size":"10m","max-file":"3"}}
+runcmd:
+  # Do not start Docker on an unencrypted filesystem. Unlock/mount the data volume first.
+  - systemctl stop docker.service docker.socket
+  - mkdir -p /etc/systemd/system/docker.service.d
+  - [sh, -c, 'printf "[Unit]\nRequiresMountsFor=/srv/biodemo\n[Service]\nExecStartPre=/usr/bin/mountpoint -q /srv/biodemo\n" > /etc/systemd/system/docker.service.d/encrypted-data.conf']
+  - systemctl daemon-reload
+  - systemctl restart ssh
