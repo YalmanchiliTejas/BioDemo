@@ -71,7 +71,8 @@ class Platform:
 
     @classmethod
     def from_env(cls) -> "Platform":
-        return cls(RecordStore(os.environ.get("LIFESCI_DATABASE_URL", ":memory:")),
+        migrate = os.environ.get("LIFESCI_DB_MIGRATE", "1").strip().lower() not in {"0", "false", "no"}
+        return cls(RecordStore(os.environ.get("LIFESCI_DATABASE_URL", ":memory:"), migrate=migrate),
                    allow_unqualified=os.environ.get("LIFESCI_ALLOW_UNQUALIFIED_ROUTES") == "1")
 
     def extend_api(self, app: Any, ctx_dep: Any, idempotent: Any) -> None:

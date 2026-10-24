@@ -112,3 +112,17 @@ def test_audit_and_revisions_append_only(pg):
     with pytest.raises(psycopg.errors.RaiseException):
         owner.execute("DELETE FROM aggregate_revisions WHERE tenant_id='tenant-3'")
     owner.close()
+
+
+def test_ensure_runtime_role_is_unprivileged_and_migrated(pg):
+    from src.lifesci.store import ensure_postgres_role, verify_postgres_role
+
+    runtime_url = pg.app.replace("lifesci_app", "lifesci_pw_app")
+    ensure_postgres_role(pg.owner, "lifesci_pw_app", "correct horse battery staple")
+    migrate_postgres(pg.owner, app_role="lifesci_pw_app")
+    assert verify_postgres_role(runtime_url) == "lifesci_pw_app"
+    with psycopg.connect(pg.owner, autocommit=True) as conn:
+        attrs = conn.execute(
+            "SELECT rolsuper, rolcreatedb, rolcreaterole, rolbypassrls FROM pg_roles WHERE rolname = 'lifesci_pw_app'"
+        ).fetchone()
+    assert attrs == (False, False, False, False)

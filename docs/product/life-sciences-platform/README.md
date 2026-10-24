@@ -43,7 +43,7 @@ Integrate existing systems of record by default. Native procedure/lab execution 
 - [x] Record architectural decisions and alternatives.
 - [x] Implement the shared contracts, gateway, missions and all eleven domain modules (`backend/src/lifesci/`).
 - [ ] Integrate every checklist capability — in progress: 63/77 fully, 14 partial (devices, live vendor systems, UI, durable orchestrator); see the checklist evidence column.
-- [x] Execute automated acceptance tests (256 passing, incl. PostgreSQL RLS and an end-to-end scenario) and a single-process load smoke.
+- [x] Execute automated acceptance tests (269 passing, incl. PostgreSQL RLS and an end-to-end scenario) and a single-process load smoke.
 - [ ] Execute workload tests at the documented profiles, scientific method review, model task evaluations on labeled data, and customer qualification.
 - [ ] Product/QA sign-off of the 11 assessment records.
 

@@ -17,8 +17,10 @@ audit/outbox (SQLite or PostgreSQL with RLS), identity and record ownership, evi
 lineage and invalidation, proposal → approval → intent → outcome actions, a
 deterministic-first model gateway with evaluation-gated routing and budgets, persistent
 missions, and procedure, execution, lab, integration, science, quality, network,
-collaboration and assurance modules. Run `.venv/bin/python -m pytest tests/lifesci -q`
-and `.venv/bin/python -m src.lifesci serve`. Status, measurements and gaps:
+collaboration and assurance modules. Local development runs on PostgreSQL; connection
+settings live in `backend/.env.local` (git-ignored; copy `backend/.env.local.example`).
+Run `.venv/bin/python -m pytest tests/lifesci -q` and
+`.venv/bin/python -m src.lifesci serve`. Status, measurements and gaps:
 [implementation guide](../docs/product/life-sciences-platform/implementation.md).
 
 ## Pharmaceutical investigation MVP (active build)

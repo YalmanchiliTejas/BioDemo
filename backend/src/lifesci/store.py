@@ -16,6 +16,7 @@ of backend.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -219,10 +220,62 @@ def migrate_postgres(owner_url: str, app_role: str | None = None) -> None:
         conn.execute(_PG_DDL)
         conn.execute(_PG_RLS)
         if app_role:
+            conn.execute(f'GRANT USAGE ON SCHEMA public TO "{app_role}"')
             conn.execute(f'GRANT SELECT, INSERT, UPDATE ON aggregates, outbox, leases, inbox, edges TO "{app_role}"')
             conn.execute(f'GRANT SELECT, INSERT, DELETE ON idx TO "{app_role}"')
             conn.execute(f'GRANT SELECT, INSERT ON aggregate_revisions, audit, blobs TO "{app_role}"')
             conn.execute(f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO "{app_role}"')
+
+
+_ROLE_NAME = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
+_PROTECTED_ROLES = {"postgres"}
+
+
+def ensure_postgres_role(owner_url: str, role: str, password: str) -> None:
+    """Create or update the non-owner login role used by the application.
+
+    The role gets LOGIN but no superuser, database creation, role creation or
+    BYPASSRLS, so row-level security applies to every query it runs.
+    """
+    import psycopg
+    from psycopg import sql
+
+    if role in _PROTECTED_ROLES:
+        raise ValueError(f"refusing to manage the privileged role {role!r}")
+    if not _ROLE_NAME.match(role):
+        raise ValueError("role must be 1-63 lowercase letters, digits or underscores, starting with a letter")
+    if len(password) < 16:
+        raise ValueError("app role passwords must be at least 16 characters")
+
+    with psycopg.connect(owner_url, autocommit=True) as conn:
+        ident = sql.Identifier(role)
+        exists = conn.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)).fetchone()
+        if exists:
+            conn.execute(sql.SQL("ALTER ROLE {} WITH LOGIN PASSWORD {}").format(ident, sql.Literal(password)))
+        else:
+            conn.execute(sql.SQL(
+                "CREATE ROLE {} WITH LOGIN PASSWORD {} NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"
+            ).format(ident, sql.Literal(password)))
+        conn.execute(sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(ident))
+
+
+def verify_postgres_role(url: str) -> str:
+    """Check that the runtime role can query the schema but is not above RLS.
+
+    Returns the connected role name. Raises if the connection cannot read the
+    platform tables or if the role bypasses row-level security.
+    """
+    import psycopg
+
+    with psycopg.connect(url, connect_timeout=15) as conn:
+        who = conn.execute("SELECT current_user").fetchone()[0]
+        privileged = conn.execute(
+            "SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user"
+        ).fetchone()[0]
+        if privileged:
+            raise RuntimeError(f"{who} is a superuser or bypasses row-level security")
+        conn.execute("SELECT count(*) FROM aggregates").fetchone()
+        return who
 
 
 class _Postgres:

@@ -10,28 +10,56 @@ Built 2026-10-23 in `backend/src/lifesci/`. This explains what exists, how to ru
 | Capabilities with partial implementation (unchecked; gap stated in the evidence column) | 14 / 77 |
 | Assessment records written ([assessments](assessments.md)) | 12 / 12 |
 | Assessment records verified (LS-044 by test; others await product/QA sign-off) | 1 / 12 |
-| Tests in `backend/tests/lifesci/` (all passing; includes 3 against a real local PostgreSQL 16, 5 against Temporal's time-skipping server and 1 cross-module end-to-end scenario) | 264 |
+| Tests in `backend/tests/lifesci/` (all passing; includes 4 against a real local PostgreSQL 16, 5 against Temporal's time-skipping server and 1 cross-module end-to-end scenario) | 269 |
 
 "Verified" means an automated test in this repository demonstrates the acceptance condition in a development environment. It is **not** customer qualification, validated accuracy, or a compliance claim. Simulated systems (fake REST server, in-memory MQTT/OPC UA clients, fake media provider, fake model provider) are named in each row's evidence.
 
 ## Run it
 
+Local configuration lives in `backend/.env.local` (git-ignored; copy `backend/.env.local.example`). The CLI loads it automatically, and real environment variables override it. Set `LIFESCI_ENV_FILE` to load a different file.
+
 ```bash
 cd backend
-.venv/bin/python -m pytest tests/lifesci -q          # 264 tests; PostgreSQL tests auto-skip without initdb/pg_ctl
+.venv/bin/python -m pytest tests/lifesci -q          # 269 tests; PostgreSQL tests auto-skip without initdb/pg_ctl
 .venv/bin/python scripts/lifesci_load_smoke.py       # single-process latency smoke (see below)
-.venv/bin/python -m src.lifesci serve --seed-demo --port 8100   # synthetic tenant demo-northfield, SQLite in .cache/
+.venv/bin/python -m src.lifesci serve --seed-demo --port 8100   # synthetic tenant demo-northfield
 # Durable missions: start a Temporal server, then
 #   TEMPORAL_ADDRESS=127.0.0.1:7233 .venv/bin/python -m src.lifesci worker
 #   TEMPORAL_ADDRESS=127.0.0.1:7233 .venv/bin/python -m src.lifesci serve
 # (both processes share LIFESCI_DATABASE_URL; install with `pip install -e '.[orchestration]'`)
-# PostgreSQL: run src.lifesci.store.migrate_postgres(owner_url, app_role="lifesci_app") once as owner,
-# then serve with LIFESCI_DATABASE_URL=postgresql://lifesci_app@host/db (non-owner, no BYPASSRLS).
+# Local PostgreSQL (default for the current development setup):
+#   createdb biodemo_lifesci
+#   # fill the owner and runtime URLs in backend/.env.local (see .env.local.example)
+#   .venv/bin/python -m src.lifesci db-migrate
+#   .venv/bin/python -m src.lifesci seed-demo
+# db-migrate creates/updates the non-owner app role, applies schema, RLS and triggers,
+# and verifies the runtime connection. Set LIFESCI_DB_MIGRATE=0 so the app never
+# attempts DDL. PostgreSQL binds to localhost only in the development setup.
 # Model providers are enabled only when ANTHROPIC_API_KEY / OPENAI_API_KEY are set, and a task kind is
 # routable only after an evaluation is recorded with ModelRegistry.qualify(...).
 ```
 
 Development API calls send `X-Tenant-Id` and `X-Actor-Id`; roles always come from stored assignments (`IdentityService.assign_role`). With `OIDC_ISSUER`, `OIDC_AUDIENCE`, `OIDC_JWKS_URL`, `DEPLOYMENT_TENANT` set, the API uses the existing `cloud_backend.auth.Verifier` instead.
+
+### Local PostgreSQL (current development setup)
+
+The running development app uses PostgreSQL 16 on `127.0.0.1:5432`, bound to localhost only:
+
+- Database `biodemo_lifesci`, owned by the local PostgreSQL user.
+- Runtime role `lifesci_app` (`LOGIN`, `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`, `NOINHERIT`, `NOBYPASSRLS`), so row-level security applies.
+- `backend/.env.local` holds `LIFESCI_MIGRATION_DATABASE_URL`, `LIFESCI_DATABASE_URL`, `LIFESCI_APP_ROLE=lifesci_app` and `LIFESCI_DB_MIGRATE=0`. It is git-ignored and holds the app password.
+- `db-migrate` applies the schema, RLS policies and append-only triggers, then verifies the runtime connection.
+- `seed-demo` writes the clearly labelled synthetic tenant `demo-northfield` (one mission, three evidence records, people and ownership configuration).
+
+To recreate the database from scratch:
+
+```bash
+dropdb biodemo_lifesci && createdb biodemo_lifesci
+# keep the existing runtime password or set a new one in backend/.env.local
+cd backend && .venv/bin/python -m src.lifesci db-migrate && .venv/bin/python -m src.lifesci seed-demo
+```
+
+The previous SQLite file (`.cache/lifesci-dev.db`) is untouched and remains an offline fallback; point `LIFESCI_DATABASE_URL` at `sqlite:///.cache/lifesci-dev.db` to use it. No database is exposed beyond localhost.
 
 ## Module map
 
