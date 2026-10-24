@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from "react";
 import { agentSteps } from "./scenario";
 
 export type Stage = "notice" | "open" | "inspect" | "review" | "follow";
@@ -66,6 +66,7 @@ const reduceMotion = () =>
   (typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches);
 
 type Ctx = State & {
+  storageIssue: string;
   detecting: boolean;
   reach: (s: Stage) => void;
   setAssay: (v: boolean) => void;
@@ -76,8 +77,29 @@ type Ctx = State & {
 };
 const ScenarioContext = createContext<Ctx | null>(null);
 
-export function ScenarioProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, reduceMotion(), initial);
+export function ScenarioProvider({ children, persistKey }: { children: ReactNode; persistKey?: string }) {
+  const [restored] = useState(() => {
+    const fallback = initial(reduceMotion());
+    if (!persistKey) return { state: fallback, issue: "", writable: true };
+    try {
+      const raw = localStorage.getItem(persistKey);
+      if (!raw) return { state: fallback, issue: "", writable: true };
+      const saved = JSON.parse(raw);
+      const value = saved?.state;
+      const validReceipt = value?.receipt === null || (value?.receipt && ["sent", "declined"].includes(value.receipt.decision) && typeof value.receipt.note === "string" && typeof value.receipt.at === "string" && Array.isArray(value.receipt.steps) && value.receipt.steps.every((s: unknown) => typeof s === "string"));
+      if (saved?.version !== 1 || !value || !Number.isInteger(value.step) || value.step < 0 || value.step > agentSteps.length || !Array.isArray(value.reached) || !value.reached.every((s: unknown) => stages.some(stage => stage.id === s)) || typeof value.assayPosted !== "boolean" || !validReceipt || !Array.isArray(value.requested) || !value.requested.every((s: unknown) => typeof s === "string") || typeof value.snoozed !== "boolean") throw Error("Invalid sample state");
+      return { state: value as State, issue: "", writable: true };
+    } catch {
+      return { state: fallback, issue: "Sample review history could not be restored. The saved copy is unchanged; new sample reviews will only last for this session.", writable: false };
+    }
+  });
+  const [state, dispatch] = useReducer(reducer, restored.state);
+  const [storageIssue, setStorageIssue] = useState(restored.issue);
+  useEffect(() => {
+    if (!persistKey || !restored.writable || storageIssue) return;
+    try { localStorage.setItem(persistKey, JSON.stringify({ version: 1, state })); }
+    catch { setStorageIssue("Sample review history could not be saved. New sample review changes will only last for this session."); }
+  }, [state, persistKey, restored.writable, storageIssue]);
   const detecting = state.step < agentSteps.length;
 
   useEffect(() => {
@@ -90,6 +112,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(
     () => ({
       ...state,
+      storageIssue,
       detecting,
       reach,
       setAssay: (v) => dispatch({ type: "assay", value: v }),
@@ -98,7 +121,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
       snooze: (v) => dispatch({ type: "snooze", value: v }),
       replay: () => dispatch({ type: "reset", instant: reduceMotion() }),
     }),
-    [state, detecting, reach],
+    [state, detecting, reach, storageIssue],
   );
   return <ScenarioContext.Provider value={value}>{children}</ScenarioContext.Provider>;
 }

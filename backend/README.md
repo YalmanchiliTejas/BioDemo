@@ -10,6 +10,17 @@ investigation integration, and two separate data benchmarks. The Fresenius
 records are a synthetic reconstruction anchored to public FDA findings; CHO
 uses authentic published laboratory measurements.
 
+## Life-sciences platform (`src/lifesci/`)
+
+Domain platform for the complete life-sciences capability plan: versioned records with
+audit/outbox (SQLite or PostgreSQL with RLS), identity and record ownership, evidence
+lineage and invalidation, proposal → approval → intent → outcome actions, a
+deterministic-first model gateway with evaluation-gated routing and budgets, persistent
+missions, and procedure, execution, lab, integration, science, quality, network,
+collaboration and assurance modules. Run `.venv/bin/python -m pytest tests/lifesci -q`
+and `.venv/bin/python -m src.lifesci serve`. Status, measurements and gaps:
+[implementation guide](../docs/product/life-sciences-platform/implementation.md).
+
 ## Pharmaceutical investigation MVP (active build)
 
 The [shared case workspace README](docs/pharma_mvp/README.md) tracks the new

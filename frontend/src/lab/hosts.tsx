@@ -67,7 +67,7 @@ export function HistorianApp({ tag, setTag, overlay, setOverlay, linked }: { tag
               <span>Trend</span>
               <span>Tools</span>
               <span>Help</span>
-              <span className="host-menu-right">Northfield · BR-04 · Live</span>
+              <span className="host-menu-right">Northfield · BR-04 · Sample snapshot</span>
             </div>
             <div className="host-body">
               <nav className="host-tree" aria-label="Historian tags">

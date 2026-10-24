@@ -46,7 +46,7 @@ export function ActionCard({ onReview, compact = false }: { onReview: () => void
   );
 }
 
-export function ReviewSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+export function ReviewSheet({ open, onOpenChange, localOnly = false }: { open: boolean; onOpenChange: (v: boolean) => void; localOnly?: boolean }) {
   const { receipt, setReceipt, reach } = useScenario();
   const list = useEvidence();
   const [steps, setSteps] = useState<string[]>(action.steps.map((s) => s.id));
@@ -79,7 +79,7 @@ export function ReviewSheet({ open, onOpenChange }: { open: boolean; onOpenChang
       onOpenChange={onOpenChange}
       width={600}
       title={receipt ? "Review receipt" : "Review the verification plan"}
-      description={receipt ? `${action.target.record} · ${receipt.decision === "sent" ? "sent to QMS as a draft" : "declined"}` : "Prepared by the Assistant. Nothing leaves this screen until you decide."}
+      description={localOnly ? "Simulated quality handoff. Saved in this browser only; nothing is sent to QMS or approved for manufacturing." : receipt ? `${action.target.record} · ${receipt.decision === "sent" ? "sent to QMS as a draft" : "declined"}` : "Prepared by the Assistant. Nothing leaves this screen until you decide."}
       footer={
         receipt ? (
           <>
@@ -105,7 +105,7 @@ export function ReviewSheet({ open, onOpenChange }: { open: boolean; onOpenChang
               Decline…
             </Button>
             <Button variant="primary" disabled={!steps.length} onClick={send} kbd="⌘↵">
-              Send to QMS as draft
+              {localOnly ? "Save simulated quality draft" : "Send to QMS as draft"}
             </Button>
           </>
         )
@@ -113,7 +113,7 @@ export function ReviewSheet({ open, onOpenChange }: { open: boolean; onOpenChang
     >
       <div className="sheet-stack" onKeyDown={onKey}>
         {receipt ? (
-          <Receipt />
+          <Receipt localOnly={localOnly} />
         ) : (
           <>
             <section className="agent-note">
@@ -173,7 +173,7 @@ export function ReviewSheet({ open, onOpenChange }: { open: boolean; onOpenChang
               <h4>
                 <RiTimeLine size={14} /> How we'll know
               </h4>
-              <p>{action.followUp}</p>
+              <p>{localOnly && "Planned behavior, not running in this demo: "}{action.followUp}</p>
             </section>
 
             <section className="review-block">
@@ -202,7 +202,7 @@ export function ReviewSheet({ open, onOpenChange }: { open: boolean; onOpenChang
   );
 }
 
-function Receipt() {
+function Receipt({ localOnly = false }: { localOnly?: boolean }) {
   const { receipt } = useScenario();
   if (!receipt) return null;
   const sent = receipt.decision === "sent";
@@ -210,20 +210,20 @@ function Receipt() {
     ? [
         { t: "09:42", text: "Drafted by the Assistant from 8 linked records", done: true },
         { t: receipt.at, text: `Reviewed by ${people.you.name} · ${receipt.steps.length} of ${action.steps.length} tasks included`, done: true },
-        { t: MISSING, text: `Awaiting ${people.qa.name} (QA) in QMS`, done: false },
-        { t: "≈20:00", text: "The Assistant re-assesses when the 60 h titer posts", done: false },
+        { t: MISSING, text: localOnly ? "QA review would take place in the authorized QMS; no live handoff occurred" : `Awaiting ${people.qa.name} (QA) in QMS`, done: false },
+        { t: "≈20:00", text: localOnly ? "Follow-up is planned; no background monitoring is running in this demo" : "The Assistant re-assesses when the 60 h titer posts", done: false },
       ]
     : [
         { t: "09:42", text: "Drafted by the Assistant", done: true },
         { t: receipt.at, text: `Declined by ${people.you.name}`, done: true },
-        { t: MISSING, text: "The Assistant keeps watching BR-04 and will not re-propose without new evidence", done: false },
+        { t: MISSING, text: localOnly ? "Decline retained in this browser; no background monitoring is running" : "The Assistant keeps watching BR-04 and will not re-propose without new evidence", done: false },
       ];
   return (
     <div className="receipt">
       <div className={cx("receipt-banner", sent ? "is-ok" : "is-muted")}>
         {sent ? <RiCheckLine size={18} /> : <RiCloseCircleLine size={18} />}
         <div>
-          <b>{sent ? "Draft event created for QA review" : "Action declined"}</b>
+          <b>{sent ? (localOnly ? "Simulated quality draft saved" : "Draft event created for QA review") : "Action declined"}</b>
           <span>Simulated. No QMS record was written. This is not a GMP signature.</span>
         </div>
       </div>
@@ -243,7 +243,7 @@ function Receipt() {
       )}
       {sent && (
         <p className="receipt-follow">
-          <RiArrowRightLine size={14} /> Added to your ongoing work: <b>Follow EV-2026-0418 to closure</b>
+          <RiArrowRightLine size={14} /> {localOnly ? "Planned follow-up:" : "Added to your ongoing work:"} <b>Follow EV-2026-0418 to closure</b>
         </p>
       )}
     </div>
