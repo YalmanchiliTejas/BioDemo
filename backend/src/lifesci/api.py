@@ -200,6 +200,11 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     async def _bad(_: Request, exc: ValueError):  # noqa: ANN202
         return JSONResponse({"error": "invalid", "detail": str(exc)}, status_code=400)
 
+    from .media import MediaUnavailable
+    @app.exception_handler(MediaUnavailable)
+    async def _media_unavailable(_: Request, exc: MediaUnavailable):
+        return JSONResponse({"error": "unavailable", "detail": str(exc)}, status_code=503)
+
     def idempotent(ctx: AccessContext, key: str | None, route: str, body: Any, run: Callable[[], Any]) -> Any:
         if not key:
             return run()
@@ -230,7 +235,9 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
 
     @app.get(f"/{API_VERSION}/me")
     def me(ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
-        if not ctx.roles and not platform.identity.live_grants(ctx.tenant_id, ctx.actor_id):
+        if not ctx.roles and not platform.identity.live_grants(ctx.tenant_id, ctx.actor_id) and not (
+            ctx.actor_kind == "partner" and platform.identity.live_grants(ctx.tenant_id, ctx.partner_org_id)
+        ):
             raise HTTPException(403, "no role assignments or grants for this person in this tenant")
         return {"tenant_id": ctx.tenant_id, "actor_id": ctx.actor_id, "actor_kind": ctx.actor_kind,
                 "roles": sorted(ctx.roles), "site_ids": sorted(ctx.site_ids), "auth_mode": auth_mode}
@@ -246,7 +253,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.get(f"/{API_VERSION}/records/{{kind}}")
     def list_records(kind: str, cursor: str | None = None, limit: int = 50,
                      ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
-        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget"):
+        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership"):
             raise HTTPException(404, "not a public record kind")
         limit = max(1, min(limit, 200))
         tx = platform.store.read()
@@ -254,6 +261,9 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
         rows.sort(key=lambda r: r.id)
         visible = []
         for r in rows:
+            if kind == "transfer_package" and not any(platform.identity.check(ctx, "read", kind, r.id, site_id=r.state[s])
+                                                       for s in ("sending_site", "receiving_site")):
+                continue
             if platform.identity.check(ctx, "read", kind, r.id, site_id=r.state.get("site_id")):
                 if "inputs" in r.state:
                     try:
@@ -268,7 +278,12 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
 
     @app.get(f"/{API_VERSION}/records/{{kind}}/{{record_id:path}}")
     def get_record(kind: str, record_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership"):
+            raise HTTPException(404, "not a public record kind")
         rec = platform.store.read().require(ctx.tenant_id, kind, record_id)
+        if kind == "transfer_package" and not any(platform.identity.check(ctx, "read", kind, rec.id, site_id=rec.state[s])
+                                                   for s in ("sending_site", "receiving_site")):
+            raise HTTPException(403, "transfer outside actor site scope")
         platform.identity.require(ctx, "read", kind, record_id, site_id=rec.state.get("site_id"))
         if rec.state.get("inputs") is not None:
             return platform.evidence.read_derived(ctx, kind, record_id)
@@ -451,4 +466,6 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
         return platform.connectors.receive(tenant_id, connector_id, body, dict(request.headers))
 
     platform.extend_api(app, ctx_dep, idempotent)
+    from .edge import install_edge_api
+    install_edge_api(platform, app, ctx_dep)
     return app

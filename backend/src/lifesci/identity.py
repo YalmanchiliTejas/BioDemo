@@ -126,6 +126,11 @@ class IdentityService:
         sites = frozenset(r.state["site_id"] for r in rows if r.state.get("site_id")) if all(
             r.state.get("site_id") for r in rows) else frozenset()
         version = sum(r.revision for r in rows)
+        member = tx.get(tenant_id, "partner_membership", actor_id)
+        if actor_kind == "partner" and member:
+            partner_org_id = member.state["partner_org_id"] if member.state.get("active") else None
+        if member and member.state.get("active") and not rows and actor_kind == "person":
+            actor_kind, partner_org_id = "partner", member.state["partner_org_id"]
         return AccessContext(tenant_id, actor_id, actor_kind, roles, sites, partner_org_id,
                              authorization_version=version)
 

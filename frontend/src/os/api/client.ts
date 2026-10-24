@@ -111,6 +111,29 @@ export function createClient(identity: ClientIdentity, baseUrl = "") {
   };
   const enc = encodeURIComponent;
   return {
+    suiteCommand: <T,>(path: string, body?: unknown, key?: string) => request<T>("POST", path, body, key),
+    suiteRead: <T,>(path: string) => request<T>("GET", path),
+    record: (kind: string, id: string) => request<SuiteRecord>("GET", `/v1/records/${enc(kind)}/${enc(id)}`),
+    listRecords: (kind: string, cursor?: string) => request<{ items: SuiteRecord[]; next_cursor: string | null }>("GET", `/v1/records/${enc(kind)}${q({ limit: 200, cursor })}`),
+    previewProcedure: (definition: Record<string, unknown>) => request<{ steps: Record<string, unknown>[]; writes: boolean }>("POST", "/v1/procedures/preview", { definition }),
+    createProcedure: (input: ProcedureDraft) => request<Record<string, unknown>>("POST", "/v1/procedures", input),
+    submitProcedure: (id: string, rationale: string) => request<Record<string, unknown>>("POST", `/v1/procedures/${enc(id)}/submit`, { rationale }),
+    publishProcedure: (id: string, approved_proposal_id: string) => request<Record<string, unknown>>("POST", `/v1/procedures/${enc(id)}/publish`, { approved_proposal_id }),
+    createBatch: (input: { batch_id: string; product: string; modality: string; site_id: string }) => request<Record<string, unknown>>("POST", "/v1/manufacturing/batches", input),
+    createInstance: (input: { procedure_id: string; batch_id: string; site_id: string }) => request<ExecutionInstance>("POST", "/v1/manufacturing/instances", input),
+    getInstance: (id: string) => request<ExecutionInstance>("GET", `/v1/manufacturing/instances/${enc(id)}`),
+    startInstance: (id: string) => request<ExecutionInstance>("POST", `/v1/manufacturing/instances/${enc(id)}/start`),
+    performStep: (id: string, step: string, values: Record<string, unknown>, key: string) => request<Record<string, unknown>>("POST", `/v1/manufacturing/instances/${enc(id)}/steps/${enc(step)}`, { values }, key),
+    batchRecord: (id: string) => request<Record<string, unknown>>("GET", `/v1/manufacturing/instances/${enc(id)}/batch-record`),
+    registerSample: (input: { batch_id: string; sample_type: string; idempotency_key: string }) => request<Record<string, unknown>>("POST", "/v1/laboratory/samples", input),
+    recordSampleResult: (id: string, input: { analyte: string; value: number; unit: string }) => request<Record<string, unknown>>("POST", `/v1/laboratory/samples/${enc(id)}/results`, input),
+    sampleCustody: (id: string) => request<Record<string, unknown>>("GET", `/v1/laboratory/samples/${enc(id)}/custody`),
+    createCase: (input: { case_id: string; owner_id: string; qa_reviewer_id: string; site_id: string }) => request<Record<string, unknown>>("POST", "/v1/quality/cases", input),
+    buildReviewPackage: (id: string) => request<Record<string, unknown>>("POST", `/v1/quality/cases/${enc(id)}/review-package`),
+    siteNetwork: () => request<Record<string, unknown>>("GET", "/v1/network/sites"),
+    saveFlow: (id: string, input: Record<string, unknown>) => request<Record<string, unknown>>("POST", `/v1/intelligence/flows/${enc(id)}`, input),
+    createFlowRun: (id: string, inputs: Record<string, unknown>[]) => request<{ run_id: string }>("POST", `/v1/intelligence/flows/${enc(id)}/runs`, { inputs }),
+    resumeFlow: (id: string) => request<Record<string, unknown>>("POST", `/v1/intelligence/runs/${enc(id)}/resume`),
     connectorCatalog: () => request<ConnectorCatalog>("GET", "/v1/connectors/catalog"),
     listConnectors: () => request<{ items: ConnectorRecord[] }>("GET", "/v1/connectors").then((r) => r.items),
     configureConnector: (input: ConnectorConfig) => request<ConnectorRecord>("POST", "/v1/connectors", input),
@@ -143,6 +166,14 @@ export function createClient(identity: ClientIdentity, baseUrl = "") {
       ),
   };
 }
+
+export type SuiteRecord = { id: string; revision: number; state: Record<string, unknown> };
+export type ProcedureDraft = { procedure_id: string; name: string; category: "recipe" | "work_instruction" | "lab_method"; site_id: string; definition: Record<string, unknown> };
+export type ExecutionInstance = {
+  instance_id: string; status: string; order: string[];
+  steps: Record<string, { status: string }>;
+  steps_def: Record<string, { title: string; parameters?: { name: string; type?: string; unit?: string; low?: number; high?: number }[] }>;
+};
 
 export type ApiClient = ReturnType<typeof createClient>;
 

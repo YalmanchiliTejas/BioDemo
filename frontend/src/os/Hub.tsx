@@ -37,6 +37,7 @@ const ScientificRecord = lazy(() =>
   import("../lab/ConceptB").then((m) => ({ default: m.RecordBody })),
 );
 const WorkspaceAssistant = lazy(() => import("./WorkspaceAssistant"));
+const ConnectedSuite = lazy(() => import("./api/ConnectedSuite").then((m) => ({ default: m.ConnectedSuite })));
 const views = Object.keys(viewName);
 const panels: Tab[] = ["summary", "trends", "lab", "events", "investigation"];
 function readRoute() {
@@ -202,6 +203,7 @@ function Hub() {
         }
       >
         <div key={`${view}-${item}`} className="workspace-view">
+          {view === "suite" && <Suspense fallback={<p role="status">Loading suite…</p>}><ConnectedSuite /></Suspense>}
           {["historian", "lims", "mes", "qms", "queue"].includes(view) && (
             <p className="ws-source-boundary">
               Simulated workspace · Snapshot records · No live connection or

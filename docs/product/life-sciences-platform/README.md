@@ -13,6 +13,15 @@ Prepared 2026-10-23 from public Apprentice material, current primary technical d
 
 ## Scope and evidence
 
+See [complete workflow setup](workflow-completion.md) for the synthetic tenant,
+designer/laboratory/transfer/media/gateway journeys and installation instructions.
+The [architecture selection](architecture-selection.md) compares alternatives,
+records the chosen boundaries and defines when to revisit them.
+
+The [suite baseline guide](suite-baseline.md) describes the connected application,
+new HTTP workflows and versioned data flows. The [updated public research](apprentice-public-baseline.md)
+separates verified Apprentice/Ganymede material from private architecture unknowns.
+
 The baseline includes manufacturing/recipe execution, laboratory/sample workflows, scientific data and analysis, quality, equipment and materials context, network/partner coordination, digital instructions, remote assistance, integrations, agent work, identity/signatures/audit, and deployment/validation support. Support clinical, commercial and distributed production with site-specific configurations. Long-lived batch/campaign missions and revision-aware recommendations span these capabilities.
 
 The governing source is [Main_Culture_andETHOS.md](../../../Main_Culture_andETHOS.md). Requirements from [discovery](../deviation-workflow-discovery.md) remain in force. This package develops the [long-horizon proposal](../long-horizon-manufacturing-agents.md) into a broader platform design. Earlier runtime preferences are historical; the decisions in this package state the current recommendation, not a completed migration.

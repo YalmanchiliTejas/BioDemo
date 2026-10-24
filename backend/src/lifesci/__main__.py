@@ -83,6 +83,7 @@ def main() -> None:
     serve.add_argument("--port", type=int, default=8100)
     serve.add_argument("--seed-demo", action="store_true", help="create the synthetic development tenant first")
     sub.add_parser("seed-demo")
+    sub.add_parser("seed-suite", help="create a separate synthetic demo-suite tenant with native POC workflows")
     migrate = sub.add_parser("db-migrate", help="apply PostgreSQL schema/RLS and create the runtime role")
     migrate.add_argument("--owner-url", help="schema owner connection (default: LIFESCI_MIGRATION_DATABASE_URL)")
     migrate.add_argument("--app-role", help="runtime role (default: the role in LIFESCI_DATABASE_URL)")
@@ -98,6 +99,10 @@ def main() -> None:
     from .devseed import seed
 
     platform = Platform.from_env()
+    if args.cmd == "seed-suite":
+        from .suite_seed import seed_suite
+        print(json.dumps(seed_suite(platform), indent=2))
+        return
     if args.cmd == "seed-demo" or getattr(args, "seed_demo", False):
         print(json.dumps(seed(platform), indent=2))
     address = os.environ.get("TEMPORAL_ADDRESS")

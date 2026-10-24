@@ -61,6 +61,22 @@ class ActionService:
         self.identity = identity
         self.ownership = ownership
 
+    def require_current_approval(self, ctx: AccessContext, proposal_id: str, tx: Transaction) -> None:
+        """Native handlers must recheck the same approved content and live roles."""
+        prop = tx.require(ctx.tenant_id, "proposal", proposal_id).state
+        if prop["status"] != "approved" or content_hash(_content(prop)) != prop["content_hash"]:
+            raise PermissionError("the exact proposal content must be approved")
+        valid_roles = set()
+        for rec in tx.find(ctx.tenant_id, "approval", "proposal_id", proposal_id):
+            approval = rec.state
+            if approval["decision"] != "approved" or approval["content_hash"] != prop["content_hash"]:
+                continue
+            live = self.identity.context_for(ctx.tenant_id, approval["actor_id"], role=approval["role"])
+            if approval["role"] in live.roles and self.identity.check(live, "approve", "proposal", proposal_id, site_id=prop.get("site_id"), tx=tx):
+                valid_roles.add(approval["role"])
+        if not valid_roles >= set(prop["required_roles"]):
+            raise PermissionError("required approvers no longer hold current authority")
+
     # --- proposals --------------------------------------------------------------
     def propose(self, ctx: AccessContext, *, target_system: str, operation: str, target_id: str,
                 payload: dict[str, Any], basis: list[dict[str, Any]], rationale: str, expected_result: str,

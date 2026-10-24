@@ -21,6 +21,7 @@ import { ConnectionSheet } from "./api/ConnectionSheet";
 import { authLabel, initials } from "./api/mapping";
 
 export type View =
+  | "suite"
   | "home"
   | "work"
   | "item"
@@ -33,6 +34,7 @@ export type View =
   | "mes"
   | "qms";
 export const viewName: Record<View, string> = {
+  suite: "Manufacturing suite",
   home: "Workspace",
   work: "Saved work",
   item: "Work details",
@@ -46,6 +48,7 @@ export const viewName: Record<View, string> = {
   qms: "QualityTrack QMS",
 };
 const links = [
+  { id: "suite" as View, label: "Manufacturing suite", icon: RiStackLine },
   { id: "home" as View, label: "Workspace", icon: RiHome5Line },
   { id: "work" as View, label: "Saved work", icon: RiStackLine },
   { id: "queue" as View, label: "Work queue", icon: RiInboxLine },

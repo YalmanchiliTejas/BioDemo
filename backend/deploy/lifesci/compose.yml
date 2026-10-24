@@ -1,0 +1,71 @@
+name: biodemo-lifesci
+x-app: &app
+  build:
+    context: ../..
+    dockerfile: deploy/lifesci/Dockerfile
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+  environment: &app-env
+    LIFESCI_DATABASE_URL: postgresql://lifesci_app:${LIFESCI_APP_PASSWORD:?Set runtime password}@db:5432/lifesci
+    LIFESCI_DB_MIGRATE: "0"
+    LIFESCI_TENANTS: ${LIFESCI_TENANTS:-demo-northfield}
+    TEMPORAL_ADDRESS: temporal:7233
+    LIVEKIT_URL: ${LIVEKIT_URL:-}
+    LIVEKIT_API_URL: ${LIVEKIT_API_URL:-}
+    LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+    LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+services:
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    environment:
+      POSTGRES_DB: lifesci
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set migration owner password}
+    volumes: ["database:/var/lib/postgresql/data"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d lifesci"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    <<: *app
+    restart: "no"
+    environment:
+      <<: *app-env
+      LIFESCI_MIGRATION_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/lifesci
+      LIFESCI_APP_ROLE: lifesci_app
+    command: [python, -m, src.lifesci, db-migrate]
+    depends_on:
+      db: {condition: service_healthy}
+  temporal:
+    image: ${TEMPORAL_IMAGE:-temporalio/temporal:latest}
+    command: [server, start-dev, --ip, 0.0.0.0, --db-filename, /data/temporal.db]
+    volumes: ["temporal:/data"]
+    ports: ["127.0.0.1:8233:8233"]
+  api:
+    <<: *app
+    ports: ["127.0.0.1:8100:8100"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      temporal: {condition: service_started}
+  worker:
+    <<: *app
+    command: [python, -m, src.lifesci, worker]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      temporal: {condition: service_started}
+  media:
+    profiles: [media]
+    image: ${LIVEKIT_IMAGE:-livekit/livekit-server:v1.13.10}
+    command: [--dev, --bind, 0.0.0.0, --node-ip, 127.0.0.1]
+    ports: ["127.0.0.1:7880:7880", "127.0.0.1:7881:7881", "127.0.0.1:7882:7882/udp"]
+  data-worker:
+    <<: *app
+    command: [python, -m, src.lifesci.data_worker]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+volumes:
+  database:
+  temporal:

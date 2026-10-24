@@ -1,0 +1,23 @@
+[Unit]
+Description=BioDemo read-only site acquisition gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=biodemo-edge
+Group=biodemo-edge
+EnvironmentFile=/etc/biodemo/edge.env
+ExecStart=/opt/biodemo/venv/bin/python -m src.lifesci.edge --config /etc/biodemo/edge.json
+Restart=on-failure
+RestartSec=5
+StateDirectory=biodemo
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/biodemo
+
+[Install]
+WantedBy=multi-user.target

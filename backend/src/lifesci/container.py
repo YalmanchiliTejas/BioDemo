@@ -38,6 +38,18 @@ class Platform:
     queue: WorkQueue = field(init=False)
     runtime: Any = field(init=False)
     connectors: Any = field(init=False)
+    procedures: Any = field(init=False)
+    execution: Any = field(init=False)
+    lab: Any = field(init=False)
+    network: Any = field(init=False)
+    transfers: Any = field(init=False)
+    cases: Any = field(init=False)
+    packages: Any = field(init=False)
+    artifacts: Any = field(init=False)
+    flows: Any = field(init=False)
+    remote_sessions: Any = field(init=False)
+    media_providers: dict[str, Any] = field(default_factory=dict)
+    partners: Any = field(init=False)
     allow_unqualified: bool = False
     providers: dict[str, Any] | None = None
     api_extensions: list[Callable[..., None]] = field(default_factory=list)
@@ -52,6 +64,19 @@ class Platform:
         self.missions = MissionService(s, self.identity)
         self.assurance = AssuranceService(s, self.identity)
         self.queue = WorkQueue(s)
+        from .procedures import ProcedureService
+        from .execution import ExecutionService
+        from .lab import LabService
+        from .network import NetworkService, TransferService
+        from .quality import CaseService, PackageService, ArtifactService
+        self.procedures = ProcedureService(s, self.identity, self.actions, self.evidence)
+        self.execution = ExecutionService(s, self.identity, self.ownership, self.procedures, self.signatures, self.evidence)
+        self.lab = LabService(s, self.identity, self.ownership, self.procedures)
+        self.network = NetworkService(s, self.identity)
+        self.transfers = TransferService(s, self.identity)
+        self.cases = CaseService(s, self.identity)
+        self.packages = PackageService(s, self.identity, self.evidence, self.signatures)
+        self.artifacts = ArtifactService(s, self.identity, self.evidence)
         registry = default_registry()
         providers = self.providers if self.providers is not None else self._env_providers()
         self.gateway = ModelGateway(s, self.identity, registry, providers,
@@ -65,6 +90,14 @@ class Platform:
         self.runtime = Runtime(self)
         from .connectors import ConnectorService
         self.connectors = ConnectorService(self)
+        from .flows import FlowService
+        self.flows = FlowService(self)
+        from .collab import RemoteSessionService
+        from .media import configured_media
+        from .network import PartnerService
+        self.partners = PartnerService(s, self.identity, self.evidence)
+        self.media_providers.update(configured_media())
+        self.remote_sessions = RemoteSessionService(s, self.identity, self.media_providers)
 
     @staticmethod
     def _env_providers() -> dict[str, Any]:
@@ -82,5 +115,7 @@ class Platform:
                    allow_unqualified=os.environ.get("LIFESCI_ALLOW_UNQUALIFIED_ROUTES") == "1")
 
     def extend_api(self, app: Any, ctx_dep: Any, idempotent: Any) -> None:
+        from .suite_api import install_suite_api
+        install_suite_api(self, app, ctx_dep, idempotent)
         for extension in self.api_extensions:
             extension(self, app, ctx_dep, idempotent)

@@ -22,6 +22,10 @@ client protocol regression tests.
 
 ## Status at a glance (2026-10-23 baseline)
 
+For the subsequent suite API, connected UI and versioned flow expansion, see
+[the suite baseline](suite-baseline.md). Its documented gaps remain separate from
+the historical capability acceptance counts below.
+
 | | Count |
 | --- | ---: |
 | Capabilities implemented **and** verified against their full acceptance condition | 63 / 77 |

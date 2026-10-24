@@ -199,6 +199,19 @@ def resolve_template(definition: dict[str, Any], params: Mapping[str, Any] | Non
 
 
 def normalize_definition(definition: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(definition.get("steps", []), list):
+        raise ValueError("procedure steps must be a list")
+    for step in definition.get("steps", []):
+        if not isinstance(step, dict):
+            raise ValueError("each procedure step must be an object")
+        for key in ("parameters", "depends_on", "required_signatures"):
+            if key in step and not isinstance(step[key], list):
+                raise ValueError(f"step {key} must be a list")
+        if any(not isinstance(p, dict) for p in step.get("parameters", [])):
+            raise ValueError("step parameters must be objects")
+        for key in ("calculation", "branch", "resources", "enforcement"):
+            if step.get(key) is not None and not isinstance(step[key], dict):
+                raise ValueError(f"step {key} must be an object")
     out = copy.deepcopy(definition)
     for step in out.get("steps", []):
         if isinstance(step, dict) and step.get("supported_devices"):
@@ -703,6 +716,7 @@ class ProcedureService:
         with self.store.transaction(ctx.actor_id) as tx:
             rec = tx.require(ctx.tenant_id, "procedure", procedure_id)
             prop = tx.require(ctx.tenant_id, "proposal", approved_proposal_id).state
+            self.idn.require(ctx, "propose", "procedure", procedure_id, site_id=rec.state["site_id"], tx=tx)
             if prop["operation"] != "publish_procedure" or prop["target_id"] != procedure_id:
                 raise ValueError("proposal does not authorize publishing this procedure")
             if prop["status"] != "approved":
@@ -713,6 +727,12 @@ class ProcedureService:
                                                   and a["content_hash"] == prop["content_hash"] and a["decision"] == "approved")]
             if not {a["role"] for a in approvals} >= set(prop["required_roles"]):
                 raise PermissionError("required approvals are missing for this proposal content")
+            for approval in approvals:
+                live = self.idn.context_for(ctx.tenant_id, approval["actor_id"], role=approval["role"])
+                if approval["role"] not in live.roles or not self.idn.check(
+                    live, "approve", "proposal", approved_proposal_id, site_id=rec.state["site_id"], tx=tx
+                ):
+                    raise PermissionError("publication approver no longer holds authority at this site")
             s = rec.state
             dhash = content_hash(s["draft"])
             if prop["payload"]["definition_hash"] != dhash:
@@ -833,6 +853,7 @@ class ProcedureService:
             if a["status"] != "requested":
                 raise ValueError(f"amendment is {a['status']}")
             prop = tx.require(ctx.tenant_id, "proposal", a["proposal_id"]).state
+            self.actions.require_current_approval(ctx, a["proposal_id"], tx)
             if prop["status"] != "approved" or prop["content_hash"] != a["proposal_content_hash"]:
                 raise PermissionError(f"amendment proposal is {prop['status']}; approval of the exact change is required")
             inst = copy.deepcopy(inst_rec.state)

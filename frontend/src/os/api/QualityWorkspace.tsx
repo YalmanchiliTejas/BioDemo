@@ -1,0 +1,7 @@
+import { useState } from "react";
+import { Field, SuitePanel, useRecords, useSuite } from "./suite-tools";
+export function QualityWorkspace() {
+  const s = useSuite(); const { records, error } = useRecords("case", s.version);
+  const [id, setId] = useState(""); const [reviewer, setReviewer] = useState(""); const [site, setSite] = useState(s.me.site_ids[0] ?? "");
+  return <SuitePanel state={s}><div className="suite-columns"><form onSubmit={(e) => { e.preventDefault(); void s.run(() => s.client.createCase({ case_id: id, owner_id: s.me.actor_id, qa_reviewer_id: reviewer, site_id: site })); }}><h2>Open quality work</h2><Field label="Case ID" value={id} onChange={setId} /><Field label="Site" value={site} onChange={setSite} /><Field label="QA reviewer" value={reviewer} onChange={setReviewer} /><button>Create case</button></form><section><h2>Cases</h2>{error && <p role="alert">{error}</p>}{records.map((r) => <article className="suite-result" key={r.id}><h3>{r.id}</h3><p>{String(r.state.status)}</p><div className="suite-buttons"><button onClick={() => void s.run(() => s.client.buildReviewPackage(r.id))}>Build review package</button>{["deviation", "capa", "report"].map((kind) => <button key={kind} onClick={() => void s.run(() => s.command(`/v1/quality/cases/${encodeURIComponent(r.id)}/artifacts`, { artifact_kind: kind }))}>Draft {kind}</button>)}</div></article>)}</section></div></SuitePanel>;
+}

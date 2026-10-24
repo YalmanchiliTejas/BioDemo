@@ -109,6 +109,7 @@ class Runtime:
             tenants = tuple(self._tenants)
         for tenant in tenants:
             try:
+                self.platform.remote_sessions.enforce_access(tenant)
                 self.platform.connectors.poll(tenant)
                 self.platform.missions.deliver_events(tenant)
                 scheduler = self.platform.missions.scheduler

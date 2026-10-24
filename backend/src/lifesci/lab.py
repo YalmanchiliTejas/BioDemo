@@ -527,6 +527,7 @@ class LabService:
         with self.store.transaction(ctx.actor_id) as tx:
             rec = tx.require(ctx.tenant_id, "result", result_id)
             prop = tx.require(ctx.tenant_id, "proposal", proposal_id).state
+            self.ps.actions.require_current_approval(ctx, proposal_id, tx)
             self.idn.require(ctx, "propose", "result", result_id, site_id=rec.state["site_id"], tx=tx)
             if prop["operation"] != "invalidate_result" or prop["target_id"] != result_id:
                 raise ValueError("proposal does not target this result")

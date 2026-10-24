@@ -748,12 +748,57 @@ class RemoteSessionService:
         if session["status"] != "active":
             raise PermissionError(f"session is {session['status']}")
         p = self._participant(session, ctx.actor_id)
+        if p.get("access_revoked_at"):
+            raise PermissionError("session access has been revoked")
         self.identity.require(ctx, action, "case", session["case_id"], site_id=session.get("site_id"))
         return p
+
+    def enforce_access(self, tenant_id: str) -> None:
+        """Remove participants whose current case authority was revoked.
+
+        Repeated removals cover old short-lived tokens on self-hosted providers.
+        Provider failures stay visible and are retried on the next runtime tick.
+        """
+        for rec in self.store.read().list(tenant_id, "remote_session", lambda s: s["status"] in ("active", "ending_unknown")):
+            state = rec.state
+            provider = self.providers.get(state["media_provider"])
+            if provider and state["status"] == "ending_unknown":
+                try:
+                    provider.close_room(state["room_id"])
+                except OSError:
+                    continue
+                with self.store.transaction("media-access-monitor") as tx:
+                    current = tx.require(tenant_id, "remote_session", rec.id)
+                    tx.put(tenant_id, "remote_session", rec.id,
+                           {**current.state, "status": "ended", "ended_at": iso(utc_now())},
+                           expected_revision=current.revision, action="confirm_room_end")
+                continue
+            if not provider or not hasattr(provider, "remove_participant"):
+                continue
+            for participant in state["participants"]:
+                ctx = self._pctx(tenant_id, participant)
+                if self.identity.check(ctx, "read", "case", state["case_id"], site_id=state.get("site_id")):
+                    continue
+                try:
+                    provider.remove_participant(state["room_id"], participant["actor_id"])
+                    failure = None
+                except OSError:
+                    failure = "media access removal unconfirmed; retry pending"
+                with self.store.transaction("media-access-monitor") as tx:
+                    current = tx.require(tenant_id, "remote_session", rec.id)
+                    updated = [{**p, "access_revoked_at": p.get("access_revoked_at") or iso(utc_now())}
+                               if p["actor_id"] == participant["actor_id"] else p for p in current.state["participants"]]
+                    if failure or not participant.get("access_revoked_at") or current.state.get("media_access_error"):
+                        tx.put(tenant_id, "remote_session", rec.id, {**current.state, "participants": updated, "media_access_error": failure},
+                               expected_revision=current.revision, action="enforce_media_access")
 
     # --- LS-037 -----------------------------------------------------------------------------------------
     def create(self, ctx: AccessContext, case_id: str, participants: Sequence[Any], media_provider: str = "external",
                *, site_id: str | None = None) -> dict[str, Any]:
+        case = self.store.read().require(ctx.tenant_id, "case", case_id)
+        if site_id is not None and site_id != case.state.get("site_id"):
+            raise ValueError("session site must match its case")
+        site_id = case.state.get("site_id")
         self.identity.require(ctx, "comment", "case", case_id, site_id=site_id)
         if media_provider not in self.providers:
             raise ValueError(f"unknown media provider {media_provider}")
@@ -766,9 +811,8 @@ class RemoteSessionService:
         if denied:
             raise PermissionError(f"participants without access to case {case_id}: {denied}")
         sid = new_id("rs")
-        room = self.providers[media_provider].create_room(sid)
         state = {"session_id": sid, "case_id": case_id, "site_id": site_id, "created_by": ctx.actor_id,
-                 "media_provider": media_provider, "room_id": room["room_id"], "status": "active",
+                 "media_provider": media_provider, "room_id": None, "status": "creating",
                  "participants": [{**p, "access_verified_at": iso(utc_now()), "consent": None, "joined_at": None,
                                    "media_ids": [], "grant_ids": []} for p in people],
                  "recording": {"enabled": False, "reason": None}, "created_at": iso(utc_now())}
@@ -776,11 +820,28 @@ class RemoteSessionService:
             tx.put(ctx.tenant_id, "remote_session", sid, state, expected_revision=None, action="create_session",
                    event_type="remote_session.created", event_payload={"session_id": sid, "case_id": case_id, "site_id": site_id})
             tx.add_edge(ctx.tenant_id, ("case", case_id), ("remote_session", sid), "assistance_session")
-        return state
+        return self.reconcile_creation(ctx, sid)
+
+    def reconcile_creation(self, ctx: AccessContext, session_id: str) -> dict[str, Any]:
+        state = self._session(ctx, session_id).state
+        self.identity.require(ctx, "comment", "case", state["case_id"], site_id=state.get("site_id"))
+        if ctx.actor_id != state["created_by"]:
+            raise PermissionError("only the session initiator can reconcile room creation")
+        if state["status"] == "active":
+            return state
+        if state["status"] not in ("creating", "creation_unknown"):
+            raise ValueError("session is not awaiting room creation")
+        try:
+            room = self.providers[state["media_provider"]].create_room(session_id)
+        except OSError:
+            self._update(ctx, session_id, lambda s: {**s, "status": "creation_unknown"}, "room_creation_unconfirmed")
+            raise
+        return self._update(ctx, session_id, lambda s: {**s, "status": "active", "room_id": room["room_id"]}, "room_creation_confirmed")
 
     def sessions_for_case(self, ctx: AccessContext, case_id: str) -> list[dict[str, Any]]:
-        self.identity.require(ctx, "read", "case", case_id)
         tx = self.store.read()
+        case = tx.require(ctx.tenant_id, "case", case_id)
+        self.identity.require(ctx, "read", "case", case_id, site_id=case.state.get("site_id"), tx=tx)
         return [tx.require(ctx.tenant_id, k, i).state for k, i, rel in tx.edges_from(ctx.tenant_id, "case", case_id)
                 if k == "remote_session"]
 
@@ -833,13 +894,19 @@ class RemoteSessionService:
         self._update(ctx, session_id, lambda st: {**st, "participants": [
             {**x, "joined_at": iso(utc_now())} if x["actor_id"] == ctx.actor_id else x for x in st["participants"]]}, "join")
         return {"token": token, "permissions": permissions, "recording": s["recording"]["enabled"],
-                "consent_recorded": p["consent"]}
+                "consent_recorded": p["consent"], "server_url": getattr(self.providers[s["media_provider"]], "url", None)}
 
     def end(self, ctx: AccessContext, session_id: str) -> dict[str, Any]:
         s = self._session(ctx, session_id).state
         if ctx.actor_id != s["created_by"]:
             raise PermissionError("only the session initiator can end it")
-        self.providers[s["media_provider"]].close_room(s["room_id"])
+        if s["status"] == "ended":
+            return s
+        try:
+            self.providers[s["media_provider"]].close_room(s["room_id"])
+        except OSError:
+            self._update(ctx, session_id, lambda st: {**st, "status": "ending_unknown"}, "room_end_unconfirmed")
+            raise
         return self._update(ctx, session_id, lambda st: {**st, "status": "ended", "ended_at": iso(utc_now()),
                                                          "recording": {"enabled": False, "reason": "session ended"}},
                             "end_session", "remote_session.ended")
@@ -882,6 +949,9 @@ class RemoteSessionService:
     def revoke_external_expert(self, ctx: AccessContext, session_id: str, expert_id: str) -> dict[str, Any]:
         s = self._session(ctx, session_id).state
         self.identity.require(ctx, "export", "case", s["case_id"], site_id=s.get("site_id"))
+        provider = self.providers[s["media_provider"]]
+        if hasattr(provider, "remove_participant"):
+            provider.remove_participant(s["room_id"], expert_id)
         for gid in self._participant(s, expert_id)["grant_ids"]:
             self.identity.revoke_grant(ctx.tenant_id, gid, by=ctx.actor_id, reason="session access revoked")
         return self._update(ctx, session_id, lambda st: {**st, "participants": [p for p in st["participants"]
@@ -924,6 +994,7 @@ class RemoteSessionService:
             self.read_media(ctx, session_id, media_id)
         aid = new_id("ann")
         state = {"annotation_id": aid, "session_id": session_id, "case_id": s["case_id"], "tool": tool, "author": ctx.actor_id,
+                 "site_id": s.get("site_id"),
                  "author_kind": p["kind"], "at": iso(utc_now()), "content": content, "device": device, "media_id": media_id,
                  "device_tested": False, "review_status": "unreviewed" if tool == "transcript" else None}
         with self.store.transaction(ctx.actor_id) as tx:
