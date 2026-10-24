@@ -4,9 +4,13 @@ import { connectors } from "../../lab/scenario";
 import { useScenario } from "../../lab/state";
 import { sourceApps } from "./catalog";
 import { PageHead } from "./shared";
+import { useConnected } from "../api/ConnectedWorkspace";
+import { ConnectedSources } from "../api/ConnectedSources";
 
 export function Sources({ go }: { go: (v: View) => void }) {
+  const { active } = useConnected();
   const { assayPosted } = useScenario();
+  if (active) return <ConnectedSources />;
   return (
     <div className="ws-page">
       <PageHead eyebrow="" title="Sources" description="" />

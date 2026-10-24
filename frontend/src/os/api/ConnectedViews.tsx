@@ -532,6 +532,16 @@ function Detail({
                 )}
               </section>
               <section className="ws-surface cw-section">
+                <h2>Recurring work</h2>
+                {mission.obligations.length ? <ul>{mission.obligations.map((o, i) => (
+                  <li key={o.obligation_id || i}>
+                    <b>{o.description}</b> · {o.runtime_status || o.status}
+                    {o.due_at && <span> · Due {new Date(o.due_at).toLocaleString()}</span>}
+                    {o.runtime_issues?.map((issue, j) => <p className="cw-error" key={j}>{issue}</p>)}
+                  </li>
+                ))}</ul> : <p className="cw-muted">No recurring work configured.</p>}
+              </section>
+              <section className="ws-surface cw-section">
                 <h2>Pending decisions</h2>
                 {mission.pending_decisions.length ? (
                   <ul>

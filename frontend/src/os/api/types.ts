@@ -42,6 +42,8 @@ export type Obligation = {
   description: string;
   status: string;
   due_at?: string | null;
+  runtime_status?: string;
+  runtime_issues?: string[];
 };
 
 export type Mission = {
@@ -121,7 +123,7 @@ export type Proposal = {
   effectiveness: string;
   effectiveness_rationale?: string;
   basis: BasisRef[];
-  stale_reasons: string[];
+  stale_reasons: (string | { reason?: string; source?: string })[];
   content_hash?: string;
   mission_id?: string | null;
   site_id?: string | null;
@@ -191,4 +193,27 @@ export type OutcomeInput = {
   observed_value: string;
   evidence: BasisRef[];
   attribution_limits: string;
+};
+
+export type ConnectorConfig = {
+  connector_id: string;
+  family: string;
+  transport: string;
+  site_id: string;
+  owner: string;
+  options: Record<string, unknown>;
+  mapping?: Record<string, unknown>;
+  enabled?: boolean;
+};
+export type ConnectorRecord = ConnectorConfig & {
+  revision: number;
+  qualification: string;
+  last_sync: string | null;
+  last_error: string | null;
+  last_result?: { ingested: number; duplicates: number; corrections: number; mapping_issues: number };
+};
+export type ConnectorCatalog = {
+  families: { system: string; record_type: string; template: Record<string, unknown> }[];
+  transports: { transport: string; available: boolean }[];
+  vendor_qualification: string;
 };

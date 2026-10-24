@@ -170,3 +170,11 @@ separate authenticated API, encrypted artifacts, durable PostgreSQL job queue,
 isolated autonomous agent containers, Terraform and backup operations. This
 foundation has not been deployed or approved for PHI and does not establish SOC 2
 or HIPAA compliance. Existing demo routes remain local demonstration endpoints.
+# Source connections
+
+The connected workspace supports configured MES, LIMS, QMS, ERP and historian
+sources over REST, CSV/JSON/JSONL exports, signed webhooks, MQTT and OPC UA.
+See [connector setup and limits](../docs/product/life-sciences-platform/connectors.md).
+Network endpoints and export directories are explicitly scoped on the server;
+credential values stay in environment/secret-store settings. Local protocol tests
+are not vendor qualification.

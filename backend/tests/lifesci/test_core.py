@@ -17,6 +17,56 @@ T = "tenant-a"
 AUTH = {"method": "sso_reauth"}
 
 
+@pytest.mark.parametrize("site", [None, "S2"])
+def test_evidence_update_cannot_relabel_another_sites_record(env, site):
+    ref = _evidence(env)
+    with pytest.raises(PermissionError):
+        env.ev.ingest(env.ctx("op2"), source_system="LIMS", source_record_id="R1", content=b"tampered",
+                      media_type="text/plain", site_id=site, event_time=None)
+    assert env.ev.original(env.ctx("op1"), ref["id"]) == b"pH=7.10"
+
+
+def test_dispatch_rechecks_approver_site_authority(env):
+    ref = _evidence(env)
+    env.own.assign(T, Ownership("place_hold", "S1", "external", "MES", ("place_hold",)), by="a", reason="test")
+    p = env.act.propose(env.ctx("op1"), target_system="MES", operation="place_hold", target_id="B1",
+                        payload={}, basis=[ref], rationale="r", expected_result="e", owner_id="sup1", site_id="S1")
+    approved = env.act.decide(env.ctx("sup1"), p["proposal_id"], expected_revision=1,
+                              decision="approved", role="supervisor")
+    env.idn.revoke_role(T, "sup1", "supervisor", site_id="S1")
+    env.idn.assign_role(T, "sup1", "supervisor", site_id="S2")
+    writer = Writer()
+    assert env.act.dispatch(env.ctx("exec"), approved["intent"]["intent_id"], writer)["status"] == "blocked"
+    assert writer.sent == {}
+
+
+def test_other_role_at_original_site_cannot_restore_revoked_approval_authority(env):
+    ref = _evidence(env)
+    env.own.assign(T, Ownership("place_hold", "S1", "external", "MES", ("place_hold",)), by="a", reason="test")
+    p = env.act.propose(env.ctx("op1"), target_system="MES", operation="place_hold", target_id="B1",
+                        payload={}, basis=[ref], rationale="r", expected_result="e", owner_id="sup1", site_id="S1")
+    approved = env.act.decide(env.ctx("sup1"), p["proposal_id"], expected_revision=1,
+                              decision="approved", role="supervisor")
+    env.idn.revoke_role(T, "sup1", "supervisor", site_id="S1")
+    env.idn.assign_role(T, "sup1", "supervisor", site_id="S2")
+    env.idn.assign_role(T, "sup1", "operator", site_id="S1")
+    assert env.act.preflight(env.ctx("exec"), approved["intent"]["intent_id"])
+
+
+@pytest.mark.parametrize("bad_ref", [
+    {"kind": "evidence", "id": "never-existed", "revision": 999},
+    {"kind": "evidence", "id": "LIMS:R1", "revision": 999},
+    {"kind": "evidence", "id": "LIMS:R1", "revision": 1, "site_id": "S2"},
+])
+def test_outcomes_require_real_authorized_evidence_revisions(env, bad_ref):
+    ref = _evidence(env)
+    p = env.act.propose(env.ctx("op1"), target_system="MES", operation="place_hold", target_id="B1",
+                        payload={}, basis=[ref], rationale="r", expected_result="e", owner_id="sup1", site_id="S1")
+    with pytest.raises((ValueError, PermissionError, KeyError)):
+        env.act.record_outcome(env.ctx("op1"), p["proposal_id"], observation="done", measure="yield",
+                               observed_value=1, evidence=[bad_ref], attribution_limits="observed")
+
+
 @pytest.fixture
 def env():
     s = RecordStore()

@@ -113,7 +113,14 @@ def main() -> None:
 
         async def run() -> None:
             client = await Client.connect(address, namespace=namespace)
-            await build_worker(client, platform).run()
+            from .orchestration.temporal import TemporalScheduler, attach
+            scheduler = TemporalScheduler(client, platform, loop=asyncio.get_running_loop())
+            attach(platform, scheduler)
+            platform.runtime.start()
+            try:
+                await build_worker(client, platform).run()
+            finally:
+                await asyncio.to_thread(platform.runtime.close)
         asyncio.run(run())
     if args.cmd == "serve":
         import uvicorn

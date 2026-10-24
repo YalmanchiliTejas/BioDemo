@@ -144,6 +144,8 @@ class ActionService:
             if role not in ctx.roles or role not in p["required_roles"]:
                 raise AuthorizationError(Decision(False, f"role {role} not held or not required"))
             self.identity.require(ctx, "approve", "proposal", proposal_id, site_id=p.get("site_id"), tx=tx)
+            scoped = self.identity.context_for(ctx.tenant_id, ctx.actor_id, role=role)
+            self.identity.require(scoped, "approve", "proposal", proposal_id, site_id=p.get("site_id"), tx=tx)
             if p["risk"] in ("high", "critical") and not (authentication or {}).get("method"):
                 raise PermissionError("high-risk approval requires re-authentication (authentication.method)")
             approvals = self._approvals(tx, ctx.tenant_id, proposal_id, p["content_hash"])
@@ -220,9 +222,12 @@ class ActionService:
                     current.state.get("status") in ("stale", "quarantined"):
                 problems.append(f"basis {ref['kind']}:{ref['id']} is {current.state['status']}")
         for approver in intent["approvers"]:
-            live = self.identity.context_for(ctx.tenant_id, approver["actor_id"])
-            if approver["role"] not in live.roles:
-                problems.append(f"approver {approver['actor_id']} no longer holds {approver['role']}")
+            live = self.identity.context_for(ctx.tenant_id, approver["actor_id"], role=approver["role"])
+            if approver["role"] not in live.roles or not self.identity.check(
+                live.with_roles(approver["role"]), "approve", "proposal", p["proposal_id"],
+                site_id=p.get("site_id"), tx=tx
+            ):
+                problems.append(f"approver {approver['actor_id']} no longer holds {approver['role']} authority at this site")
         try:
             self.ownership.check_write(ctx.tenant_id, intent["record_class"], intent.get("site_id") or "*",
                                        intent["operation"], approval_ref=",".join(intent["approval_ids"]), tx=tx)
@@ -304,6 +309,7 @@ class ActionService:
         with self.store.transaction(ctx.actor_id) as tx:
             p = tx.require(ctx.tenant_id, "proposal", proposal_id).state
             self.identity.require(ctx, "comment", "proposal", proposal_id, site_id=p.get("site_id"), tx=tx)
+            evidence = self.identity.validate_refs(ctx, evidence, tx=tx)
             outcome_id = new_id("outc")
             state = {"outcome_id": outcome_id, "proposal_id": proposal_id, "observation": observation,
                      "measure": measure, "observed_value": observed_value, "evidence": evidence,
@@ -328,6 +334,17 @@ class ActionService:
             measure = p.get("follow_up_measure")
             if not measure or not any(o.state["measure"] == measure for o in outcomes):
                 raise ValueError(f"no recorded outcome evidence for follow-up measure {measure!r}")
+            valid = False
+            for outcome in outcomes:
+                if outcome.state["measure"] != measure:
+                    continue
+                try:
+                    self.identity.validate_refs(ctx, outcome.state["evidence"], tx=tx)
+                except (ValueError, KeyError, PermissionError):
+                    continue
+                valid = True
+            if not valid:
+                raise ValueError("follow-up evidence is missing, changed, stale or no longer authorized")
             out = tx.put(ctx.tenant_id, "proposal", proposal_id,
                          {**p, "effectiveness": "effective" if effective else "ineffective",
                           "effectiveness_rationale": rationale},

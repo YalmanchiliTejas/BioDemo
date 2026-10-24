@@ -930,6 +930,9 @@ class FileDropConnector:
         more = False
         paths = sorted({p for pat in self.patterns for p in self.directory.glob(pat)})
         for path in paths:
+            if not path.is_file() or not path.resolve().is_relative_to(self.directory.resolve()):
+                self.rejects.append({"file": path.name, "error": "source escapes configured directory or is not a file"})
+                continue
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             entry = files.get(path.name)
             if entry and entry["digest"] == digest and entry["done"]:

@@ -51,7 +51,8 @@ def test_drift_to_outcome_scenario():
     window = p.evidence.ingest(ctx("hist-svc"), source_system="HIST", source_record_id="BR1-pH-w1",
                                content=json.dumps(series).encode(), media_type="application/json", site_id="S1",
                                event_time="2026-10-20T00:00:00+00:00")
-    assert p.missions.deliver_events(T) == {mission["mission_id"]: 1}
+    assert len(p.missions.get(ctx("msat1"), mission["mission_id"])["pending_event_ids"]) == 1
+    assert p.missions.deliver_events(T) == {}  # automatic delivery already routed this event
     act = p.missions.activate(ctx("msat1"), mission["mission_id"], "worker-1")
 
     stats = p.gateway.run(TaskRequest("statistics", ctx("msat1"), mission_id=mission["mission_id"], payload={

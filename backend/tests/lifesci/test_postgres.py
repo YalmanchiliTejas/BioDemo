@@ -38,7 +38,7 @@ def _port() -> int:
 def pg():
     root = Path(tempfile.mkdtemp(prefix="lifesci-pg-"))
     data, port = root / "data", _port()
-    subprocess.run(["initdb", "-D", str(data), "-U", "owner", "--auth=trust", "-E", "UTF8"], check=True,
+    subprocess.run(["initdb", "-D", str(data), "-U", "owner", "--auth=trust", "-E", "UTF8", "--locale=C"], check=True,
                    capture_output=True)
     subprocess.run(["pg_ctl", "-D", str(data), "-o", f"-p {port} -k {root} -c listen_addresses=127.0.0.1",
                     "-l", str(root / "log"), "start"], check=True, capture_output=True)

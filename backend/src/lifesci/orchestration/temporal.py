@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from contextvars import copy_context
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime
 from typing import Any, Callable, Iterable
@@ -48,20 +49,8 @@ def workflow_id(tenant_id: str, mission_id: str) -> str:
 
 def default_coordinator(platform: Platform, ctx: AccessContext, act: Activation, reasons: list[str],
                         as_of: str) -> None:
-    """Minimal coordinator: acknowledge routed events and surface due obligations as pending work.
-
-    Real reasoning (gateway tasks, Prime investigations) is injected by the deployment; long
-    coordinators should call ``temporalio.activity.heartbeat()`` between steps.
-    """
-    mission = platform.missions.get(ctx, act.mission_id)
-    now = _utc(as_of) if as_of else iso(utc_now())
-    due = [o["obligation_id"] for o in mission["obligations"]
-           if o["status"] == "open" and o.get("due_at") and o["due_at"] <= now
-           and o.get("surfaced_due_at") != o["due_at"]]
-    remaining = list(dict.fromkeys([*mission["remaining_work"], *(f"obligation:{d}" for d in due)]))
-    platform.missions.checkpoint(act, progress={"reasons": reasons, "due_obligations": due},
-                                 consumed_event_ids=list(act.pending_event_ids), remaining_work=remaining,
-                                 surfaced_obligations=due)
+    from ..runtime import run_coordinator
+    run_coordinator(platform, ctx, act, reasons, as_of)
 
 
 class MissionActivities:
@@ -90,9 +79,18 @@ class MissionActivities:
         worker = f"temporal:{workflow_id(req.tenant_id, req.mission_id)}"
         activity.heartbeat("activating")  # a lost worker is detected within the heartbeat timeout
         act = self.platform.missions.activate(ctx, req.mission_id, worker)
+        stop = threading.Event()
+        context = copy_context()
+        def pulse() -> None:
+            while not stop.wait(10):
+                activity.heartbeat("coordinator_running")
+        heartbeat = threading.Thread(target=lambda: context.run(pulse), daemon=True)
+        heartbeat.start()
         try:
             self.coordinator(self.platform, ctx, act, req.reasons, req.as_of)
         finally:
+            stop.set()
+            heartbeat.join(timeout=1)
             try:
                 self.platform.missions.release(act)
             except LeaseError:

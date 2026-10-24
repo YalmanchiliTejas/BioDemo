@@ -83,8 +83,13 @@ class EvidenceService:
         evidence_id = f"{source_system}:{source_record_id}"
         with self.store.transaction(ctx.actor_id) as tx:
             self.identity.require(ctx, "read", "evidence", evidence_id, site_id=site_id, tx=tx)
-            digest = tx.put_blob(ctx.tenant_id, content, media_type)
             current = tx.get(ctx.tenant_id, "evidence", evidence_id)
+            if current:
+                self.identity.require(ctx, "read", "evidence", evidence_id,
+                                      site_id=current.state.get("site_id"), tx=tx)
+                if current.state.get("site_id") != site_id:
+                    raise PermissionError("evidence site cannot be changed by ingestion; use a new source identity")
+            digest = tx.put_blob(ctx.tenant_id, content, media_type)
             if current and current.state["digest"] == digest:
                 return {**current.state, "revision": current.revision, "duplicate": True}
             state = {
@@ -178,9 +183,7 @@ class EvidenceService:
         rec = tx.require(ctx.tenant_id, kind, artifact_id)
         if rec.state.get("status") == STATUS_QUARANTINED:
             raise PermissionError(f"{kind}:{artifact_id} quarantined: a contributing source was revoked")
-        decision = self.identity.check_derived(ctx, rec.state.get("inputs", []), tx=tx)
-        if not decision:
-            raise PermissionError(decision.reason)
+        self.identity.validate_refs(ctx, rec.state.get("inputs", []), tx=tx, require_current=False)
         return {"id": artifact_id, "revision": rec.revision, **rec.state}
 
     def dependents(self, tenant_id: str, kind: str, id: str, tx: Transaction | None = None) -> list[tuple[str, str]]:

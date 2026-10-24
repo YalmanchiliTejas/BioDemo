@@ -2,7 +2,25 @@
 
 Built 2026-10-23 in `backend/src/lifesci/`. This explains what exists, how to run it, how it maps to the [architecture](architecture.md), what was measured, and what is still missing. Decisions D29–D44 in the [decision log](decision-log.md) record the implementation choices; per-capability status and evidence are in the [checklist](capability-checklist.md).
 
-## Status at a glance
+## Review follow-up — 2026-10-24
+
+The repository review identified cross-site evidence updates, derived-list access,
+site-specific approval revocation, unchecked outcome evidence, missing runtime
+event routing, unexecuted configured obligations, and hidden approval payloads.
+These paths now have fixes and regression coverage. The runtime routes committed
+events and recovers missed delivery through tenant-scoped polling; configured
+obligations generate reviewable drafts or report blocked work. This does not
+enable unqualified model routes or authorize manufacturing actions.
+
+Configured connector support and the connected Sources page now cover REST,
+file exports, signed webhooks, MQTT and OPC UA, with family mappings for existing
+systems. See [connection setup, contracts and limits](connectors.md). Vendor/device
+qualification remains separate, so the capability completion counts below are
+not increased by these transport additions. The test count below records the
+original 2026-10-23 baseline; the follow-up suite adds security, runtime and real
+client protocol regression tests.
+
+## Status at a glance (2026-10-23 baseline)
 
 | | Count |
 | --- | ---: |
@@ -20,7 +38,7 @@ Local configuration lives in `backend/.env.local` (git-ignored; copy `backend/.e
 
 ```bash
 cd backend
-.venv/bin/python -m pytest tests/lifesci -q          # 269 tests; PostgreSQL tests auto-skip without initdb/pg_ctl
+.venv/bin/python -m pytest tests/lifesci -q          # includes connector/runtime regressions; PostgreSQL tests auto-skip without initdb/pg_ctl
 .venv/bin/python scripts/lifesci_load_smoke.py       # single-process latency smoke (see below)
 .venv/bin/python -m src.lifesci serve --seed-demo --port 8100   # synthetic tenant demo-northfield
 # Durable missions: start a Temporal server, then
@@ -115,10 +133,10 @@ These show relative behavior of code paths only. They do not include network, Po
 
 ## Known gaps (also tracked as unchecked rows)
 
-- **Durable orchestration (D45):** Temporal is implemented and tested against the SDK's time-skipping server and a local dev server. Not yet done: a production Temporal deployment (cluster or Temporal Cloud), TLS/namespace configuration, a scheduled backlog replayer, and replay checks wired into CI with recorded production histories.
+- **Durable orchestration (D45):** Temporal is implemented and tested against the SDK's time-skipping server and a local dev server. The runtime now replays the backlog for configured tenants. Not yet done: a production Temporal deployment (cluster or Temporal Cloud), TLS/namespace configuration, and replay checks wired into CI with recorded production histories.
 - **Multi-process dispatch (D41):** the work queue's selection index is per process.
-- **Devices and live systems:** no mobile/hands-free execution, no real MQTT/OPC UA broker, ERP, QMS, LIMS, media transport, or messaging provider has been exercised (LS-004, LS-008, LS-022, LS-023, LS-038, LS-088).
-- **UI:** the React workspace now has a connected mode on `/v1` (missions, notes, proposals, role-gated approvals, outcomes, health notice; see `frontend/docs/design/connected-mode.md`) alongside the unchanged sample mode. Not yet in the UI: corrections, answering mission decisions, proposal revision, effectiveness assessment, connector administration (LS-041) and scientific visualization (LS-030). Sign-in is development headers until OIDC is configured.
+- **Devices and live systems:** no mobile/hands-free execution, vendor MQTT broker, vendor OPC UA server, ERP, QMS, LIMS, media transport, or messaging provider has been qualified (LS-004, LS-008, LS-022, LS-023, LS-038, LS-088). Real MQTT/OPC UA clients now have local protocol/server tests; these do not establish vendor interoperability.
+- **UI:** the React workspace now has a connected mode on `/v1` (missions, notes, proposals, role-gated approvals with exact payloads, outcomes, recurring-work status, health notice and connector setup/preview/sync in Sources; see `frontend/docs/design/connected-mode.md`) alongside sample mode. Not yet in the UI: corrections, answering mission decisions, proposal revision, effectiveness assessment and scientific visualization (LS-030). Connector mappings support advanced JSON configuration; a visual mapping editor and qualification administration remain future work (LS-041). Sign-in is development headers until OIDC is configured.
 - **Model qualification:** no task kind is qualified by default. Real evaluations against labeled data are required before any model route is enabled in production; the router refuses otherwise.
 - **Prime cost coverage:** Prime child-session usage remains incomplete (`prime_root_session_only`).
 - **Recovery objectives, support guides, in-flight upgrades:** LS-049, LS-082 need customer RPO/RTO and operational artifacts.

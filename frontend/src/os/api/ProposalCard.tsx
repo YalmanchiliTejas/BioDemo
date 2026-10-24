@@ -19,6 +19,17 @@ const when = (iso: string) => {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
 };
 
+function CommandDetails({ proposal: p }: { proposal: Proposal }) {
+  return (
+    <section aria-label="Exact command for review" className="cw-command">
+      <h3>Command for approval</h3>
+      <p><b>{p.operation}</b> · {p.target_system} · {p.target_id} · Site {p.site_id || "tenant-wide"}</p>
+      <pre>{JSON.stringify(p.payload ?? {}, null, 2)}</pre>
+      <small>Revision {p.revision} · Content hash {p.content_hash || "unavailable"}</small>
+    </section>
+  );
+}
+
 export function ProposalCard({
   proposal: p,
   missionGoal,
@@ -64,7 +75,7 @@ export function ProposalCard({
           <b>Why this needs reassessment</b>
           <ul>
             {p.stale_reasons.map((reason, i) => (
-              <li key={i}>{reason}</li>
+              <li key={i}>{typeof reason === "string" ? reason : `${reason.source ? `${reason.source}: ` : ""}${reason.reason || "Source changed"}`}</li>
             ))}
           </ul>
         </div>
@@ -96,6 +107,10 @@ export function ProposalCard({
           </div>
         )}
       </dl>
+      <details>
+        <summary>Inspect command and parameters</summary>
+        <CommandDetails proposal={p} />
+      </details>
       <div className="cw-basis">
         <h3>Basis</h3>
         <ul>
@@ -286,6 +301,7 @@ function DecisionSheet({
       }
     >
       <div className="cw-form">
+        <CommandDetails proposal={p} />
         <p>
           <b>{riskLabel(p.risk)}</b> · target system {p.target_system} · revision {p.revision}
         </p>

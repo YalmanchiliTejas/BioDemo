@@ -10,6 +10,7 @@
 """
 
 import os
+from contextlib import asynccontextmanager
 from typing import Any, Callable, Protocol
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -75,6 +76,32 @@ class NoteIn(BaseModel):
     body: str = Field(min_length=1, max_length=4000)
 
 
+class ObligationIn(BaseModel):
+    description: str = Field(min_length=1, max_length=4000)
+    due_at: str
+    every_minutes: int | None = Field(default=None, ge=1)
+    task_kind: str | None = None
+    payload: dict[str, Any] = {}
+    inputs: list[dict[str, Any]] = []
+    artifact_kind: str | None = None
+    case_id: str | None = None
+
+
+class ConnectorIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    connector_id: str = Field(min_length=1, max_length=80)
+    family: str
+    transport: str
+    site_id: str = Field(min_length=1)
+    owner: str = Field(min_length=1)
+    vendor: str = "generic"
+    version: str = "1"
+    options: dict[str, Any] = {}
+    mapping: dict[str, Any] | None = None
+    write_operations: list[str] = []
+    enabled: bool = True
+
+
 class OutcomeIn(BaseModel):
     observation: str = Field(min_length=1)
     measure: str = Field(min_length=1)
@@ -133,11 +160,21 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     auth_mode = "oidc" if (resolver is None and os.environ.get("OIDC_ISSUER")) else "development_headers"
     if resolver is None:
         resolver = oidc_resolver(platform) if os.environ.get("OIDC_ISSUER") else dev_header_resolver(platform)
-    app = FastAPI(title="BioDemo life-sciences platform", version="1.0", docs_url=None if os.environ.get(
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        platform.runtime.start()
+        try:
+            yield
+        finally:
+            platform.runtime.close()
+
+    app = FastAPI(lifespan=lifespan, title="BioDemo life-sciences platform", version="1.0", docs_url=None if os.environ.get(
         "OIDC_ISSUER") else "/v1/docs", openapi_url="/v1/openapi.json")
 
     def ctx_dep(request: Request) -> AccessContext:
-        return resolver(request)
+        ctx = resolver(request)
+        platform.runtime.track(ctx.tenant_id)
+        return ctx
 
     @app.exception_handler(AuthorizationError)
     async def _auth(_: Request, exc: AuthorizationError):  # noqa: ANN202
@@ -218,13 +255,18 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
         visible = []
         for r in rows:
             if platform.identity.check(ctx, "read", kind, r.id, site_id=r.state.get("site_id")):
+                if "inputs" in r.state:
+                    try:
+                        platform.evidence.read_derived(ctx, kind, r.id)
+                    except (PermissionError, ValueError, KeyError):
+                        continue
                 visible.append({"id": r.id, "revision": r.revision, "state": r.state})
                 if len(visible) == limit:
                     break
         next_cursor = visible[-1]["id"] if len(visible) == limit else None
         return {"items": visible, "next_cursor": next_cursor}
 
-    @app.get(f"/{API_VERSION}/records/{{kind}}/{{record_id}}")
+    @app.get(f"/{API_VERSION}/records/{{kind}}/{{record_id:path}}")
     def get_record(kind: str, record_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
         rec = platform.store.read().require(ctx.tenant_id, kind, record_id)
         platform.identity.require(ctx, "read", kind, record_id, site_id=rec.state.get("site_id"))
@@ -293,6 +335,26 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
         return idempotent(ctx, idem, f"notes:{mission_id}", body.model_dump(),
                           lambda: platform.missions.add_note(ctx, mission_id, body.body))
 
+    @app.post(f"/{API_VERSION}/missions/{{mission_id}}/obligations", status_code=201)
+    def add_obligation(mission_id: str, body: ObligationIn, ctx: AccessContext = Depends(ctx_dep),
+                       idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
+        platform.missions.get(ctx, mission_id)
+        platform.identity.require(ctx, "propose", "mission", mission_id)
+        return idempotent(ctx, idem, f"obligations:{mission_id}", body.model_dump(),
+            lambda: platform.missions.add_obligation(ctx, mission_id, **body.model_dump()))
+
+    @app.post(f"/{API_VERSION}/missions/{{mission_id}}/obligations/{{obligation_id}}/retry")
+    def retry_obligation(mission_id: str, obligation_id: str, ctx: AccessContext = Depends(ctx_dep)):
+        platform.identity.require(ctx, "propose", "mission", mission_id)
+        def retry(s):
+            if not any(o["obligation_id"] == obligation_id and o["status"] == "open" for o in s["obligations"]):
+                raise ValueError("no open obligation to retry")
+            return {**s, "obligations": [{**o, "surfaced_due_at": None, "runtime_status": "pending"}
+                    if o["obligation_id"] == obligation_id else o for o in s["obligations"]]}
+        out = platform.missions._update(ctx, mission_id, retry, action="retry_obligation")
+        platform.missions.scheduler.schedule_wakeup(ctx.tenant_id, mission_id, "obligation_retry")
+        return out
+
     @app.get(f"/{API_VERSION}/missions/{{mission_id}}/proposals")
     def mission_proposals(mission_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
         platform.missions.get(ctx, mission_id)  # authorization on the mission
@@ -341,6 +403,52 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
         items = platform.store.events_since(ctx.tenant_id, after, limit=max(1, min(limit, 1000)))
         return {"events": [{"seq": s, **e.to_dict()} for s, e in items],
                 "cursor": items[-1][0] if items else after}
+
+    @app.get(f"/{API_VERSION}/connectors/catalog")
+    def connector_catalog(ctx: AccessContext = Depends(ctx_dep)):
+        platform.identity.require(ctx, "configure", "connector")
+        return platform.connectors.catalog()
+
+    @app.get(f"/{API_VERSION}/connectors")
+    def connectors(ctx: AccessContext = Depends(ctx_dep)):
+        return {"items": platform.connectors.list_for(ctx)}
+
+    @app.post(f"/{API_VERSION}/connectors", status_code=201)
+    def configure_connector(body: ConnectorIn, ctx: AccessContext = Depends(ctx_dep)):
+        return platform.connectors.configure(ctx, body.model_dump())
+
+    @app.post(f"/{API_VERSION}/connectors/{{connector_id}}/preview")
+    def preview_connector(connector_id: str, ctx: AccessContext = Depends(ctx_dep)):
+        try:
+            return platform.connectors.preview(ctx, connector_id)
+        except PermissionError:
+            raise
+        except (ImportError, OSError) as exc:
+            raise HTTPException(503, "Connector unavailable; check its driver, endpoint and credentials") from exc
+
+    @app.post(f"/{API_VERSION}/connectors/{{connector_id}}/sync")
+    def sync_connector(connector_id: str, ctx: AccessContext = Depends(ctx_dep)):
+        try:
+            return platform.connectors.sync(ctx, connector_id)
+        except PermissionError:
+            raise
+        except (ImportError, OSError) as exc:
+            raise HTTPException(503, "Connector unavailable; check its driver, endpoint and credentials") from exc
+
+    @app.post(f"/{API_VERSION}/connectors/{{connector_id}}/intents/{{intent_id}}/dispatch")
+    def dispatch_connector(connector_id: str, intent_id: str, ctx: AccessContext = Depends(ctx_dep)):
+        return platform.connectors.dispatch(ctx, connector_id, intent_id)
+
+    @app.post(f"/{API_VERSION}/connectors/{{connector_id}}/intents/{{intent_id}}/reconcile")
+    def reconcile_connector(connector_id: str, intent_id: str, ctx: AccessContext = Depends(ctx_dep)):
+        return platform.connectors.dispatch(ctx, connector_id, intent_id, reconcile=True)
+
+    @app.post(f"/{API_VERSION}/webhooks/{{tenant_id}}/{{connector_id}}", status_code=202)
+    async def receive_webhook(tenant_id: str, connector_id: str, request: Request):
+        body = await request.body()
+        if len(body) > 1_000_000:
+            raise HTTPException(413, "Webhook exceeds 1 MB")
+        return platform.connectors.receive(tenant_id, connector_id, body, dict(request.headers))
 
     platform.extend_api(app, ctx_dep, idempotent)
     return app

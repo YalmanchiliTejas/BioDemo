@@ -136,9 +136,21 @@ class MissionService:
 
     # --- obligations, decisions, corrections ---------------------------------------
     def add_obligation(self, ctx: AccessContext, mission_id: str, *, description: str, due_at: str | None = None,
-                       every_minutes: int | None = None, task_kind: str | None = None) -> dict[str, Any]:
+                       every_minutes: int | None = None, task_kind: str | None = None,
+                       payload: dict[str, Any] | None = None, inputs: list[dict[str, Any]] | None = None,
+                       artifact_kind: str | None = None, case_id: str | None = None) -> dict[str, Any]:
         """Repeatable configured obligations (LS-021): e.g. prepare a shift summary every 12h."""
+        if every_minutes is not None and every_minutes < 1:
+            raise ValueError("repeat interval must be at least one minute")
+        if due_at:
+            due = parse_iso(due_at)
+            if due.tzinfo is None:
+                raise ValueError("due_at must include a timezone")
+            due_at = iso(due)
+        if inputs:
+            inputs = self.identity.validate_refs(ctx, inputs)
         ob = {"obligation_id": new_id("obl"), "description": description, "due_at": due_at,
+              "payload": payload or {}, "inputs": inputs or [], "artifact_kind": artifact_kind, "case_id": case_id,
               "every_minutes": every_minutes, "task_kind": task_kind, "status": "open", "completions": []}
         self._update(ctx, mission_id, lambda s: {**s, "obligations": [*s["obligations"], ob]},
                      action="add_obligation")
@@ -157,7 +169,8 @@ class MissionService:
             obs = []
             for o in s["obligations"]:
                 if o["obligation_id"] == obligation_id:
-                    o = {**o, "completions": [*o["completions"], {"at": iso(utc_now()), "artifact": artifact_ref}]}
+                    o = {**o, "runtime_status": "completed", "runtime_issues": [],
+                         "completions": [*o["completions"], {"at": iso(utc_now()), "artifact": artifact_ref}]}
                     if o.get("every_minutes"):
                         base = parse_iso(o.get("due_at")) or utc_now()
                         o["due_at"] = iso(base + timedelta(minutes=o["every_minutes"]))
@@ -166,6 +179,12 @@ class MissionService:
                 obs.append(o)
             return {**s, "obligations": obs}
         return self._update(ctx, mission_id, change, action="complete_obligation")
+
+    def block_obligation(self, ctx: AccessContext, mission_id: str, obligation_id: str,
+                         issues: list[str]) -> dict[str, Any]:
+        return self._update(ctx, mission_id, lambda s: {**s, "obligations": [
+            {**o, "runtime_status": "blocked", "runtime_issues": issues}
+            if o["obligation_id"] == obligation_id else o for o in s["obligations"]]}, action="block_obligation")
 
     def request_decision(self, ctx: AccessContext, mission_id: str, *, question: str, options: list[str],
                          decider_role: str, basis: list[dict[str, Any]]) -> dict[str, Any]:

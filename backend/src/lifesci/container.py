@@ -36,6 +36,8 @@ class Platform:
     gateway: ModelGateway = field(init=False)
     assurance: AssuranceService = field(init=False)
     queue: WorkQueue = field(init=False)
+    runtime: Any = field(init=False)
+    connectors: Any = field(init=False)
     allow_unqualified: bool = False
     providers: dict[str, Any] | None = None
     api_extensions: list[Callable[..., None]] = field(default_factory=list)
@@ -59,6 +61,10 @@ class Platform:
             science.register_handlers(self.gateway)
         except (ImportError, AttributeError):
             pass
+        from .runtime import Runtime
+        self.runtime = Runtime(self)
+        from .connectors import ConnectorService
+        self.connectors = ConnectorService(self)
 
     @staticmethod
     def _env_providers() -> dict[str, Any]:

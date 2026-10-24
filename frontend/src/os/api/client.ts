@@ -2,6 +2,9 @@
 // roles always come from the server.
 
 import type {
+  ConnectorCatalog,
+  ConnectorConfig,
+  ConnectorRecord,
   DecisionInput,
   EvidenceRecord,
   Health,
@@ -108,6 +111,11 @@ export function createClient(identity: ClientIdentity, baseUrl = "") {
   };
   const enc = encodeURIComponent;
   return {
+    connectorCatalog: () => request<ConnectorCatalog>("GET", "/v1/connectors/catalog"),
+    listConnectors: () => request<{ items: ConnectorRecord[] }>("GET", "/v1/connectors").then((r) => r.items),
+    configureConnector: (input: ConnectorConfig) => request<ConnectorRecord>("POST", "/v1/connectors", input),
+    previewConnector: (id: string) => request<Record<string, unknown>>("POST", `/v1/connectors/${enc(id)}/preview`),
+    syncConnector: (id: string) => request<Record<string, unknown>>("POST", `/v1/connectors/${enc(id)}/sync`),
     health: () => request<Health>("GET", "/v1/health", undefined, undefined, false),
     me: () => request<Me>("GET", "/v1/me"),
     listMissions: () => request<{ items: Mission[] }>("GET", "/v1/missions").then((r) => r.items),

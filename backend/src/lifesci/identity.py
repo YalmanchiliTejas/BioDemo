@@ -117,12 +117,14 @@ class IdentityService:
                    event_type="identity.role_revoked", event_payload={"actor_id": actor_id, "role": role})
 
     def context_for(self, tenant_id: str, actor_id: str, *, actor_kind: ActorKind = "person",
-                    partner_org_id: str | None = None) -> AccessContext:
+                    partner_org_id: str | None = None, role: str | None = None) -> AccessContext:
         """Build the actor's current context from live (non-revoked) assignments."""
         tx = self.store.read()
-        rows = [r for r in tx.find(tenant_id, "role_assignment", "actor_id", actor_id) if not r.state.get("revoked_at")]
+        rows = [r for r in tx.find(tenant_id, "role_assignment", "actor_id", actor_id)
+                if not r.state.get("revoked_at") and (role is None or r.state["role"] == role)]
         roles = frozenset(r.state["role"] for r in rows)
-        sites = frozenset(r.state["site_id"] for r in rows if r.state.get("site_id"))
+        sites = frozenset(r.state["site_id"] for r in rows if r.state.get("site_id")) if all(
+            r.state.get("site_id") for r in rows) else frozenset()
         version = sum(r.revision for r in rows)
         return AccessContext(tenant_id, actor_id, actor_kind, roles, sites, partner_org_id,
                              authorization_version=version)
@@ -217,6 +219,49 @@ class IdentityService:
             if not d:
                 return Decision(False, f"source {kind}:{rid} not authorized: {d.reason}")
         return Decision(True, "all sources authorized")
+
+    def validate_refs(self, ctx: AccessContext, refs: Iterable[dict[str, Any]], *,
+                      tx: Transaction | None = None, require_current: bool = True,
+                      _seen: frozenset[tuple[str, str]] = frozenset()) -> list[dict[str, Any]]:
+        """Resolve source scope from storage, verify revisions and pin an authorized manifest.
+
+        Caller-supplied site labels cannot authorize a source. Nested artifacts retain
+        the restrictions of every input, including after a grant is revoked.
+        """
+        tx = tx or self.store.read()
+        pinned = []
+        for ref in refs:
+            kind, rid = ref.get("kind"), ref.get("id")
+            if not kind or not rid:
+                raise ValueError("source reference requires kind and id")
+            key = (kind, rid)
+            if key in _seen:
+                raise PermissionError("cyclic source lineage is unavailable")
+            current = tx.require(ctx.tenant_id, kind, rid)
+            site = current.state.get("site_id")
+            if ref.get("site_id") is not None and ref["site_id"] != site:
+                raise PermissionError("source site does not match the stored record")
+            self.require(ctx, "read", kind, rid, site_id=site, tx=tx)
+            revision = ref.get("revision", current.revision)
+            source = tx.revision(ctx.tenant_id, kind, rid, revision)
+            if source is None:
+                raise ValueError(f"source revision missing: {kind}:{rid}@{revision}")
+            self.require(ctx, "read", kind, rid, site_id=source.state.get("site_id"), tx=tx)
+            if require_current and (revision != current.revision or
+                                    current.state.get("status") in ("stale", "quarantined", "superseded")):
+                raise ValueError(f"source is no longer current: {kind}:{rid}@{revision}")
+            if current.state.get("status") == "quarantined":
+                raise PermissionError(f"source quarantined: {kind}:{rid}")
+            for state in (current.state, source.state):
+                if "inputs" in state:
+                    if not state["inputs"]:
+                        raise PermissionError("derived source has no lineage")
+                    self.validate_refs(ctx, state["inputs"], tx=tx, require_current=require_current,
+                                       _seen=_seen | {key})
+            pinned.append({**ref, "revision": revision, "site_id": site})
+        if not pinned:
+            raise ValueError("at least one source reference is required")
+        return pinned
 
 
 def expired(value: str | None) -> bool:

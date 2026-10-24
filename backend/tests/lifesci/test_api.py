@@ -13,6 +13,26 @@ from src.lifesci.store import RecordStore  # noqa: E402
 T = "tenant-a"
 
 
+def test_derived_list_checks_every_source_and_quarantine(api):
+    from src.lifesci.evidence import EvidenceRef
+    client, h, p = api
+    _ingest(client, h)
+    p.evidence.record_derived(p.identity.context_for(T, "op1"), kind="summary", payload={"text": "secret"},
+                              inputs=[EvidenceRef("evidence", "LIMS:R1", 1, "S1")], produced_by={})
+    assert client.get("/v1/records/summary", headers=h("op2")).json()["items"] == []
+    assert len(client.get("/v1/records/summary", headers=h("op1")).json()["items"]) == 1
+    p.evidence.quarantine_from(p.identity.context_for(T, "op1"), "evidence", "LIMS:R1", "withdrawn")
+    assert client.get("/v1/records/summary", headers=h("op1")).json()["items"] == []
+
+
+def test_record_detail_supports_source_identifiers_with_slashes(api):
+    client, h, _ = api
+    _ingest(client, h, rid="plant/bioreactor/pH")
+    r = client.get("/v1/records/evidence/LIMS:plant/bioreactor/pH", headers=h("op1"))
+    assert r.status_code == 200 and r.json()["state"]["source_record_id"] == "plant/bioreactor/pH"
+    assert client.get("/v1/records/evidence/LIMS:plant/bioreactor/pH", headers=h("op2")).status_code == 403
+
+
 @pytest.fixture
 def api():
     p = Platform(RecordStore(), providers={})
