@@ -29,6 +29,7 @@ Design decisions and trade-offs: [docs/design/mos-32-screen-implementation.md](d
 | `components/ui.tsx` | Design-system primitives (Card, Pill, ClaimTag, EvidenceChip, PageHeader, Modal…) |
 | `components/EvidenceDrawer.tsx` · `ScientificPlot.tsx` · `ReviewDossier.tsx` | The three core component contracts from the handoff |
 | `components/shell/*` | App shell, command palette (⌘K), inspector, run strip, toasts, onboarding/operator frames |
+| `components/agent/*` · `lib/agent/*` | Agent interaction layer: composer (Find/Ask/Delegate), dock, run strip, artifacts, review gate, task state machine ([decisions](docs/design/agent-interaction-layer.md)) |
 | `lib/app-context.tsx` | `useAppContext()` global state (site, role, inspector entity, agent run state, toasts) |
 | `fixtures/` | `MOCK_DATASET`, citation registry, deterministic time series |
 

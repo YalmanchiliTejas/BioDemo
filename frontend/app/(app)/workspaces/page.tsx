@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, ChevronDown, ChevronUp, Clock, FileText, LineChart, Pin, Plus, Search, Signature } from 'lucide-react';
+import { AgentPinnedArtifacts } from '@/components/agent/AgentCanvasSlot';
 import { Button, Card, ClaimTag, EmptyNote, EvidenceChip, LinkButton, Modal, PageHeader, Pill, SectionLabel, Stat, useDisclosure, type ClaimKind, type Tone } from '@/components/ui';
 import { Sparkline } from '@/components/screens/a/StandaloneEvidence';
 import { feedRateSeries, headPressureSeries, yieldSeries, type Series } from '@/fixtures/timeseries';
@@ -167,6 +168,8 @@ export default function WorkspacesPage() {
         meta={<><span>Active case owner: Alex Rivera (MSAT Lead)</span><span>Viewing as {me} · {ROLE_LABELS[userRole]}</span></>}
         actions={<Button variant="secondary" onClick={create.onOpen}><Plus className="h-3.5 w-3.5" aria-hidden />New workspace</Button>}
       />
+
+      <AgentPinnedArtifacts />
 
       <Card className="mb-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-4 py-3">

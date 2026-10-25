@@ -9,6 +9,7 @@ import { ReviewDossier, type ReviewDossierProps } from '@/components/ReviewDossi
 import { ACTION_LIFECYCLE } from '@/components/screens/c/shared';
 import { ROLE_LABELS, ROLE_PEOPLE, useAppContext, type UserRole } from '@/lib/app-context';
 import { cn } from '@/lib/cn';
+import { AgentReviewQueue } from '@/components/agent/AgentCanvasSlot';
 
 type Risk = ReviewDossierProps['riskTier'];
 const RISK_TONE: Record<Risk, Tone> = { LOW: 'success', MEDIUM: 'warning', HIGH: 'critical', BLOCKER: 'critical' };
@@ -266,6 +267,8 @@ export default function ReviewCenterPage() {
         description="Proposals waiting for a named human decision. Nothing here takes effect until the required people sign, and implementation still happens in the source system."
         meta={<><span>Signing as {ROLE_PEOPLE[userRole]} · {ROLE_LABELS[userRole]}</span><span>Signatures designed to support Part 11 workflows; demo signatures are not Part 11 records</span><DemoBoundary compact /></>}
       />
+
+      <AgentReviewQueue />
 
       <Card className="mb-4">
         <CardHeader title="Triage ledger" subtitle="Select an item to open its dossier" />

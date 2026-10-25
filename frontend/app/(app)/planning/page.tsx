@@ -6,6 +6,7 @@ import { Callout, Card, CardBody, CardHeader, ClaimTag, DemoBoundary, EvidenceCh
 import { Gantt, type GanttBar } from '@/components/screens/c/Gantt';
 import { useAppContext } from '@/lib/app-context';
 import { cn } from '@/lib/cn';
+import { AgentCanvasSlot } from '@/components/agent/AgentCanvasSlot';
 
 // Hour 0 = Mon 2026-10-19 00:00 UTC. Window covers 9 days (through Tue 27 Oct).
 const HOURS = 216;
@@ -98,6 +99,7 @@ export default function PlanningPage() {
     <div className="max-w-[1360px] mx-auto">
       <PageHeader
         frameId="PLAN-01"
+        agent={{ label: 'Solve constraint collision', templateId: 'schedule' }}
         crumbs={[{ label: 'Operate' }, { label: 'Planning' }, { label: 'CMP-26-10 · Suite 3B' }]}
         title="Suite 3B equipment schedule"
         objectId="CMP-26-10"
@@ -115,6 +117,8 @@ export default function PlanningPage() {
       <Callout tone="critical" icon={<CalendarClock className="h-4 w-4" />} title="PM-204 sanitization overlaps MES-26074 inoculation by 4.5 h" className="mb-4">
         PM-SAN-204 runs Mon 26 Oct 06:00–14:00; MES-26074 inoculation is planned for 09:30 and needs PM-204 from that point. <EvidenceChip id="c-maximo-cip-sched" />
       </Callout>
+
+      <AgentCanvasSlot frame="PLAN-01" className="space-y-3 mb-4" />
 
       <Card className="mb-4">
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-border-hairline">

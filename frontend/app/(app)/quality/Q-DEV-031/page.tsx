@@ -7,6 +7,7 @@ import { Button, Callout, Card, CardBody, CardHeader, ClaimTag, DemoBoundary, Ev
 import { StageTracker } from '@/components/screens/c/shared';
 import { MOCK_DATASET } from '@/fixtures/biomanufacturingData';
 import { cn } from '@/lib/cn';
+import { AgentCanvasSlot } from '@/components/agent/AgentCanvasSlot';
 
 const STAGES = ['Initiated', 'Triage & containment', 'Root-cause investigation', 'CAPA plan', 'QA approval', 'Closure'];
 const CURRENT_STAGE = 2; // ROOT_CAUSE_INVESTIGATION
@@ -51,6 +52,7 @@ export default function DeviationPage() {
     <div className="max-w-[1280px] mx-auto">
       <PageHeader
         frameId="QUAL-02"
+        agent={{ label: 'Draft RCA dossier', templateId: 'dossier' }}
         crumbs={[{ label: 'Assure' }, { label: 'Quality', href: '/quality' }, { label: 'Q-DEV-031' }]}
         title="Feed droop & head-pressure exceedance on BR-UP-01"
         objectId="Q-DEV-031"
@@ -71,6 +73,8 @@ export default function DeviationPage() {
           <p className="mt-2 text-[11.5px] text-text-tertiary">Stage mirrors Veeva QMS. Advancing a stage happens in QMS by the record owner, not here.</p>
         </CardBody>
       </Card>
+
+      <AgentCanvasSlot frame="QUAL-02" className="space-y-3 mb-4" />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2 space-y-4 min-w-0">

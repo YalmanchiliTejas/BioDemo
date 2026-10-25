@@ -17,7 +17,8 @@ const ENTITIES = [
   { id: 'SOP-UP-014', title: 'SOP-UP-014 Rev 7 · feed pump operation', href: '/knowledge' },
 ];
 
-export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** FIND mode of the global command overlay: jump to records and screens. */
+export function FindPanel({ onClose, onAsk }: { onClose: () => void; onAsk: (text: string) => void }) {
   const router = useRouter();
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
@@ -34,16 +35,10 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   }, [q]);
 
   useEffect(() => {
-    if (open) {
-      setQ('');
-      setIdx(0);
-      setTimeout(() => inputRef.current?.focus(), 0);
-    }
-  }, [open]);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, []);
 
   useEffect(() => setIdx(0), [q]);
-
-  if (!open) return null;
 
   const go = (href: string) => {
     onClose();
@@ -51,47 +46,49 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-start justify-center pt-[12vh] px-4">
-      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} aria-hidden />
-      <div role="dialog" aria-modal="true" aria-label="Command palette" className="relative w-full max-w-xl bg-surface rounded-card border border-border-hairline shadow-2xl overflow-hidden">
-        <div className="flex items-center gap-2 px-3 border-b border-border-hairline">
-          <Search className="h-4 w-4 text-text-tertiary" aria-hidden />
-          <input
-            ref={inputRef}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') onClose();
-              if (e.key === 'ArrowDown') { e.preventDefault(); setIdx((i) => Math.min(i + 1, results.length - 1)); }
-              if (e.key === 'ArrowUp') { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
-              if (e.key === 'Enter' && results[idx]) go(results[idx].href);
-            }}
-            placeholder="Jump to a batch, equipment tag, deviation or screen…"
-            className="flex-1 h-11 bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none"
-            aria-label="Search"
-          />
-          <kbd className="text-[10px] font-mono text-text-tertiary border border-border-hairline rounded px-1">ESC</kbd>
-        </div>
-        <ul className="max-h-[52vh] overflow-y-auto py-1" role="listbox">
-          {results.length === 0 && <li className="px-4 py-6 text-center text-xs text-text-tertiary">No matching records or screens.</li>}
-          {results.map((r, i) => (
-            <li key={r.group + r.key} role="option" aria-selected={i === idx}>
-              {(i === 0 || results[i - 1].group !== r.group) && (
-                <p className="px-3 pt-2 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-text-muted">{r.group}</p>
-              )}
-              <button
-                onMouseEnter={() => setIdx(i)}
-                onClick={() => go(r.href)}
-                className={cn('w-full flex items-center gap-3 px-3 py-2 text-left text-[13px]', i === idx ? 'bg-brand-teal-light' : '')}
-              >
-                <code className="w-24 shrink-0 text-[11px] font-mono text-text-tertiary">{r.code}</code>
-                <span className="flex-1 truncate text-text-primary">{r.label}</span>
-                {i === idx && <CornerDownLeft className="h-3.5 w-3.5 text-text-tertiary" aria-hidden />}
-              </button>
-            </li>
-          ))}
-        </ul>
+    <>
+      <div className="flex items-center gap-2 px-3 border-b border-border-hairline">
+        <Search className="h-4 w-4 text-text-tertiary" aria-hidden />
+        <input
+          ref={inputRef}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') onClose();
+            if (e.key === 'ArrowDown') { e.preventDefault(); setIdx((i) => Math.min(i + 1, results.length - 1)); }
+            if (e.key === 'ArrowUp') { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
+            if (e.key === 'Enter') { if (results[idx]) go(results[idx].href); else if (q.trim()) onAsk(q.trim()); }
+          }}
+          placeholder="Jump to a batch, equipment tag, deviation or screen…"
+          className="flex-1 h-11 bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none"
+          aria-label="Search"
+        />
+        <kbd className="text-[10px] font-mono text-text-tertiary border border-border-hairline rounded px-1">ESC</kbd>
       </div>
-    </div>
+      <ul className="max-h-[52vh] overflow-y-auto py-1" role="listbox">
+        {results.length === 0 && (
+          <li className="px-4 py-5 text-center text-xs text-text-tertiary">
+            No matching records or screens.
+            {q.trim() && <button type="button" onClick={() => onAsk(q.trim())} className="block mx-auto mt-2 text-[12.5px] text-brand-teal hover:underline">Ask the agent: “{q.trim()}” →</button>}
+          </li>
+        )}
+        {results.map((r, i) => (
+          <li key={r.group + r.key} role="option" aria-selected={i === idx}>
+            {(i === 0 || results[i - 1].group !== r.group) && (
+              <p className="px-3 pt-2 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-text-muted">{r.group}</p>
+            )}
+            <button
+              onMouseEnter={() => setIdx(i)}
+              onClick={() => go(r.href)}
+              className={cn('w-full flex items-center gap-3 px-3 py-2 text-left text-[13px]', i === idx ? 'bg-brand-teal-light' : '')}
+            >
+              <code className="w-24 shrink-0 text-[11px] font-mono text-text-tertiary">{r.code}</code>
+              <span className="flex-1 truncate text-text-primary">{r.label}</span>
+              {i === idx && <CornerDownLeft className="h-3.5 w-3.5 text-text-tertiary" aria-hidden />}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

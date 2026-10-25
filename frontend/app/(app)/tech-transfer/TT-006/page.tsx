@@ -8,6 +8,7 @@ import { GateRoadmap } from '@/components/screens/c/GateRoadmap';
 import { MOCK_DATASET } from '@/fixtures/biomanufacturingData';
 import { useAppContext } from '@/lib/app-context';
 import { cn } from '@/lib/cn';
+import { AgentCanvasSlot } from '@/components/agent/AgentCanvasSlot';
 
 type Comp = 'match' | 'scaled' | 'gap' | 'unknown';
 const COMP: Record<Comp, { tone: Tone; label: string }> = {
@@ -51,6 +52,7 @@ export default function TransferWorkspace() {
     <div className="max-w-[1360px] mx-auto">
       <PageHeader
         frameId="TRANSFER-02"
+        agent={{ label: 'Delegate parameter gap resolution', templateId: 'tt-gap' }}
         crumbs={[{ label: 'Improve' }, { label: 'Tech transfer', href: '/tech-transfer' }, { label: 'TT-006' }]}
         title="Mesa 500L single-use → Durham 2000L stainless"
         objectId="TT-006"
@@ -76,6 +78,8 @@ export default function TransferWorkspace() {
           </div>
         </CardBody>
       </Card>
+
+      <AgentCanvasSlot frame="TRANSFER-02" className="space-y-3 mb-4" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <Card>

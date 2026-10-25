@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, LogOut, Menu, PenLine, Search } from 'lucide-react';
+import { Check, ChevronDown, HelpCircle, LogOut, Menu, PenLine, Search, Zap } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { useAgent } from '@/lib/agent/agent-context';
+import { frameForPath } from '@/lib/agent/screens';
 import { ROLE_LABELS, ROLE_PEOPLE, SITES, useAppContext, type UserRole } from '@/lib/app-context';
 import { BrandMark } from './BrandMark';
 import { DemoBoundary, StatusDot } from '../ui';
@@ -24,14 +27,14 @@ function ContextSwitcher() {
   const ref = useClickOutside(() => setOpen(false));
   return (
     <div ref={ref} className="relative min-w-0">
-      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex items-center gap-1.5 h-8 px-2 rounded-control hover:bg-surface-secondary text-[12.5px] min-w-0">
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex items-center gap-1.5 h-8 px-2 rounded-control hover:bg-surface-secondary text-[12.5px] min-w-0 whitespace-nowrap">
         <span className="font-medium text-text-primary truncate">{organization}</span>
         <span className="text-text-muted">/</span>
         <span className="text-text-secondary truncate hidden sm:inline">{siteId}</span>
         <span className="text-text-muted hidden md:inline">/</span>
         <span className="text-text-secondary hidden md:inline">{productId}</span>
-        <span className="text-text-muted hidden lg:inline">/</span>
-        <code className="hidden lg:inline text-[11px] font-mono text-text-tertiary">{campaignId}</code>
+        <span className="text-text-muted hidden min-[1800px]:inline">/</span>
+        <code className="hidden min-[1800px]:inline text-[11px] font-mono text-text-tertiary">{campaignId}</code>
         <ChevronDown className="h-3.5 w-3.5 text-text-tertiary shrink-0" aria-hidden />
       </button>
       {open && (
@@ -71,8 +74,8 @@ function UserMenu() {
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex items-center gap-2 h-8 pl-1 pr-2 rounded-control hover:bg-surface-secondary">
         <span className="h-6 w-6 rounded-full bg-slate-800 text-white text-[10.5px] font-semibold flex items-center justify-center">{initials}</span>
         <span className="hidden lg:flex flex-col items-start leading-tight">
-          <span className="text-[12px] font-medium text-text-primary">{ROLE_PEOPLE[userRole]}</span>
-          <span className="text-[10.5px] text-text-tertiary">{ROLE_LABELS[userRole]}</span>
+          <span className="text-[12px] font-medium text-text-primary whitespace-nowrap">{ROLE_PEOPLE[userRole]}</span>
+          <span className="text-[10.5px] text-text-tertiary whitespace-nowrap">{ROLE_LABELS[userRole]}</span>
         </span>
         <ChevronDown className="h-3.5 w-3.5 text-text-tertiary" aria-hidden />
       </button>
@@ -97,7 +100,36 @@ function UserMenu() {
   );
 }
 
-export function TopHeader({ onOpenPalette, onToggleNav }: { onOpenPalette: () => void; onToggleNav: () => void }) {
+/** Global command bar: one entry point with three intents (find, ask, delegate) and the active scope. */
+function GlobalCommandBar() {
+  const { openOverlay } = useAgent();
+  const { siteId, productId, processId } = useAppContext();
+  const frame = frameForPath(usePathname()) ?? undefined;
+  const site = siteId.split(' ')[0];
+  return (
+    <div className="w-full max-w-lg hidden md:flex items-center h-9 rounded-control border border-border-hairline bg-surface-secondary/70 hover:border-border-strong">
+      <button onClick={() => openOverlay('FIND', { frame })} className="flex-1 min-w-0 flex items-center gap-2 h-full pl-2.5 pr-2 text-[12.5px] text-text-tertiary text-left" aria-label="Find data (⌘K)">
+        <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span className="truncate whitespace-nowrap">Find data</span>
+        <span className="hidden xl:inline-flex items-center gap-1 ml-1 px-1.5 h-5 rounded border border-border-hairline bg-surface text-[10.5px] font-mono text-text-secondary whitespace-nowrap" title={`Active scope: ${site} · ${productId} · ${processId} · MES-26071..73 (3 batches)`}>
+          {processId} · MES-26071..73 (3)
+        </span>
+        <kbd className="ml-auto text-[10px] font-mono border border-border-hairline bg-surface rounded px-1 shrink-0">⌘K</kbd>
+      </button>
+      <span className="h-5 w-px bg-border-hairline" aria-hidden />
+      <button onClick={() => openOverlay('ASK', { frame })} className="flex items-center gap-1 h-full px-2.5 text-[12.5px] text-text-secondary hover:text-text-primary whitespace-nowrap">
+        <HelpCircle className="h-3.5 w-3.5" aria-hidden /> Ask
+      </button>
+      <span className="h-5 w-px bg-border-hairline" aria-hidden />
+      <button onClick={() => openOverlay('DELEGATE', { frame })} className="flex items-center gap-1 h-full px-2.5 rounded-r-control text-[12.5px] font-medium text-brand-teal-dark hover:bg-brand-teal-light whitespace-nowrap">
+        <Zap className="h-3.5 w-3.5" aria-hidden /> Delegate
+      </button>
+    </div>
+  );
+}
+
+export function TopHeader({ onToggleNav }: { onToggleNav: () => void }) {
+  const { openOverlay } = useAgent();
   return (
     <header className="h-14 shrink-0 flex items-center gap-2 px-3 bg-surface border-b border-border-hairline">
       <button onClick={onToggleNav} className="lg:hidden p-1.5 rounded text-text-secondary hover:bg-surface-secondary" aria-label="Toggle navigation">
@@ -107,23 +139,16 @@ export function TopHeader({ onOpenPalette, onToggleNav }: { onOpenPalette: () =>
       <div className="lg:hidden"><BrandMark label={false} /></div>
       <ContextSwitcher />
 
-      <div className="flex-1 flex justify-center px-2">
-        <button
-          onClick={onOpenPalette}
-          className="w-full max-w-md hidden md:flex items-center gap-2 h-8 px-2.5 rounded-control border border-border-hairline bg-surface-secondary/70 text-[12.5px] text-text-tertiary hover:border-border-strong"
-        >
-          <Search className="h-3.5 w-3.5" aria-hidden />
-          <span className="flex-1 text-left truncate whitespace-nowrap">Search records and screens…</span>
-          <kbd className="text-[10px] font-mono border border-border-hairline bg-surface rounded px-1">⌘K</kbd>
-        </button>
-        <button onClick={onOpenPalette} className="md:hidden p-1.5 rounded text-text-secondary hover:bg-surface-secondary" aria-label="Search">
+      <div className="flex-1 min-w-0 flex justify-center px-2">
+        <GlobalCommandBar />
+        <button onClick={() => openOverlay('FIND')} className="md:hidden p-1.5 rounded text-text-secondary hover:bg-surface-secondary" aria-label="Search">
           <Search className="h-4 w-4" />
         </button>
       </div>
 
       <div className="flex items-center gap-1.5">
         <DemoBoundary compact className="hidden xl:inline-flex" />
-        <Link href="/sources" className="hidden md:flex items-center gap-1.5 h-8 px-2 rounded-control hover:bg-surface-secondary text-[12px] text-text-secondary" title="Source coverage">
+        <Link href="/sources" className="hidden md:flex items-center gap-1.5 h-8 px-2 rounded-control hover:bg-surface-secondary text-[12px] text-text-secondary whitespace-nowrap" title="Source coverage">
           <StatusDot tone="success" /> 5/6 sources
         </Link>
         <Link href="/reviews/REV-01" className={cn('relative flex items-center gap-1.5 h-8 px-2 rounded-control hover:bg-surface-secondary text-[12px] text-text-secondary')} title="Signatures awaiting you">

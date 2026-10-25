@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import { AppProvider } from '@/lib/app-context';
+import { AgentProvider } from '@/lib/agent/agent-context';
 import { Toasts } from '@/components/shell/Toasts';
 import './globals.css';
 
@@ -19,8 +20,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${mono.variable}`}>
       <body>
         <AppProvider>
-          {children}
-          <Toasts />
+          <AgentProvider>
+            {children}
+            <Toasts />
+          </AgentProvider>
         </AppProvider>
       </body>
     </html>

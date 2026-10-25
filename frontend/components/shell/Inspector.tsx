@@ -1,25 +1,62 @@
 'use client';
 
 import Link from 'next/link';
-import { PanelRightClose } from 'lucide-react';
-import { useAppContext } from '@/lib/app-context';
+import { Bot, FileSearch, PanelRightClose } from 'lucide-react';
+import { useAppContext, type InspectorEntity } from '@/lib/app-context';
+import { useAgent } from '@/lib/agent/agent-context';
+import { AgentDock } from '../agent/AgentDock';
+import { cn } from '@/lib/cn';
 import { CITATIONS } from '@/fixtures/biomanufacturingData';
 import { EvidenceDrawer } from '../EvidenceDrawer';
 import { EvidenceChip, Hash, SectionLabel, buttonClass } from '../ui';
 
 const TYPE_LABEL = { EVIDENCE: 'Evidence', SAMPLE: 'Sample', WORK_ORDER: 'Work order', HYPOTHESIS: 'Hypothesis', AGENT_STEP: 'Agent step', RECORD: 'Record', PROJECT: 'Project', SCHEDULE_ITEM: 'Schedule item' } as const;
 
+/**
+ * The single right-hand slot. When an agent task exists it hosts two tabs —
+ * Agent Copilot (440px dock) and Evidence & Provenance — so opening a citation from the
+ * agent never stacks a second sidebar and never loses task state.
+ */
 export function Inspector() {
-  const { isInspectorOpen, activeInspectorEntity: e, closeInspector } = useAppContext();
-  if (!isInspectorOpen || !e) return null;
-
-  const citation = e.type === 'EVIDENCE' ? CITATIONS[e.id] : undefined;
+  const { isInspectorOpen, activeInspectorEntity: e, closeInspector, sidePaneTab, setSidePaneTab } = useAppContext();
+  const { tasks } = useAgent();
+  if (!isInspectorOpen) return null;
+  const shared = tasks.length > 0 || sidePaneTab === 'AGENT';
+  const tab = shared ? sidePaneTab : 'EVIDENCE';
 
   return (
     <aside
-      aria-label="Inspector"
-      className="fixed inset-y-0 right-0 z-[60] w-full max-w-[360px] bg-surface border-l border-border-hairline shadow-xl xl:shadow-none xl:static xl:z-auto xl:w-[360px] xl:max-w-none shrink-0"
+      aria-label={tab === 'AGENT' ? 'Agent dock' : 'Inspector'}
+      className={cn(
+        'fixed inset-y-0 right-0 z-[60] w-full bg-surface border-l border-border-hairline shadow-xl xl:shadow-none xl:static xl:z-auto xl:max-w-none shrink-0 flex flex-col',
+        shared ? 'max-w-[440px] xl:w-[440px]' : 'max-w-[360px] xl:w-[360px]',
+      )}
     >
+      {shared && (
+        <div className="flex items-center gap-1 px-2 h-10 shrink-0 border-b border-border-hairline bg-surface-secondary/60" role="tablist" aria-label="Side panel">
+          {([['AGENT', 'Agent Copilot', Bot], ['EVIDENCE', 'Evidence & Provenance', FileSearch]] as const).map(([k, label, Icon]) => (
+            <button key={k} role="tab" aria-selected={tab === k} onClick={() => setSidePaneTab(k)} className={cn('flex items-center gap-1.5 h-7 px-2.5 rounded-control text-[12.5px] font-medium', tab === k ? 'bg-surface text-text-primary shadow-sm border border-border-hairline' : 'text-text-tertiary hover:text-text-primary')}>
+              <Icon className="h-3.5 w-3.5" aria-hidden />{label}
+            </button>
+          ))}
+          <button onClick={closeInspector} className="ml-auto p-1 rounded text-text-tertiary hover:bg-surface hover:text-text-primary" aria-label="Close side panel"><PanelRightClose className="h-4 w-4" /></button>
+        </div>
+      )}
+      <div className="flex-1 min-h-0">
+        {tab === 'AGENT' ? <AgentDock /> : e ? <EntityPanel e={e} onClose={closeInspector} /> : (
+          <p className="p-4 text-[12.5px] text-text-tertiary">Select any citation chip to see its raw excerpt, transformation, timestamp and content hash here. Your agent task keeps running in the other tab.</p>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function EntityPanel({ e, onClose }: { e: InspectorEntity; onClose: () => void }) {
+  const closeInspector = onClose;
+  const citation = e.type === 'EVIDENCE' ? CITATIONS[e.id] : undefined;
+
+  return (
+    <>
       {citation ? (
         <EvidenceDrawer inline isOpen onClose={closeInspector} citation={citation} />
       ) : (
@@ -71,6 +108,6 @@ export function Inspector() {
           )}
         </div>
       )}
-    </aside>
+    </>
   );
 }

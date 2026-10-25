@@ -7,6 +7,7 @@ import { downloadText } from '@/components/screens/c/shared';
 import { CITATIONS } from '@/fixtures/biomanufacturingData';
 import { ROLE_PEOPLE, useAppContext } from '@/lib/app-context';
 import { cn } from '@/lib/cn';
+import { AgentCanvasSlot } from '@/components/agent/AgentCanvasSlot';
 
 type Origin = 'agent' | 'human' | 'agent-edited';
 type Cite = { id: string; label?: string };
@@ -167,6 +168,8 @@ export default function DocumentPage() {
       <div role="note" className="mb-4 flex items-center justify-center gap-2 rounded-card border border-red-200 bg-status-critical-bg px-3 py-2 text-[12.5px] font-semibold tracking-wide text-red-700 uppercase">
         Controlled draft — not an approved record
       </div>
+
+      <AgentCanvasSlot frame="DOC-01" className="space-y-3 mb-4" />
 
       <div className="grid grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)] xl:grid-cols-[200px_minmax(0,1fr)_300px] gap-4">
         <nav aria-label="Document outline" className="lg:sticky lg:top-0 self-start">

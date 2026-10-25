@@ -9,6 +9,8 @@ import { VARIABLES } from '@/fixtures/timeseries';
 import { ANOMALY_HOUR, BATCH_COLORS, CITATIONS, GAP_INTERVAL, MOCK_DATASET } from '@/fixtures/biomanufacturingData';
 import { useAppContext } from '@/lib/app-context';
 import { cn } from '@/lib/cn';
+import { AskDelegateButton } from '@/components/agent/AskDelegateButton';
+import { AgentCanvasSlot } from '@/components/agent/AgentCanvasSlot';
 
 type VarKey = (typeof VARIABLES)[number]['key'];
 const BATCHES = ['MES-26071', 'MES-26072', 'MES-26073'];
@@ -132,7 +134,20 @@ export default function WorkbenchPage() {
                   </span>
                 )}
               </div>
-              <PlotLegend batches={batches.map((id) => ({ id, color: BATCH_COLORS[id] }))} kalman={kalman} />
+              <div className="flex flex-wrap items-center gap-3">
+                <PlotLegend batches={batches.map((id) => ({ id, color: BATCH_COLORS[id] }))} kalman={kalman} />
+                <AskDelegateButton
+                  frame="ANALYSIS-01"
+                  size="sm"
+                  label={range ? `Ask / Delegate · T+${range[0].toFixed(0)}–${range[1].toFixed(0)}h` : 'Ask / Delegate'}
+                  scope={[
+                    { id: 'fac-mesa', kind: 'FACILITY', value: 'Mesa Site · Cleanroom Suite 3B · Skid BR-UP-01' },
+                    { id: 'batches-sel', kind: 'BATCHES', value: `CMP-26-10 · ${batches.join(', ')}` },
+                    ...(range ? [{ id: 'span-sel', kind: 'SPAN' as const, value: `T+${range[0].toFixed(1)}h – T+${range[1].toFixed(1)}h (${(range[1] - range[0]).toFixed(1)}h window)` }] : []),
+                    ...selected.map((k) => ({ id: `var-${k}`, kind: 'RECORD' as const, value: VARIABLES.find((v) => v.key === k)!.tag })),
+                  ]}
+                />
+              </div>
             </div>
             {timeMode === 'wall' && (
               <div className="px-4 pt-3">
@@ -168,6 +183,8 @@ export default function WorkbenchPage() {
               Sources: <EvidenceChip id="historian-up01" /> <EvidenceChip id="historian-gap" label="Historian gap rows 10,921–10,962" /> <EvidenceChip id="ebr-mes-26073" />
             </div>
           </Card>
+
+          <AgentCanvasSlot frame="ANALYSIS-01" />
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
             <Card className="xl:col-span-2">

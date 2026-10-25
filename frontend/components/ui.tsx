@@ -6,6 +6,9 @@ import { AlertTriangle, ChevronRight, FileSearch, Info, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useAppContext } from '@/lib/app-context';
 import { CITATIONS } from '@/fixtures/biomanufacturingData';
+import { AskDelegateButton } from './agent/AskDelegateButton';
+import { hasAgentContext } from '@/lib/agent/screens';
+import type { ScopeChip } from '@/lib/agent/types';
 
 /* ------------------------------------------------------------------ Buttons */
 
@@ -220,7 +223,7 @@ export function Breadcrumbs({ items }: { items: Crumb[] }) {
   );
 }
 
-export function PageHeader({ frameId, crumbs, title, objectId, status, description, actions, meta }: {
+export function PageHeader({ frameId, crumbs, title, objectId, status, description, actions, meta, agent }: {
   frameId?: string;
   crumbs?: Crumb[];
   title: ReactNode;
@@ -229,7 +232,11 @@ export function PageHeader({ frameId, crumbs, title, objectId, status, descripti
   description?: ReactNode;
   actions?: ReactNode;
   meta?: ReactNode;
+  /** Contextual agent entry next to the primary actions. Defaults on for app-shell frames; `false` hides it. */
+  agent?: false | { label?: string; templateId?: string; scope?: ScopeChip[] };
 }) {
+  const showAgent = agent !== false && hasAgentContext(frameId);
+  const agentButton = showAgent && frameId ? <AskDelegateButton frame={frameId} {...(agent || {})} /> : null;
   return (
     <header className="mb-4">
       {crumbs && <Breadcrumbs items={crumbs} />}
@@ -243,7 +250,7 @@ export function PageHeader({ frameId, crumbs, title, objectId, status, descripti
           {description && <p className="mt-1 text-[13px] text-text-secondary max-w-3xl">{description}</p>}
           {meta && <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-tertiary">{meta}</div>}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        {(actions || agentButton) && <div className="flex flex-wrap items-center gap-2">{agentButton}{actions}</div>}
       </div>
       {frameId && <span className="sr-only">Frame {frameId}</span>}
     </header>

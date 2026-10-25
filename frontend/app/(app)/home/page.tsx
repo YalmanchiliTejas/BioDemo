@@ -6,6 +6,7 @@ import { Card, CardBody, CardHeader, ClaimTag, EvidenceChip, LinkButton, PageHea
 import { MOCK_DATASET } from '@/fixtures/biomanufacturingData';
 import { ROLE_PEOPLE, useAppContext, type UserRole } from '@/lib/app-context';
 import { cn } from '@/lib/cn';
+import { AskDelegateButton } from '@/components/agent/AskDelegateButton';
 
 type QueueItem = {
   id: string;
@@ -16,6 +17,7 @@ type QueueItem = {
   kind: 'observation' | 'calculated' | 'recommendation';
   citation?: string;
   cta: { label: string; href: string };
+  agent?: { label: string; templateId: string };
   roles: UserRole[];
 };
 
@@ -29,6 +31,7 @@ const QUEUE: QueueItem[] = [
     kind: 'calculated',
     citation: 'historian-up01',
     cta: { label: 'Open workbench', href: '/workbench/AN-104' },
+    agent: { label: 'Delegate full investigation dossier', templateId: 'dossier' },
     roles: ['MSAT_LEAD', 'CLEANROOM_SUPERVISOR', 'QA_REVIEWER'],
   },
   {
@@ -39,6 +42,7 @@ const QUEUE: QueueItem[] = [
     icon: CalendarClock,
     kind: 'observation',
     cta: { label: 'Open planning', href: '/planning' },
+    agent: { label: 'Solve constraint collision', templateId: 'schedule' },
     roles: ['CLEANROOM_SUPERVISOR', 'MSAT_LEAD'],
   },
   {
@@ -60,6 +64,7 @@ const QUEUE: QueueItem[] = [
     icon: Truck,
     kind: 'observation',
     cta: { label: 'Review transfer blocker', href: '/tech-transfer/TT-006' },
+    agent: { label: 'Delegate parameter gap resolution', templateId: 'tt-gap' },
     roles: ['MSAT_LEAD'],
   },
 ];
@@ -122,6 +127,7 @@ export default function HomePage() {
                         <LinkButton href={q.cta.href} size="sm" variant={i === 0 ? 'primary' : 'secondary'}>
                           {q.cta.label} <ArrowRight className="h-3 w-3" />
                         </LinkButton>
+                        {q.agent && <AskDelegateButton frame="HOME-01" size="sm" label={q.agent.label} templateId={q.agent.templateId} />}
                       </div>
                     </div>
                   </li>

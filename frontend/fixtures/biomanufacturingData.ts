@@ -3,6 +3,7 @@ import { CITATIONS_A } from './citations/a';
 import { CITATIONS_B } from './citations/b';
 import { CITATIONS_C } from './citations/c';
 import { CITATIONS_D } from './citations/d';
+import { CITATIONS_AGENT } from './citations/agent';
 
 export const MOCK_DATASET = {
   facility: {
@@ -192,6 +193,6 @@ const CORE_CITATIONS: Record<string, Citation> = {
   },
 };
 
-export const CITATIONS: Record<string, Citation> = { ...CORE_CITATIONS, ...CITATIONS_A, ...CITATIONS_B, ...CITATIONS_C, ...CITATIONS_D };
+export const CITATIONS: Record<string, Citation> = { ...CORE_CITATIONS, ...CITATIONS_A, ...CITATIONS_B, ...CITATIONS_C, ...CITATIONS_D, ...CITATIONS_AGENT };
 
 export const BATCH_MANIFEST_HASH = 'f3a91c07e5d28b46a1c09e7d3b5f2a8e64c0d19b7a3e5f2c80d6b1e49a7c3d25';

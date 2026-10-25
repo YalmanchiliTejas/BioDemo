@@ -6,37 +6,42 @@ import { TopHeader } from './TopHeader';
 import { Sidebar } from './Sidebar';
 import { Inspector } from './Inspector';
 import { RunStrip } from './RunStrip';
-import { CommandPalette } from './CommandPalette';
 import { useAppContext } from '@/lib/app-context';
+import { useAgent } from '@/lib/agent/agent-context';
+import { AgentComposerModal } from '../agent/AgentComposerModal';
+import { AgentBottomRunStrip } from '../agent/AgentBottomRunStrip';
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const [paletteOpen, setPaletteOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const pathname = usePathname();
-  const { closeInspector } = useAppContext();
+  const { closeInspector, sidePaneTab, isInspectorOpen } = useAppContext();
+  const { overlay, openOverlay, closeOverlay, pinned } = useAgent();
+  const overlayOpen = overlay.open;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setPaletteOpen((o) => !o);
+        if (overlayOpen) closeOverlay();
+        else openOverlay('FIND');
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [overlayOpen, openOverlay, closeOverlay]);
 
-  // A route change closes transient panels so the new screen starts clean.
+  // A route change closes transient panels so the new screen starts clean. The agent dock
+  // stays open only when pinned; otherwise it collapses to the run strip and the task keeps running.
   useEffect(() => {
     setNavOpen(false);
-    closeInspector();
+    if (!(isInspectorOpen && sidePaneTab === 'AGENT' && pinned)) closeInspector();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   return (
     <div className="h-screen flex flex-col bg-canvas text-text-primary">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:bg-surface focus:px-3 focus:py-2 focus:rounded">Skip to content</a>
-      <TopHeader onOpenPalette={() => setPaletteOpen(true)} onToggleNav={() => setNavOpen((o) => !o)} />
+      <TopHeader onToggleNav={() => setNavOpen((o) => !o)} />
       <div className="flex flex-1 min-h-0">
         <aside className="hidden lg:block w-[228px] shrink-0 bg-surface border-r border-border-hairline">
           <Sidebar />
@@ -55,7 +60,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Inspector />
       </div>
       <RunStrip />
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <AgentBottomRunStrip />
+      <AgentComposerModal />
     </div>
   );
 }

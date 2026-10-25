@@ -26,6 +26,8 @@ export interface AppContextState {
   activeBatchId: string;
   userRole: UserRole;
   isInspectorOpen: boolean;
+  /** The right-hand slot is shared by the agent dock and the evidence inspector. */
+  sidePaneTab: SidePaneTab;
   activeInspectorEntity: InspectorEntity | null;
   agentRunningState: {
     isRunning: boolean;
@@ -36,6 +38,8 @@ export interface AppContextState {
   };
 }
 
+export type SidePaneTab = 'AGENT' | 'EVIDENCE';
+
 type Toast = { id: number; message: string; tone: 'success' | 'info' | 'warning' };
 
 interface AppContextValue extends AppContextState {
@@ -44,6 +48,8 @@ interface AppContextValue extends AppContextState {
   openEvidence: (citationId: string) => void;
   openInspector: (entity: InspectorEntity) => void;
   closeInspector: () => void;
+  openAgentPane: () => void;
+  setSidePaneTab: (tab: SidePaneTab) => void;
   startRun: (label: string, totalSources?: number) => void;
   stopRun: () => void;
   notify: (message: string, tone?: Toast['tone']) => void;
@@ -80,6 +86,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     activeBatchId: 'MES-26073',
     userRole: 'MSAT_LEAD',
     isInspectorOpen: false,
+    sidePaneTab: 'EVIDENCE',
     activeInspectorEntity: null,
     agentRunningState: { isRunning: false },
   });
@@ -140,9 +147,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toasts,
     setSite: (siteId) => setState((s) => ({ ...s, siteId })),
     setRole: (userRole) => setState((s) => ({ ...s, userRole })),
-    openEvidence: (id) => setState((s) => ({ ...s, isInspectorOpen: true, activeInspectorEntity: { type: 'EVIDENCE', id } })),
-    openInspector: (entity) => setState((s) => ({ ...s, isInspectorOpen: true, activeInspectorEntity: entity })),
+    openEvidence: (id) => setState((s) => ({ ...s, isInspectorOpen: true, sidePaneTab: 'EVIDENCE', activeInspectorEntity: { type: 'EVIDENCE', id } })),
+    openInspector: (entity) => setState((s) => ({ ...s, isInspectorOpen: true, sidePaneTab: 'EVIDENCE', activeInspectorEntity: entity })),
     closeInspector: () => setState((s) => ({ ...s, isInspectorOpen: false })),
+    openAgentPane: () => setState((s) => ({ ...s, isInspectorOpen: true, sidePaneTab: 'AGENT' })),
+    setSidePaneTab: (sidePaneTab) => setState((s) => ({ ...s, isInspectorOpen: true, sidePaneTab })),
     startRun,
     stopRun,
     notify,
