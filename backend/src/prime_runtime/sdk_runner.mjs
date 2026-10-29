@@ -76,6 +76,7 @@ const { session } = await createAgentSession({
   modelRegistry,
   ...(evaluationSettings ? { agentDir, settingsManager: evaluationSettings } : {}),
   tools: ["ipython"],
+  ...(input.rlm_max_depth != null ? { rlmMaxDepth: input.rlm_max_depth } : {}),
   ...(model ? { model } : {}),
 });
 let error;

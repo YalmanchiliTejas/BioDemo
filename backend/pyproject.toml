@@ -5,6 +5,7 @@ description = "Deterministic benchmark for biopharma factory operating models"
 requires-python = ">=3.11"
 
 [project.optional-dependencies]
+process-demo = ["numpy>=2,<3", "scipy>=1.14,<2", "matplotlib>=3.9,<4", "fastapi>=0.115,<1", "uvicorn[standard]>=0.32,<1", "pydantic>=2,<3"]
 lifesci-platform = [
     "fastapi>=0.115,<1", "uvicorn[standard]>=0.32,<1", "pydantic>=2,<3",
     "psycopg[binary]>=3.2,<4", "PyJWT[crypto]>=2.10,<3", "pint>=0.24,<1",
@@ -20,7 +21,7 @@ manufacturing-data = [
     "pydantic>=2,<3", "duckdb>=1.5,<2", "polars>=1,<2",
     "openpyxl>=3.1,<4", "fastexcel>=0.21,<1", "pyarrow>=19",
     "pint>=0.24,<1", "pandera[polars]>=0.24,<1",
-    "pypdf>=5,<7", "Pillow>=10,<13", "cocoindex>=1,<2",
+    "pypdf>=5,<7", "Pillow>=10,<13", "cocoindex>=1,<2", "python-docx>=1.1,<2",
     "pypdfium2>=4.30,<5",
 ]
 manufacturing-documents = ["docling>=2,<3"]
@@ -68,6 +69,8 @@ app = [
 include = ["benchmark*", "src*"]
 
 [tool.setuptools.package-data]
+"src.lifesci.lyophilization" = ["protocol.json"]
+"src.lifesci.fermentation" = ["data/*.json"]
 "src.cloud_backend" = ["schema.sql", "runtime_roles.sql"]
 "benchmark.application" = ["static/*"]
 "benchmark.incident_demo" = ["data/*.json"]

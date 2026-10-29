@@ -1,0 +1,42 @@
+const { chromium }=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{
+ const browser=await chromium.launch({headless:true});
+ const page=await browser.newPage({viewport:{width:1440,height:1000}});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const base=process.argv[2]||'http://127.0.0.1:5187';
+ const out='/private/tmp/biodemo-physics-case-study';fs.mkdirSync(out,{recursive:true});
+ try{
+  await page.goto(base+'/case-studies/');
+  const article=page.getByTestId('physics-benchmark-study');await article.waitFor();
+  await article.getByRole('heading',{name:'Does physics make an AI agent better?'}).waitFor();
+  for(const title of ['One controlled comparison. Three different questions.','What changed when physics was available?','Read the bars, then check the uncertainty.'])assert(await article.getByRole('heading',{name:title,exact:true}).isVisible());
+  assert.equal(await article.locator('figure').count(),16);
+  const truth=JSON.parse(fs.readFileSync('docs/case_studies/model-repair-continuous-20261028/analysis.json'));
+  const snapshot=await (await page.request.get(base+'/case-study-results/physics-benchmark/summary.json')).json();
+  assert.deepEqual(snapshot.primary,truth.primary);
+  assert.equal(snapshot.cases.length,288);
+  const text=await article.innerText();for(const v of ['16.5%','84.0%','8.3 pts','17.1 pts','1,151 / 1,152'])assert(text.includes(v),v);
+  assert(text.includes('partially supported'));assert(text.includes('Score points are not production gains'));
+  await article.getByRole('button',{name:'SMPL',exact:true}).click();assert.equal(await article.locator('figure').count(),8);
+  assert.equal(await article.getByRole('heading',{name:'PenSimPy · penicillin',exact:true}).count(),0);
+  await article.getByRole('button',{name:'Both processes',exact:true}).click();
+  await article.getByText('Exact chart values',{exact:true}).first().click();
+  assert(await article.getByRole('columnheader',{name:'AI error',exact:true}).first().isVisible());
+  for(const file of ['report.md','case-results.csv','all-forecast-targets.csv','provenance.json'])assert.equal((await page.request.get(base+'/case-study-results/physics-benchmark/'+file)).status(),200);
+  await page.screenshot({path:out+'/desktop.png',fullPage:true});
+  await article.locator('#study-results').scrollIntoViewIfNeeded();await page.screenshot({path:out+'/desktop-results.png'});
+  await article.locator('#study-reading').scrollIntoViewIfNeeded();await page.screenshot({path:out+'/desktop-reading.png'});
+  await page.setViewportSize({width:390,height:844});
+  await page.waitForTimeout(500);
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'Document overflow');
+  assert(await article.evaluate(e=>e.scrollWidth<=e.clientWidth+1),'Study overflow');
+  await page.screenshot({path:out+'/mobile.png',fullPage:true});
+  await article.locator('#study-results').scrollIntoViewIfNeeded();await page.screenshot({path:out+'/mobile-results.png'});
+  await page.goto(base+'/case-studies/#pichia');await page.getByRole('heading',{name:'Can air pressure replace supplemental oxygen?',exact:true}).waitFor();
+  await page.goto(base+'/case-studies/#physics-value');await page.getByTestId('physics-benchmark-study').waitFor();
+  assert.deepEqual(errors,[]);
+  fs.writeFileSync(out+'/checks.json',JSON.stringify({passed:true,figures:16,source_values_match:true,mobile_no_overflow:true,downloads:true,hash_navigation:true,errors},null,2));
+  console.log(out+'/checks.json');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exit(1)});

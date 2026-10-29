@@ -7,9 +7,12 @@ from itertools import zip_longest
 from pathlib import Path
 
 
+from benchmarks.common.artifact_store import uses_assets
+
 ROOT = Path(__file__).resolve().parent
 
 
+@uses_assets(ROOT / "raw", ROOT / "reference/aligned")
 def validate() -> dict:
     """Verify that the labeled source-format perturbation preserves observations."""
     from openpyxl import load_workbook

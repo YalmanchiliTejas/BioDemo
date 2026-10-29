@@ -23,8 +23,8 @@ from typing import Any, Iterator
 from .models import Observation, SourceRef
 from .store import ManufacturingStore
 
-SUPPORTED = {".csv", ".tsv", ".xlsx", ".xlsm", ".parquet", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".txt", ".log", ".md", ".json"}
-PIPELINE_VERSION = "0.6.0-verified-columnar"
+SUPPORTED = {".csv", ".tsv", ".xlsx", ".xlsm", ".parquet", ".pdf", ".docx", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".txt", ".log", ".md", ".json"}
+PIPELINE_VERSION = "0.6.2-docx-json-provenance"
 TIME_WORDS = ("time", "timestamp", "date", "recorded", "collected", "sampled", "occurred")
 AVAIL_WORDS = ("available", "released", "approved", "reviewed", "reported")
 ENTITY_WORDS = {"batch": "batch", "lot": "batch", "run": "run", "reactor": "equipment", "equipment": "equipment", "sample": "sample", "site": "site", "campaign": "campaign", "process": "process"}
@@ -46,6 +46,16 @@ def _routing_capabilities() -> dict[str, bool]:
 
 def _route_file(rel: str, path: Path, requested: str) -> dict:
     suffix = path.suffix.lower()
+    if suffix == '.docx':
+        return {'kind': 'document', 'reason': 'Word paragraphs and table cells', 'candidates': ['docx']}
+    if suffix == '.json':
+        try:
+            records = json.loads(path.read_text(encoding='utf-8'))
+        except (ValueError, UnicodeError):
+            records = None
+        if isinstance(records, list) and records and all(isinstance(row, dict) and row and
+                all(isinstance(value, (str, int, float, bool)) or value is None for value in row.values()) for row in records):
+            return {'kind': 'structured', 'reason': 'flat JSON record array', 'candidates': ['structured']}
     if suffix in STRUCTURED:
         return {"kind": "structured", "reason": "tabular file", "candidates": ["structured"]}
     if suffix in PLAIN_TEXT:
@@ -236,11 +246,36 @@ def _make_observations(source_id: str, rel: str, path: Path, scope: str, source_
 def _document_observations(source_id: str, rel: str, path: Path, scope: str,
                            available: str | None, backend: str) -> Iterator[Observation]:
     suffix = path.suffix.lower()
+    if suffix == '.docx':
+        from docx import Document
+        doc = Document(path)
+        spans = [(f'paragraph:{i}', p.text) for i, p in enumerate(doc.paragraphs, 1)]
+        spans.extend((f'table:{t}:row:{r}:cell:{c}', cell.text)
+                     for t, table in enumerate(doc.tables, 1)
+                     for r, row in enumerate(table.rows, 1)
+                     for c, cell in enumerate(row.cells, 1))
+        for span, body in spans:
+            if body.strip():
+                yield Observation(
+                    observation_id=hashlib.sha256(f'{source_id}|{span}'.encode()).hexdigest()[:24],
+                    source=SourceRef(source_id=source_id, path=rel, span=span),
+                    name='document_text', value_text=body, available_at=available,
+                    access_scope=scope, extraction_method='docx', validation_status='source_transcribed')
+        return
     if suffix in {".txt", ".log", ".md", ".json"}:
+        if suffix == '.json':
+            json.loads(path.read_text(encoding='utf-8'))  # Invalid JSON is an explicit extraction error.
         pages = [(None, path.read_text(encoding="utf-8", errors="replace"), "text")]
     elif backend == "docling":
         from docling.document_converter import DocumentConverter
         artifacts = os.getenv('DOCLING_ARTIFACTS_PATH')
+        if not artifacts:
+            root = Path(__file__).resolve().parents[2]
+            registered = root/'benchmarks/assets/docling-models.json'
+            if registered.is_file():
+                artifacts = str(root/'.cache/cmo-docling-models/docling-project--docling-models')
+                if not (Path(artifacts)/'model_artifacts').is_dir():
+                    raise RuntimeError('Docling weights are remote; request document_backend=docling to fetch them. Auto can use native extraction.')
         if artifacts:
             from docling.document_converter import PdfFormatOption
             from docling.datamodel.base_models import InputFormat
@@ -355,6 +390,18 @@ def _members(package: Path) -> Iterator[tuple[str, bytes, str | None, int]]:
 def ingest_package(package: str | Path, store: ManufacturingStore, *, access_scope: str = "default",
                    document_backend: str = "auto", max_rows_per_file: int | None = None,
                    workers: int | None = None) -> dict:
+    if document_backend in {'auto', 'docling'}:
+        from benchmarks.common.artifact_store import parser_models
+        with parser_models(package, document_backend):
+            return _ingest_package(package, store, access_scope=access_scope, document_backend=document_backend,
+                                   max_rows_per_file=max_rows_per_file, workers=workers)
+    return _ingest_package(package, store, access_scope=access_scope, document_backend=document_backend,
+                           max_rows_per_file=max_rows_per_file, workers=workers)
+
+
+def _ingest_package(package: str | Path, store: ManufacturingStore, *, access_scope: str = "default",
+                    document_backend: str = "auto", max_rows_per_file: int | None = None,
+                    workers: int | None = None) -> dict:
     """Copy immutable source bytes and incrementally index changed files. Never alters input."""
     package = Path(package).resolve()
     if document_backend not in {"auto", "docling", "pypdf", "chandra", "paddleocr-vl"}:
@@ -425,7 +472,7 @@ def ingest_package(package: str | Path, store: ManufacturingStore, *, access_sco
                 con.execute("DELETE FROM source_columns WHERE source_id=?", (sid,))
                 original_path=f"{package}!/{rel}" if package.suffix.lower()==".zip" else str(package/rel)
                 values=(sid,rel,original_path,digest,len(content),modified,
-                        None if Path(rel).suffix.lower() in STRUCTURED else safe_availability,
+                        None if route['kind'] == 'structured' else safe_availability,
                         access_scope,Path(rel).suffix.lower(),"pending",None,cache_signature,permissions,
                         json.dumps(route,sort_keys=True))
                 if prior:

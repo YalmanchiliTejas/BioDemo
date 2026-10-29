@@ -258,7 +258,11 @@ def main() -> None:
         if args.action == "cases": print(manifest); return
         if args.action == "audit":
             from benchmarks.common.case_audit import audit_case
-            audit = audit_case(manifest); print(json.dumps(audit, indent=2))
+            from benchmarks.common.input_store import execution_inputs, materialize
+            with execution_inputs(manifest) as execution_manifest:
+                materialize(execution_manifest)
+                audit = audit_case(execution_manifest)
+            print(json.dumps(audit, indent=2))
             if not audit["pass"]: raise SystemExit(1)
             return
         from benchmarks.common.case_runner import run_case

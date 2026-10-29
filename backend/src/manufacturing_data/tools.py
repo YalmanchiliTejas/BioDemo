@@ -21,6 +21,7 @@ class QueryRequest(ToolRequest):
 class SearchRequest(ToolRequest):
     query: str = Field(max_length=4096)
     mode: Literal["lexical","semantic","hybrid"] = "lexical"
+    max_hits_per_source: int | None = Field(default=None, ge=1, le=100)
     evidence_type: Literal['auto','exact','structured','narrative'] = 'auto'
     observation_id: str | None = None
     source_id: str | None = None
@@ -224,6 +225,8 @@ class ManufacturingTools:
     def search_evidence(self, **kwargs) -> dict:
         req=SearchRequest.model_validate({"as_of":self.as_of,"scopes":list(self.scopes),**kwargs})
         self._visibility(req.model_dump())
+        if req.max_hits_per_source is not None and req.mode != 'lexical':
+            raise ValueError('max_hits_per_source currently requires lexical retrieval')
         if req.time_min is not None and req.time_max is not None and req.time_min>req.time_max:
             raise ValueError('time_min must be <= time_max')
         from .retrieval import RetrievalEngine

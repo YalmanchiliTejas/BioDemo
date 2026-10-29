@@ -9,6 +9,7 @@ import { GATE_NAMES, GateRoadmap, type GateState } from '@/components/screens/c/
 import { MOCK_DATASET } from '@/fixtures/biomanufacturingData';
 import { useAppContext } from '@/lib/app-context';
 import { cn } from '@/lib/cn';
+import { FermentationTransfer } from '@/components/process/FermentationTransfer';
 
 type Project = {
   id: string;
@@ -64,6 +65,8 @@ export default function TechTransferPortfolio() {
         meta={<><span>Gate records from Documentum</span><DemoBoundary compact /></>}
         actions={<LinkButton href="/tech-transfer/TT-006" variant="primary"><GitCompareArrows className="h-3.5 w-3.5" /> Open comparative workspace</LinkButton>}
       />
+
+      <FermentationTransfer />
 
       <Callout
         tone="critical"

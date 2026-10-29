@@ -1,0 +1,91 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lyopronto"
+version = "1.2.0"
+description = "LyoPRONTO: An open-source lyophilization process optimization tool"
+readme = "README.md"
+license = {text = "GPL-3.0-or-later"}
+authors = [
+    {name = "Gayathri Shivkumar"},
+    {name = "Petr S. Kazarin"},
+    {name = "Alina A. Alexeenko"},
+    {name = "Isaac S. Wheeler"},
+]
+maintainers = [
+    {name = "Isaac S. Wheeler"},
+]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "matplotlib>=3.7.0",
+    "ruamel.yaml>=0.18.0",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-mock>=3",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.3.0",
+    "hypothesis>=6.82.0",
+    "ruff>=0.12.0",
+    "mypy>=1.4.0",
+    "pandas>=2.0",
+    "papermill>=2.6.0",
+    "ipykernel>=6.15.0",
+]
+docs = [
+    "mkdocstrings-python>=2",
+    "mkdocs-material>=9.1.0",
+    "mike>=2.1",
+    "mkdocs-ipynb>=0.1.1",
+]
+
+
+[project.urls]
+Homepage = "http://lyopronto.geddes.rcac.purdue.edu"
+Repository = "https://github.com/LyoHUB/LyoPRONTO"
+Documentation = "https://lyohub.github.io/LyoPRONTO/"
+"Bug Tracker" = "https://github.com/LyoHUB/LyoPRONTO/issues"
+
+[tool.setuptools.packages.find]
+include = ["lyopronto*"]
+
+[tool.pytest.ini_options]
+pythonpath = "."
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--maxfail=5",
+    "--cov=lyopronto",
+    "--cov-report=term-missing",
+]
+markers = [
+    "slow: Tests that take a long time to run",
+    "fast: Quick tests that run in under 1 second",
+    "notebook: Tests that execute Jupyter notebooks for documentation",
+    "main: Tests that cover functionality previously included in main.py",
+]

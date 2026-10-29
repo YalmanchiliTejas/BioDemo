@@ -33,6 +33,7 @@ class PrimeManufacturingHarness:
         self.command, self.store, self.blackboards, self.workflow = command, store, blackboards, workflow
         self.scope, self.runtime_root, self.model = scope, Path(runtime_root), model
         self.trace_sink = None
+        self.additional_tools: dict[str, Any] = {}
         self.max_tool_calls = 72
         self.execution_policy = {'mode':'adaptive_v1','soft_tool_calls':48}
         self.timeout_seconds = 900
@@ -83,6 +84,7 @@ class PrimeManufacturingHarness:
                 scope=self.scope, incident_id=incident_id, objective=problem,
                 as_of=as_of, seed_ids=new_evidence_ids,
                 max_tool_calls=self.max_tool_calls, trace_sink=self.trace_sink,
+                additional_tools=self.additional_tools,
             ).start()
             bridge.configure_execution(self.execution_policy)
             workdir = self.runtime_root / "workspaces" / incident_id
@@ -126,6 +128,7 @@ class PrimeManufacturingHarness:
                 "system_prompt": self.system_path.read_text(encoding="utf-8"),
                 "model": self.model, "prompt": prompt,
                 "evaluation_mode": self.evaluation_mode,
+                "rlm_max_depth": getattr(self, 'rlm_max_depth', None),
                 "timeout_seconds":max(0,self.timeout_seconds-(time.monotonic()-bridge.started_monotonic)) if self.timeout_seconds is not None else None,
                 "finalization_reserve_seconds":bridge.finalization_reserve_seconds,
                 "specialist_wrapup_seconds":bridge.specialist_wrapup_seconds,

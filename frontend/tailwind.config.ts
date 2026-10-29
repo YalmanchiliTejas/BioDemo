@@ -6,7 +6,8 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        canvas: '#f8fafc',
+        canvas: '#f8f9fa',
+        ink: { DEFAULT: '#0b1e22', soft: '#12292e' },
         surface: {
           DEFAULT: '#ffffff',
           secondary: '#f1f5f9',
@@ -43,6 +44,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['var(--font-geist-sans)', 'Geist', 'var(--font-inter)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'JetBrains Mono', 'Fira Code', 'monospace'],
       },
       borderRadius: {

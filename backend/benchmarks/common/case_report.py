@@ -66,7 +66,8 @@ def _show(value, suffix=''):
 
 def produce_report(benchmark='all', *, root=None, human_logs=None):
     directory=Path(root or ROOT/'results/evaluation')
-    runs=[json.loads(p.read_text()) for p in sorted(directory.glob('*/run.json'))]
+    from .artifact_store import read_json
+    runs=[read_json(p) for p in sorted(directory.glob('*/run.json'))]
     runs=[r for r in runs if r.get('version')==VERSION]
     for run in runs:
         trace=directory/run['run_id']/run.get('trace_path','trace.jsonl')

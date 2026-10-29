@@ -113,7 +113,9 @@ def test_decisions_pipeline_confirmed_layout_reuses_without_any_model_calls(tmp_
     requests=transport(monkeypatch,{'document_type':('instrument_export',.99),
         'column_0':('__batch__',.99),'column_1':('__time__',.99),'column_2':('temperature',.99)})
     run=service.run(raw,'local','decisions',synthetic=True)
-    assert run['status']=='complete' and len(requests)==2
+    # Batch/time/variable columns classify deterministically; only mapping calls the model.
+    assert run['status']=='complete' and len(requests)==1
+    assert run['documents'][0]['classification_method']=='content'
     layout=run['layouts'][0]
     assert layout['decisions'][2]['choice']=='temperature'
     service.confirm_template(run['id'],layout['fingerprint'],layout['mapping'],'qa','Checked original source')

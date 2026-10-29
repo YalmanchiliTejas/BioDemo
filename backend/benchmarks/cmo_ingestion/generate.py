@@ -47,6 +47,12 @@ def sha(path):
 
 
 def freeze_indpensim(archive: Path, output: Path, samples=4):
+    from benchmarks.common.artifact_store import asset_path
+    with asset_path(archive) as local:
+        return _freeze_indpensim(local, output, samples)
+
+
+def _freeze_indpensim(archive: Path, output: Path, samples=4):
     """Scan every batch, retaining original decimal strings and physical CSV rows."""
     if sha(archive) != ARCHIVE_SHA:
         raise ValueError('IndPenSim archive differs from publisher checksum')

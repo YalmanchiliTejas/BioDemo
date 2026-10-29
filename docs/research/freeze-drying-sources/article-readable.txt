@@ -1,0 +1,2115 @@
+Optimization and transfer of robust primary drying protocols for biopharmaceuticals through lyophilization process modeling | AAPS Open | Springer Nature Link
+Skip to main content
+Advertisement
+SpringerOpen journals have moved to Springer Nature Link.
+Learn more about website changes.
+Log in
+Menu
+Find a journal
+Publish with us
+Track your research
+Search
+Saved research
+Cart
+Home
+AAPS Open
+Article
+Optimization and transfer of robust primary drying protocols for biopharmaceuticals through lyophilization process modeling
+Research
+Open access
+Published:
+16 June 2025
+Volume 11
+, article number
+13
+(
+2025
+)
+Cite this article
+You have full access to this open access article
+Download PDF
+Save article
+View saved research
+AAPS Open
+Aims and scope
+Submit manuscript
+Optimization and transfer of robust primary drying protocols for biopharmaceuticals through lyophilization process modeling
+Download PDF
+Brecht Vanbillemont
+ORCID:
+orcid.org/0000-0002-6730-8152
+1
+,
+Andrea Arsiccio
+1
+,
+Tim Menzen
+1
+&
+…
+Andrea Hawe
+1
+Show authors
+4829
+Accesses
+7
+Citations
+Explore all metrics
+Abstract
+Lyophilization, or freeze-drying, is a widespread process for stabilizing (bio)pharmaceutical products. The primary drying phase is resource-intensive, making its optimization a focal point for improving economic and environmental sustainability. Mechanistic modeling of the primary drying phase has emerged as a key tool for designing robust processes, identifying optimal critical process parameters, and minimizing failure modes such as product collapse, uncontrolled pressure increase, or incomplete sublimation. This study extended the traditional modeling frameworks by incorporating an uncertainty analysis to account for process variability originating from process parameters and material attributes. Model validation and verification activities were performed to establish model credibility. The ensuing risk assessment quantified the failure mode probabilities. This methodology was capable of ensuring process robustness at a pilot scale freeze-dryer by construction of a regulatory compliant design space and the establishment of proven acceptable ranges. An iterative approach to collect process knowledge was conducted by updating the dried layer resistance estimates while verifying the design space. The transfer of the normal operating ranges to a commercial scale freeze-dryer was assisted by the model and was experimentally verified. Experimental results confirmed the model’s capability to predict process parameter combinations yielding acceptable critical quality attributes while minimizing process time. The model provides a scientific rationale for process parameters selection and can support in the process optimization, robustness assessment and process transfer activities necessary for a regulatory submission.
+Graphical Abstract
+Similar content being viewed by others
+A Software Tool for Lyophilization Primary Drying Process Development and Scale-up Including Process Heterogeneity, I: Laboratory-Scale Model Testing
+Article
+12 November 2021
+Regulatory Aspects of Freeze-Drying
+Chapter
+© 2019
+Freeze Drying of Pharmaceutical Products for Injectable and Oral Use
+Chapter
+© 2025
+Explore related subjects
+Discover the latest articles, books and news in related subjects, suggested using machine learning.
+Environmental Process Engineering
+Mechanical Process Engineering
+Process Engineering
+Thermal Process Engineering
+Chemical Process Engineering
+Bioprocess Engineering
+Freeze-Drying Process Optimization in Pharmaceutical Applications
+Introduction
+Lyophilization, or freeze-drying, is commonly used to increase the shelf life of (bio)pharmaceuticals. During lyophilization, the product is first frozen, and the ice crystals are subsequently removed by sublimation during the primary drying phase. The removal of ice occurs at low temperature and high vacuum conditions during primary drying, making this process particularly suitable for heat-sensitive molecules. The desorption of the unfrozen water molecules takes place during secondary drying, which represents the subsequent phase of the freeze-drying process. During secondary drying the temperature is increased, maintaining the high vacuum conditions, to promote this desorption process.
+The lyophilization process has been studied from both an economic (Stratta et al.
+2020
+) and an environmental sustainability (Gamiz
+2019
+) perspective. These studies concluded that primary drying is the process phase involving the highest resource consumption, and that shortening primary drying would therefore have the greatest impact on economic efficiency and sustainability.
+In this context, the use of mathematical models has emerged as a powerful tool to guide the selection of primary drying process conditions and therefore optimize efficiency (Tchessalov et al.
+2023
+). Several mechanistic models have emerged over the years (Karel
+1975
+, Pikal et al.
+1984
+, Pikal
+1985
+, Liapis and Bruttini
+1995
+, Trelea et al.
+2007
+, Pisano et al.
+2011a
+) and the application of such models in process scale-up and transfer has also been discussed (Trappler
+2001
+, Jennings
+2002
+, Tchessalov et al.
+2007
+, Tchessalov et al.
+2017
+).
+The main aim of these models is the identification of primary drying conditions, in particular chamber pressure and shelf temperature, that minimize cycle times, while still resulting in acceptable appearance of the final product (Patel et al.
+2017
+). For this purpose, the models aim at calculating three crucial attributes of the primary drying process, i.e., i) the product temperature, ii) the water vapor mass flux during primary drying, and iii) the time required to complete the sublimation process.
+These three attributes are related to three corresponding failure modes of the primary drying phase. First, the sublimation interface temperature should remain below a formulation specific critical value (known as collapse temperature for amorphous materials or melting temperature for crystalline ones) in order to preserve the integrity of the porous structure within the dried product (Pikal and Shah
+1990
+).
+Second, the water vapor mass flux during sublimation is constrained by the design of the freeze-dryer. The water vapor that is removed from the vials is conveyed to the condenser, where desublimation occurs. The water vapor molecules accelerate in presence of restrictions along the path to the condenser, but their velocity cannot exceed the speed of sound. When this condition is reached, the flow is said to be choked, and any additional increase in water vapor flow rate results in an uncontrolled increase in chamber pressure (Searles
+2004
+, Patel et al.
+2010a
+). A similar loss in chamber pressure control is encountered when the water vapor flow rate exceeds the maximum deposition capacity of the condenser (ice accumulation capacity as defined in (Ganguly and Alexeenko
+2012
+)), resulting in an uncontrolled increase of the condenser temperature. Both phenomena represent limits of the freeze-drying equipment.
+Lastly, the primary drying time should be long enough to ensure that sublimation is complete within the whole batch before switching to secondary drying. If sublimation is not complete before the start of the ramp to the secondary drying phase, the so-called meltback occurs. During meltback, residual ice will melt and dissolve parts of the established dried product. This translates into poor product appearance and higher moisture levels (FDA
+2014
+).
+Besides helping to avoid these undesired failure modes of primary drying, modelling can also support regulatory submissions. The lack of a scientific rationale behind the selection of lyophilization cycle conditions is one of the most commonly cited manufacturing-related deficiencies identified in new drug applications for lyophilized injectable products (FDA
+2014
+, Rhieu et al.
+2020
+). Mathematical models can provide the necessary understanding to substantiate the selection of the process conditions.
+At last, models are an integral part of the Quality-by-Design (QbD) framework (Patel and Pikal
+2013
+, Yu et al.
+2014
+). They support in process understanding by quantifying the relationship between critical process parameters (CPPs), critical material attributes (CMAs), and critical quality attributes (CQAs) of the drug product. For instance, models can support building a design space (DSp). The DSp is a graphical representation of the CPPs settings that result in acceptable CQAs, with the inclusion of boundaries defined by formulation properties and equipment limitations. It is especially useful when interaction effects exist between different CPPs, and the acceptable range of one CPP depends on the setting of another CPP or CMA.
+Several DSp’s for lyophilization have been described in the literature (Chang and Fischer
+1995
+, Nail and Searles
+2008
+, Fissore et al.
+2011
+, Scutella and Bourles
+2020
+, Srinivasan et al.
+2023
+), but these DSp’s have not always been demonstrated to provide assurance of quality. Assurance of quality is instead needed to define a DSp in the regulatory sense (ICH
+2009
+). When a DSp includes risk assessment and is experimentally verified it can provide that quality assurance. Moreover, a change in normal operating ranges (NORs) within the DSp is not considered as a change to the marketing authorization dossier and can be managed without regulatory action (ICH
+2009
+, EMA
+2013
+). In the context of this manuscript we consider that the presented DSp is regulatory compliant. A closely related idea to the DSp concept is the notion of proven acceptable ranges (PARs). A PAR is defined as a characterized range of a CPP for which operation within this range, while keeping other CPPs constant, will result in acceptable CQAs (ICH
+2009
+). Also in this case, the advantage of identifying PARs is that a change in process conditions within the approved PARs can be managed without regulatory action (EMA
+2017
+). Whenever no DSp or PARs are available, only the target operating conditions, and the corresponding NOR presented in the marketing authorization dossier are allowed. The NOR describes the region around the target operating conditions that contain common operational variability. The NOR, in contrast to PAR, is not intended to introduce flexibility in the conditions for manufacturing (EMA
+2017
+).
+Mechanistic primary drying models have already proven to be extremely useful in identifying optimal CPPs, supporting scale up and process transfer as well as building the DSp. However, a weakness of current models is the ability to robustly deal with process variability. Primary drying is intrinsically affected by variability (Pikal et al.
+2018
+). As an example, the ice crystals formed during freezing turn into the pores of the dried layer during primary drying. The size and interconnectivity of such pores determines the resistance offered by the dried layer to the removal of water vapor from the sublimation front. Such resistance, generally indicated as
+R
+p
+in most primary drying models, therefore shows variability within the batch, as freezing is a stochastic process, and the ice crystal size and shape varies between different vials (Arsiccio et al.
+2017
+, Nuytten et al.
+2021
+).
+Similarly, the heat transfer towards different vials, quantified via the heat transfer coefficient
+K
+v
+, is also neither uniformly nor normally distributed within the batch, due to the different contribution of radiation in edge versus central vials (Ehlers et al.
+2021
+, Fontana et al.
+2023
+). The size of the vials and the filling volume also show a distribution due to variabilities of the manufacturing and filling process. Finally, the CPPs such as shelf temperature and chamber pressure are characterized by temporal and spatial variability within their NOR, which are dictated by the controller and the design of the freeze-dryer.
+The authors already discussed how to take this variability into consideration in a primary drying model by applying a Monte Carlo uncertainty analysis (Vanbillemont et al.
+2023
+). In this work we further extend this statistical approach and show how it can be incorporated into the calculation of the DSp. We suggest a new procedure to accurately estimate the variability of the resistance to mass transfer (
+R
+p
+)
+while iteratively building and verifying the DSp. Our design space approach for primary drying, contrary to previously published ones, includes an uncertainty analysis to consider process variability, therefore showing the probability of failure (PoF) for each combination of the CPPs. This allows a robust evaluation of PARs or the DSp, in line with regulatory requirements. We prove how this DSp, including uncertainty analysis, can be used to guide both cycle optimization and process transfer. In addition, we show how to precisely perform verification and validation (V&V) activities for the developed primary drying model to enhance model credibility, in accordance with the ASME V&V 40–2018 guideline (ASME
+2018
+).
+Materials and methods
+Mechanistic model structure
+A mechanistic model of the primary drying step of a pharmaceutical lyophilization process on the vial level was based on a heat-mass balance coded in Python v3.10.6. The governing equations (Eqs.
+1
+till
+7
+) were inspired by the work of Pikal (Pikal et al.
+1984
+). Equation
+1
+is typically called a
+K
+v
+-
+R
+p
+model in literature (Leys et al.
+2020
+, Tchessalov et al.
+2021
+, Vanbillemont et al.
+2020a
+) since it employs a heat transfer coefficient (
+K
+v
+) to describe the heat interaction between the vial and freeze-dryer and a resistance to mass transfer (
+R
+p
+) to explain the flow restriction of the newly formed dried layer towards the escaping vapor flow.
+$${P}_{i}=-\frac{-{{A}_{p}\Delta H}_{sub} {P}_{c}-{A}_{v }{K}_{v }{R}_{p} M({T}_{s}-{T}_{i}-\Delta T)}{{A}_{p} {\Delta H}_{sub}}$$
+(1)
+$${P}_{i}={\text{A}}_{{P}_{i}}-\frac{{\text{B}}_{{P}_{i}}}{{T}_{i}}+{C}_{{P}_{i}} \text{ln}\left({T}_{i}\right)-{D}_{{P}_{i}}{ T}_{i}$$
+(2)
+$$\Delta T=\frac{a\frac{{(L}_{t}-{L}_{d})({P}_{i}-{P}_{c})}{{R}_{p}}-b\left({L}_{t}-{L}_{d}\right)\left({T}_{i}-{T}_{s}\right)}{1-b\left({L}_{t}-{L}_{d}\right)}$$
+(3)
+$${\Delta H}_{sub}={A}_{{H}_{sub}}+{B}_{{H}_{sub}}{ T}_{i}-{C}_{{H}_{sub}} {{T}_{i}}^{2}+{D}_{{H}_{sub}} {e}^{{-\left(\frac{{T}_{i}}{{E}_{{H}_{sub}}}\right)}^{2}}$$
+(4)
+This set of equations (Eqs.
+1
+–
+4
+) was simultaneously solved to get an estimate of the sublimation interface temperature (
+T
+i
+) and temperature difference across the frozen layer (Δ
+T
+) in function of CPP’s and CMA’s. CPP’s included the shelf temperature (
+T
+s
+) and chamber pressure (
+P
+c
+) since they dictate the primary drying protocol. Product area (
+A
+p
+), outer vial area (
+A
+v
+), frozen fill height (
+L
+t
+) and dried layer height (
+L
+d
+) were considered as CMA’s since they depend on the vial dimensions.
+P
+i
+represents the partial vapor pressure over ice and its relationship with temperature was described by the
+A
+Pi
+till
+D
+Pi
+coefficients (Mortier et al.
+2016
+). The dependence of the latent heat of sublimation (Δ
+H
+sub
+) with temperature was expressed using the
+A
+Hsub
+till
+E
+Hsub
+coefficients (Murphy and Koop
+2005
+) and
+M
+represents the molecular weight of water. At last,
+a
+and
+b
+are coefficients that describe the heat conduction across the frozen product layer (Tang et al.
+2006
+).
+The progress of sublimation was estimated through Eqs.
+5
+till
+6
+by computing the sublimation rate (
+m
+sub
+), applying the ice density (
+ρ
+ice
+) and estimated dried product layer porosity (
+φ
+). Completion of primary drying (i.e.,
+Dried samples
+) was assumed when
+L
+d
+reached
+L
+t
+. The vial inner (
+d
+i
+) and outer diameters (
+d
+o
+) were used to estimate
+A
+p
+and
+A
+v
+, respectively. Moreover, the fill volume (
+V
+fill
+) was used to approximate
+L
+t
+by accounting for the volume expansion by ice formation according to Eq.
+7
+, where
+ρ
+water
+is the density of water.
+$${m}_{sub}= \frac{{A}_{p}({P}_{i}- {P}_{c})}{{R}_{p}}$$
+(5)
+$${L}_{d}= \frac{\int {m}_{sub}dt}{{{\rho }_{ice} \varphi A}_{p}}$$
+(6)
+$${L}_{t}= \left({V}_{fill}\left(1-\varphi \right)+{V}_{fill} \varphi \frac{ {\rho }_{water} }{{\rho }_{ice}}\right)/{A}_{p}$$
+(7)
+Risk assessment using statistical sampling
+An uncertainty analysis methodology was employed to estimate the risks of the three main failure modes (i.e., collapse, meltback and exceeding the equipment limits) during primary drying. The primary drying phase of a predefined number of samples (
+n
+samples
+) was simulated by assigning each of these samples with individual CPPs, CMAs,
+K
+v
+,
+R
+p
+and L
+d
+values from their expected distributions according to Table
+1
+. These input values were propagated through the mechanistic model. At each integration step a distribution of
+T
+i
+, distribution of the number of
+Dried samples
+(
+n
+dried
+) and ∑
+m
+sub
+was achieved. The total sublimation rate of the batch (∑
+m
+sub
+) was calculated by multiplying the vial load (
+n
+vials
+) with the averaged simulated sublimation rate at sample level (
+m̄
+sub
+). When a sample reached
+Dried sample
+status, it was excluded from the uncertainty analysis and only the remaining samples were advanced to the next integration step.
+Table 1 Summary of the variation terms and distribution types of the imput parameters considered in the uncertainty analysis
+Full size table
+A risk assessment was conducted using a statistical sampling method on the outputs of the uncertainty analysis, estimating the risks of the three failure modes. The failure mode of collapse was defined as
+T
+i
+being equal or surpassing the critical temperature (
+T
+c
+). At each integration step the percentage of samples with collapse was determined (i.e.,
+p(collapse)
+). Moreover, when a sample reached collapse status it retained it for the remainder of the analysis. Next, the failure mode of meltback was defined as samples still containing a frozen product layer at end of primary drying and could be estimated by the percentage of samples still inside the uncertainty analysis (i.e.,
+p(meltback)
+). At last, the failure mode of equipment limits (i.e.,
+p(equipment)
+) was determined by comparing the ∑
+m
+sub
+with sublimation rates sustained under minimal controllable chamber pressures (
+m
+sub_max
+) inside the variability of the NOR.
+Primary drying dynamics were simulated using the uncertainty analysis methodology on an operational process space. The operational process space was described by a predetermined array with size 10 × 10 of primary drying protocols defined by target
+T
+s
+and
+P
+c
+. For each of these 100 primary drying protocols the risks of the three failure modes (i.e.,
+p(collapse), p(meltback)
+and
+p(equipment))
+were determined. A log-linear surface response model was fitted to each of the three risks matrices in function of the target
+T
+s
+and
+P
+c
+. These risks were subsequently interpolated to higher resolution operational process space matrices of primary drying protocols with a
+T
+s
+resolution of 1 °C and
+P
+c
+resolution of 1 Pa. The total risk of failure
+p(failure)
+for the protocols was subsequently computed by taking the union of the three interpolated risks. At last, the process robustness space was constructed by intersecting the
+p(failure)
+matrix with the accepted probability of failure (
+PoF
+). A
+PoF
+of 0.1% was assumed in this work, meaning 1 vial in 1,000 was accepted to display a failure mode. The area within the process robustness space where
+p(failure)
+<
+PoF
+was colored in shades of blue and represented the primary drying protocols that were defined as robust and thus constitutes a DSp.
+The optimal protocol at NOR was selected by repeated binary erosion of the DSp matrix till an isolated protocol was obtained. When multiple isolated protocols were obtained, the protocol with lowest
+p(failure)
+was chosen. This approach guaranteed the selection of the NOR with largest associated PARs. The PARs were defined as the univariate ranges of
+T
+s
+and
+P
+c
+that extend from the NOR till the edges of the DSp.
+Dynamic visualizations
+A dynamic dashboard was created in TIBCO Spotfire Analyst 12.0.3 (California, USA) to import and process the raw process data from the freeze-dryer. Data processing included the necessary transformations and slicing of the data into the different freeze-drying phases such as freezing, primary drying and secondary drying. The mechanistic primary drying model, risk assessment and
+R
+p
+extraction were programmed in Python as data functions within the dashboard to allow easy interaction with the dataset. The primary drying process data was used to estimate the
+R
+p
+parameters. The dashboard allowed
+R
+p
+regression from multiple lyophilization cycles of the same product to get a more accurate estimation of the
+R
+p
+profile and its variability.
+Model credibility
+To enhance the trust in the predictive capabilities of the mechanistic model and risk assessment methodology as described above, several model verification and validation (V&V) activities were performed. These V&V activities were based on the ASME V&V 40–2018 guidelines (ASME
+2018
+). Despite the fact that the application field of this guideline is medical devices, it is the opinion of the authors that the methodology described in this guideline can be applied to pharmaceutical products as well, to enhance model credibility.
+The proposed risk assessment methodology can be applied to support several drug product development activities for lyophilized products. Experimental validation of the first three use cases as outlined below are discussed within this work.
+Envisioned use cases of the methodology
+Optimization of the primary drying process with the main aim to reduce process time
+Assessment of process robustness
+Support in scale-up or process transfer between lyophilizers
+Support in root-cause analysis of primary drying process failures
+Code and calculation verification
+Code verification and calculation verification activities were performed on the final version of the dynamic dashboard including all data functions. Code verification involved inventorying and assessing the quality of all software packages, interpreters and Python libraries that were applied. Next, a second operator check was performed on all in-house built code to remove errors in the source code and increase readability.
+In a next step, calculation verification was performed on the risk assessment methodology. The impact of two numerical parameters were evaluated on the accuracy of the results: the integration timestep (
+dt
+) and number of samples (
+n
+samples
+). For this purpose, the same case study as described in section 3.3.5 was used for a single primary drying protocol at
+P
+c
+8 Pa and
+T
+s
+−24 °C. The default
+dt
+was defined as 1/500
+th
+of the primary drying time predicted using nominal parameter settings. This ensures that the primary drying dynamics are covered by at least 500 equidistant datapoints. To achieve a statistically relevant number of samples the default
+n
+samples
+was fixed at 4,096. The analytical truth was calculated using 1/25 th of the default
+dt
+and 16-fold the default
+n
+samples
+. Next, to investigate the model sensitivity towards
+dt,
+a series of predictions were performed between 1/25 th and 25-fold of the default
+dt
+while keeping
+n
+samples
+at the default value
+.
+Similarly, predictions were made using 16-fold till 1/16 th of the default
+n
+samples
+while keeping the default
+dt.
+The error in comparison to the analytical truth was calculated for the three main outcomes of the model (i.e., maximum
+T
+i
+, primary drying time and equipment limits) to evaluate the ideal setting of
+n
+samples
+and
+dt
+.
+Model validation
+Materials
+Model validation experiments were conducted using a biopharmaceutical model formulation comprising of 10 mM Tris (Emprove Expert, Merck) at pH 7.3, 225 mM sucrose (Emprove Expert, Merck), 25 mg/ml BSA (≥ 98%, Carl Roth) and 0.01% polysorbate 20 (PS20) (Super Refined, Croda Pharma). The formulation has an estimated porosity (
+φ)
+of 89.7% in the dried state, and a protein-free theoretical osmolality of 265 mOsmol/kg.
+6R type I glass vials (Fiolax standard line, Schott), 20 mm bromobutyl stoppers with Flurotec coating stoppers (B2-TR Westar, West) and 20 mm crimp caps (Adelphi Healthcare Packaging) were used as primary packaging material.
+Two freeze-dryers from Martin Christ (Osterode, Germany) were used in the model validation experiments. Cycle optimization and a process robustness assessment were performed at the scale-1 pilot freeze-dryer, while process transfer to a larger equipment was performed on the scale-2 commercial freeze-dryer as summarized in Table
+2
+.
+Table 2 Summary of the characteristics of the freeze-dryers applied in the study
+Full size table
+Model input parameter variability estimation
+Variation from the target CPPs can be expected due to the use of process controllers in the freeze-dryer. Moreover, a distribution of pressure across the chamber and a temperature distribution across the shelves are reported in literature (Strongrich and Alexeenko
+2021
+, Rasetto et al.
+2010
+). To account for these variations, a uniform distribution with a limit of ± 1 °C for
+T
+s
+(
+T
+s_lim
+) and ± 1 Pa (
+P
+c_lim
+) for
+P
+c
+was chosen. The NORs were therefore defined as the target primary drying protocol enlarged by the
+T
+s_lim
+and
+P
+c_lim
+.
+A complete shelf at scale-1 of 6R vials (i.e., 257 vials) was characterized for their inner (
+d
+i
+) and outer diameters (
+d
+o
+) to determine the averages (
+d̄
+I
+and
+d̄
+o
+) and standard deviations (
+σ
+di
+and
+σ
+do
+), assuming normal distributions (see Fig.
+1
+). Next, these vials were filled with 2.5 ml (approximately 8 mm liquid filling height) of water for the
+K
+v
+determination. The filling volume accuracy by means of the standard deviation (
+σ
+Vfill
+) was determined gravimetrically on these vials.
+Fig. 1
+Full size image
+Shelf map of the Scale-1 freeze-dryer with vials coloured according to their group designation. T indicates vials that were temperature monitored with product sensors
+The
+K
+v
+distribution of 6R vials for the scale-1 and scale-2 freeze-dryer was determined according to the methodology described in Vanbillemont et al. (Vanbillemont et al.
+2023
+). The vials were assigned to different groups according to their position on the shelf, and at least one product temperature sensor per vial group was used as indicated in Fig.
+1
+. The sensors were placed at the bottom center of the vial, touching the glass. Short freeze-drying cycles on at least three different pressure levels between 5 and 25 Pa, were executed with the vials filled with water. These sublimation cycles were interrupted after 3 h to determine the loss-in-weight (
+\(\int {m}_{sub}dt\)
+) of each individual vial allowing a vial-specific
+K
+v
+estimation using the group-specific bottom product temperature profile (
+T
+b
+) by applying Eq.
+8
+.
+$${K}_{v}= \frac{{\int {m}_{sub}dt\Delta H}_{sub}}{{A}_{v} M\int ({T}_{s}-{T}_{b})dt}$$
+(8)
+The shelf average heat transfer coefficient (
+K̅
+v
+) was regressed against
+P
+c
+by estimating coefficients
+A
+Kv
+,
+B
+Kv
+and
+C
+Kv
+using a weighted non-linear regression according to Eq.
+9
+, with the inverse of the standard deviation at each pressure level as the weights (Vanbillemont et al.
+2020b
+)
+.
+As a measure for variability of the
+K
+v
+dataset, the relative standard deviation (
+RSD
+Kv
+) was calculated by pooling the RSD at each pressure level.
+$${\overline{K} }_{v}={A}_{Kv}+ \frac{{{B}_{Kv} P}_{c}}{1+{C}_{Kv}{ P}_{c}}$$
+(9)
+An empirical cumulative distribution (ECD) of normalized heat transfer coefficients (
+K̂
+v
+) was created by applying Eq.
+10
+in order to pool all
+K
+v
+datapoints across the different pressure levels.
+$${\widehat K}_v=\frac{K_v\left(P_c\right)-{\overline K}_v\left(P_c\right)}{\sigma_{K_v}\left(P_c\right)}$$
+(10)
+To reconstruct a
+K
+v
+distribution as an input for the uncertainty analysis, the ECD with
+K̂
+v
+values was reverted to
+K
+v
+values by using the
+K̅
+v
+and
+RSD
+Kv
+.
+Constraints estimation
+Each of the three failure modes was defined by constraining parameters which limited the operational process space to achieve the risk assessment. The critical temperature of the formulation (
+T
+c
+) influenced the
+p(collapse)
+. The
+T
+c
+was determined using a FDSC 196 freeze-drying microscopy (FDM) (Linkam, Surray, UK) with 10 × magnification applying a cooling ramp of 10 °C/min to −50 °C, followed by a heating ramp of 1 °C/min at 10 Pa. Next, the
+p(meltback)
+was determined by setting a predefined target primary drying time (
+PD time
+).
+At last, to determine the
+p(equipment)
+the maximal sublimation rate (
+m
+sub_max
+) was measured under either choked flow or condenser deposition capacity conditions. Minimal controllable pressure experiments inspired by Srinivasan et al. (Srinivasan et al.
+2021
+) were executed. Bottomless trays were lined with thin plastic sheets and filled with water to form ice slabs upon freezing. Each tray contained approximately 1.2 L (about 1 cm fill height) of deionized water. Each tray was equipped with a product temperature sensor and three short lyophilization cycles at a controlled
+P
+c
+of 5, 28 and 50 Pa were executed where the loss-in-weight of the ice slabs were determined. The
+K
+v
+of this system was computed using Eq.
+8
+and regressed in function of
+P
+c
+according to Eq.
+9
+. Next, several lyophilization runs were executed with the ice slabs, where the target
+P
+c
+was set to 0.1 Pa, which was well below the minimal controllable pressure of the lyophilizer. During these runs the
+T
+s
+was varied between−60 °C and 40 °C in steps of 10 °C, with a holding time of 2 h at each
+T
+s
+. The resulting
+P
+c
+at the end of the 2 h holding steps was considered as the minimal controllable pressure and the maximal sublimation rate (
+m
+sub_max
+) at that point was estimated using the
+K
+v
+of the ice slab system. The
+P
+c
+dependent
+m
+sub_max
+datapoints were considered to be limited by a choked flow regime. A linear regression was made though these
+m
+sub_max
+datapoints to estimate the intercept (
+a
+CF
+) and slope (
+b
+CF
+) in function of
+P
+c
+. The
+P
+c
+independent
+m
+sub_max
+datapoints were attributed to a condenser deposition capacity limit and were used to obtain
+m
+sub_Cond
+.
+DSp building and verification
+The dried product layer resistance (
+R
+p
+) versus dried layer length (
+L
+d
+) profile is dependent on the formulation and freezing protocol, as it describes the interaction of the escaping water vapor with the microstructure of the developing dried product layer. The
+R
+p
+profiles applied in the model were extracted from recorded process data by fitting Eqs.
+1
+till
+8
+. Vial-group-specific
+K
+v
+coefficients considering the position of the temperature monitored vials were applied.
+R
+p
+values that were negative or values near the end of primary drying that showed an exponential relationship to
+L
+d
+were omitted since they were not representative of the assumption of a fully planar sublimation front.
+R
+p
+versus
+L
+d
+profiles originating from multiple temperature monitored vials were aggregated. Next, an averaged dried product layer resistance (
+R̅
+p
+) profile was regressed according to Eq.
+11
+, by determining the
+R
+p
+coefficients (i.e.,
+A
+Rp
+,
+B
+Rp
+and
+C
+Rp
+) (Scutella et al.
+2018
+). At last, the relative standard deviation (
+RSD
+Rp
+) was determined by pooling the RSDs from the
+R
+p
+values of 200 equidistant
+L
+d
+bins of the different temperature monitored vials (Vanbillemont et al.
+2020c
+).
+$${\overline{R} }_{p}={A}_{Rp}+ \frac{{{B}_{Rp} L}_{d}}{1+{C}_{Rp} {L}_{d}}$$
+(11)
+A conservative freeze-drying process was first executed to have an initial estimate of the
+R
+p
+parameters describing the
+R
+p
+profile, and its variability across the batch. The freezing step of this conservative process comprised a cooling ramp of 1 °C/min till −45 °C, followed by a holding step of 2 h at −45 °C. Next, primary drying started with a vacuum ramp till 10 Pa within 30 min at −45 °C. Subsequently, a ramp of 1 °C/min till −28 °C was programmed and held for 67 h. At last, secondary drying included a slow ramp of 0.12 °C/min till 30 °C, followed by a holding step at 30 °C for 8 h at the same chamber pressure setting as primary drying.
+A risk assessment was performed applying the preliminary
+R
+p
+parameters from the conservative cycle. Hence forward an iterative approach was conducted to determine and verify the edges of robustness. The outcomes of the last risk assessment were used to identify the primary drying protocols associated with an edge of robustness, i.e., at the intersection point between two different failure modes. Next, that specific primary drying protocol was validated experimentally, and the
+R
+p
+parameters were updated by regression on the aggregation of all
+R
+p
+profiles from the previous processes. At last, a new risk assessment was constructed using the updated
+R
+p
+parameters to estimate the next edge of robustness. The first edge protocol that was explored was at the intersection of collapse and equipment limits (i.e.,
+p(collapse) U p(equipment)
+<
+PoF
+). Next, the intersection of collapse and meltback was investigated. At last, the edge of robustness at the intersection of meltback and equipment limits was verified. In essence, these three runs at the edges of robustness were a verification of the DSp. At the end, the most robust point within the DSp, was considered as the optimal protocol at NOR for the scale-1 freeze-dryer. The optimal primary drying protocol at NOR was experimentally validated and the final
+R
+p
+parameters were established based on these five freeze-drying cycles.
+Process transfer
+The main aim of the process transfer was to keep the primary drying kinetics, i.e., the thermal history, as similar as possible between both scales (Tchessalov et al.
+2017
+). The rationale was to adapt CPPs to anticipate the scale dependent CMAs changes in order to maintain the CQAs. The scale dependent CMAs changes in a primary drying process are concentrated in the heat transfer coefficient (
+K
+v
+) and equipment limits constraints. Therefore, the
+A
+Kv
+,
+B
+Kv
+,
+C
+Kv
+,
+RSD
+Kv
+,
+n
+vials
+,
+a
+CF
+,
+b
+CF
+and
+m
+sub_Cond
+of the scale-2 freeze-dryer were applied in the calculations. Next, the risk assessment was repeated at scale-2, applying the final
+R
+p
+parameters from scale-1. The optimal protocol at NOR for the freeze-dryer scale-2 was chosen as the point within the risk assessment matrix (i.e., the unverified DSp) with comparable primary drying kinetics as scale-1. This optimal primary drying protocol was finally validated experimentally on the scale-2 freeze-dryer. Since the lower
+P
+c
+process space in the risk assessment was not limited by choked flow limits but rather due to the model calibration limits (i.e., 5 till 25 Pa), only one full shelf of the scale-2 freeze-dryer was loaded in this validation experiment.
+Morphological quality attributes
+The morphological appearance of the lyophilized cakes was evaluated according to an image-based method, designed to identify cake shrinkage, meltback or collapse (Patel et al.
+2017
+) and minimize operator bias. For this purpose, eight high-resolution pictures of the lyophilized vials were taken from the front side at each 45° rotation angle. The images were converted to grayscale and subsequently binarized using Otzu’s thresholding method (Otsu
+1979
+). After binarization, the lyophilized cake was represented by white pixels, while the vial wall and background by black pixels. The fraction of white pixels in each image was then counted, therefore making it possible to define a cake volume fraction, by averaging over the eight collected pictures. Twenty-six vials were selected from different batch positions after each lyophilization run, and morphologically characterized using this approach, to obtain a distribution of cake volume fraction across the whole batch. Exemplary pictures of this methodology are provided in the supplementary information (Figure S1).
+Residual water content
+The residual water content of the freeze-dried products was determined by using the coulometric Karl Fischer titrator Aqua 40.00 (Analytik Jena GmbH), which is equipped with a headspace module. The sample preparation of the freeze-dried product was performed in a glovebox under controlled humidity (≤ 10% r.h.).
+For the measurements, about 20–30 mg of freeze-dried product were weighed into 2R glass vials (Schott, Mainz, Germany) and heated to 120 °C in the oven connected to the reaction vessel via a tubing system. The evaporated water was transferred into the titration solution and the amount of water was determined. The measurement was performed until no more water evaporation was detectable (the baseline was determined by the drift before a measurement series, and the stop criteria by the oscillation around the baseline). The water content of the sample was calculated by taking the environmental moisture as determined in three blanks (i.e., empty vials prepared in the measurement environment and analyzed by using the same method and settings as the sample) into consideration.
+Results and discussion
+Model context
+According to the ASME V&V 40–2018 guidelines (ASME
+2018
+), the first step which is needed to assess the credibility of a model is a clear identification of the questions of interest (QOI) that the model is trying to answer, and of the corresponding context of use (COU). The following QOIs were identified for the mechanistic model of primary drying discussed in the present work:
+1.
+Finding optimal CPPs (i.e., combination of
+T
+s
+,
+P
+c
+and
+PD time
+) therefore defining the NOR for the primary drying phase of lyophilization.
+2.
+Proving robustness of the optimal CPPs by establishing a DSp.
+3.
+Assisting in transfer of a lyophilization primary drying protocol between different equipment.
+In reference to the above-mentioned QOIs 1–3, the following COUs apply:
+1.
+Mass and heat balance equations are applied to the primary drying phase of lyophilization, and an uncertainty analysis based on distribution of input variables and model parameters is also performed. A matrix of chamber pressure and shelf temperature values is simulated with different process time limits and the probability of different failure modes (collapse, meltback and exceeding the equipment limits) is computed for each element of the matrix. This allows the selection of optimal CPPs (QOI #1). The model can further be used to transfer a lyophilization primary drying protocol to a different scale (scale-2) by measuring scale-dependent model parameters (heat transfer coefficient and equipment limits) at scale-2, and by re-applying the model (QOI #3). A robustness assessment (QOI #2) is performed and the area of robustness surrounding the optimal CPPs is validated experimentally. This results in the generation of a DSp, i.e., a representation allowing the identification of a robustness area around the selected CPPs. In this case, any change in CPPs within the verified DSp can be managed without regulatory action.
+2.
+The same procedure for the identification of the optimal CPPs at scale 1 and/or 2 is applied, as discussed in COU #1. However, process robustness (QOI #2) is not fully assessed at commercial scale, and only the optimal cycle is validated experimentally. In this case, the model generates an unverified DSp, and the only accepted variability for the optimal CPPs is around their NORs. This is sufficient for submission of an application (EMA
+2013
+), but an additional post-approval DSp verification effort should be performed if the operational flexibility of a DSp approach is desired.
+The next step for V&V activities, according to the ASME V&V 40–2018 guidelines, is the model risk classification. When the COU is clear, the risk associated with the application of the model can be assessed based on the model influence and decision consequence, according to the classification scheme shown in Table
+3
+.
+Table 3 Classification scheme for model risk assessment, based on ASME V&V 40–2018
+Full size table
+For both COUs discussed in this work, the model influence is classified as medium, as the model output is used to guide decisions on CPPs, but experimental verification is used to confirm the model output and drive the final decision. Furthermore, the decision consequence is ranked as low, because appropriate experimental responses (i.e., the CQAs) are selected in the verification experiment to capture potential adverse effects in quality, safety or efficacy of the drug product (DP). Moreover, the appropriate experimental responses are determined across the whole regulatory design space at scale-1 (COU #1) and at the NOR at scale-2 (COU #2).
+The model risk is therefore rated as low (in alignment with (ASME
+2018
+) and (EMA
+2013
+)), as illustrated in Fig.
+2
+. Since model risk is rated as low, a limited set of V&V activities is appropriate, as discussed in the following sections.
+Fig. 2
+Full size image
+Risk classification for the primary drying model developed at Coriolis
+Code and calculation verification
+A code and calculation verification on the final version of the dynamic dashboard, including all data functions, was subsequently performed. The model used the built-in IronPython (v. 2.7) and Python (v. 3.10.6) interpreters in TIBCO Spotfire Analyst 12.0.3. The Python packages used included distfit 1.7.3, joblib 1.3.2, numpy 1.24.1, olefile 0.47, pandas 1.5.2, scikit-learn 1.4.0, scipy 1.12.0, statsmodels 0.14.1 and xlrd 2.0.1. TIBCO Spotfire and Python are established software, and no additional software quality assurance was performed as part of the current code and calculation verification.
+As discussed in the Materials and Methods section, an analysis of the effect of the timestep
+dt
+and the number of samples
+n
+samples
+on the accuracy of the model predictions was performed. The result of this investigation is shown in Fig.
+3
+. From Fig.
+3
+it is evident that
+n
+samples
+has a much lower impact on the accuracy than
+dt
+(left vs. right panel of Fig.
+3
+). Changing
+n
+samples
+in the range 16x (i.e., 65,536) till 1/8x (i.e., 512) resulted in small error values (< 1%) on all model outputs, and only at the most extreme condition tested (1/16x,
+n
+samples
+: 256) the error increases above 1% as illustrated in Fig.
+3
+.
+Fig. 3
+Full size image
+A
+Percentage error in drying time (black), maximum product temperature (Max Ti in red) and equipment limits (blue) as function of the selected integration timestep (
+dt
+).
+B
+Percentage error in drying time (black), maximum product temperature (red) and equipment limits (blue) as function of the selected sample number (
+n
+samples
+)
+To the contrary, increasing
+dt
+resulted in a significant decrease in accuracy, with errors up to 18% on the predicted equipment limits when
+dt
+is increased to 5 × the default (i.e., 1,320 s).
+The analysis performed here also suggests that the default
+dt
+and
+n
+samples
+result in acceptably small errors (< 1%) compared to the reference (1/25 ×
+dt
+, 16 ×
+n
+samples
+) simulation. It should also be considered that the modelling approach used for the process robustness assessment involves random sampling of the
+n
+samples
+input vectors, meaning that some variability of the output data is to be expected. The output variability due to the random sampling procedure was quantified by repeating the same calculation 6 times using the default timestep
+dt
+and number of samples
+n
+samples
+. As a result of this analysis, relative standard deviations of 0.08%, 0.42% and 0.19% were obtained on the predicted maximum temperature, primary drying time and equipment capability limits, respectively. Based on this analysis, the variability on model outputs due to statistical sampling is of the same order of magnitude as the error between the default (1 ×
+dt
+, 1 ×
+n
+samples
+) and the reference (1/25 ×
+dt
+, 16 ×
+n
+samples
+) simulation, further suggesting that the default solver parameters are adequate to ensure accuracy. Interestingly, the highest relative standard deviation was observed on the predicted primary drying time. This is not surprising since primary drying time predictions suffer from the error propagation in the estimation of the dried layer length. Meltback predictions are based on primary drying time estimations, and therefore the highest uncertainty on the design space calculation is expected to occur on the edge of failure due to meltback.
+Model validation
+CMAs variability
+Container related CMAs were determined experimentally. First, the dimensions of the 6R vials in terms of
+d
+i
+and
+d
+o
+were normally distributed with average values approximating the ISO 8321–1 specifications of 20.0 and 22.0 mm. The standard deviations
+σ
+di
+and
+σ
+do
+were 0.13 and 0.10 mm, respectively. Next, the target fill volume of 2.50 ml was applied in the model and a filling variability (
+σ
+Vfill
+) of 0.09 ml was obtained from the gravimetric experiments.
+As extensively described in the literature (Pisano et al.
+2011b
+) and illustrated in Fig.
+4
+A, the shelf average heat transfer coefficient (
+K̅
+v
+) showed a dependency on the chamber pressure
+P
+c
+. This dependency can be explained by gas convection (Pisano et al.
+2011b
+) and was adequately described for the scale-1 freeze-dryer using an
+A
+Kv
+of 2.57 W/(m
+2
+K),
+B
+Kv
+of 2.33 W/(m
+2
+K Pa),
+C
+Kv
+of 0.03 1/Pa,
+RSD
+Kv
+of 15.1% and for the scale-2 freeze-dryer with an
+A
+Kv
+of 8.83 W/(m
+2
+K) or,
+B
+Kv
+of 0.60 W/(m
+2
+K Pa),
+C
+Kv
+0.00 1/Pa and
+RSD
+Kv
+of 11.0%. At a given value of chamber pressure
+P
+c
+, the heat transfer coefficient
+K
+v
+of the 6R vials in the scale-1 freeze-dryer was not uniform within the batch, but showed a bimodal distribution with strong tailing to higher values as depicted in Fig.
+4
+B. This extensive inhomogeneity originates mainly from differences in radiation and, to a minor extent, conduction. The center vials in groups 5 and 6 (see Fig.
+1
+) were the main population in the distribution, located at lower
+K̂
+v
+values. These vials display six direct neighbors that are similarly cooled by sublimation and are therefore partially shielded from radiation of uncooled surfaces, explaining the lower
+K
+v
+(Ehlers et al.
+2021
+). Vials in groups 4, 3 and 2 have successively less of these neighboring vials, as they are situated near or at the edge of the vial pack, resulting in a higher
+K
+v
+. At last, vials in group 1 are the corner vials and are therefore very atypical (i.e.,
+K̂
+v
+between 2.5 till 4.6 σ), as they have limited contact with the rest of the pack. An empirical cumulative distribution similar to the one shown in Fig.
+4
+B was also constructed for the scale-2 freeze-dryer and 6R vial combination.
+Fig. 4
+Full size image
+A
+Regression curve showing the dependence of
+K
+v
+on
+P
+c
+for both scale-1 (red) and scale-2 (blue) freeze-dryers. Error bars represent the standard deviation and are omitted from the scale-2 data for clarity.
+B
+Normalized
+K
+v
+distribution at scale-1 freeze-dryer. Different groups of vials are considered according to the color code of Fig.
+1
+Constraints estimations
+The constraints due to the drug product (i.e., the critical temperature of the formulation) and the equipment (i.e., the choked flow and condenser deposition capacity limits) play a role in determining the robustness of a primary drying protocol. Freeze-drying microscopy (FDM) identified the collapse temperature of the model formulation at −28 °C, which was therefore defined as the
+T
+c
+. A representative image collected during the FDM experiment is displayed in Fig.
+5
+A.
+Fig. 5
+Full size image
+A
+Freeze-drying microscopy image with red circle indicating collapse. The red bar at top left represents 400 px or 222 µm.
+B
+Results of the minimal controllable pressure experiments and equipment limit regressions at scale-1 (red) and scale-2 (blue)
+Minimal controllable pressure experiments were performed to identify the choked flow and condenser capacity limits of both freeze-dryers (Fig.
+5
+B). Clear differences between the freeze-dryers can be observed. The pilot scale freeze-dryer (scale-1) displayed in red in Fig.
+5
+B appears to be overdesigned in relation to the shelf-area-normalized equipment limits when comparing it to the commercial scale (scale-2) freeze-dryer shown in blue. This observation was already reported before (Shivkumar
+2022
+). It poses serious risks when a process optimization is conducted at lab or pilot scale, and later on transferred to a commercial scale. This occurs because the pilot scale freeze-dryer can sustain higher sublimation rates in relation to its vial capacity, possibly leading to a design of aggressive primary drying protocol not attainable on the commercial scale.
+Two distinct regimes could be identified from the minimal controllable pressure experiments. A
+P
+c
+dependent regime at lower
+m
+sub_max
+values, which stabilized into a
+P
+c
+independent regime, as can be observed in Fig.
+5
+B. The
+P
+c
+dependence was observed up to 19 Pa and 2.5 Pa for the scale-1 and scale-2 freeze-dryers, respectively. This regime was attributed to choked flow at the restriction between the drying chamber and condenser chamber. The scale-1 freeze-dryer had a clear duct between the two chambers, whereas the scale-2 freeze-dryer had the condenser coils below the stoppering plate. The choked-flow regime of the scale-2 freeze-dryer was located at the
+P
+c
+range till 2.5 Pa, below the
+P
+c
+calibration range of the model, due to limited restriction of the vapor flow. The choked flow regime could be described by an
+a
+CF
+of 0.10 or 0.03 kg/h and a
+b
+CF
+of 0.33 or 0.60 kg/(h Pa) for the scale-1 and scale-2 freeze-dryers, respectively.
+The
+P
+c
+independent regime was associated with escalating condenser temperatures. When the
+m
+sub_max
+reached the condenser capacity (
+m
+sub_Cond
+), the heat of ice deposition could not completely be removed and the resulting rising condenser temperature affected the
+P
+c
+according to the vapor pressure over ice equilibrium. For scale-2, the
+m
+sub_Cond
+was estimated at 1.49 kg/h. The condenser capacity regime could not be reached experimentally for scale-1 since the highest
+T
+s
+setting of 40 °C was still located in the choked flow regime. The condenser capacity for scale-1 was specified by the manufacturer at
+m
+sub_Cond
+= 0.33 kg/h.
+Conservative lyophilization cycle for preliminary
+R
+p
+determination
+After the determination of CMAs variability, product and equipment constraints, the remaining input for the model is the resistance to mass transfer
+R
+p
+. For this purpose, a conservative lyophilization run was conducted (process data is shown in Fig.
+6
+A). A
+T
+s
+equal to
+T
+c
+at −28 °C was chosen for this cycle to eliminate the risk of collapse. Temperature probes were placed inside center vials, and preliminary regression coefficients for
+R
+p
+were obtained from product temperature measurements (Fig.
+6
+B). Figure
+6
+B shows that the calculated
+R
+p
+profiles are characterized by substantial variability, due to the stochasticity of freezing, and that three relative standard deviations (RSD) on the regression fit are needed to capture such variability.
+Fig. 6
+Full size image
+A
+Process readouts of the conservative run used for
+R
+p
+extraction. Both temperature (shelf, condenser and 8 temperature sensors (P1-P8) placed in central vials) and pressure (Pirani and capacitance manometer) data are displayed.
+B
+Resistance to mass transfer
+R
+p
+as function of dried layer thickness for the model formulation used during the validation experiments
+Using the model inputs collected so far, a preliminary risk assessment calculation was performed, which allowed the identification of boundaries of process robustness towards collapse, meltback and equipment limits.
+Lyophilization cycles for DSp verification
+As outlined in the Materials and Methods section, an iterative approach was conducted to determine and verify the edges of robustness. At first, the edge of robustness located at the intersection of collapse and equipment limits was verified experimentally. This choice was made, because this is the only edge that is not dependent on the predetermined
+PD time
+. As discussed in the section 3.2, the highest uncertainty on the design space calculation is expected to occur on the edge of failure due to meltback, and for this reason the two edge points delimited by meltback were verified later.
+The first edge run was conducted at
+T
+s
+: −22 °C,
+P
+c
+: 6 Pa and
+PD time
+45 h (Fig.
+7
+A). The product temperature readouts show a typical sigmoidal shape. At first, the temperature increases to reach a first plateau, where the endothermic process of sublimation is compensated by the heat transfer from the shelf. After this first plateau, a sharp change in slope is observed. This occurs when the sublimation front, in its movement from the top to the bottom of the product, reaches the sensing element of the temperature probe. The probe is not anymore located within the frozen area and measures the increase in temperature within the dried layer instead. When equilibrium is achieved between the different heat transfer modes towards the dried product, a second plateau is reached, which is typically close to or above the shelf temperature, due to radiation effects. All the product temperature readouts were below the
+T
+c
+of −28 °C during the first plateau, suggesting that the frozen layer never exceeded the critical temperature. The end of sublimation, as marked by the temperature sensor reaching the second plateau, showed a wide distribution within the batch. Corner vials (Edge P1) were the first to dry because of their exposure to radiation, while center vials (e.g., Edge P5 and Edge P6) completed sublimation last.
+Fig. 7
+Full size image
+Primary drying process readouts of the first (
+A
+), second (
+B
+) and third (
+C
+) edge conditions. Eight product temperature sensors (Edge_P1 to Edge_P8) were used during each run. The product temperature sensors were distributed across the whole batch
+Product temperature measurements from this first edge run were used to increase the reliability of the
+R
+p
+coefficients, and to compute new boundaries of robustness towards the different failure modes. This increased confidence in the prediction of the edge of failure due to meltback, and after this first edge run the
+PD time
+was prolonged to 50 h. With this in mind, the second edge of robustness, located at the intersection of collapse and meltback, was therefore verified experimentally (Fig.
+7
+B) at a
+T
+s
+of −25 °C, a
+Pc
+of 12 Pa and
+PD time
+of 50 h. Also in this case, the product temperature readouts were below the
+T
+c
+during the first plateau, confirming that the model can accurately predict the effect of operating conditions on the maximum product temperature. The duration of the sublimation phase was likewise below the selected 50-h limit (i.e., below 53.1 h total process time, as the duration of freezing was 3.1 h). This can be inferred from both the second plateau of the product temperature readings, and comparative pressure measurements. This can be inferred from both the second plateau of the product temperature readings, and comparative pressure measurements. Indeed, the Pirani gauge measures pressure by correlating it to the thermal conductivity of the atmosphere within the drying chamber. The Pirani gauge readings during the sublimation phase are above the actual pressure value within the chamber, because the atmosphere within the drying chamber is mostly composed of water vapor, that displays a higher thermal conductivity than nitrogen. A decrease in the Pirani reading is an indication that sublimation is complete in most of the batch. When the Pirani and capacitance manometer readings are aligned, sublimation is complete in the whole batch (Patel et al.
+2010b
+). As shown in Fig.
+7
+B, the Pirani reading converged to the capacitance measurement before the limit process time of 53.1 h.
+New values for
+R
+p
+coefficients were estimated after this second edge run and fed back to the algorithm for risk assessment and robustness prediction. A third edge condition, at the intersection of the meltback and equipment limits failure boundaries, was selected based the improved
+R
+p
+coefficients estimate. This edge condition, located at
+T
+s
+of −25 °C,
+P
+c
+of 6 Pa and
+PD time
+of 50 h was also verified experimentally (Fig.
+7
+C). In this case as well, the sublimation phase was completed before the start of the ramp to secondary drying, as indicated by the convergence of Pirani and capacitance readings. It is important to note that in both the edge 1 and edge 3 runs, which are located at the equipment limits boundary, no loss in pressure control was observed, suggesting that the model could control this failure mode, as well.
+The CQAs of the lyophilized product, i.e., cake volume fraction and residual water content, were also measured for vials produced in the three edge runs (Fig.
+8
+, black bars). Pronounced cake volume shrinkage, and high residual water content are an indication of either collapse or meltback (Patel et al.
+2017
+). No marked shrinkage was observed after any of the three edge runs, and the residual water content values were in all cases below 0.65%. This points towards the absence of collapse or meltback of the lyophilized cakes obtained from the experiments and verifies the DSp predicted by the model.
+Fig. 8
+Full size image
+Distributions of measured cake volume fraction (
+A
+), and residual water content (
+B
+) for the verified DSp defined by the three edge conditions (black), the scale-1 optimal lyophilization run at NOR (red) and the scale-2 optimal lyophilization run at NOR (blue)
+Optimal cycle
+After the iterative verification of the DSp, optimal cycle conditions were selected within the DSp and as far as possible from the boundaries of failure. Such conditions corresponded to
+T
+s
+of −24 °C,
+P
+c
+of 8 Pa and
+PD time
+of 50 h. These conditions were defined as the NORs since they included the expected variability of the CPPs (
+T
+s
+± 1 °C and
+P
+c
+± 1 Pa) as outlined in section 2.6.2. Process readouts from the experimental verification of this target operating condition (Fig.
+9
+A) confirmed that the product temperature was consistently below the collapse limit, and that the sublimation phase was completed before the start of the ramp to secondary drying, as indicated by comparative pressure measurements. Furthermore, the optimized process resulted in a 26% reduction in primary drying time compared to the conservative run performed for
+R
+p
+extraction (from 68 to 50 h primary drying time).
+Fig. 9
+Full size image
+A
+Process readouts of the optimal lyophilization protocol at NOR selected by modelling. Eight product temperature sensors (Optimal 1 to Optimal 8) were located at random positions across the whole batch.
+B
+Final regression of
+R
+p
+vs dried layer thickness
+The CQAs of the lyophilized cakes obtained from the optimal protocol (Fig.
+8
+, red bars) fell within the distributions measured for the three edge runs. This proves that the results from the optimal lyophilization run at NOR are not distinctly different from the proven DSp. In addition, it confirms that the DSp approach is a useful tool to improve performance (e.g., 26% reduction in
+PD time
+) without negatively affecting the critical quality attributes of the final product.
+Product temperature readings from the optimal lyophilization run were also used to further refine the extraction of
+R
+p
+coefficients (Fig.
+9
+B), leading to a good fit of the experimental value (root mean square error RMSE of 8.09∙10
+4
+), and a robust estimation of
+RSD
+Rp
+. Final values of
+A
+Rp
+,
+B
+Rp
+,
+C
+Rp
+and
+RSD
+Rp
+were 7.00∙10
+3
+m/s, 2.77∙10
+8
+1/s, 451 1/m and 21.1%, respectively. A final risk assessment calculation was performed at scale-1, using the knowledge on
+R
+p
+gained from the DSp verification experiments and the optimal run at NOR. The risk assessment matrix obtained (Fig.
+10
+A, computed at 50 h
+PD time
+) displays the verified DSp in blue. Changes in
+T
+s
+and
+P
+c
+settings within this area result in a
+p(failure)
+below 0.1%. The optimal protocol at NOR is marked in green, and the three edge conditions experimentally tested during DSp verification are highlighted and numbered in black.
+Fig. 10
+Full size image
+Risk assesment matrices at scale-1 (
+A
+) and scale-2 (
+B
+) constructed using the final
+R
+p
+parameters. The
+p(failure)
+of each protocol is indcated by the number inside the box and by the gradient of blue (inside DSp) or red (outside DSp) of the box. The next protocols are indicated by additional markings: conservative protocol (gray), the three edge protocol (black 1–3) verifying the DSp, the optimal protocol at NOR (green), and the PARs (red)
+The conservative protocol for the preliminary determination of
+R
+p
+(marked in grey) resulted in a sublimation phase which lasted more than 50 h, and for this reason this lyophilization protocol lies outside the meltback boundary of the DSp computed at 50-h
+PD time
+.
+When fixing
+T
+s
+at −24 °C, the PAR of
+P
+c
+goes from 6 to 10 Pa, according to the calculated risk assessment matrix. Similarly, a PAR of −25 °C to −23 °C applies to
+T
+s
+when fixing
+P
+c
+at the target value of 8 Pa. This shows that the model herein discussed, and the resulting risk assessment matrix, allows identification of PARs (marked dashed red in Fig.
+10
+A) around the target operating condition. Moreover, the model can support in the construction of the DSp, and the selection of experimental conditions for DSp verification.
+Lyophilization process transfer
+The risk assessment as shown in Fig.
+10
+B was calculated by applying the scale-2 appropriate
+K
+v
+and equipment limit parameters, with the final
+R
+p
+coefficients. Upon comparing the risk assessments at the two scales, it can be observed that the robust blue area shifted by 2 °C on the
+T
+s
+-axis, and that this area at scale-2 was also slightly enlarged. This shift originated from a slightly worse heat transfer (lower
+K
+v
+regression in Fig.
+4
+A) in the scale-2 versus scale-1 freeze-dryer. To attain similar primary drying kinetics of the optimal protocols between both scales, the model predicted to adapt the scale-2 CPPs by
+T
+s
++ 2 °C to sustain the heat flux. The enlargement of the predicted robustness area was driven by the
+RSD
+Kv
+(scale-1: 15.1% vs. scale-2: 11.0%). The larger shelf area at scale-2 versus scale-1 resulted in relatively less atypical and outlying vials of groups 1–4 versus the more homogeneous groups 5–6. Furthermore, the scale-1 freeze-dryer displayed a plexiglass door enhancing radiation effects which were less present at scale-2 due to the presence of a stainless-steel door. Both effects contributed to the decrease in
+RSD
+Kv
+at scale-2 and therefore to the enlargement of the predicted robustness area. In other words, a higher homogeneity between the samples is expected in scale-2 versus scale-1.
+The optimal protocol at
+T
+s
+of −22 °C,
+P
+c
+of 8 Pa and
+PD time
+of 50 h with associated NORs of ± 1 °C and ± 1 Pa was experimentally verified with its process data displayed in Fig.
+11
+. During this cycle, the product temperature readouts upon sublimation were consistently well below the
+T
+c
+, the sublimation phase was completed before 50 h of
+PD time
+, as indicated by comparative pressure measurements, and
+P
+c
+was well under control indicating sufficient process robustness. Furthermore, as illustrated by the blue bars in Fig.
+8
+, the distribution of the measured CQAs were comparable between both scales, further evidencing process robustness of the transferred CPPs.
+Fig. 11
+Full size image
+Process readouts of the optimal lyophilization protocol at scale-2 selected by modelling. Four product temperature sensors (P1 – P4) were placed at random positions across the batch
+The information supplied in this manuscript would suffice to substantiate the decision of the NORs at the scale-2 freeze-dryer in an application for marketing authorization. However, the blue area in the risk assessment (i.e., Fig.
+10
+B) is an unverified DSp. During the product lifecycle additional experiments at scale-2, analogous to the edge of robustness runs in section 3.3.4, should be performed to verify the suggested DSp. Alternatively, the PARs in the ranges of
+P
+c
+: 5 till 11 Pa and
+T
+s
+: −24 till −21 °C could be experimentally verified. However, since the mechanistic primary drying model suggests numerous interactions between
+T
+s
+and
+P
+c
+it is the opinion of the authors that the DSp approach is superior.
+Conclusions
+In the present work, a modelling framework to increase the robustness of process parameters selection for the primary drying phase of freeze-drying has been developed and discussed. The model performs an uncertainty analysis on the input parameters of a primary drying process and propagates such uncertainty to estimate the distribution of the CQAs. By doing this, the model can estimate the risk associated with different failure modes, such as collapse, meltback or exceeding the equipment limits. The possibility of using the model for transferring process parameters between different equipment, e.g., during process scale-up, has also been discussed.
+We have further shown how V&V activities can be performed to increase model credibility. Our model validation experiments, performed on a representative biopharmaceutical formulation, confirmed that the model can robustly predict the combination of CPPs leading to acceptable CQAs. This leads to the generation of a risk assessment matrix, i.e., a visual representation of the impact of CPPs on CQAs. When experimentally verified, the risk assessment matrix becomes a regulatory compliant DSp. The advantage of a DSp approach is that it introduces flexibility in the conditions for manufacturing, as any change in CPPs within the DSp can be managed without regulatory action.
+Overall, we think that the primary drying model herein discussed represents an advancement in the execution of uncertainty analysis for process robustness estimation. Furthermore, the framework for model V&V, and for DSp generation that we present streamlines the steps required to increase the credibility of a model, and to adequately include such information in a marketing authorization dossier. Such framework could be extended to different models and different unit operations, as well, as the overall approach and nomenclature we use are generally applicable, and not only limited to the field of freeze-drying.
+Abbreviations
+a
+:
+Frozen layer heat conduction parameter (889,200 (Tang et al.
+2006
+))
+a
+CF
+:
+Choked flow intercept (*0.10 / **0.03 kg/h)
+A
+Hsub
+:
+Latent heat of sublimation parameter (4.68·10
+4
+J/mol (Murphy and Koop
+2005
+))
+A
+Kv
+:
+Heat transfer coefficient parameter (*2.57 / **8.83 W/(m
+2
+K))
+A
+Pi
+:
+Partial vapor pressure over ice coefficient (9.550426 Pa (Mortier et al.
+2016
+))
+A
+Rp
+:
+Mass resistance coefficient parameter (7.00∙10
+3
+m/s)
+A
+p
+:
+Product area (314.2 mm
+2
+)
+A
+v
+:
+Vial area (380.1 mm
+2
+)
+b
+:
+Frozen layer heat conduction parameter (1.02 (Tang et al.
+2006
+))
+b
+CF
+:
+Choked flow
+P
+c
+dependent slope (*0.33 / **0.60 kg/(h Pa))
+B
+Hsub
+:
+Latent heat of sublimation coefficient (35.9 J/(mol K) (Murphy and Koop
+2005
+))
+B
+Kv
+:
+Heat transfer coefficient parameter (*2.33 / **0.60 W/(m
+2
+K Pa))
+B
+Pi
+:
+Partial vapor pressure over ice coefficient (5,723.2658 K (Mortier
+2016
+))
+B
+Rp
+:
+Mass resistance coefficient parameter (2.77∙10
+8
+1/s)
+C
+Hsub
+:
+Latent heat of sublimation coefficient (0.0741 J/(mol K
+2
+) (Murphy and Koop
+2005
+))
+C
+Kv
+:
+Heat transfer coefficient parameter (*0.03 / **0.00 1/Pa)
+C
+Pi
+:
+Partial vapor pressure over ice coefficient (3.53068 1/K (Mortier
+2016
+))
+C
+Rp
+:
+Mass resistance coefficient parameter (451 1/m)
+CPP:
+Critical process parameter
+CMA:
+Critical material attributes
+COU:
+Context of use
+CQA:
+Critical quality attributes
+d
+i
+:
+Inner vial diameter (20.0 mm)
+σ
+di
+2
+:
+Variance on inner vial diameter ((0.13 mm)
+2
+)
+d
+o
+:
+Outer vial diameter (22.0 mm)
+σ
+do
+2
+:
+Variance on outer vial diameter ((0.10 mm)
+2
+)
+D
+Hsub
+:
+Latent heat of sublimation coefficient (542 J/mol (Murphy and Koop
+2005
+))
+DP:
+Drug product
+D
+Pi
+:
+Partial vapor pressure over ice coefficient (0.00728332 Pa (Mortier
+2016
+))
+DSp:
+Design Space
+ECD
+:
+Empirical cumulative distribution
+E
+Hsub
+:
+Latent heat of sublimation coefficient (124 K
+2
+(Murphy and Koop
+2005
+))
+ΔH
+sub
+:
+Latent heat of sublimation
+ΔT
+:
+Temperature differential across frozen layer
+K
+v
+:
+Heat transfer coefficient
+K̂
+v
+:
+Normalized heat transfer coefficient
+K̅
+v
+:
+Shelf averaged heat transfer coefficient
+RSD
+Kv
+:
+Relative standard deviation of
+K
+v
+(*15.1% / **11.0%)
+L
+t
+:
+Frozen fill height (8.6 mm)
+L
+d
+:
+Dried layer height
+M
+:
+Molecular weight of water (0.01801528 kg/mol)
+m
+sub
+:
+Sublimation mass rate
+m̄
+sub
+:
+Vial averaged sublimation mass rate
+∑
+m
+sub
+:
+Total sublimation mass rate of system
+m
+sub_Cond
+:
+Condenser capacity limit (*0.33 / **1.49 kg/h)
+m
+sub_max
+:
+Maximal sublimation mass rate of system
+n
+dried
+:
+Number of dried samples in risk assessment
+n
+samples
+:
+Number of Monte Carlo samples (4,096)
+n
+vials
+:
+Number of vials in system (*1,028 / **11,000)
+NOR:
+Normal Operating Ranges
+φ
+:
+Dried layer porosity (89.7%)
+PAR:
+Proven acceptable range
+p(
+collapse)
+:
+Risk of the failure mode collapse
+p(
+equipment)
+:
+Risk of the failure mode equipment limits
+p(
+failure)
+:
+Risk of the failure modes
+p(
+meltback
+)
+:
+Risk of the failure mode meltback
+P
+c
+:
+Chamber pressure
+P
+c_lim
+:
+Limit on the chamber pressure distribution (1 Pa)
+P
+i
+:
+Partial vapor pressure over ice
+PoF
+:
+Probability of Failure (0.1)
+ρ
+ice
+:
+Density of ice (918.0 kg/m
+3
+)
+ρ
+water
+:
+Density of water (1000.0 kg/m
+3
+)
+QbD:
+Quality by Design
+QOI:
+Question of interest
+RMSE:
+Root mean square error
+R
+p
+:
+Dried product layer mass resistance
+R̅
+p
+:
+Averages dried product layer mass resistance
+RSD
+Rp
+:
+Relative standard deviation of
+R
+p
+(21.1%)
+t
+:
+Time
+T
+b
+:
+Product temperature at bottom
+T
+c
+:
+Critical formulation temperature (-28 °C)
+T
+i
+:
+Sublimation interface temperature
+T
+s
+:
+Shelf temperature
+T
+s_lim
+:
+Limit on the shelf temperature distribution (1 K)
+V
+fill
+:
+Filling volume (2.50 ml)
+σ
+Vfill
+2
+:
+Variance on filling volume ((0.09 ml)
+2
+)
+V&V:
+Model Verification and Validation activities
+References
+Arsiccio A, Barresi AA, Pisano R (2017) Prediction of Ice Crystal Size Distribution after Freezing of Pharmaceutical Solutions. Crys Growth des 17:4573–4581.
+https://doi.org/10.1021/acs.cgd.7b00865
+Article
+CAS
+Google Scholar
+Chang BS, Fischer NL (1995) Development of an Efficient Single-Step Freeze-Drying Cycle for Protein Formulations. Pharm Res 12:831–837
+Article
+CAS
+PubMed
+Google Scholar
+Ehlers S, Schroeder R, Friess W (2021) Trouble with the Neighbor During Freeze-Drying: Rivalry About Energy. J Pharm Sci 110:1219–1226.
+https://doi.org/10.1016/j.xphs.2021.01.013
+Article
+CAS
+PubMed
+Google Scholar
+EMA (2013) Questions and Answers on Design Space Verification. EMA/603905/2013. 24 October 2013.
+EMA (2017) Questions and answers: Improving the understanding of NORs, PARs, DSp and normal variability of process parameters. EMA/CHMP/CVMP/QWP/354895/2017. 6 June 2017.
+FDA (2014) Lyophilization of Parenteral (7/93). fda.gov,
+https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/inspection-guides/lyophilization-parenteral-793
+, content current as of 11 Nov. 2014.
+Fissore D, Pisano R, Barresi AA (2011) Advanced approach to build the design space for the primary drying of a pharmaceutical freeze-drying process. J Pharm Sci 100:4922–4933.
+https://doi.org/10.1002/jps.22656
+Article
+CAS
+PubMed
+Google Scholar
+Fontana L, Nakach M, Koumurian B, Urban C, McCoy T, Authelin JR (2023) Importance of Kv Distribution in Freeze Drying Part I: A Holistic Model to Predict Changes in Kv Bimodal Distribution as a Function of Pressure. J Pharm Sci 112:3088–3098.
+https://doi.org/10.1016/j.xphs.2023.04.020
+Article
+CAS
+PubMed
+Google Scholar
+Gamiz AGR, Dewulf J, De Soete W, Heirman B, Dahlin P, Jurisch C, et al. (2019) Freeze drying in the biopharmaceutical industry: an environmental sustainability assessment. Food Bioprod Process 117:213–223.
+https://doi.org/10.1016/j.fbp.2019.07.006
+Article
+CAS
+Google Scholar
+Ganguly A, Alexeenko AA (2012) Modeling and measurements of water–vapor flow and icing at low pressures with application to pharmaceutical freeze-drying. Int J Heat Mass Trans 55:5503–5513.
+https://doi.org/10.1016/j.ijheatmasstransfer.2012.05.021
+Article
+Google Scholar
+ICH (2009) Harmonised Tripartite Guideline. Pharmaceutical Development Q8(R2). Current Step 4 version, August 2009. Available at:
+https://www.ich.org/page/quality-guidelines
+.
+Jennings T (2002) Transferring the lyophilization process from one freeze-dryer to Another. Am Pharm Rev 5(1):34–42.
+CAS
+Google Scholar
+Karel M. Heat and mass transfer in freeze-drying. In: Goldblith SA, Rey L, Rothmayr WW, eds. Freeze Drying and Advanced Food Technology. New York: Academic Press; (1975).
+Leys L, Vanbillemont B, Van Bockstal PJ, Lammens J, Nuytten G, Corver J (2020) A primary drying model-based comparison of conventional batch freeze-drying to continuous spin-freeze-drying for unit doses. Eur J Pharm Biopharm 157:97–107.
+https://doi.org/10.1016/j.ejpb.2020.09.003
+Liapis AI, Bruttini R (1995) Freeze-drying of pharmaceutical crystalline and amorphous solutes in vials: dynamic multi-dimensional models of the primary and secondary drying stages and qualitative features of the moving interface. Dry Technol 13(1&2):43–72.
+https://doi.org/10.1080/07373939508916959
+Article
+CAS
+Google Scholar
+Mortier STFC, Van Bockstal PJ, Corver J, Nopens I, Gernaey KV, De Beer T (2016) Uncertainty analysis as essential step in the establishment of the dynamic Design Space of primary drying during freeze-drying. Eur J Pharm Biopharm 103:71–83.
+https://doi.org/10.1016/j.ejpb.2016.03.022
+Murphy DM, Koop T (2005) Review of the vapour pressures of ice and supercooled water for atmospheric applications. Q J R Meteorol Soc 131(608):1539–1565.
+https://doi.org/10.1256/qj.04.94
+Article
+Google Scholar
+Nail SL, Searles JA (2008) Elements of Quality by Design in Development and Scale-Up of Freeze-Dried Parenterals. Biopharm International 21:40–45
+Google Scholar
+Nuytten G, Ríos Revatta S, Van Bockstal PJ, Kumar A, Lammens J, Leys L (2021) Development and Application of a Mechanistic Cooling and Freezing Model of the Spin Freezing Step within the Framework of Continuous Freeze-Drying. Pharmaceutics 13:2076.
+https://doi.org/10.3390/pharmaceutics13122076
+Otsu N. A threshold selection method from gray-level histograms. IEEE Trans. Syst., Man, Cybern., 9 (1979): 62–66.
+https://doi.org/10.1109/TSMC.1979.4310076
+Patel SM, Pikal MJ (2013) Lyophilization Process Design Space. J Pharm Sci 102:3883–3887.
+https://doi.org/10.1002/jps.23678
+Article
+CAS
+PubMed
+Google Scholar
+Patel SM, Chaudhuri S, Pikal MJ (2010a) Choked flow and importance of Mach I in freeze-drying process design. Chem Eng Sci 65:5716–5727.
+https://doi.org/10.1016/j.ces.2010.07.003
+Article
+CAS
+Google Scholar
+Patel SM, Doen T, Pikal MJ (2010b) Determination of end point of primary drying in freeze-drying process control. AAPS PharmSciTech 11:73–84.
+https://doi.org/10.1208/s12249-009-9342-2
+Article
+CAS
+PubMed
+PubMed Central
+Google Scholar
+Patel SM, Nail SL, Pikal MJ, Geidobler R, Winter G, Hawe A (2017) Lyophilized Drug Product Cake Appearance: What Is Acceptable? J Pharm Sci 106:1706–1721.
+https://doi.org/10.1016/j.xphs.2017.03.044
+Pikal MJ (1985) Use of laboratory data in freeze drying process design: heat and mass transfer coefficients and the computer simulation of freeze drying. J Parenter Sci Technol 39(3):115–139
+CAS
+PubMed
+Google Scholar
+Pikal MJ, Pande P, Bogner R, Sane P, Mudhivarthi V, Sharma P Impact of Natural Variations in Freeze-Drying Parameters on Product Temperature History: Application of Quasi Steady-State Heat and Mass Transfer and Simple Statistics. AAPS PharmSciTech. 19 (2018).
+https://doi.org/10.1208/s12249-018-1155-4
+.
+Pikal MJ, Shah S (1990) The collapse temperature in freeze drying: Dependence on measurement methodology and rate of water removal from the glassy phase. J Pharm Sci 62(2–3):165–186.
+https://doi.org/10.1016/S0378-5173(00)00332-7
+Article
+CAS
+Google Scholar
+Pikal MJ, Roy ML, Shah S (1984) Mass and heat transfer in vial freeze-drying of pharmaceuticals: Role of the vial. J Pharm Sci 73:1224–1237.
+https://doi.org/10.1002/jps.2600730911
+Article
+CAS
+PubMed
+Google Scholar
+Pisano R, Fissore D, Barresi AA (2011a) Freeze-drying cycle optimization using model predictive control techniques. Ind Eng Chem Res 50(12):7363–7379.
+https://doi.org/10.1021/ie200222y
+Article
+CAS
+Google Scholar
+Pisano R, Fissore D, Barresi AA (2011b) Heat transfer in freeze-drying apparatus. Developments in Heat Transfer 10:23799.
+https://doi.org/10.5772/18093
+Article
+Google Scholar
+Rasetto V, Marchisio DL, Fissore D, Barresi AA (2010) On the use of a dual-scale model to improve understanding of a pharmaceutical freeze-drying process. J Pharm Sci 99(10):4337–4350.
+https://doi.org/10.1002/jps.22165
+Rhieu SY, Anderson DD, Janoria K (2020) A Regulatory Perspective on Manufacturing Processes Pertaining to Lyophilized Injectable Products. AAPS J 22:100.
+https://doi.org/10.1208/s12248-020-00494-3
+Article
+PubMed
+Google Scholar
+Scutella B, Bourles E (2020) Development of freeze-drying cycle via design space approach: a case study on vaccines. Pharm Dev Tech 25:1302–1313.
+https://doi.org/10.1080/10837450.2020.1806298
+Article
+CAS
+Google Scholar
+Scutellà B, Trelea IC, Bourlès E, Fonseca F, Passot S (2018) Determination of the dried product resistance variability and its influence on the product temperature in pharmaceutical freeze-drying. Eur J Pharm Biopharm 128:379–388.
+https://doi.org/10.1016/j.ejpb.2018.04.014
+Searles J (2004) Observation and implications of sonic water vapor flow during freeze-drying. Am Pharm Rev 7:58–75
+CAS
+Google Scholar
+Shivkumar G. Computational Modeling for Lyophilization Process Development, Transfer, and Innovation [Conference presentation]. IFPAC 2022, N. Bethesda, MD, United States, June 15, 2022
+Srinivasan JM, Sacha GA, Kshirsagar V, Alexeenko A, Nail  SL (2021) Equipment capability measurement of laboratory freeze-dryers: a comparison of two methods. AAPS PharmSciTech 22:1–6.
+https://doi.org/10.1208/s12249-020-01882-x
+Srinivasan JM, Sacha GA, Nail SL (2023) The graphical design space for the primary drying phase of freeze Drying: Factors affecting the dried product layer resistance. Int J Pharm 630:122417.
+https://doi.org/10.1016/j.ijpharm.2022.122417
+Article
+CAS
+PubMed
+Google Scholar
+Stratta L, Capozzi LC, Franzino S et al. (2020) Economic Analysis of a Freeze-Drying Cycle. Processes 8(11):1399.
+https://doi.org/10.3390/pr8111399
+Strongrich A, Alexeenko A (2021) Wireless sensor networks for pharmaceutical lyophilization: Quantification of local gas pressure and temperature in primary drying. Eur J Pharm Biopharm 169:52–63.
+https://doi.org/10.1016/j.ejpb.2021.09.006
+Article
+CAS
+PubMed
+Google Scholar
+Tang XC, Nail SL, Pikal MJ (2006) Evaluation of manometric temperature measurement, a process analytical technology tool for freeze-drying: part II measurement of dry-layer resistance. AAPS PharmSciTech 7(4):E77–E84.
+https://doi.org/10.1208/pt070477
+Article
+PubMed Central
+Google Scholar
+Tchessalov S, Dixon D, Warne NW (2007) Principles of lyophilization cycle scale-up. Am Pharm Rev 10:88–92
+CAS
+Google Scholar
+Tchessalov S, Dassu D, Latshaw D, Nulu S (2017) An industry perspective on the application of modeling to lyophilization process scale-up and transfer. Am Pharm Rev 20:20
+Google Scholar
+Tchessalov S, Latshaw D II, Nulu S, Bentley M, Sharp T, Ewan S (2021) Application of first principles primary drying model to lyophilization process design and transfer: case studies from the industry. J Pharm Sci 110(2):968–981.
+https://doi.org/10.1016/j.xphs.2020.10.048
+Tchessalov S, Maglio V, Kazarin P, Alexeenko A, Bhatnagar B, Sahni E (2023) Practical advice on scientific design of freeze-drying process: 2023 update. Pharm Res. 40:2433–2455.
+https://doi.org/10.1007/s11095-023-03557-y
+Trappler E (2001) Scale-up strategy for a lyophilization process. Am Pharm Rev 4:55–60
+CAS
+Google Scholar
+Trelea IC, Passot S, Fonseca F, Martin M (2007) An interactive tool for the optimization of freeze-drying cycles based on quality criteria. Dry Technol 25:741–751.
+https://doi.org/10.1080/07373930701370464
+Article
+CAS
+Google Scholar
+Vanbillemont B, De Beer T (2020) Model-based optimization of the primary drying phase of oral lyophilizates. Int J Pharm X 2:100057.
+https://doi.org/10.1016/j.ijpx.2020.100057
+Article
+CAS
+PubMed
+PubMed Central
+Google Scholar
+Vanbillemont B, Nicolaï N, Leys L, De Beer T (2020a) Model-based optimisation and control strategy for the primary drying phase of a lyophilisation process. Pharmaceutics 12(2):181.
+https://doi.org/10.3390/pharmaceutics12020181
+Vanbillemont B, Lammens J, Goethals W, Vervaet C, Boone MN, De Beer T (2020b) 4D Micro-Computed X-ray Tomography as a Tool to Determine Critical Process and Product Information of Spin Freeze-Dried Unit Doses. Pharmaceutics 12:430.
+https://doi.org/10.3390/pharmaceutics12050430
+Vanbillemont B, Greiner AL, Ehrl V, Menzen T, Friess W, Hawe A (2023) A model-based optimization strategy to achieve fast and robust freeze-drying cycles. Int J Pharm X 5:100180.
+https://doi.org/10.1016/j.ijpx.2023.100180
+ASME. V&V 40 – 2018. Assessing Credibility of Computational Modeling through Verification and Validation: Application to Medical Devices. 2018
+Yu LX, Amidon G, Khan MA, Hoag SW, Polli J, Raju GK (2014) Understanding pharmaceutical quality by design. AAPS J 16(4):771–783.
+https://doi.org/10.1208/s12248-014-9598-3
+Download references
+Author information
+Authors and Affiliations
+Coriolis Pharma Research GmbH, 82152, Martinsried, Germany
+Brecht Vanbillemont, Andrea Arsiccio, Tim Menzen & Andrea Hawe
+Authors
+Brecht Vanbillemont
+View author publications
+Search author on:
+PubMed
+Google Scholar
+Andrea Arsiccio
+View author publications
+Search author on:
+PubMed
+Google Scholar
+Tim Menzen
+View author publications
+Search author on:
+PubMed
+Google Scholar
+Andrea Hawe
+View author publications
+Search author on:
+PubMed
+Google Scholar
+Contributions
+BV: Conceptualization, Data curation, Formal analysis, Investigation, Project administration, Methodology, Software, Validation, Writing – original draft, Writing – review & editing. AA: Conceptualization, Data curation, Formal analysis, Investigation, Project administration, Methodology, Software, Validation, Writing – original draft, Writing – review & editing. TM: Resources, Project administration, Supervision, Writing – review & editing. AH: Resources, Project administration, Supervision, Writing – review & editing.
+Corresponding author
+Correspondence to
+Brecht Vanbillemont
+.
+Ethics declarations
+Data availability
+The experimental datasets generated and/or analyzed during the current study are not publicly available due presence in a proprietary data format but are available from the corresponding author upon reasonable request.
+Competing interests
+All authors are employees of Coriolis Pharma Research GmbH. The presented methodology is part of the service portfolio of Coriolis Pharma Research GmbH.
+Funding
+All work described within this manuscript was funded by Coriolis Pharma Research GmbH.
+Acknowledgements
+The authors would like to sincerely thank Mr. Dominik Brandstetter, Mr. Mihail Paskalev and Ms. Bao Doan Huynh for their contributions to the data gathering of this work.
+Additional information
+Publisher’s Note
+Springer Nature remains neutral with regard to jurisdictional claims in published maps and institutional affiliations.
+Supplementary information
+Supplementary Material 1. (download PDF
+)
+Rights and permissions
+Open Access
+This article is licensed under a Creative Commons Attribution 4.0 International License, which permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit
+http://creativecommons.org/licenses/by/4.0/
+.
+Reprints and permissions
+About this article
+Cite this article
+Vanbillemont, B., Arsiccio, A., Menzen, T.
+et al.
+Optimization and transfer of robust primary drying protocols for biopharmaceuticals through lyophilization process modeling.
+AAPS Open
+11
+, 13 (2025). https://doi.org/10.1186/s41120-025-00115-5
+Download citation
+Received
+:
+27 January 2025
+Accepted
+:
+06 May 2025
+Published
+:
+16 June 2025
+Version of record
+:
+16 June 2025
+DOI
+:
+https://doi.org/10.1186/s41120-025-00115-5
+Share this article
+Anyone you share the following link with will be able to read this content:
+Get shareable link
+Sorry, a shareable link is not currently available for this article.
+Copy shareable link to clipboard
+Provided by the Springer Nature SharedIt content-sharing initiative
+Keywords
+Biopharmaceuticals
+Lyophilization
+Process transfer
+Process robustness
+Mechanistic modelling
+Process optimization
+Regulatory submission
+Sustainability
+Profiles
+Brecht Vanbillemont
+View author profile
+Associated Content
+Part of a collection:
+Freeze Drying Technology: Recent Advances, Innovations and Applications
+Advertisement
+Search
+Search by keyword or author
+Search
+Navigation
+Find a journal
+Publish with us
+Track your research
+Footer Navigation
+Discover content
+Journals A-Z
+Books A-Z
+Subjects A-Z
+Publish with us
+Journal finder
+Publish your research
+Language editing
+Open access publishing
+Products and services
+Our products
+Librarians
+Societies
+Partners and advertisers
+Our brands
+Springer
+Nature Portfolio
+BMC
+Palgrave Macmillan
+Apress
+Discover
+Corporate Navigation
+Your privacy choices/Manage cookies
+Your US state privacy rights
+Accessibility statement
+Terms and conditions
+Privacy policy
+Help and support
+Legal notice
+Cancel contracts here
+70.166.123.213
+Not affiliated
+© 2026 Springer Nature

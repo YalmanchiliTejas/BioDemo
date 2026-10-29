@@ -30,6 +30,10 @@ def _s(*items: str) -> frozenset[str]:
     return frozenset(items)
 
 
+PHYSICAL_ANALYSIS_TOOLS = _s("physical_models_catalog", "physical_analysis_prepare", "physical_analysis_execute",
+                             "physical_analysis_read", "physical_model_propose_adapter")
+
+
 SKILLS: dict[str, RoleSkill] = {s.role: s for s in [
     RoleSkill("operator", "Operator", _s("short_summary", "query_rewrite", "field_extraction"),
               _s("execution.perform_step", "execution.submit_offline_draft", "lab.register_sample"),
@@ -41,16 +45,16 @@ SKILLS: dict[str, RoleSkill] = {s.role: s for s in [
               _s("submit_deviation", "approve_capa", "close_deviation", "quarantine_lot"),
               "Assemble a QA review package with cited fields, open gaps and review-by-exception coverage."),
     RoleSkill("msat", "MSAT", _s("comparison_explanation", "investigation_planning", "optimization_reasoning", "statistics"),
-              _s("science.compare_cohorts", "science.detect_emerging_concern", "science.control_chart"),
-              _s("process_trend_report", "improvement_recommendation"), _s("change_recipe_parameter"),
+              _s("science.compare_cohorts", "science.detect_emerging_concern", "science.control_chart") | PHYSICAL_ANALYSIS_TOOLS,
+              _s("process_trend_report", "improvement_recommendation", "physical_analysis_plan", "physical_analysis_result"), _s("change_recipe_parameter", "review_physical_analysis", "review_scientific_model_adapter"),
               "Detect an emerging drift before deviation and propose a constrained, evidence-linked adjustment."),
     RoleSkill("supervisor", "Supervisor", _s("short_summary", "task_decomposition", "notification_draft"),
               _s("network.site_view", "workqueue.metrics"), _s("shift_summary", "handoff"),
               _s("reschedule_batch", "send_notification"),
               "Prepare the shift handoff: open exceptions, pending decisions, overdue tasks."),
     RoleSkill("engineering", "Engineering", _s("comparison_explanation", "investigation_planning", "statistics"),
-              _s("science.oee", "execution.prepare_maintenance"), _s("equipment_assessment"),
-              _s("create_work_order"), "Compare equipment OEE and propose an engineering investigation."),
+              _s("science.oee", "execution.prepare_maintenance") | PHYSICAL_ANALYSIS_TOOLS, _s("equipment_assessment", "physical_analysis_plan", "physical_analysis_result"),
+              _s("create_work_order", "review_physical_analysis", "review_scientific_model_adapter"), "Compare equipment behavior, select applicable physical models and propose an engineering investigation."),
     RoleSkill("maintenance", "Maintenance", _s("short_summary", "field_extraction"),
               _s("execution.prepare_maintenance"), _s("work_order_draft"), _s("create_work_order"),
               "Prepare a work order from fault history, manuals and spares; expose missing qualification."),

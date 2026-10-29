@@ -116,3 +116,24 @@ def test_invalidation_during_computation_cannot_be_overwritten(monkeypatch):
     with pytest.raises(PermissionError, match="invalidated"):
         p.flows.run(ctx, run["run_id"])
     assert p.store.read().require("T", "data_flow_run", run["run_id"]).state["status"] == "quarantined"
+
+
+def test_host_operator_versions_are_pinned_and_context_is_preserved():
+    p, ctx = env()
+    calls = []
+    def calculate(context, payload):
+        calls.append((context.actor_id, payload))
+        return {'status': 'completed', 'output': {'answer': payload['value']*2}, 'issues': []}
+    p.flows.register_operator('test.domain', 'v1', calculate)
+    p.flows.save(ctx, 'domain', site_id='S1', nodes=[{'node_id': 'calculate', 'task_kind': 'test.domain', 'payload': {'value': 21}}])
+    first = p.flows.create_run(ctx, 'domain', inputs=[])
+    done = p.flows.run(ctx, first['run_id'])
+    assert done['results']['calculate']['output']['answer'] == 42
+    assert calls == [('msat', {'value': 21})]
+    second = p.flows.create_run(ctx, 'domain', inputs=[])
+    p.flows.operators['test.domain'] = ('v2', calculate)
+    blocked = p.flows.run(ctx, second['run_id'])
+    assert blocked['status'] == 'blocked' and 'operator changed' in blocked['issues'][0]
+    assert len(calls) == 1
+    with pytest.raises(ValueError, match='already registered'):
+        p.flows.register_operator('test.domain', 'v3', calculate)

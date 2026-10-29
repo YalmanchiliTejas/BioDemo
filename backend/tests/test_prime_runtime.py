@@ -108,6 +108,14 @@ def test_manufacturing_api_defaults_to_prime_harness(tmp_path, monkeypatch):
     assert response.status_code == 200, response.text
     assert response.json()["provider_id"] == "prime-agent"
     assert invoked[0]["new_evidence_ids"] == [evidence_id]
+    payload = {'incident_id': 'bound-case', 'problem': 'Follow up', 'as_of': '2024-02-01T00:00:00Z',
+               'source_package_sha256': 'wrong-package'}
+    rejected = client.post('/api/manufacturing-os/rollouts', headers={'X-Tenant-Id': 'tenant_a'}, json=payload)
+    assert rejected.status_code == 409
+    assert len(invoked) == 1
+    payload['source_package_sha256'] = store.source_fingerprint(scopes=('tenant_a',))
+    accepted = client.post('/api/manufacturing-os/rollouts', headers={'X-Tenant-Id': 'tenant_a'}, json=payload)
+    assert accepted.status_code == 200 and len(invoked) == 2
 
 
 def test_manufacturing_rollout_requires_configured_store(tmp_path, monkeypatch):

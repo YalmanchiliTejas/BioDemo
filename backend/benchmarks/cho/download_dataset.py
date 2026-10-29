@@ -10,9 +10,12 @@ from pathlib import Path
 
 URL = "https://zenodo.org/records/20829178/files/Dataset.zip?download=1"
 MD5 = "71b2a35b7df2ed11644ec9f177453772"
+from benchmarks.common.artifact_store import uses_assets
+
 ROOT = Path(__file__).resolve().parent
 
 
+@uses_assets(ROOT / "raw", ROOT / "reference/aligned")
 def download_and_extract() -> dict:
     archive = ROOT / "raw/Dataset.zip"
     archive.parent.mkdir(parents=True, exist_ok=True)

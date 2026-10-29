@@ -64,7 +64,11 @@ def test_changed_layout_missing_conflicts_and_review_block(setup,tmp_path):
     run=service.run(changed,'local','D')
     codes={i['rule_code'] for i in run['issues']}
     assert {'MISSING_FIELD','DUPLICATE_CONFLICT'}<=codes
-    assert run['summary']['auto_accepted']==0
+    # Only the pH beside the blank temperature is accepted; the duplicated rows are held.
+    accepted=[m for m in run['measurements'] if m['status']=='auto_accepted']
+    assert [(m['parameter'],m['source']['row']) for m in accepted]==[('pH',2)]
+    assert not any(m['parameter']=='temperature' and m['source']['row']==2 for m in run['measurements'])
+    assert not run['summary']['verified_package']
     drift=process(tmp_path,'drift',[['LOCAL-4',0,36,7]],['batch_id','elapsed_h','Unqualified [degC]','pH [pH]'])
     result=service.run(drift,'local','D')
     assert {'LAYOUT_CHANGED','UNMAPPED_FIELD'}<={i['rule_code'] for i in result['issues']}
@@ -138,6 +142,7 @@ def test_missing_page_and_batch_identifier_mismatch(setup):
     service,raw=setup
     write_pdf(raw/'coa.pdf',['Document type: coa','Page 1 of 2','Batch: TYPO | Hour: 0 | product [g/L]: 2'])
     run=service.run(raw,'local')
+    assert run['status']=='complete',run.get('error')
     assert {'MISSING_PAGE','BATCH_MISMATCH'}<={i['rule_code'] for i in run['issues']}
     pdf=next(m for m in run['measurements'] if m['source']['path']=='coa.pdf')
     assert pdf['source']['page']==1 and pdf['source_verified']
@@ -157,12 +162,18 @@ def test_docling_keeps_page_and_box_and_does_not_auto_verify(tmp_path,monkeypatc
     import sys
     from types import SimpleNamespace
     from src.manufacturing_data.ingest import _document_observations
-    monkeypatch.delenv('DOCLING_ARTIFACTS_PATH',raising=False)
+    monkeypatch.setenv('DOCLING_ARTIFACTS_PATH',str(tmp_path/'models'))
     item=SimpleNamespace(text='Batch: LOCAL | Hour: 1 | pH [pH]: 7',
         prov=[SimpleNamespace(page_no=3,bbox=SimpleNamespace(l=10,t=20,r=30,b=40))])
     doc=SimpleNamespace(iterate_items=lambda:iter([(item,0)]))
     monkeypatch.setitem(sys.modules,'docling.document_converter',SimpleNamespace(
-        DocumentConverter=lambda:SimpleNamespace(convert=lambda _:SimpleNamespace(document=doc))))
+        DocumentConverter=lambda **_:SimpleNamespace(convert=lambda _:SimpleNamespace(document=doc)),
+        PdfFormatOption=lambda **kwargs:SimpleNamespace(**kwargs)))
+    monkeypatch.setitem(sys.modules,'docling.datamodel.base_models',SimpleNamespace(
+        InputFormat=SimpleNamespace(PDF='pdf')))
+    monkeypatch.setitem(sys.modules,'docling.datamodel.pipeline_options',SimpleNamespace(
+        PdfPipelineOptions=lambda **kwargs:SimpleNamespace(**kwargs),
+        TesseractCliOcrOptions=lambda **kwargs:SimpleNamespace(**kwargs)))
     rows=list(_document_observations('source','record.pdf',tmp_path/'record.pdf','local',None,'docling'))
     assert len(rows)==1 and rows[0].source.page==3 and rows[0].source.region==(10,20,30,40)
     assert rows[0].validation_status=='unverified'

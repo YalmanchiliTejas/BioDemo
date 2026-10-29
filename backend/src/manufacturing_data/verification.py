@@ -50,6 +50,18 @@ def verify_originals(store,rows):
                             column=item['source_ref'].get('column')
                             if column in headers:observed[item['id']]=values[headers.index(column)]
                     if index>=max(wanted):break
+        elif source['format'] == '.docx':
+            from docx import Document
+            doc = Document(path)
+            for item in items:
+                span = item['source_ref'].get('span', '')
+                paragraph = re.fullmatch(r'paragraph:(\d+)', span)
+                cell = re.fullmatch(r'table:(\d+):row:(\d+):cell:(\d+)', span)
+                try:
+                    if paragraph: observed[item['id']] = doc.paragraphs[int(paragraph[1])-1].text
+                    elif cell: observed[item['id']] = doc.tables[int(cell[1])-1].cell(int(cell[2])-1, int(cell[3])-1).text
+                except IndexError:
+                    pass
         elif any(item['extraction_method']=='pypdf' for item in items):
             from .ingest import _document_observations
             wanted={item['id'] for item in items}
@@ -68,6 +80,12 @@ def verify_originals(store,rows):
                     page_text[page]=re.sub(r'\s+',' ',reader.pages[page-1].extract_text() or '').strip()
                 candidate=re.sub(r'\s+',' ',item['value_text'] or '').strip()
                 if candidate and candidate in page_text[page]: observed[item['id']]=item['value_text']
+        elif source['format'] == '.json' and any(str(item['source_ref'].get('span', '')).startswith('record:') for item in items):
+            records = json.loads(path.read_text(encoding='utf-8'), parse_float=str, parse_int=str)
+            for item in items:
+                ref = item['source_ref']; index = ref.get('row')
+                if isinstance(index, int) and 1 <= index <= len(records) and ref.get('column') in records[index-1]:
+                    observed[item['id']] = records[index-1][ref['column']]
         elif source['format'] in {'.json','.txt','.log','.md'}:
             # These observations retain physical source-line numbers, including
             # blank lines. Do not reserialize JSON: that changes the coordinates.

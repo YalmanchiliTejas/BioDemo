@@ -1,6 +1,6 @@
 import {
   Activity, Bot, Boxes, CalendarRange, ClipboardCheck, Cpu, Database, FileText, FlaskConical, FolderKanban,
-  Gauge, GitCompareArrows, Home, Lightbulb, LineChart, Search, Settings, ShieldCheck, Tablet, Truck,
+  Gauge, GitCompareArrows, Home, Lightbulb, LineChart, PackageCheck, Search, Settings, ShieldCheck, Tablet, Truck,
   Wrench, Workflow, type LucideIcon,
 } from 'lucide-react';
 
@@ -14,6 +14,7 @@ export const NAV: NavSection[] = [
       { label: 'Home', href: '/home', icon: Home },
       { label: 'Workspaces', href: '/workspaces', icon: FolderKanban },
       { label: 'Sources', href: '/sources', icon: Database },
+      { label: 'CMO deliveries', href: '/cmo', icon: PackageCheck },
     ],
   },
   {
@@ -34,6 +35,7 @@ export const NAV: NavSection[] = [
       { label: 'Investigations', href: '/investigations/INV-104', icon: GitCompareArrows, match: '/investigations' },
       { label: 'Optimization', href: '/optimization/OPT-104', icon: Gauge, match: '/optimization' },
       { label: 'Tech Transfer', href: '/tech-transfer', icon: Truck },
+      { label: 'Process simulation', href: '/process-simulation', icon: FlaskConical },
     ],
   },
   {
@@ -49,6 +51,7 @@ export const NAV: NavSection[] = [
     title: 'Platform',
     items: [
       { label: 'Knowledge', href: '/knowledge', icon: Search },
+      { label: 'Case studies', href: '/case-studies', icon: FlaskConical },
       { label: 'Agents', href: '/agents', icon: Bot },
       { label: 'Runs', href: '/runs/RUN-2026-1042', icon: Cpu, match: '/runs' },
       { label: 'Operator tablet', href: '/operator/shift', icon: Tablet, match: '/operator' },
@@ -60,6 +63,9 @@ export const SETTINGS_NAV: NavItem = { label: 'Settings & Governance', href: '/s
 
 /** All 32 frames, used by the command palette. */
 export const SCREENS: Array<{ id: string; href: string; title: string; keywords?: string }> = [
+  { id: 'PROCESS-SIMULATION', href: '/process-simulation', title: 'Predictive process engineering', keywords: 'freeze drying lyophilization transfer CDMO simulation' },
+  { id: 'CMO-01', href: '/cmo', title: 'CMO deliveries · verify and aggregate', keywords: 'CMO CDMO upload ingestion aggregate filter verify export batch CoA' },
+  { id: 'CASE-STUDIES-01', href: '/case-studies', title: 'Manufacturing case studies', keywords: 'Sanofi IndPenSim benchmark ingestion' },
   { id: 'AUTH-01', href: '/sign-in', title: 'Sign in / workspace access' },
   { id: 'ONB-01', href: '/onboarding/start', title: 'Fast start · choose data source' },
   { id: 'ONB-02', href: '/onboarding/mapping', title: 'Data intake & entity mapping' },

@@ -1,0 +1,13 @@
+# Continuous-oxygen correction and final replacement protocol
+
+The expanded source gate exposed seed9014 before any AI inference on the9001–9048 cases. At80.2h, with the declared source air factor1.15, the numerical solver returned1.9922505097mg/L oxygen, but the upstream step replaced it with exactly1mg/L. This discontinuous reset was a numerical/postprocessing artifact, not the oxygen-balance equation. Merely increasing source aeration did not remove it in every case.
+
+The versioned correction preserves each nonnegative raw ODE oxygen value in the state used for the next controller interval and recorded observation. Negative or nonfinite raw oxygen is rejected, never clipped. Existing equations, coefficients, other controllers and physical-state rejection remain unchanged. Audit receipts retain raw intervals below2mg/L and every prevented reset. The2mg/L receiving operating constraint still applies: a positive low-oxygen trajectory can be numerically admitted while its selected plan remains infeasible and scores zero.
+
+The correction is used consistently by the source generator, receiving evaluator, nominal physics tool and source fitter. Legacy behavior remains available for replay. A real reproducer retains1.9922505097mg/L, and the complete96h native trajectory agrees with an independent Python solver within0.5% for product, oxygen and substrate. Tests ensure a later legacy call retains its original behavior and the operating constraint still rejects low-oxygen choices. This establishes a numerical correction, not experimental oxygen-model validation.
+
+The final replacement uses the same already-declared9001–9048 cases, source feed1/air1.15 after60h, and all previously frozen fitting bounds, AI budgets, targets and analysis. No cases are resampled to obtain favorable scores. Source9014 was used to diagnose the numerical reset, so this is exploratory and not a wholly untouched confirmatory dataset. No AI scores from these cases have been observed before freezing the correction. Every source and receiver must pass numerical/domain admission; every rejected case remains in coverage totals without replacement.
+
+Artifacts: `backend/results/external-simulators/model-repair-continuous-20261028/`. The earlier224-attempt run remains superseded, and the intermediate admitted-dataset generation with one rejected source is retained with zero AI attempts. Neither supplies pooled results. Full230h viscosity remains unresolved. The realCHO empirical comparison remains separate.
+
+This document is frozen before final regeneration and inference. Read it with the original repair protocol and source-admission addendum; it corrects their treatment of the oxygen reset without concealing either earlier failure.

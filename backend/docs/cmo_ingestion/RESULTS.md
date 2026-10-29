@@ -68,3 +68,32 @@ layout with no JavaScript errors. Existing CHO/Fresenius benchmark and source
 review tests are included. Docker is optional and its image/runtime was not
 tested. See [known limitations and deployment](README.md) and
 [the human study protocol](HUMAN_STUDY.md).
+
+## Zero-silent-error update, 2026-10-27
+
+Source: [report](../../results/cmo_ingestion/zero-silent-2026-10-27/report.md),
+configuration D (local, no model calls). "+confirmed" rows: proposed layouts on
+the held-out package confirmed without edits by an automated protocol, then
+reprocessed. That stands in for one reviewer confirmation; it is not human work.
+
+| Dataset | Layout | Auto accepted | Silent errors | Silent omissions | Misses flagged | Review values / groups |
+|---|---|---:|---:|---:|---:|---:|
+| IndPenSim | Unseen | 0.00% | 0 | 0 | 0 | 1,402 / 15 |
+| IndPenSim | Unseen + one confirmation | 78.60% | 0 | 0 | 0 | 300 / 3 |
+| IndPenSim | Returning | 78.60% | 0 | 0 | 0 | 300 / 3 |
+| IndPenSim | Changed + one confirmation | 67.99% (was 0.14%) | 0 | 0 | 101 | 352 / 41 |
+| Sanofi synthetic | Unseen + one confirmation | 97.14% | 0 | 0 | 2 | 2 / 2 |
+| Sanofi synthetic | Returning | 97.14% | 0 | 0 | 1 | 2 / 2 |
+| Sanofi synthetic | Changed + one confirmation | 43.42% (was 10.53%) | 0 | 0 | 10 | 34 / 21 |
+
+*Silent errors* are wrong values accepted without review. *Silent omissions*
+are expected values neither extracted nor visibly flagged. Both are 0 in every
+condition, and 0 source elements are unaccounted. Recall is unchanged: the
+missed values sit in columns literally named `Unqualified reading [unknown]`,
+which are flagged instead of guessed. The old pipeline silently skipped
+spreadsheet sheets without unit headers (a "Delivery notes" sheet here); they
+are now listed. The remaining 300 IndPenSim review values are Raman channels
+with no stated unit; one unit declaration in the mapping resolves them for
+future deliveries. These are finite synthetic fixtures, not a population error
+rate, and human time is still unmeasured (see [HUMAN_STUDY.md](HUMAN_STUDY.md)).
+Tester instructions: [TESTER_GUIDE.md](TESTER_GUIDE.md).

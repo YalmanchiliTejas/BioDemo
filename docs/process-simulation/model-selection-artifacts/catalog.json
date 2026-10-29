@@ -1,0 +1,58 @@
+{
+  "catalog_hash": "9a17d43866a5584d631f4d35d03c1e6ca18c07c3be527ce1f1dab493674d18d3",
+  "models": [
+    {
+      "description": "Rapid primary-drying screening with heat/mass balance and a moving ice front.",
+      "id": "lyo.kv_rp",
+      "implementation_digest": "7a304ddde27f70856914965b0cfd7c6ce27011f2c5b6cdb4e9b523d9e43d7ae1",
+      "limitations": [
+        "Neglects sensible-heat dynamics.",
+        "Representative vial cannot establish hottest-vial protection.",
+        "Prescribed pressure becomes invalid above vapor-handling capacity."
+      ],
+      "process_family": "pharmaceutical_primary_drying",
+      "qualification": "unqualified engineering demonstration",
+      "required_inputs": [],
+      "source": "https://doi.org/10.1186/s41120-025-00115-5",
+      "spatial_resolution": "representative vial / one-dimensional drying front",
+      "supported_outputs": [
+        "interface_temperature_c",
+        "bottom_temperature_c",
+        "remaining_ice_kg_per_vial",
+        "sublimation_kg_h",
+        "constraint_margins"
+      ],
+      "title": "Quasi-steady Kv\u2013Rp",
+      "units": "SI input keys; \u00b0C and hours explicitly named",
+      "version": "kv-rp-si-1.0.0"
+    },
+    {
+      "description": "Adds finite vial/product thermal capacity to compare responses to scheduled changes.",
+      "id": "lyo.transient_lumped",
+      "implementation_digest": "d3d76dadbd0444d037d5246209417d607676bc2d05129d878a4729417e4b9168",
+      "limitations": [
+        "Additional uncharacterized thermal inputs may dominate results.",
+        "Lumped node is not a resolved temperature or vapor-flow field.",
+        "An extra state does not establish greater predictive accuracy."
+      ],
+      "process_family": "pharmaceutical_primary_drying",
+      "qualification": "unqualified engineering demonstration",
+      "required_inputs": [
+        "thermal.vial_heat_capacity_j_k",
+        "thermal.initial_temperature_c"
+      ],
+      "source": "https://doi.org/10.1186/s41120-025-00115-5",
+      "spatial_resolution": "representative vial / one-dimensional drying front",
+      "supported_outputs": [
+        "interface_temperature_c",
+        "bottom_temperature_c",
+        "remaining_ice_kg_per_vial",
+        "sublimation_kg_h",
+        "constraint_margins"
+      ],
+      "title": "Transient thermal vial",
+      "units": "SI input keys; \u00b0C and hours explicitly named",
+      "version": "lumped-thermal-primary-drying-1.0.0"
+    }
+  ]
+}

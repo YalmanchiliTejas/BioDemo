@@ -170,6 +170,15 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
 
     app = FastAPI(lifespan=lifespan, title="BioDemo life-sciences platform", version="1.0", docs_url=None if os.environ.get(
         "OIDC_ISSUER") else "/v1/docs", openapi_url="/v1/openapi.json")
+    # The statically exported Next workspace can connect to the existing API.
+    # Production cross-origin access must be configured explicitly.
+    from fastapi.middleware.cors import CORSMiddleware
+    origins = os.environ.get("LIFESCI_CORS_ORIGINS", "http://127.0.0.1:5180,http://localhost:5180" if auth_mode == "development_headers" else "")
+    if origins:
+        app.add_middleware(CORSMiddleware, allow_origins=origins.split(","), allow_methods=["GET", "POST"],
+                           allow_headers=["Authorization", "Content-Type", "X-Tenant-Id", "X-Actor-Id", "Idempotency-Key", "X-CMO-Token"],
+                           expose_headers=["X-Package-Complete", "X-Open-Issues", "X-Values-Pending", "X-Page-Width",
+                                           "X-Page-Height", "X-Page-Count"])
 
     def ctx_dep(request: Request) -> AccessContext:
         ctx = resolver(request)
@@ -468,4 +477,6 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     platform.extend_api(app, ctx_dep, idempotent)
     from .edge import install_edge_api
     install_edge_api(platform, app, ctx_dep)
+    from .cmo_datasets import install_cmo_api
+    install_cmo_api(platform, app, ctx_dep)
     return app

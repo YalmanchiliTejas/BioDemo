@@ -28,18 +28,35 @@ class FullManufacturingOS:
             tick=time.monotonic()
             if sink:
                 with sink.interval(actor='pipeline',stage='ingestion',action='ingest_authorized_package') as detail:
-                    ingested=ingest_package(request.input_package,store,access_scope=scope)
+                    ingested=ingest_package(request.input_package,store,access_scope=scope,document_backend=cfg.get('document_backend','auto'))
                     detail.update(indexed_files=ingested['files_indexed'],errors=len(ingested['errors']))
             else:
-                ingested=ingest_package(request.input_package,store,access_scope=scope)
+                ingested=ingest_package(request.input_package,store,access_scope=scope,document_backend=cfg.get('document_backend','auto'))
             ingestion_seconds=time.monotonic()-tick
-            if ingested['errors']:
+            if ingested['errors'] and not cfg.get('allow_partial_ingestion', False):
                 raise RuntimeError('ingestion errors prevent a complete benchmark investigation')
             boards=BlackboardStore(work/'blackboards')
             workflow=ManufacturingInvestigationWorkflow(work/'workflow',store,scope=scope,blackboards=boards,triage_policy=cfg.get('operational_triage_policy'))
             harness=PrimeManufacturingHarness.from_env(store=store,blackboards=boards,workflow=workflow,scope=scope)
+            if cfg.get('prime_model'):
+                harness.model=cfg['prime_model']
+            scientific_calls=[]
+            if cfg.get('scientific_tool_family') == 'aerobic_fermentation':
+                # Same Prime host, bridge and scoped retrieval; only a bounded scientific tool is added.
+                from src.lifesci.fermentation.model import calculate, VERSION
+                from src.lifesci.fermentation.schemas import Assumptions
+                public=json.loads((request.input_package/'model-input.json').read_text())
+                def fermentation_transfer(*, assumptions=None, as_of=None, scopes=None):
+                    settings=Assumptions.model_validate({**cfg.get('scientific_default_assumptions',{}),**(assumptions or {})}).model_dump()
+                    prediction=calculate(public,settings)
+                    call={'assumptions':settings,'prediction':prediction,'model_version':VERSION}
+                    scientific_calls.append(call)
+                    return {'status':'completed','output':prediction,'evidence_ids':[],
+                            'provenance':'Registered deterministic characterization; scenario assumptions are not measurements.'}
+                harness.additional_tools={'fermentation_transfer':fermentation_transfer}
             harness.trace_sink=sink
             harness.evaluation_mode=True
+            harness.rlm_max_depth=cfg.get('rlm_max_depth')
             harness.max_tool_calls=cfg.get('budgets',{}).get('tool_calls',48)
             harness.execution_policy=cfg.get('execution_policy',{'mode':'fixed_v1'})
             harness.timeout_seconds=max(1,cfg.get('budgets',{}).get('wall_clock_seconds',900)-(time.monotonic()-started))
@@ -95,4 +112,5 @@ class FullManufacturingOS:
                     'usage':{**report.get('rollout_metrics',{}),'runtime_seconds':time.monotonic()-started,
                              'ingestion_seconds':ingestion_seconds,'agent_runtime_seconds':agent_seconds,
                              'usage_scope':'root_sdk_session_only; child, OCR and tool costs may be missing'},
+                    'scientific_tool_results':scientific_calls,
                     'constraints':{'gmp_actions_available':False,'scope':scope,'as_of':cutoff}}

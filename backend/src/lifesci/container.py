@@ -50,6 +50,9 @@ class Platform:
     remote_sessions: Any = field(init=False)
     media_providers: dict[str, Any] = field(default_factory=dict)
     partners: Any = field(init=False)
+    process_models: Any = field(init=False)
+    engineering_conversations: Any = field(init=False)
+    fermentation: Any = field(init=False)
     allow_unqualified: bool = False
     providers: dict[str, Any] | None = None
     api_extensions: list[Callable[..., None]] = field(default_factory=list)
@@ -78,9 +81,14 @@ class Platform:
         self.packages = PackageService(s, self.identity, self.evidence, self.signatures)
         self.artifacts = ArtifactService(s, self.identity, self.evidence)
         registry = default_registry()
+        from .gateway.configuration import configure_engineering_llms
+        bindings = configure_engineering_llms(registry, os.environ)
         providers = self.providers if self.providers is not None else self._env_providers()
         self.gateway = ModelGateway(s, self.identity, registry, providers,
-                                    router=Router(registry, allow_unqualified=self.allow_unqualified))
+                                    router=Router(registry, allow_unqualified=self.allow_unqualified, task_profile_bindings=bindings))
+        from .lyophilization.service import ProcessModelService, register_handlers
+        self.process_models = ProcessModelService(self)
+        register_handlers(self.gateway)
         try:
             from . import science
             science.register_handlers(self.gateway)
@@ -92,6 +100,10 @@ class Platform:
         self.connectors = ConnectorService(self)
         from .flows import FlowService
         self.flows = FlowService(self)
+        from .process_engineering.conversation import EngineeringConversationService
+        self.engineering_conversations = EngineeringConversationService(self)
+        from .fermentation.service import FermentationService
+        self.fermentation = FermentationService(self)
         from .collab import RemoteSessionService
         from .media import configured_media
         from .network import PartnerService
@@ -117,5 +129,11 @@ class Platform:
     def extend_api(self, app: Any, ctx_dep: Any, idempotent: Any) -> None:
         from .suite_api import install_suite_api
         install_suite_api(self, app, ctx_dep, idempotent)
+        from .lyophilization.api import install_process_api
+        install_process_api(self, app, ctx_dep, idempotent)
+        from .process_engineering.api import install_analysis_api
+        install_analysis_api(self, app, ctx_dep, idempotent)
+        from .fermentation.api import install_fermentation_api
+        install_fermentation_api(self, app, ctx_dep, idempotent)
         for extension in self.api_extensions:
             extension(self, app, ctx_dep, idempotent)

@@ -1,0 +1,119 @@
+{
+  "basis": [
+    {
+      "id": "proc_01M5WVTXXFFMA06FM011S0217V",
+      "kind": "process_simulation",
+      "revision": 1,
+      "site_id": "NF1"
+    }
+  ],
+  "constraints": [
+    "Reconstruction, not numerical reproduction or a qualified process model.",
+    "No residual moisture, potency, release suitability, energy or biological yield is predicted.",
+    "Quasi-steady representative vial; no pressure dynamics, edge-vial population or sensible-heat model.",
+    "Constraint onset is sampled; the reported resolution bounds warning-time precision."
+  ],
+  "content_hash": "d824c937857d6f0386ddf3284e66e79e90913bf916d8db65a32c2a2cc59809c0",
+  "created_at": "2026-10-26T19:43:47.178410+00:00",
+  "effectiveness": "unknown",
+  "execution_status": "not_started",
+  "expected_result": "Conditional primary-drying completion 49.89 h; no release claim.",
+  "follow_up_measure": "Independent temperature, pressure control and endpoint verification against proposed criteria",
+  "mission_id": null,
+  "operation": "change_recipe_parameter",
+  "owner_id": "priya",
+  "payload": {
+    "candidate": "-28\u00b0C \u00b7 5500 vials",
+    "config": {
+      "duration_h": 75.0,
+      "equipment": {
+        "condenser_capacity_kg": 30.0,
+        "equipment_id": "Epsilon2-65D-derated-demonstration",
+        "kv_a_w_m2_k": 8.83,
+        "kv_b_w_m2_k_pa": 0.6,
+        "kv_c_per_pa": 0.0,
+        "kv_rsd": 0.11,
+        "max_vials": 11000,
+        "missing_parameters": [
+          "resolved condenser deposition-rate specification",
+          "pressure-dependent vapor-capacity curve",
+          "shared utility headroom"
+        ],
+        "revision": "1",
+        "shelf_area_m2": 5.4,
+        "site_id": "receiving-reconstructed",
+        "utility_connections": [
+          {
+            "characterization": "Kv(P)",
+            "from": "thermal-fluid",
+            "to": "shelves"
+          },
+          {
+            "capacity_key": "vapor_capacity_kg_h",
+            "from": "chamber",
+            "to": "condenser"
+          }
+        ],
+        "vapor_capacity_kg_h": 0.65
+      },
+      "initial_dried_fraction": 0.0,
+      "input_revision": "vanbillemont-reconstruction-1",
+      "load_vials": 5500,
+      "product": {
+        "critical_temperature_c": -28.0,
+        "fill_m3": 2.5e-06,
+        "id": "paper-BSA-sucrose-Tris-PS20",
+        "inner_diameter_m": 0.02,
+        "outer_diameter_m": 0.022,
+        "porosity": 0.897,
+        "rp0_m_s": 7000.0,
+        "rp1_per_s": 277000000.0,
+        "rp2_per_m": 451.0
+      },
+      "schedule": [
+        {
+          "chamber_pressure_pa": 8.0,
+          "shelf_temperature_c": -28.0,
+          "time_h": 0.0
+        }
+      ],
+      "schedule_mode": "step"
+    },
+    "mode": "simulation_recommendation_only",
+    "simulation_id": "proc_01M5WVTXXFFMA06FM011S0217V",
+    "verification": {
+      "experiments": [
+        {
+          "acceptance_criteria": "Measured batch vapor rate remains below characterized capacity with >=10% headroom; pressure stays within approved control tolerance.",
+          "experiment": "Water sublimation / pressure-rise characterization at 5, 8 and 12 Pa; representative load"
+        },
+        {
+          "acceptance_criteria": "Characterization intervals cover modeled coefficients; otherwise revise inputs and rerun.",
+          "experiment": "Gravimetric Kv characterization of center and edge vials; product-specific Rp characterization"
+        },
+        {
+          "acceptance_criteria": "All monitored product temperatures below -28\u00b0C; endpoint precedes the proposed hold end; target endpoint error <=20% and temperature error <=2\u00b0C (proposed engineering criteria, subject to reviewer approval).",
+          "experiment": "Instrumented verification batch with center/edge thermocouples and independent primary-drying endpoint indication"
+        }
+      ],
+      "release_boundary": "Secondary drying, residual moisture, appearance and potency require separate approved tests. No release decision is supported here.",
+      "responsible_reviewer": "Assigned MSAT process owner and independent QA reviewer"
+    }
+  },
+  "proposal_id": "prop_01M5WVV2FA938YHRYXN8W9NMTD",
+  "rationale": "Bounded primary-drying comparison; proposed characterization and verification before any production change.",
+  "record_class": "change_recipe_parameter",
+  "requested_by": "priya",
+  "requested_by_kind": "person",
+  "required_roles": [
+    "qa",
+    "msat"
+  ],
+  "risk": "high",
+  "site_id": "NF1",
+  "stale_reasons": [],
+  "status": "proposed",
+  "target_id": "Epsilon2-65D-derated-demonstration",
+  "target_system": "engineering-review",
+  "would_change_recommendation": "New Kv/Rp, critical temperature or equipment capacity data; failed verification or stale sources"
+}

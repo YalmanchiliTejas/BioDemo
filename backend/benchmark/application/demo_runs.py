@@ -31,7 +31,10 @@ class DemoRuns:
             shutil.which("node") is not None and (bundle / "packages/coding-agent/dist/index.js").is_file())
         reason = None if configured else "Prime SDK is unavailable. Configure PRIME_AGENT_BUNDLE_ROOT or BIODEMO_PRIME_SDK_COMMAND."
         if case_id == "cho" and not list((self.repository / "benchmarks/cho/raw/workbooks").glob("*.xlsx")):
-            reason = "CHO source workbooks are unavailable. Download the source dataset first."
+            from benchmarks.common.artifact_store import descriptor_for
+            descriptor, _ = descriptor_for(self.repository / 'benchmarks/cho/raw/workbooks')
+            if descriptor is None:
+                reason = "CHO source workbooks are unavailable. Download the source dataset first."
         return {"available": reason is None, "reason": reason}
 
     def _save(self, job: dict) -> None:
@@ -83,6 +86,19 @@ class DemoRuns:
             self._save(self._jobs[identifier])
 
     def _execute(self, identifier: str) -> None:
+        from benchmarks.common.artifact_store import mounted_assets
+        try:
+            if self._jobs[identifier]['case_id'] == 'cho':
+                with mounted_assets(self.repository / 'benchmarks/cho/raw/workbooks'):
+                    self._execute_local(identifier)
+            else:
+                self._execute_local(identifier)
+        except Exception as error:
+            self._update(identifier, status='failed', phase='Source retrieval failed',
+                         error=f'{type(error).__name__}: {error}',
+                         finished_at=datetime.now(timezone.utc).isoformat())
+
+    def _execute_local(self, identifier: str) -> None:
         job = self._jobs[identifier]
         output = self.root / identifier
         try:

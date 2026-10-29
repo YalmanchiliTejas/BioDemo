@@ -30,6 +30,12 @@ def freeze_assets(name='pre-evaluation-v2'):
 
 
 def verify_snapshot(target):
+    from .artifact_store import mounted_assets
+    with mounted_assets(Path(target)/'assets'):
+        return _verify_snapshot(target)
+
+
+def _verify_snapshot(target):
     target=Path(target);manifest=json.loads((target/'manifest.json').read_text());errors=[]
     for row in manifest['files']:
         source=target/'assets'/row['path']

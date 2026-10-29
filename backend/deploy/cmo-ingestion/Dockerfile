@@ -15,6 +15,8 @@ COPY backend/src ./src
 COPY backend/benchmark ./benchmark
 COPY backend/docs ./docs
 COPY backend/benchmarks/cmo_ingestion/*.py ./benchmarks/cmo_ingestion/
+# Public CHO demo deliveries (CC BY 4.0) served as sample packages.
+COPY backend/benchmarks/cmo_ingestion/demo ./benchmarks/cmo_ingestion/demo
 RUN pip install --no-cache-dir '.[app,manufacturing-data,benchmarks,manufacturing-documents]'
 RUN useradd --uid 10001 --create-home cmo && mkdir -p /data /app/.prime && chown -R cmo:cmo /data /app/.prime
 USER cmo

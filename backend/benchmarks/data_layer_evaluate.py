@@ -50,7 +50,8 @@ def cho(store: Path) -> dict:
             "source_sha256":hashes,"pipeline_signatures":signatures}
 
 def fresenius(store: Path) -> dict:
-    mappings=json.loads((ROOT/"fresenius/ground_truth/source_provenance.json").read_text())["mappings"]
+    from benchmarks.common.artifact_store import read_json
+    mappings=read_json(ROOT/"fresenius/ground_truth/source_provenance.json")["mappings"]
     package=ROOT/"fresenius/raw_package"
     source_values={}
     for rel in sorted({m["source_file"] for m in mappings if "row" in m or "cell" in m}):

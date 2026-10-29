@@ -91,6 +91,19 @@ class ManufacturingStore:
                 con.execute("ALTER TABLE sources ADD COLUMN original_mode INTEGER")
             if "routing_json" not in {row[1] for row in con.execute("PRAGMA table_info(sources)")}:
                 con.execute("ALTER TABLE sources ADD COLUMN routing_json TEXT")
+            # A verified remote working copy may have a different temporary root.
+            # Rebind only derived catalog paths; original bytes and evidence IDs stay intact.
+            for partition in con.execute('SELECT source_id,sheet_index,parquet_path,parquet_sha256 FROM sheets').fetchall():
+                current = Path(partition['parquet_path'])
+                if current.parent.resolve() == self.measurements: continue
+                candidate = self.measurements / current.name
+                if not candidate.is_file() or not partition['parquet_sha256']:
+                    raise RuntimeError('Restored store partition is missing its verified local copy')
+                with candidate.open('rb') as stream:
+                    digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+                if digest != partition['parquet_sha256']: raise ValueError('Restored partition checksum mismatch')
+                con.execute('UPDATE sheets SET parquet_path=? WHERE source_id=? AND sheet_index=?',
+                            (str(candidate), partition['source_id'], partition['sheet_index']))
         self.db.chmod(0o600)
 
     def connect(self):
@@ -102,6 +115,11 @@ class ManufacturingStore:
     @staticmethod
     def digest(content: bytes) -> str:
         return hashlib.sha256(content).hexdigest()
+
+    def source_fingerprint(self, *, scopes=('default',)) -> str:
+        """Bind to all registered package bytes, including explicit parse failures."""
+        files = sorted((s['path'], s['sha256']) for s in self.visible_sources(scopes=scopes))
+        return hashlib.sha256(json.dumps(files, separators=(',', ':')).encode()).hexdigest()
 
     def visible(self, *, as_of: str | None = None, scopes: Iterable[str] = ("default",),
                 entity_id: str | None = None, source_id: str | None = None,
@@ -348,7 +366,7 @@ class ManufacturingStore:
                     {literal(part['access_scope'])} AS access_scope,
                     json_object('source_id',{literal(part['source_id'])},'path',{literal(part['path'])},'sheet',{literal(part['sheet'])},
                                 'row',__row,'column',c.name,'cell',c.letter || CAST(__row AS VARCHAR),
-                                'page',NULL,'span',NULL,'region',NULL) AS source_ref,
+                                'page',NULL,'span',CASE WHEN {literal(part['format'])}='.json' THEN 'record:' || CAST(__row AS VARCHAR) END,'region',NULL) AS source_ref,
                     {literal(part['format'].lstrip('.'))} AS extraction_method,
                     CASE WHEN __entity_kind IS NOT NULL AND ({confidence}) THEN 1.0 END AS confidence,
                     {literal(part['sheet'])} AS sheet,__row::BIGINT AS source_row,c.column_index::INTEGER AS column_index,

@@ -66,6 +66,10 @@ class _HTTPProvider:
     def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
         self._key = api_key or os.environ.get(self.env_key)
         self._base = (base_url or os.environ.get(f"{self.env_key.split('_')[0]}_BASE_URL") or self.base_url).rstrip("/")
+        # Provider methods append /v1 themselves; accept either server root or
+        # the conventional API base without producing /v1/v1 requests.
+        if self._base.endswith('/v1'):
+            self._base = self._base[:-3]
 
     def _post(self, path: str, body: dict[str, Any], headers: dict[str, str], timeout_s: float) -> dict[str, Any]:
         import httpx

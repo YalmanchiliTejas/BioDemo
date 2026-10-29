@@ -7,7 +7,8 @@ from pathlib import Path
 
 def validate_mapping(package: Path, hidden_map: Path) -> dict:
     """Check source pointers against generated files without exposing the map to agents."""
-    mapping = json.loads(hidden_map.read_text(encoding="utf-8"))["mappings"]
+    from .artifact_store import read_json
+    mapping = read_json(hidden_map)["mappings"]
     missing_files = sorted({item["source_file"] for item in mapping
                             if not (package / item["source_file"]).is_file()})
     bad_csv_rows = []

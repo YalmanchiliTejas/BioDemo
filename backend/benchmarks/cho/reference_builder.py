@@ -7,9 +7,12 @@ import math
 from pathlib import Path
 
 
+from benchmarks.common.artifact_store import uses_assets
+
 ROOT = Path(__file__).resolve().parent
 
 
+@uses_assets(ROOT / "raw", ROOT / "reference/aligned")
 def build_reference() -> dict:
     """Structural map inferred from exact source headers; no biological labels."""
     from openpyxl import load_workbook
@@ -50,6 +53,7 @@ def build_reference() -> dict:
     return result
 
 
+@uses_assets(ROOT / "reference/aligned")
 def build_objective_summaries() -> dict:
     """Numeric descriptive references only; these do not encode causal relevance."""
     cultivations = {}

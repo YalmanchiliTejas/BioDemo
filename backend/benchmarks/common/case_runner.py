@@ -19,6 +19,21 @@ from .quality import score_review
 
 
 def run_case(manifest_path, mode, *, output_root=None, isolated=True, operator_id=None, agent_adapter=None, prior_run=None, operational_triage_policy=None):
+    from .input_store import execution_inputs
+    from .artifact_store import archive_runtime
+    if prior_run:
+        previous=json.loads(Path(prior_run).read_text())
+        if previous.get('runtime_workspace'): archive_runtime(previous['runtime_workspace'],restore=True)
+    with execution_inputs(manifest_path) as execution_manifest:
+        result=_run_case(execution_manifest, mode, output_root=output_root, isolated=isolated,
+                         operator_id=operator_id, agent_adapter=agent_adapter, prior_run=prior_run,
+                         operational_triage_policy=operational_triage_policy)
+        saved=json.loads(result.read_text())
+        if saved.get('runtime_workspace'): archive_runtime(saved['runtime_workspace'])
+        return result
+
+
+def _run_case(manifest_path, mode, *, output_root=None, isolated=True, operator_id=None, agent_adapter=None, prior_run=None, operational_triage_policy=None):
     if mode not in GROUPS:raise ValueError('unsupported comparison group')
     from src.workflows.triage import validate_policy
     from .case_protocol import stable_hash
@@ -203,7 +218,8 @@ def review_template(run):
 
 
 def evaluate_run(run_path, review_path=None):
-    path=Path(run_path);run=json.loads(path.read_text())
+    from .artifact_store import read_json, asset_path
+    path=Path(run_path); local_record=json.loads(path.read_text());run=read_json(path)
     if run.get('version')!=VERSION:raise ValueError('Legacy task scores are diagnostics, not v2 qualified investigations.')
     from .case_protocol import stable_hash
     if stable_hash({k:v for k,v in run['case'].items() if k not in ('frozen_at','task_spec_sha256')})!=run['case']['task_spec_sha256']:
@@ -213,9 +229,14 @@ def evaluate_run(run_path, review_path=None):
         raise ValueError('Run quality policy changed after freeze')
     if digest(path.parent/'trace.jsonl')!=run['trace_sha256']:
         raise ValueError('Execution trace changed after completion')
-    if run.get('output_sha256') and digest(path.parent/'output.json')!=run['output_sha256']:
-        run['audit']['pass']=False;run['audit']['failures'].append('Output changed after execution.')
+    if run.get('output_sha256'):
+        with asset_path(path.parent/'output.json') as output:
+            if digest(output)!=run['output_sha256']:
+                run['audit']['pass']=False;run['audit']['failures'].append('Output changed after execution.')
     review=json.loads(Path(review_path).read_text()) if review_path else None
     run['qualification']=score_review(run,run['quality_policy'],review)
+    if local_record.get('remote_payload'):
+        run.pop('output',None)
+        run.update(remote_payload=local_record['remote_payload'],remote_payload_sha256=local_record['remote_payload_sha256'])
     save(path,run)
     return run['qualification']

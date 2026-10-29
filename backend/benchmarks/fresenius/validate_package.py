@@ -12,12 +12,14 @@ from benchmarks.common.provenance_validator import validate_mapping
 from .build_multimodal_package import build_package
 from .build_tasks import build_tasks
 from .temporal_replay import state_at
+from benchmarks.common.artifact_store import uses_assets
 
 
 ROOT = Path(__file__).resolve().parent
 REPOSITORY = ROOT.parents[1]
 
 
+@uses_assets(ROOT / "raw_package")
 def validate() -> dict:
     """Validate immutable inputs and every historical package without running an agent."""
     sources = json.loads((ROOT / "source_manifest.json").read_text(encoding="utf-8"))
@@ -31,7 +33,8 @@ def validate() -> dict:
         (current_package / item["path"]).is_file()
         and hashlib.sha256((current_package / item["path"]).read_bytes()).hexdigest() == item["sha256"]
         for item in recorded["files"])
-    full_map = json.loads((ROOT / "ground_truth/source_provenance.json").read_text(encoding="utf-8"))
+    from benchmarks.common.artifact_store import read_json
+    full_map = read_json(ROOT / "ground_truth/source_provenance.json")
     mapped_files_cover_package = ({item["source_file"] for item in full_map["mappings"]} ==
                                   {item["path"] for item in recorded["files"]})
     with tempfile.TemporaryDirectory(prefix="fresenius-determinism-check-") as temporary:

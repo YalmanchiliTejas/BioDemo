@@ -1,5 +1,5 @@
 from collections import Counter
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, ExitStack
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -33,6 +33,13 @@ def create_app(services: ApplicationServices | None = None):
     incident_demo = IncidentDemoService()
     repository = Path(__file__).resolve().parents[2]
     manufacturing_root = os.getenv("BIODEMO_MANUFACTURING_STORE")
+    configured_manufacturing_root = manufacturing_root
+    artifact_lifetime = ExitStack()
+    if manufacturing_root:
+        from benchmarks.common.artifact_store import asset_path, descriptor_for
+        descriptor, _ = descriptor_for(manufacturing_root)
+        if str(manufacturing_root).startswith('dagshub:') or (descriptor and not (Path(manufacturing_root)/'metadata.sqlite').is_file()):
+            manufacturing_root = artifact_lifetime.enter_context(asset_path(manufacturing_root))
     if manufacturing_root and not (Path(manufacturing_root) / "metadata.sqlite").is_file():
         raise RuntimeError("BIODEMO_MANUFACTURING_STORE must point to an ingested store")
     if manufacturing_root and not os.getenv("BIODEMO_MANUFACTURING_SCOPE"):
@@ -42,7 +49,7 @@ def create_app(services: ApplicationServices | None = None):
     blackboard_root = repository / ".prime" / "manufacturing-blackboards"
     if manufacturing_store:
         namespace = hashlib.sha256(
-            f"{manufacturing_store.root}|{manufacturing_scope}".encode()
+            f"{configured_manufacturing_root}|{manufacturing_scope}".encode()
         ).hexdigest()[:16]
         blackboard_root = blackboard_root / namespace
     blackboards = BlackboardStore(blackboard_root)
@@ -75,8 +82,16 @@ def create_app(services: ApplicationServices | None = None):
             pharma_cases.stop()
             if runtime.connector_monitor:
                 runtime.connector_monitor.stop()
+            artifact_lifetime.close()
 
     app = FastAPI(title="CDMO Operations Intelligence", version="0.3.0", lifespan=lifespan)
+    allowed_origins = [x.strip() for x in os.getenv('BIODEMO_ALLOWED_ORIGINS', '').split(',') if x.strip()]
+    if allowed_origins:
+        from fastapi.middleware.cors import CORSMiddleware
+        app.add_middleware(CORSMiddleware, allow_origins=allowed_origins,
+                           allow_methods=['GET', 'POST'],
+                           allow_headers=['Content-Type', 'X-Tenant-ID', 'X-Actor-ID', 'X-Roles', 'X-Site-IDs', 'X-Clearances', 'X-CMO-Token'],
+                           expose_headers=['X-Package-Complete', 'X-Open-Issues', 'X-Values-Pending', 'X-Page-Width', 'X-Page-Height', 'X-Page-Count'])
 
     from src.manufacturing_data.cmo.api import router as cmo_ingestion_router
     app.include_router(cmo_ingestion_router(repository))
@@ -131,6 +146,7 @@ def create_app(services: ApplicationServices | None = None):
         problem: str
         new_evidence_ids: list[str] = Field(default_factory=list)
         as_of: str
+        source_package_sha256: str | None = None
 
     class InvestigationReviewInput(BaseModel):
         role: str
@@ -565,6 +581,9 @@ def create_app(services: ApplicationServices | None = None):
                 raise RuntimeError("manufacturing store and Prime SDK are not configured")
             if investigation_workflow and access.tenant_id != manufacturing_scope:
                 raise PermissionError("investigation scope does not match tenant")
+            if value.source_package_sha256 is not None and manufacturing_store.source_fingerprint(
+                    scopes=(manufacturing_scope,)) != value.source_package_sha256:
+                raise ValueError('Configured evidence store does not match this case-study source package; configure the retained store before follow-up.')
             return prime_harness.run(
                 incident_id=value.incident_id, problem=value.problem,
                 new_evidence_ids=value.new_evidence_ids, as_of=value.as_of,

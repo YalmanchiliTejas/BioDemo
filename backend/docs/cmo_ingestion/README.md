@@ -22,13 +22,16 @@ curl -fLsS 'https://data.mendeley.com/public-files/datasets/pdnjz7zz5x/files/e70
 In a second terminal:
 
 ```bash
-cd ui
+cd ../frontend
 npm ci
 npm run dev
 ```
 
-Open <http://127.0.0.1:5180/?tab=ingestion>. The Vite proxy forwards the ingestion
-API to port 8000. Generated packages and result directories must be fresh: the
+Start the API with `BIODEMO_ALLOWED_ORIGINS=http://127.0.0.1:5180` and open
+<http://127.0.0.1:5180/cmo/> (**CMO deliveries**). In development the page calls
+the API on port 8000; in production nginx proxies `/api/` on the same origin.
+See the [tester guide](TESTER_GUIDE.md) and [Supabase hosting](../../deploy/supabase/README.md).
+The retired Vite `?tab=ingestion` screen described below no longer exists. Generated packages and result directories must be fresh: the
 generator/evaluator refuse to overwrite previous runs. For subsequent runs use
 `--output /path/to/fresh-directory` and set `CMO_PACKAGES_ROOT` or
 `CMO_REPORT_PATH` as needed. The UI never imports answer keys or static scores.

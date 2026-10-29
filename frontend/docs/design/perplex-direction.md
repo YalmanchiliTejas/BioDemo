@@ -4,7 +4,7 @@
 
 ## Reference and scope
 
-The supplied `perplex-Image 30.png` is the source of the new landing-page hero and workspace overview banner. The original is preserved. Web JPEGs are copied into `frontend/public/os/assets/perplex-landscape.jpg` (2048 px) and `perplex-landscape-mobile.jpg` (1120 px). Their colors and composition are unchanged; resizing/encoding reduces delivery size from roughly 10 MB to 577 KB on desktop or 118 KB on phones.
+The supplied `perplex-Image 30.png` is the source of the new landing-page hero and workspace overview banner. The original is preserved in private DagsHub as `dagshub:design-original-perplex-30`; see [storage recovery](../../../backend/docs/benchmark_offload.md). Web JPEGs are copied into `frontend/public/os/assets/perplex-landscape.jpg` (2048 px) and `perplex-landscape-mobile.jpg` (1120 px). Their colors and composition are unchanged; resizing/encoding reduces delivery size from roughly 10 MB to 577 KB on desktop or 118 KB on phones.
 
 This is an evolution of the existing React application. Routes, source-system navigation, demo fixtures, evidence/review actions, keyboard navigation, and the existing icon/font families remain in use. Native CSS and IntersectionObserver handle the motion without additional dependencies. Optimized JPEGs also deliver the existing generated laboratory visual and real workspace screenshot; the PNG originals remain available.
 

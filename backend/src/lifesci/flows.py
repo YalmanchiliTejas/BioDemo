@@ -48,13 +48,20 @@ def resolve(value: Any, results: dict[str, Any], allowed: set[str]) -> Any:
 class FlowService:
     def __init__(self, platform: Any) -> None:
         self.p = platform
+        self.operators: dict[str, tuple[str, Any]] = {}
+
+    def register_operator(self, name: str, version: str, handler: Any) -> None:
+        """Host-owned, context-aware domain adapters; never load user code."""
+        if name in self.operators or name in self.p.gateway.registry.policies:
+            raise ValueError(f"operator already registered: {name}")
+        self.operators[name] = (version, handler)
 
     def save(self, ctx: Any, flow_id: str, *, site_id: str, nodes: list[dict[str, Any]],
              expected_revision: int | None = None) -> dict[str, Any]:
         self.p.identity.require(ctx, "propose", "data_flow", flow_id, site_id=site_id)
         order = node_order(nodes)
         for n in nodes:
-            if n["task_kind"] not in self.p.gateway.registry.policies:
+            if n["task_kind"] not in self.p.gateway.registry.policies and n["task_kind"] not in self.operators:
                 raise ValueError(f"unknown task kind: {n['task_kind']}")
         with self.p.store.transaction(ctx.actor_id) as tx:
             old = tx.get(ctx.tenant_id, "data_flow", flow_id)
@@ -62,7 +69,9 @@ class FlowService:
                 raise ValueError("flow site cannot be changed")
             rec = tx.put(ctx.tenant_id, "data_flow", flow_id,
                 {"flow_id": flow_id, "site_id": site_id, "nodes": nodes, "order": order,
-                 "definition_hash": content_hash(nodes), "runtime_version": "gateway-flow-v1"},
+                 "definition_hash": content_hash(nodes), "runtime_version": "gateway-flow-v1",
+                 "operator_versions": {n["task_kind"]: self.operators[n["task_kind"]][0]
+                     for n in nodes if n["task_kind"] in self.operators}},
                 expected_revision=expected_revision, action="save_data_flow", event_type="flow.saved")
         return {**rec.state, "revision": rec.revision}
 
@@ -110,9 +119,17 @@ class FlowService:
                 self.p.identity.validate_refs(ctx, state["inputs"], require_current=True)
                 try:
                     payload = resolve(node.get("payload", {}), state["results"], set(node.get("depends_on", [])))
-                    result = self.p.gateway.run(TaskRequest(node["task_kind"], ctx, prompt=node.get("prompt", ""),
-                        payload=payload, inputs=state["inputs"], timeout_s=60)).to_dict()
-                except (KeyError, IndexError, TypeError, ValueError) as exc:
+                    name = node["task_kind"]
+                    pinned = definition.get("operator_versions", {}).get(name)
+                    if pinned:
+                        registered = self.operators.get(name)
+                        if not registered or registered[0] != pinned:
+                            raise ValueError("domain operator changed; prepare a new flow")
+                        result = registered[1](ctx, payload)
+                    else:
+                        result = self.p.gateway.run(TaskRequest(name, ctx, prompt=node.get("prompt", ""),
+                            payload=payload, inputs=state["inputs"], timeout_s=60)).to_dict()
+                except (KeyError, IndexError, TypeError, ValueError, PermissionError) as exc:
                     result = {"status": "blocked", "output": None, "issues": [f"node {nid}: {exc}"]}
                 with self.p.store.transaction(ctx.actor_id) as tx:
                     tx.check_lease(ctx.tenant_id, "data_flow_run", rid, owner, token)

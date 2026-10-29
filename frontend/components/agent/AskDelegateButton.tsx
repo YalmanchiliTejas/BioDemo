@@ -4,6 +4,7 @@ import { Zap } from 'lucide-react';
 import { useAgent } from '@/lib/agent/agent-context';
 import type { ComposerMode, ScopeChip } from '@/lib/agent/types';
 import { cn } from '@/lib/cn';
+import { useOptionalCompanion } from '@/lib/companion-context';
 
 /**
  * Contextual entry to the agent composer. Kept free of `components/ui` imports because
@@ -21,6 +22,8 @@ export function AskDelegateButton({ frame, label = 'Ask / Delegate', templateId,
   className?: string;
 }) {
   const { openOverlay } = useAgent();
+  const companion = useOptionalCompanion();
+  if (companion && !templateId) return null; // The persistent companion replaces repeated generic page actions.
   return (
     <button
       type="button"

@@ -9,6 +9,8 @@ from collections import defaultdict
 from pathlib import Path
 
 
+from benchmarks.common.artifact_store import uses_assets
+
 ROOT = Path(__file__).resolve().parent
 
 
@@ -62,6 +64,7 @@ def _interpolate(stream: dict, column: int, time: float) -> float | None:
     return left+(right-left)*(time-times[before])/gap
 
 
+@uses_assets(ROOT / "raw", ROOT / "reference/aligned")
 def build(output_root: Path = ROOT / "tasks/normalized") -> dict:
     """Fixed-format baseline: one-minute interpolation from raw streams only."""
     started = clock.monotonic()

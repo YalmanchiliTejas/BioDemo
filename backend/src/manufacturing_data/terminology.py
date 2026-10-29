@@ -28,6 +28,8 @@ def canonical(header, unit=None):
 
 def query_matches(query, header, unit=None):
     q = normalize(query)
+    if not q:
+        return False
     name = normalize(header)
     base = normalize(re.sub(r'\([^)]*\)', '', header))
     meta = canonical(header, unit)
@@ -35,4 +37,4 @@ def query_matches(query, header, unit=None):
     # Exact token phrases prevent DO from matching unrelated prose words.
     return any((q == a if a in ('do','do2') else
                 bool(re.search(r'(?<!\w)' + re.escape(normalize(a)) + r'(?!\w)', q)))
-               for a in (*aliases, meta['canonical_name'] or '\0')) or q in (name,base)
+               for a in (*aliases, *([meta['canonical_name']] if meta['canonical_name'] else []))) or q in (name,base)

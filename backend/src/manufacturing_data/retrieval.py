@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .terminology import canonical, normalize, query_matches
 
-VERSION = 'retrieval-v1'
+VERSION = 'retrieval-v2-stable-source-order'
 # These are categorical/identifier metadata, not narrative prose. They remain
 # available through exact metric/entity/sheet retrieval and query_data.
 METADATA = {'status', 'batch id', 'lot id', 'run id', 'reactor id', 'equipment id',
@@ -39,6 +39,9 @@ class RetrievalEngine:
             CREATE TABLE IF NOT EXISTS embeddings(
                 id TEXT, model TEXT, content_hash TEXT, vector BLOB, PRIMARY KEY(id,model));
             ''')
+            con.execute('BEGIN IMMEDIATE')
+            if 'source_path' not in {r[1] for r in con.execute('PRAGMA table_info(documents)')}:
+                con.execute('ALTER TABLE documents ADD COLUMN source_path TEXT')
         self.path.chmod(0o600)
 
     def connect(self):
@@ -104,8 +107,8 @@ class RetrievalEngine:
                 idx.execute('DELETE FROM documents WHERE source_id=?', (sid,))
                 for identifier, source_id, scope, available, entity, name, text in rows:
                     digest = hashlib.sha256(text.encode()).hexdigest()
-                    idx.execute('INSERT INTO documents VALUES (?,?,?,?,?,?,?,?,?)',
-                                (identifier,source_id,scope,available,source['available_at'],entity,name,text,digest))
+                    idx.execute('INSERT INTO documents VALUES (?,?,?,?,?,?,?,?,?,?)',
+                                (identifier,source_id,scope,available,source['available_at'],entity,name,text,digest,source['path']))
                     idx.execute('INSERT INTO text_fts VALUES (?,?,?)', (identifier,name,text))
                 idx.execute('INSERT OR REPLACE INTO versions VALUES (?,?)', (sid,signature))
                 idx.execute('DELETE FROM embeddings WHERE id NOT IN (SELECT id FROM documents)')
@@ -134,9 +137,17 @@ class RetrievalEngine:
             return [], 'fts5_bm25', diagnostics
         match = ' OR '.join('"'+t.replace('"','""')+'"' for t in terms)
         with self.connect() as con:
-            lexical = con.execute('SELECT d.id,bm25(text_fts,0,2,1) AS score FROM text_fts '
+            if req.max_hits_per_source is not None:
+                lexical = con.execute('WITH ranked AS MATERIALIZED ('
+                    'SELECT d.id,d.source_id,d.source_path,bm25(text_fts,0,2,1) AS score FROM text_fts '
+                    'JOIN documents d ON d.id=text_fts.id WHERE text_fts MATCH ? AND '+gate+
+                    '), diverse AS (SELECT *,row_number() OVER (PARTITION BY source_id ORDER BY score,id) AS ordinal FROM ranked) '
+                    'SELECT id,score FROM diverse WHERE ordinal<=? ORDER BY score,source_path,id LIMIT ? OFFSET ?',
+                    [match,*params,req.max_hits_per_source,req.limit,req.offset]).fetchall()
+            else:
+                lexical = con.execute('SELECT d.id,bm25(text_fts,0,2,1) AS score FROM text_fts '
                                   'JOIN documents d ON d.id=text_fts.id WHERE text_fts MATCH ? AND '+gate+
-                                  ' ORDER BY score,d.id LIMIT ? OFFSET ?',
+                                  ' ORDER BY score,d.source_path,d.id LIMIT ? OFFSET ?',
                                   [match,*params,req.limit,req.offset]).fetchall()
             if req.mode == 'lexical':
                 diagnostics['ranking_seconds']=time.perf_counter()-indexed
@@ -175,7 +186,7 @@ class RetrievalEngine:
             if req.mode == 'hybrid':
                 # Reciprocal-rank fusion; deterministic ties; no score mixing.
                 lex = con.execute('SELECT d.id FROM text_fts JOIN documents d ON d.id=text_fts.id '
-                                  'WHERE text_fts MATCH ? AND '+gate+' ORDER BY bm25(text_fts,0,2,1),d.id', [match,*params]).fetchall()
+                                  'WHERE text_fts MATCH ? AND '+gate+' ORDER BY bm25(text_fts,0,2,1),d.source_path,d.id', [match,*params]).fetchall()
                 scores = {}
                 for ids in ([r['id'] for r in lex],ranked):
                     for rank,identifier in enumerate(ids,1):scores[identifier]=scores.get(identifier,0)+1/(60+rank)
@@ -227,6 +238,8 @@ class RetrievalEngine:
             ids,method,diagnostics = self.text_search(req,source_ids)
             resolve=time.perf_counter()
             rows = self.store.get_many(ids,as_of=req.as_of,scopes=req.scopes)
+            ranked_rows = {r['id']: r for r in rows}
+            rows = [ranked_rows[identifier] for identifier in ids if identifier in ranked_rows]
             diagnostics['evidence_resolution_seconds']=time.perf_counter()-resolve
         else:
             names = None
@@ -250,7 +263,7 @@ class RetrievalEngine:
                 if req.time_basis:
                     predicates.append('time_basis=?');params.append(req.time_basis)
                 sql = 'SELECT * FROM observations'+(' WHERE '+' AND '.join(predicates) if predicates else '')
-                sql += ' ORDER BY source_id,entity_id,sheet,source_row,column_index,id LIMIT ? OFFSET ?'
+                sql += " ORDER BY json_extract_string(source_ref,'$.path'),entity_id,sheet,source_row,column_index,id LIMIT ? OFFSET ?"
                 cursor=con.execute(sql,[*params,req.limit,req.offset])
                 executed=time.perf_counter()
                 columns=[c[0] for c in cursor.description]

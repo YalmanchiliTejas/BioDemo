@@ -55,3 +55,24 @@ def test_prime_budget_and_failure_are_honest():
     assert adapter.run(TaskRequest("investigation_planning", ctx, mission_id="m2"), incident_id="I", as_of="x",
                        evidence_ids=[])["status"] == "blocked"
     assert gw.budgets.status(T, "mission:m2")["reserved"] == 0
+
+
+def test_hosted_research_route_does_not_qualify_or_enable_production():
+    from src.lifesci.gateway.registry import ModelProfile
+    from src.lifesci.gateway.router import RoutingError
+    import pytest
+    h = FakeHarness()
+    gw, _, ctx = setup(h)
+    gw.registry.suspend('investigation_planning','anthropic-opus')
+    profile = ModelProfile('modal-research','modal','hosted-model','M3',0,0,0,
+                           price_source='Unknown hosted compute billing')
+    adapter = PrimeInvestigationAdapter(gw,h,research_profile=profile)
+    out = adapter.run(TaskRequest('investigation_planning',ctx),incident_id='research',as_of='x',evidence_ids=[])
+    assert out['status']=='completed' and h.model=='modal/hosted-model'
+    assert out['research_only'] and out['requires_human_review'] and out['cost_usd'] is None
+    record=gw.store.read().require(T,'model_run',out['run_id']).state
+    assert record['route']['unqualified'] and record['attempts'][0]['cost_usd'] is None
+    assert not gw.registry.qualifications and 'modal-research' not in gw.registry.profiles
+    with pytest.raises(RoutingError): gw.router.route('investigation_planning')
+    strict=PrimeInvestigationAdapter(gw,h)
+    assert strict.run(TaskRequest('investigation_planning',ctx),incident_id='production',as_of='x',evidence_ids=[])['status']=='unresolved'

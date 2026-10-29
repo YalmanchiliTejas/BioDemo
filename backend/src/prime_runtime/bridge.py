@@ -41,7 +41,8 @@ class ManufacturingBridge:
     def __init__(self, *, store: ManufacturingStore, blackboards: BlackboardStore,
                  workflow: ManufacturingInvestigationWorkflow, scope: str,
                  incident_id: str, objective: str, as_of: str,
-                 seed_ids: list[str], max_tool_calls: int = 48, trace_sink=None) -> None:
+                 seed_ids: list[str], max_tool_calls: int = 48, trace_sink=None,
+                 additional_tools: dict[str, Any] | None = None) -> None:
         if not incident_id or any(char not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-" for char in incident_id):
             raise ValueError("invalid incident id")
         parse_time(as_of)
@@ -66,6 +67,9 @@ class ManufacturingBridge:
         self.tool_calls = 0
         self.tool_history: list[dict[str, Any]] = []
         self.trace_sink = trace_sink
+        # Host-owned deterministic adapters only. Normal evidence tooling and
+        # shared budgets remain available, including in comparison baselines.
+        self.additional_tools = dict(additional_tools or {})
         self.result: dict[str, Any] | None = None
         self._lock = threading.RLock()
         self.token = secrets.token_urlsafe(32)
@@ -288,6 +292,7 @@ class ManufacturingBridge:
                 "search_evidence_contract": {
                     "evidence_type": ["auto", "exact", "structured", "narrative"],
                     "mode": ["lexical", "semantic", "hybrid"],
+                    "source_diversity": "max_hits_per_source=1 optionally limits repeated source hits in lexical search; paginate or revise queries when budget misses evidence",
                     "filters": ["observation_id", "source_id", "entity_id", "metric", "value_text", "sheet",
                                 "source_row", "time_min", "time_max", "time_basis"],
                     "time_units": "hours; specify elapsed_hours or calendar_hours; never row indices",
@@ -441,6 +446,9 @@ class ManufacturingBridge:
         with self._lock:
             trace_start = datetime.now(timezone.utc).isoformat()
             handlers = self.tools.handlers()
+            if set(handlers) & set(self.additional_tools):
+                raise ValueError("additional tool cannot override an evidence tool")
+            handlers.update(self.additional_tools)
             handlers['evidence_packet']=self._evidence_packet
             # Every handler is a read-only query over a fixed as_of/scope view,
             # so an identical request from any agent returns the same result.

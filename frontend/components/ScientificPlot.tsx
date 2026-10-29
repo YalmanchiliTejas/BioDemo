@@ -2,6 +2,10 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Point } from '@/fixtures/timeseries';
+import { useOptionalCompanion } from '@/lib/companion-context';
+import { usePathname } from 'next/navigation';
+import { useAppContext } from '@/lib/app-context';
+import { ArrowUpRight } from 'lucide-react';
 
 export interface ScientificPlotProps {
   batches: Array<{
@@ -28,6 +32,8 @@ export interface ScientificPlotProps {
   /** Show x-axis tick labels (hide on upper plots in a stack). */
   showXAxis?: boolean;
   xLabel?: string;
+  /** Non-time comparisons reuse the plotting primitive with an explicit coordinate name. */
+  xCoordinateName?: string;
 }
 
 const M = { top: 10, right: 52, bottom: 24, left: 48 };
@@ -49,13 +55,18 @@ function fmt(v: number) {
 
 export function ScientificPlot({
   batches, variableName, unit, referenceEnvelope, missingDataInterval, kalmanStateActive = true, selectedWindow, onWindowSelect,
-  hoverHour, onHoverHour, height = 200, xDomain = [0, 280], markers = [], secondary, showXAxis = true, xLabel = 'Elapsed batch time (h)',
+  hoverHour, onHoverHour, height = 200, xDomain = [0, 280], markers = [], secondary, showXAxis = true, xLabel = 'Elapsed batch time (h)', xCoordinateName = 'elapsedHours',
 }: ScientificPlotProps) {
   const uid = useId().replace(/:/g, '');
+  const companion = useOptionalCompanion();
+  const pathname = usePathname();
+  const { closeInspector } = useAppContext();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
   const [drag, setDrag] = useState<[number, number] | null>(null);
   const [localHover, setLocalHover] = useState<number | null>(null);
+  const [contextWindow, setContextWindow] = useState<[number, number] | null>(null);
+  const [contextError, setContextError] = useState('');
   const hover = hoverHour !== undefined ? hoverHour : localHover;
   const setHover = onHoverHour ?? setLocalHover;
 
@@ -126,24 +137,47 @@ export function ScientificPlot({
     return Math.max(xDomain[0], Math.min(xDomain[1], inv(px)));
   };
 
-  const win = drag ?? selectedWindow;
+  const win = drag ?? selectedWindow ?? contextWindow;
+  function askAboutChart() {
+    if (!companion) return;
+    const range = selectedWindow ?? contextWindow ?? xDomain;
+    const content = JSON.stringify({
+      variable: variableName, unit, x_axis: xLabel, selected_range: range,
+      reference_envelope: referenceEnvelope, missing_data_interval: missingDataInterval,
+      imputed_values_visible: kalmanStateActive, markers,
+      series: batches.map(b => ({ id: b.id, points: b.dataPoints.filter(p => p.elapsedHours >= range[0] && p.elapsedHours <= range[1]).map(p => xCoordinateName === 'elapsedHours' ? p : { [xCoordinateName]: p.elapsedHours, value:p.value, imputed:p.imputed }) })),
+      secondary: secondary ? { ...secondary, dataPoints: secondary.dataPoints.filter(p => p.elapsedHours >= range[0] && p.elapsedHours <= range[1]) } : undefined,
+      provenance: 'Unverified screen snapshot. Values may be sample data, calculated predictions, or imputed. Resolve authorized source records before relying on them.',
+    });
+    if (content.length > 120000) { setContextError('Select a narrower range to attach this chart.'); return; }
+    setContextError('');
+    closeInspector();
+    companion.show({ kind: 'chart', label: `${variableName} · ${range[0].toFixed(1)}–${range[1].toFixed(1)}`, page_path: pathname,
+      captured_at: new Date().toISOString(), content });
+  }
 
   return (
-    <div ref={wrapRef} className="relative w-full select-none">
+    <div ref={wrapRef} className="relative w-full select-none" data-chart-name={variableName}>
       <div className="flex items-center justify-between px-1 pb-1">
         <p className="text-[12px] font-semibold text-text-primary">
           {variableName} <span className="font-normal text-text-tertiary">({unit})</span>
           {secondary && <span className="ml-2 font-normal" style={{ color: secondary.color }}>— {secondary.label} ({secondary.unit}, right axis)</span>}
         </p>
+        <div className="flex shrink-0 items-center gap-2">
+        {companion && <button type="button" onClick={askAboutChart} aria-label={`Ask companion about ${variableName}`} className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] font-normal text-brand-teal hover:bg-brand-teal-light"><span>{win ? 'Ask about range' : 'Ask about chart'}</span><ArrowUpRight size={12} aria-hidden /></button>}
         {hover !== null && hover !== undefined && (
-          <p className="text-[11px] font-mono text-text-tertiary tabular-nums">T+{hover.toFixed(1)}h</p>
+          <p className="text-[11px] font-mono text-text-tertiary tabular-nums">{xCoordinateName === 'elapsedHours' ? `T+${hover.toFixed(1)}h` : `${hover.toFixed(1)} · ${xLabel}`}</p>
         )}
+        </div>
       </div>
+      {contextError && <p role="alert" className="text-xs text-status-critical">{contextError}</p>}
       <svg
         width={width}
+        viewBox={`0 0 ${width} ${height}`}
+        style={{ maxWidth: '100%', touchAction: 'pan-y' }}
         height={height}
         role="img"
-        aria-label={`${variableName} by elapsed hour for ${batches.map((b) => b.id).join(', ')}`}
+        aria-label={`${variableName} by ${xCoordinateName === 'elapsedHours' ? 'elapsed hour' : xLabel} for ${batches.map((b) => b.id).join(', ')}`}
         className="block cursor-crosshair"
         onMouseMove={(e) => {
           const h = toHour(e);
@@ -151,9 +185,13 @@ export function ScientificPlot({
           if (drag) setDrag([drag[0], h]);
         }}
         onMouseLeave={() => { setHover(null); setDrag(null); }}
-        onMouseDown={(e) => onWindowSelect && setDrag([toHour(e), toHour(e)])}
+        onMouseDown={(e) => { if (onWindowSelect || companion) { e.preventDefault(); setDrag([toHour(e), toHour(e)]); } }}
         onMouseUp={() => {
-          if (drag && onWindowSelect && Math.abs(drag[1] - drag[0]) > 2) onWindowSelect([Math.min(...drag), Math.max(...drag)] as [number, number]);
+          if (drag && Math.abs(drag[1] - drag[0]) > (xDomain[1] - xDomain[0]) * 0.005) {
+            const range: [number, number] = [Math.min(...drag), Math.max(...drag)];
+            setContextWindow(range);
+            onWindowSelect?.(range);
+          }
           setDrag(null);
         }}
       >

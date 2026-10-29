@@ -101,6 +101,12 @@ def read_sheets(path: Path, max_rows: int | None):
                             n_rows=max_rows, encoding='utf8-lossy',
                             new_columns=[f"v{i}" for i in range(1, len(headers)+1)])
         yield None, headers, frame, 2
+    elif path.suffix.lower() == '.json':
+        records = json.loads(path.read_text(encoding='utf-8'), parse_float=str, parse_int=str)
+        if max_rows is not None: records = records[:max_rows]
+        # Preserve scalar values in the existing wide-table representation.
+        frame = pl.from_dicts(records, infer_schema_length=None, strict=False)
+        yield None, frame.columns, frame, 1
     else:
         frame = pl.read_parquet(path, n_rows=max_rows)
         yield None, frame.columns, frame, 1

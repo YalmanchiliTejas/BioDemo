@@ -17,6 +17,10 @@ x-app: &app
     LIVEKIT_API_URL: ${LIVEKIT_API_URL:-}
     LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
     LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+    # Delivery verification state (runs, confirmed layouts, originals). Set CMO_API_TOKEN beyond loopback.
+    CMO_INGESTION_ROOT: /data/cmo
+    CMO_API_TOKEN: ${CMO_API_TOKEN:-}
+  volumes: ["cmo:/data/cmo"]
 services:
   db:
     image: ${POSTGRES_IMAGE:-postgres:16-alpine}
@@ -69,3 +73,4 @@ services:
 volumes:
   database:
   temporal:
+  cmo:

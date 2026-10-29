@@ -39,6 +39,20 @@ def inventory(benchmark):
 
 
 def prepare_case(benchmark, case_id, *, condition='raw', destination=None):
+    from .artifact_store import mounted_assets
+    existing = (Path(destination) if destination else ROOT / 'benchmarks/manifests' / benchmark / f'{case_id}-{condition}') / 'case.json'
+    if benchmark != 'cho' or existing.exists():
+        return _prepare_case(benchmark, case_id, condition=condition, destination=destination)
+    with mounted_assets(ROOT / 'benchmarks/cho/raw', ROOT / 'benchmarks/cho/reference/aligned'):
+        result = _prepare_case(benchmark, case_id, condition=condition, destination=destination)
+        inventory = ROOT/'results/offload/inputs.json'
+        if inventory.exists():
+            from .input_store import evict
+            evict([result],inventory)
+        return result
+
+
+def _prepare_case(benchmark, case_id, *, condition='raw', destination=None):
     """Create one frozen evaluator case. Never alter existing validated references/results."""
     if benchmark not in ('cho', 'fresenius') or condition not in CONDITIONS:
         raise ValueError('unknown benchmark or condition')

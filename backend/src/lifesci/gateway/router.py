@@ -28,21 +28,31 @@ class RouteDecision:
                 "profile_id": self.profile.profile_id if self.profile else None,
                 "model": self.profile.model if self.profile else None, "reason": self.reason,
                 "policy_version": self.policy_version, "escalation_chain": list(self.escalation_chain),
-                "unqualified": self.unqualified, "notes": list(self.notes)}
+                "unqualified": self.unqualified, "notes": list(self.notes),
+                "provider": self.profile.provider if self.profile else None,
+                "profile_version": self.profile.version if self.profile else None,
+                "cost_basis": {"classification": self.profile.price_source, "input_usd_per_mtok": self.profile.input_per_mtok,
+                    "output_usd_per_mtok": self.profile.output_per_mtok, "cached_input_usd_per_mtok": self.profile.cached_input_per_mtok,
+                    "note": "Profile-based estimate, not a reconciled provider invoice."} if self.profile else None}
 
 
 class Router:
     def __init__(self, registry: ModelRegistry, *, allow_unqualified: bool = False,
-                 provider_allowlist: set[str] | None = None, region: str | None = None) -> None:
+                 provider_allowlist: set[str] | None = None, region: str | None = None,
+                 task_profile_bindings: dict[str, str] | None = None) -> None:
         self.registry = registry
         self.allow_unqualified = allow_unqualified  # development only; marks results unqualified
         self.provider_allowlist = provider_allowlist
         self.region = region
+        self.task_profile_bindings = task_profile_bindings or {}
 
     def _eligible(self, profiles: list[ModelProfile], policy: TaskPolicy, needs_tools: bool,
                   context_tokens: int, unavailable: set[str]) -> list[ModelProfile]:
         out = []
         for p in profiles:
+            binding = self.task_profile_bindings.get(policy.task_kind)
+            if binding is not None and p.profile_id != binding:
+                continue
             if TIER_RANK[p.tier] < TIER_RANK[policy.min_tier]:
                 continue
             if self.provider_allowlist is not None and p.provider not in self.provider_allowlist:

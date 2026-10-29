@@ -1,0 +1,99 @@
+{
+  "dataset_manifest_sha256": "a52d039b7598bf9cf4221f82a4b1b4bed8ca4518d9a6b01220bd60c7a95134be",
+  "run_results_sha256": "5d778b4a245992b0c129f0c850165ac69c95c2341ed507e7246095c054edf3e2",
+  "report_sha256": "c9e91f7483d88c042abd0781a46193bb382ca604a0611905a3d790c27dcfff6f",
+  "data_protocol": {
+    "version": "external-simulator-pilot-4-shared-nominal-assumptions",
+    "classification": "exploratory_external_simulator_experiment",
+    "simulators": [
+      "PenSimPy corrected native port of IndPenSim",
+      "SMPL original 17-state upstream helper"
+    ],
+    "seeds": [
+      101,
+      202
+    ],
+    "receiving_capabilities": [
+      0.95,
+      0.9
+    ],
+    "tasks": [
+      "prediction",
+      "outcome",
+      "transfer"
+    ],
+    "planned_pairs": 24,
+    "frozen_before_inference": true,
+    "scoring": "Separate product/indicator normalized absolute forecast errors; paired objective change versus keep; finite-grid regret.",
+    "prediction_target": "Terminal product concentration and process indicator under KEEP, even when choosing another action.",
+    "objective": {
+      "pensim": "Maximize concentration at96h g/L: partial-process endpoint, NOT full-batch optimization, yield or economics.",
+      "mab": "Maximize integrated separator product outflow mg during the post-decision horizon; NOT downstream recovery."
+    },
+    "transfer_scope": "Same simulated geometry/strain; receiving aeration or balanced-flow capability changes. No receiving observations. This is recipe transfer under changed operating limits, NOT validated site transfer or scale-up.",
+    "common_information": "Identical source history, permitted receiving history, nominal equations, specifications, actions and source-derived calibration. B alone can execute the nominal forward-model tool.",
+    "nominal_model": "Published fixed nominal initialization (no SMPL random perturbations), PenSim seed0 known parameters with future disturbances disabled. Product multiplicative and indicator additive correction using completed source endpoint only.",
+    "boundary": "Tool outputs are nominal predictions, not evaluator replay. Realization seed, receiving futures and action outcomes remain evaluator-only.",
+    "known_limits": [
+      "Small inspected development pilot; no untouched holdout or statistical power.",
+      "Full230h PenSimPy gate failed before this bounded96h design; this is a disclosed development response, not a successful full-batch result.",
+      "Forward tool and evaluator share model equations; this is not independent scientific validation.",
+      "Ideal synthetic process observations; no validated human effort or real batches saved.",
+      "PenSim retains upstream positivity/DO switches; floor events are reported.",
+      "SMPL uses upstream subsystem only; no downstream quality, oxygen-transfer or mixing-gradient model.",
+      "No manufacturing safety or GMP qualification is claimed."
+    ],
+    "runtime": {
+      "python": "3.11.16 (main, Sep  1 2026, 14:08:22) [Clang 22.1.3 ]",
+      "platform": "macOS-15.0-arm64-arm-64bit"
+    },
+    "paths": {
+      "pensim": "/private/tmp/biodemo-pensimpy-source",
+      "smpl": "/private/tmp/biodemo-smpl-source",
+      "native": "/private/tmp/biodemo-audited-native"
+    },
+    "source_revisions": {
+      "pensim": "e08fc71fef193448f3ee9a304187dc92b88f3acc",
+      "smpl": "c816917eebfde59d525e325b56d16db07e499531"
+    },
+    "native_build": {
+      "original_sha256": "2151942fbd46c460d713fad041d48258db6e0701da4c7624c632b01c61fd5bb1",
+      "translation_sha256": "e5321cb92220a0d184a383e297c7ca1ed511fbd9b86033a18b65775b9385a705",
+      "binary_sha256": "b64aac6731688877ffd7aaf644d6152ca2251bd85c6b18c53959f33f0932210f",
+      "correction": {
+        "before": "pow(a_0, (1 / 3))",
+        "after": "pow(a_0, (1.0 / 3.0))"
+      },
+      "added_interfaces": [
+        "rhs",
+        "integrate_checked"
+      ],
+      "build_only_change": "Use installed Boost headers and pybind11; omit unused OpenMP build dependency.",
+      "command": [
+        "clang++",
+        "-O3",
+        "-shared",
+        "-std=c++14",
+        "-undefined",
+        "dynamic_lookup",
+        "-Wno-deprecated-declarations",
+        "-Wno-deprecated-builtins",
+        "-I/private/tmp/biodemo-external-sim-env/lib/python3.11/site-packages/pybind11/include",
+        "-I/Users/tejas/.local/share/uv/python/cpython-3.11.16-macos-aarch64-none/include/python3.11",
+        "-I/Users/tejas/anaconda3/include",
+        "/private/tmp/biodemo-audited-native/fastodeint-audited.cpp",
+        "-o",
+        "/private/tmp/biodemo-audited-native/fastodeint.cpython-311-darwin.so"
+      ]
+    },
+    "code_sha256": {
+      "__init__.py": "d59c708a3f691f0e5f73b33d157366da6308be75e699118c392f54b3431eb508",
+      "native.py": "5f71692528e3a6149354cee334a375f6439a7d4ef3952bd5b2a13d4f84901492",
+      "run_agents.py": "c403bea3b476b0146ebf56074297f45c8ab2f9b1f39daae8efa1331ea756a2c3",
+      "experiment.py": "6581d4631877dffce8c6e8a5d6e2e1d836006221438674f51efcce922c758598",
+      "forward.py": "860b79b896cdb0b4871f324700fc99292ea15a558e188e62927cd20f6c04a724",
+      "upstream.py": "d4507c23fb0e82eb5896a38cc818c72a3c29b746a573dee268d575b64ab11d27"
+    }
+  },
+  "final_run_status": "complete"
+}

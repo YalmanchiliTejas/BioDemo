@@ -7,7 +7,13 @@ import json
 import math
 
 
-def evaluate(output: dict, reference_root: Path, *, rtol: float = 1e-6,
+def evaluate(output: dict, reference_root: Path, *, rtol: float = 1e-6, atol: float = 1e-8) -> dict:
+    from benchmarks.common.artifact_store import mounted_assets
+    with mounted_assets(reference_root.parents[1] / 'raw', reference_root):
+        return _evaluate(output, reference_root, rtol=rtol, atol=atol)
+
+
+def _evaluate(output: dict, reference_root: Path, *, rtol: float = 1e-6,
              atol: float = 1e-8) -> dict:
     """Score structural coverage and independently compare inoculation-time values."""
     workbook_files = [file for file in output["files"] if file["type"] == "xlsx"]

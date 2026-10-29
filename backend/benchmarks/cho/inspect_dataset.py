@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 
+from benchmarks.common.artifact_store import uses_assets
+
 ROOT = Path(__file__).resolve().parent
 
 
@@ -39,6 +41,7 @@ def _entities(name: str) -> dict:
     return {"experiment": exp.group(1) if exp else None, "reactor": reactor.group(1) if reactor else None, "mode": mode}
 
 
+@uses_assets(ROOT / "raw", ROOT / "reference/aligned")
 def inspect() -> dict:
     try:
         from openpyxl import load_workbook

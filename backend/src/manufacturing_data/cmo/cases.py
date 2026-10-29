@@ -23,6 +23,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from .pipeline import IngestionService, digest, utc
+from .schema import time_key
 
 
 ACCEPTED={'accepted','auto_accepted','corrected'}
@@ -174,7 +175,7 @@ class CaseService:
                 if issue['status']=='open': gaps.append(f"{entry['name']}: {issue['rule_code']} {issue.get('message','')}")
         identities=defaultdict(list)
         for measurement in rows:
-            identities[(measurement['batch'],float(measurement['time'].replace(',','.')),measurement['parameter'],measurement['unit'])].append(measurement)
+            identities[(measurement['batch'],time_key(measurement['time']),measurement['parameter'],measurement['unit'])].append(measurement)
         ambiguous=set()
         for identity,group in identities.items():
             if len(group)>1:
@@ -342,13 +343,13 @@ class CaseService:
             mean=analysis.calculate({'operation':'mean','evidence_ids':ids})
             minimum=analysis.calculate({'operation':'minimum','evidence_ids':ids})
             maximum=analysis.calculate({'operation':'maximum','evidence_ids':ids})
-            times=[float(m['time'].replace(',','.')) for m in series]
+            times=[time_key(m['time']) for m in series]
             limitation=['Descriptive observed timepoints, not independent biological replicates.',
                         'Batch comparability, specification limits and causation are not established.',
                         'Only accepted measurements are included; missing/unverified evidence can change this result.']
             trend=None
             if len(set(times))==len(times) and len(times)>1:
-                ordered=sorted(series,key=lambda m:float(m['time'].replace(',','.')))
+                ordered=sorted(series,key=lambda m:time_key(m['time']))
                 trend=analysis.calculate({'operation':'difference','numerator_ids':[ordered[-1]['id']],'denominator_ids':[ordered[0]['id']]})
             else: limitation.append('A unique time-aligned trend cannot be established from this series.')
             citations=[{k:m[k] for k in ['id','ingestion_id','source_id','source','source_sha256','batch','time','parameter','value','unit']} for m in series]
@@ -357,7 +358,7 @@ class CaseService:
                 'relevance_reason':'Describes a reviewed process or quality variable selected for this case; causal relevance remains unresolved.',
                 'calculation':{'n':len(series),'mean':mean,'minimum':minimum,'maximum':maximum,'last_minus_first':trend},
                 'sources':citations,'contradictions':'No causal explanation is asserted. Review the case gaps and conflicting-source issues before interpretation.',
-                'limitations':limitation,'points':[{'time':m['time'],'value':m['value'],'measurement_id':m['id']} for m in sorted(series,key=lambda m:float(m['time'].replace(',','.')))]})
+                'limitations':limitation,'points':[{'time':m['time'],'value':m['value'],'measurement_id':m['id']} for m in sorted(series,key=lambda m:time_key(m['time']))]})
         if request['starter']=='yield_change': requests.append('Supply comparable batch endpoints, paired substrate/feed and volume records, and the intended yield definition before attributing a yield change.')
         requests.append('Confirm operating conditions, comparable sampling schedules and candidate competing explanations before causal interpretation.')
         return {'version':digest([snapshot['revision'],findings]),'engine':'existing DeterministicAnalysis; approved descriptive operations',

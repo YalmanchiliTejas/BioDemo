@@ -22,14 +22,12 @@ def freeze_execution_variant(manifest, destination, *, soft=48, hard=72, wall_cl
         return destination/'case.json'
     if manifest.parent in destination.parents:raise ValueError('Variant must be outside the original frozen directory')
     # Inputs are linked from the shared checksum cache rather than copied again.
-    from .input_store import materialize
     inputs=manifest.parent/original['input_root'] if original.get('input_root') else None
-    if inputs:materialize(manifest)
     shutil.copytree(manifest.parent,destination,ignore=lambda folder,names:names if inputs and Path(folder)==inputs else [])
     variant={**original,'parent_case_sha256':original['task_spec_sha256'],
              'execution_policy':policy,'budgets':{**original['budgets'],'tool_calls':hard,'wall_clock_seconds':seconds}}
     variant['task_spec_sha256']=stable_hash({k:v for k,v in variant.items() if k not in ('frozen_at','task_spec_sha256')})
     path=destination/'case.json';path.chmod(0o600);save(path,variant);path.chmod(0o444)
     load_case(path)
-    if inputs:materialize(path)
+    # The execution input scope materializes verified bytes only when a run/audit starts.
     return path

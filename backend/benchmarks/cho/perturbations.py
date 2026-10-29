@@ -5,9 +5,12 @@ import json
 from pathlib import Path
 
 
+from benchmarks.common.artifact_store import uses_assets
+
 ROOT = Path(__file__).resolve().parent
 
 
+@uses_assets(ROOT / "raw", ROOT / "reference/aligned")
 def generate(seed: int = 417) -> dict:
     """Deterministic source-format changes only; biological values are untouched."""
     from openpyxl import load_workbook

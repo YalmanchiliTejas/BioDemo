@@ -1,0 +1,54 @@
+{
+  "python": "3.11.4",
+  "platform": "macOS-15.0-arm64-arm-64bit",
+  "dependencies": {
+    "numpy": "1.26.4",
+    "pandas": "2.3.3",
+    "scipy": "1.17.1",
+    "pybind11": "3.1.0",
+    "pensimpy": "1.2.5"
+  },
+  "pensimpy_commit": "e08fc71fef193448f3ee9a304187dc92b88f3acc",
+  "fastodeint_commit": "7d683eb7d9a13827eeddff40452710dbd9d929f0",
+  "resource_budget": {
+    "episode_timeout_seconds": 12,
+    "seeds": [
+      1,
+      2
+    ],
+    "episodes": 12,
+    "model_calls": 0,
+    "inference_cost_usd": 0
+  },
+  "objective": {
+    "name": "terminal penicillin concentration",
+    "units": "g/L",
+    "values": "not_evaluated"
+  },
+  "command": "PYTHONPATH=backend /private/tmp/biodemo-indpensim-env/bin/python -m benchmarks.autonomous.simulator --output /private/tmp/biodemo-indpensim-simulator-results --timeout-seconds 12",
+  "executed_module_sha256": "779f14f482131d4634f581674a4a38dfe18d1eeb9a64c93c0d457898c5ebd5c3",
+  "final_module_sha256": "5f6be2cec7f41f4f76243404ca27435385a2c5a37ce8ebb8a09ea5d35bf7879b",
+  "post_execution_change": "Response criterion tightened to process measurements only; retained actual traces confirm response in Wt, DO2, T, O2 and pH. No simulator model/control changes.",
+  "process_response_recheck": [
+    {
+      "solver": "fastodeint",
+      "seed": 1,
+      "process_response": true
+    },
+    {
+      "solver": "fastodeint",
+      "seed": 2,
+      "process_response": true
+    },
+    {
+      "solver": "scipy_odeint",
+      "seed": 1,
+      "process_response": false
+    },
+    {
+      "solver": "scipy_odeint",
+      "seed": 2,
+      "process_response": false
+    }
+  ]
+}

@@ -15,13 +15,53 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from contextvars import ContextVar
+from contextlib import contextmanager
+import tempfile
+import shutil
 from pathlib import Path
 
 from .case_protocol import ROOT, digest
 
+_execution_cache = ContextVar('benchmark_execution_input_cache', default=None)
+
 
 def cache_dir() -> Path:
-    return Path(os.environ.get('BIODEMO_INPUT_CACHE') or ROOT / '.cache' / 'benchmark-inputs')
+    return Path(_execution_cache.get() or os.environ.get('BIODEMO_INPUT_CACHE') or ROOT / '.cache' / 'benchmark-inputs')
+
+
+@contextmanager
+def execution_inputs(manifest_path):
+    """Per-execution cache; remove verified remote input links after the run."""
+    with tempfile.TemporaryDirectory(prefix='biodemo-inputs-') as temporary:
+        manifest_path = Path(manifest_path).resolve()
+        from .case_protocol import load_case
+        case = load_case(manifest_path)
+        staged = Path(temporary) / 'case'; staged.mkdir()
+        # Frozen metadata remains identical; only this invocation's inputs are hydrated.
+        for name in ('case.json', case['reference'], case['quality_policy'], case['triage_policy'],
+                     *([case['transform']] if case.get('transform') else [])):
+            target = staged / name; target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(manifest_path.parent / name, target)
+        for path, entry in _allowlist(manifest_path):
+            if path.is_symlink() or (path.is_file() and digest(path)!=entry['sha256']):
+                raise ValueError('Local frozen input changed; refusing to hide it with a remote replacement')
+            if path.is_file():
+                target = staged / case['input_root'] / path.relative_to(manifest_path.parent / case['input_root'])
+                target.parent.mkdir(parents=True, exist_ok=True)
+                try: os.link(path, target)
+                except FileNotFoundError: pass  # A concurrent execution may have evicted a verified remote copy.
+        token = _execution_cache.set(temporary)
+        try: yield staged / 'case.json'
+        finally:
+            try:
+                inventory_path = ROOT / 'results/offload/inputs.json'
+                remote = json.loads(inventory_path.read_text()).get('blobs', {}) if inventory_path.exists() else {}
+                for path, entry in _allowlist(manifest_path):
+                    if entry['sha256'] in remote and path.is_file() and not path.is_symlink() and digest(path) == entry['sha256']:
+                        path.unlink()
+            finally:
+                _execution_cache.reset(token)
 
 
 def offload_python() -> Path:
@@ -31,13 +71,16 @@ def offload_python() -> Path:
 def _allowlist(manifest_path):
     manifest_path = Path(manifest_path).resolve()
     case = json.loads(manifest_path.read_text())
+    for name in [case['input_root'], *(item['path'] for item in case['allowlist'])]:
+        relative = Path(name)
+        if relative.is_absolute() or '..' in relative.parts: raise ValueError('Unsafe case input path')
     package = manifest_path.parent / case['input_root']
     return [(package / item['path'], item) for item in case['allowlist']]
 
 
 def _cached(sha: str) -> Path | None:
     path = cache_dir() / sha
-    return path if path.is_file() else None
+    return path if path.is_file() and not path.is_symlink() and digest(path) == sha else None
 
 
 def _adopt(path: Path, sha: str) -> Path:

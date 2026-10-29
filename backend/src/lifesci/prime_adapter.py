@@ -13,7 +13,8 @@ from typing import Any, Protocol
 
 from .gateway import ModelGateway, TaskRequest
 from .gateway.budget import BudgetExceeded
-from .gateway.router import RoutingError
+from .gateway.router import RoutingError, RouteDecision
+from .gateway.registry import ModelProfile
 from .ids import new_id, utc_now
 
 
@@ -26,17 +27,26 @@ class Harness(Protocol):
 class PrimeInvestigationAdapter:
     TASK_KIND = "investigation_planning"
 
-    def __init__(self, gateway: ModelGateway, harness: Harness, *, max_cost_usd: float = 5.0) -> None:
+    def __init__(self, gateway: ModelGateway, harness: Harness, *, max_cost_usd: float = 5.0,
+                 research_profile: ModelProfile | None = None) -> None:
         self.gateway = gateway
         self.harness = harness
         self.max_cost_usd = max_cost_usd
+        # Explicit opt-in for read-only case studies. Never qualifies or changes a production route.
+        self.research_profile = research_profile
 
     def run(self, req: TaskRequest, *, incident_id: str, as_of: str, evidence_ids: list[str]) -> dict[str, Any]:
         started = utc_now()
         run_id = new_id("run")
         try:
-            route = self.gateway.router.route(self.TASK_KIND, ambiguity=req.ambiguity,
-                                              unavailable=self.gateway.unavailable)
+            if self.research_profile:
+                route = RouteDecision(self.TASK_KIND, self.research_profile.tier, self.research_profile,
+                    'Read-only research route; no task qualification claimed', self.gateway.registry.version,
+                    unqualified=True, notes=('Research draft only; independent engineering review required.',
+                        'Hosted compute billing is unavailable; token usage and wall time are recorded.'))
+            else:
+                route = self.gateway.router.route(self.TASK_KIND, ambiguity=req.ambiguity,
+                                                  unavailable=self.gateway.unavailable)
         except RoutingError as exc:
             self.gateway._finish(req, run_id, started, "unresolved", None, None, [], 0.0, [str(exc)])
             return {"status": "unresolved", "run_id": run_id, "issues": [str(exc)]}
@@ -58,7 +68,9 @@ class PrimeInvestigationAdapter:
             attempts = [{"profile_id": route.profile.profile_id, "model": route.profile.model, "ok": True,
                          "harness": "prime", "input_tokens": int(usage.get("input", 0)),
                          "output_tokens": int(usage.get("output", 0)), "cost_usd": actual,
-                         "cost_coverage": "prime_root_session_only"}]
+                         "cost_coverage": "hosted_billing_unavailable" if self.research_profile else "prime_root_session_only"}]
+            if self.research_profile:
+                attempts[0]['cost_usd'] = None
             status = "completed"
             output = {"report_ref": {"incident_id": incident_id}, "review_status": "requires_human_review"}
         except Exception as exc:  # harness failure: record honestly, keep mission resumable
@@ -67,4 +79,7 @@ class PrimeInvestigationAdapter:
         finally:
             self.gateway.budgets.settle(req.ctx.tenant_id, reservation, actual)
         res = self.gateway._finish(req, run_id, started, status, output, route, attempts, actual, [])
-        return {"status": status, "run_id": res.run_id, "model": self.harness.model, "cost_usd": actual}
+        return {"status": status, "run_id": res.run_id, "model": self.harness.model,
+                "cost_usd": None if self.research_profile else actual,
+                "research_only": bool(self.research_profile), "requires_human_review": True,
+                "issues": [a['error'] for a in attempts if a.get('error')]}

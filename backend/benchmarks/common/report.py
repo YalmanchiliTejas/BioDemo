@@ -8,6 +8,14 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def generate(benchmark: str) -> Path:
+    from contextlib import nullcontext
+    from .artifact_store import mounted_assets
+    context = mounted_assets(ROOT / "benchmarks/fresenius/raw_package") if benchmark == "fresenius" else nullcontext()
+    with context:
+        return _generate(benchmark)
+
+
+def _generate(benchmark: str) -> Path:
     result_path = ROOT / "results" / benchmark / "baseline_results.json"
     result = json.loads(result_path.read_text(encoding="utf-8"))
     from benchmarks.common.engineering_work import HEADLINE

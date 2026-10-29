@@ -103,4 +103,14 @@ def test_real_case_audit_accepts_linked_inputs(tmp_path):
     cho = Path(__file__).resolve().parents[1] / 'benchmarks/manifests/cho/CHO-04-raw/case.json'
     if not cho.is_file():
         pytest.skip('local CHO manifests are not available')
-    assert audit_case(cho)['pass']
+    case=json.loads(cho.read_text())
+    present=all((cho.parent/case['input_root']/item['path']).is_file() for item in case['allowlist'])
+    if present:
+        assert audit_case(cho)['pass']
+    else:
+        import os
+        if os.getenv('BIODEMO_TEST_REMOTE')!='1':
+            pytest.skip('Inputs intentionally remote; BIODEMO_TEST_REMOTE=1 runs the authenticated cold-fetch integration')
+        with input_store.execution_inputs(cho) as execution:
+            input_store.materialize(execution)
+            assert audit_case(execution)['pass']

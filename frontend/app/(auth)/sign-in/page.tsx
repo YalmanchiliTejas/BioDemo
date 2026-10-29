@@ -25,7 +25,7 @@ export default function SignInPage() {
   const launch = () => {
     setLaunching(true);
     if (campaign !== 'CMP-26-10') notify('Only CMP-26-10 is loaded in this demo; opening it instead.', 'info');
-    router.push(userRole === 'OPERATOR' ? '/operator/shift' : '/home');
+    router.push('/cmo');
   };
 
   return (

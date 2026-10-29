@@ -1,0 +1,26 @@
+{
+  "cold_execution": "storage-cold-execution.json",
+  "tests": [
+    {
+      "command": ".venv/bin/python -m pytest -q tests/test_data_artifacts.py tests/test_cmo_ingestion.py tests/test_demo_runs.py",
+      "passed": 41,
+      "failed": 0,
+      "wall_seconds": 20.14
+    },
+    {
+      "command": "BIODEMO_TEST_REMOTE=1 .venv/bin/python -m pytest -q tests/test_input_store.py::test_real_case_audit_accepts_linked_inputs",
+      "passed": 1,
+      "failed": 0,
+      "wall_seconds": 65.54
+    },
+    {
+      "command": ".venv/bin/python /private/tmp/biodemo-remote-regression.py",
+      "passed": 152,
+      "failed": 3,
+      "skipped": 1,
+      "wall_seconds": 127.51,
+      "note": "Docling mock corrected and passed in final targeted suite; remaining pre-existing failures: missing recorded CHO pilot and stale comparison HTML. Broad suite not rerun after targeted fixes."
+    }
+  ],
+  "inventory": "backend/results/offload/storage-migration.json"
+}
