@@ -69,7 +69,8 @@ export async function cmoFetch(path: string, init: RequestInit = {}): Promise<Re
   try {
     response = await fetch(`${apiBase()}/api/cmo-ingestion${path}`, {
       ...init,
-      headers: { ...(init.body && typeof init.body === 'string' ? { 'Content-Type': 'application/json' } : {}), ...(token ? { 'X-CMO-Token': token } : {}), ...init.headers },
+      // Same development identity as process-api.ts: CMO records are scoped to the platform tenant.
+      headers: { 'X-Tenant-Id': 'demo-northfield', 'X-Actor-Id': 'priya', ...(init.body && typeof init.body === 'string' ? { 'Content-Type': 'application/json' } : {}), ...(token ? { 'X-CMO-Token': token } : {}), ...init.headers },
     });
   } catch {
     throw new ApiError('Cannot reach the CMO data service. Check your connection, or ask the administrator whether the service is running.', 0);

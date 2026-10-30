@@ -16,7 +16,7 @@ This document describes the whole system **as it is in the working tree now**, i
 | What is preview only? | Most workspace screens (operations, batches, investigations, optimization, reviews, quality, lab, planning…) use synthetic fixtures and make no API calls. |
 | Which backend does the app use? | The **lifesci platform API on :8100**. The legacy server on :8000 is still running, but the current frontend does not call its own routes. |
 | Is any experiment running? | **No.** The final physics A/B run finished at 20:08 on 28 Oct with 1,151 of 1,152 sessions scored (§8.2). Earlier progress messages such as "844 sessions complete" were snapshots of that run; it is now finished. |
-| Are live LLM answers working locally? | No model is configured or qualified. Without a model, the assistant saves the message and reports "unavailable". |
+| Are live LLM answers working locally? | Not in the configured app: no Anthropic/OpenAI key is in `backend/.env.local`, so the assistant saves messages and reports "unavailable". The pipeline was tested end to end on 29 Oct with a throwaway server using the experiment's Modal GLM-5.3 (freeze-drying not retested; PenSim, SMPL and CHO paths all completed). Add a key to use it (§11). |
 
 ---
 
@@ -140,6 +140,7 @@ flowchart TB
 | `process_engineering/` | Model catalog, bounded solver pipelines, analysis review and interpretation | `/v1/process-model/catalog`, `/pipelines*`, `/analyses*` | Real; LLM steps need a model route |
 | `process_engineering/conversation.py` | **Engineering assistant.** Chat intent → gateway decision → flow of 8 registered operators. Turns run as FastAPI background tasks. Accepts up to 5 verified CMO dataset ids as cited evidence. | `/v1/process-model/conversations*`, `/conversation-sources`, `/llm-connection` | Real; answer quality not yet tested with a live model |
 | `fermentation/` | Literature-grounded aerobic transfer cases (Sulfolobus kLa scale-up, Pichia pressure vs oxygen cost). Deterministic physics; optional Prime assessment on a Modal-hosted research model | `/v1/process-model/fermentation/*` | Physics real; agent path research only |
+| `bioprocess/` (new, 29 Oct) | Experiment models and demo data for the assistant: the corrected **PenSim** (penicillin fed-batch) and **SMPL** (antibody perfusion) models from the final physics A/B run, 12 bundled public case packets from that run (byte-identical, no evaluator outcomes), and the **CHO Monod** growth/glucose model fitted to a verified CMO delivery with holdout check against the batch's later readings. Simulators run in a separate credential-free worker (`simulators.py`, env `LIFESCI_SIMULATOR_PYTHON` / `LIFESCI_SIMULATOR_ROOT`, default `backend/.cache/external-simulators/`, copied from `/private/tmp`). Assistant operators: `bioprocess_demo_case`, `bioprocess_forecast` (demo consent required), `cho_dataset_forecast` (dataset must be attached). Outputs are derived records with lineage. | `/v1/process-model/bioprocess/catalog`, via conversations | Real; simulated cases labelled; tests in `tests/lifesci/test_bioprocess.py` |
 | `science.py` | Control charts, cohorts, yield, OEE, 4PL, qPCR as deterministic C0 tasks | via `/v1/tasks` | Real |
 
 ### 3.5 CMO delivery verification inside the platform
@@ -149,7 +150,7 @@ flowchart TB
 - **Bridge to evidence:**
   - `POST /v1/cmo-datasets {run_id, site_id}` publishes a verified run as evidence id `cmo-verified-delivery:<run_id>`, classification `verified_cmo_dataset`. It returns 409 if the run is unverified, fails a guarantee check or has been superseded. Republishing an unchanged delivery is idempotent.
   - `GET /v1/cmo-datasets` lists them; `GET /v1/cmo-datasets/{evidence_id}` returns a bounded summary.
-- The assistant receives that bounded summary plus the evidence reference. Its prompt says to cite evidence id, batch, time and source location; that verification is not process control or batch release; and that physics models do not yet use these datasets.
+- The assistant receives that bounded summary plus the evidence reference. Its prompt says to cite evidence id, batch, time and source location; that verification is not process control or batch release; and that only `cho_dataset_forecast` fits a model to them.
 
 ---
 
@@ -303,7 +304,7 @@ cd frontend && npm run dev            # http://127.0.0.1:5180
 # NEXT_PUBLIC_CMO_API_URL=http://127.0.0.1:8000 npm run dev
 ```
 
-Live assistant answers need model keys and bindings in `backend/.env.local` (see `backend/engineering-llm.env.example`, which also sets `LIFESCI_ALLOW_UNQUALIFIED_ROUTES=1`). Right now only :8000 is listening; :8100 and :5180 are not running.
+Live assistant answers need model keys and bindings in `backend/.env.local`, for example `LIFESCI_LLM_PROVIDER=anthropic`, `LIFESCI_LLM_MODEL=<model id>`, `ANTHROPIC_API_KEY=…`, `LIFESCI_ALLOW_UNQUALIFIED_ROUTES=1` (see `backend/engineering-llm.env.example`, which also sets `LIFESCI_ALLOW_UNQUALIFIED_ROUTES=1`). Right now only :8000 is listening; :8100 and :5180 are not running.
 
 ---
 
@@ -419,7 +420,7 @@ Everything else serves the legacy server, the cloud service, the edge agent, res
 1. **Landing page physics section.** Decide whether to replace the superseded figures with the final run's results (§8.2), including the not-met overall criterion and caveats, or remove the section. Every figure must come from a recorded result.
 2. **Mark superseded reports.** Add notices to the older physics reports and READMEs pointing to the final report.
 3. **Single auth.** Put `/api/cmo-ingestion` under platform identity (`ctx_dep`/OIDC) instead of `CMO_API_TOKEN` + `X-Tenant-ID`.
-4. **Physics models using verified deliveries** (for example fitting the CHO growth model to a verified dataset), with lineage back to the evidence record. The assistant prompt currently forbids claiming this.
+4. **Physics models using verified deliveries.** Done for the simple CHO Monod model (`cho_dataset_forecast`, 29 Oct). Its forecasts are rough (e.g. CHO-005-R01 from 72 h: 1.81 million cells/mL and 0.71 g/L glucose mean error over 2 readings each). Richer models remain open.
 5. **Retire the legacy server** and `deploy/cmo-ingestion` once nothing depends on them. Decide whether `/api/pharma`, Prime investigations and source review move into the platform or are archived. Move the `benchmark.integration` classes lifesci imports into `src/`.
 6. **Preview screens:** replace fixtures with platform data where a real source exists; label every synthetic screen consistently. Decide whether the simulated agent layer stays, gets a real backend, or is removed.
 7. **Live-model test** of the assistant answering from a verified delivery (correct citations, no unsupported claims).

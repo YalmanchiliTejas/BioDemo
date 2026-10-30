@@ -22,6 +22,7 @@ import zipfile
 from collections import defaultdict
 from pathlib import Path
 
+from .persistence import tenant_scope
 from .pipeline import IngestionService, digest, utc
 from .schema import time_key
 
@@ -147,7 +148,7 @@ class CaseService:
             rows=[dict(r) for r in con.execute('SELECT p.id,p.name,p.hash,p.version,j.id AS job_id,j.status,j.stage,j.error,p.created FROM pharma_imports i JOIN pharma_packages p ON p.id=i.package_id JOIN pharma_jobs j ON j.id=i.job_id WHERE i.case_id=? ORDER BY p.created',(case_id,))]
         for r in rows:
             try:
-                ingested=self.ingestion.get(r['job_id'])
+                with tenant_scope(tenant): ingested=self.ingestion.get(r['job_id'])
                 r['summary']=ingested.get('summary'); r['ingestion_status']=ingested['status']
                 r['processing_seconds']=ingested.get('runtime_seconds')
             except KeyError: pass
@@ -162,7 +163,7 @@ class CaseService:
             if entry['status']!='complete':
                 active.append({'id':entry['job_id'],'status':entry['status']})
                 gaps.append(f"{entry['name']}: ingestion {entry['status']}"); continue
-            run=self.ingestion.get(entry['job_id'])
+            with tenant_scope(tenant): run=self.ingestion.get(entry['job_id'])
             active.append(run)
             versions.append({'job_id':entry['job_id'],'package_id':entry['id'],'hash':entry['hash'],'version':entry['version']})
             for m in run['measurements']:
@@ -227,8 +228,9 @@ class CaseService:
     def action(self,case_id,tenant,title,owner,rationale,evidence,actor='local-user'):
         self.case(case_id,tenant)
         if not all(str(v).strip() for v in [title,owner,rationale]): raise ValueError('Action, responsible role/owner and rationale are required')
-        visible={m['id'] for item in self.imports(case_id,tenant) if item['status']=='complete'
-                 for m in self.ingestion.get(item['job_id'])['measurements']}
+        with tenant_scope(tenant):
+            visible={m['id'] for item in self.imports(case_id,tenant) if item['status']=='complete'
+                     for m in self.ingestion.get(item['job_id'])['measurements']}
         if not set(evidence)<=visible: raise ValueError('Action cites evidence outside the current verified case')
         ident=uuid.uuid4().hex
         with self.connect() as con:
@@ -263,7 +265,8 @@ class CaseService:
         for item in self.imports(case_id,tenant):
             lines.append(f"- {item['name']}, version {item['version']}, {item['status']}; package hash {item['hash']}")
             if item['status']=='complete':
-                for doc in self.ingestion.get(item['job_id'])['documents']:
+                with tenant_scope(tenant): documents=self.ingestion.get(item['job_id'])['documents']
+                for doc in documents:
                     self.ingestion.original(item['job_id'],doc['source_id'])
                     lines.append(f"  - [{doc['path']}](/api/cmo-ingestion/runs/{item['job_id']}/sources/{doc['source_id']}); SHA-256 {doc['sha256']}")
         for job in jobs:
@@ -289,6 +292,9 @@ class CaseService:
         with self.connect() as con: job=dict(con.execute('SELECT * FROM pharma_jobs WHERE id=? AND lease=? AND status=?',(ident,lease,'running')).fetchone())
         started=time.monotonic()
         request=json.loads(job['request']); tenant=request['tenant']; case=self.case(job['case_id'],tenant)
+        with tenant_scope(tenant): self._execute(ident,lease,job,request,tenant,case,started)
+
+    def _execute(self,ident,lease,job,request,tenant,case,started):
         def stage(name):
             with self.connect() as con:
                 changed=con.execute('UPDATE pharma_jobs SET stage=?,updated=? WHERE id=? AND lease=? AND status=?',(name,utc(),ident,lease,'running')).rowcount

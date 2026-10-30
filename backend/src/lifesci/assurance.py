@@ -62,9 +62,9 @@ class AssuranceService:
                     digests.add(parsed["checkpoint"]["digest"])
         exported_ids = {(r["kind"], r["id"]) for r in revisions}
         audit = [dict(zip(("seq", "actor_id", "action", "aggregate_kind", "aggregate_id", "revision", "before_hash",
-                           "after_hash", "reason", "occurred_at", "details"), r))
+                           "after_hash", "reason", "occurred_at", "details", "prev_hash"), r))
                  for r in db.fetchall("SELECT seq, actor_id, action, aggregate_kind, aggregate_id, revision, "
-                                      "before_hash, after_hash, reason, occurred_at, details FROM audit "
+                                      "before_hash, after_hash, reason, occurred_at, details, prev_hash FROM audit "
                                       "WHERE tenant_id=? ORDER BY seq", (ctx.tenant_id,))
                  if (r[3], r[4]) in exported_ids]
         tx = self.store.read()
@@ -123,18 +123,14 @@ class AssuranceService:
                                                       canonical_json(r["state"]), r["content_hash"], r["recorded_at"]))
                 latest[(r["kind"], r["id"])] = r
             for (kind, rid), r in latest.items():
-                db.execute("INSERT INTO aggregates (tenant_id, kind, id, revision, state, content_hash, updated_at) "
-                           "VALUES (?,?,?,?,?,?,?)", (tenant, kind, rid, r["revision"], canonical_json(r["state"]),
-                                                      r["content_hash"], r["recorded_at"]))
-                for f in target.indexes.get(kind, ()):
-                    if r["state"].get(f) is not None:
-                        db.execute("INSERT INTO idx (tenant_id, kind, field, value, id) VALUES (?,?,?,?,?)",
-                                   (tenant, kind, f, str(r["state"][f]), rid))
+                db.execute("INSERT INTO aggregates (tenant_id, kind, id, revision) VALUES (?,?,?,?)",
+                           (tenant, kind, rid, r["revision"]))
             for a in body["audit"]:
                 db.execute("INSERT INTO audit (tenant_id, actor_id, action, aggregate_kind, aggregate_id, revision, "
-                           "before_hash, after_hash, reason, occurred_at, details) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                           "before_hash, after_hash, reason, occurred_at, details, prev_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                            (tenant, a["actor_id"], a["action"], a["aggregate_kind"], a["aggregate_id"], a["revision"],
-                            a["before_hash"], a["after_hash"], a["reason"], a["occurred_at"], a["details"]))
+                            a["before_hash"], a["after_hash"], a["reason"], a["occurred_at"], a["details"],
+                            a.get("prev_hash")))
         return {"revisions": len(body["revisions"]), "records": len(latest), "audit": len(body["audit"]),
                 "blobs": len(body["blobs"])}
 

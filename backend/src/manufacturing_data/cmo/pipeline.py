@@ -29,7 +29,7 @@ from ..verification import verify_originals
 from . import quality
 from .classify import by_content, by_filename
 from .evidence import evidence_store, original_key, restore
-from .persistence import SQLiteRepository, repository
+from .persistence import repository
 from .providers import ClairicProvider, Provider, Unavailable
 from .schema import Classification, Extraction, Mapping, TYPES, VOCAB, draft_mapping, header_parts, key, normalize, time_key
 
@@ -111,27 +111,17 @@ class IngestionService:
         from .settings import load_local_settings
         load_local_settings()
         self.root=Path(root).resolve(); self.root.mkdir(parents=True,exist_ok=True,mode=0o700)
-        # Local SQLite file. CaseService keeps its own tables here even when the
-        # ingestion records live in PostgreSQL.
+        # Local SQLite file. CaseService keeps its own tables here; ingestion
+        # records live in the platform database (see persistence.py).
         self.db=self.root/'cmo.sqlite'; self._lock=threading.RLock()
         self.repo=repository(self.root)
         self.evidence=evidence_store()
 
-    def connect(self):
-        if not isinstance(self.repo,SQLiteRepository): raise RuntimeError('Direct SQL access is only available for the local SQLite backend')
-        return self.repo.connect()
-
     def audit(self, action, **data):
-        payload=json.dumps({'at':utc(),'action':action,**data},sort_keys=True,allow_nan=False)
-        return self.repo.append_event(payload)
+        return self.repo.append_audit(action,data)
 
     def verify_audit(self):
-        prev='0'*64
-        for row in self.repo.events():
-            expected=hashlib.sha256((prev+row['payload']).encode()).hexdigest()
-            if row['prev_hash']!=prev or row['hash']!=expected: return False
-            prev=row['hash']
-        return True
+        return self.repo.verify_audit()
 
     def template(self,cmo,fp): return self.repo.template(cmo,fp)
 
@@ -158,20 +148,23 @@ class IngestionService:
         ignore_only=not parsed.columns and accounted>=set(draft['headers'])
         if not ignore_only and (not parsed.columns or not parsed.batch_column or not parsed.time_column):
             raise ValueError('Confirm parameter, batch and time mappings explicitly, or ignore every column of a table that holds no process data')
-        existing=self.template(run['cmo'],fp); version=existing['version']+1 if existing else 1
-        template={'id':uuid.uuid4().hex,'cmo':run['cmo'],'fingerprint':fp,'kind':draft['kind'],'version':version,
-                  'mapping':parsed.model_dump_json(),'headers':json.dumps(draft['headers']),
-                  'actor':actor,'at':utc(),'origin':origin}
-        self.repo.insert_template(template)
-        self.audit('template_confirmed',template=template,run_id=run_id,reason=reason)
+        with self.repo.transaction():
+            existing=self.template(run['cmo'],fp); version=existing['version']+1 if existing else 1
+            template={'id':uuid.uuid4().hex,'cmo':run['cmo'],'fingerprint':fp,'kind':draft['kind'],'version':version,
+                      'mapping':parsed.model_dump_json(),'headers':json.dumps(draft['headers']),
+                      'actor':actor,'at':utc(),'origin':origin}
+            self.repo.insert_template(template)
+            self.audit('template_confirmed',template=template,run_id=run_id,reason=reason)
         return template
 
-    def add_ignore_rule(self,cmo,line_pattern,actor,reason,*,run_id=None):
+    def add_ignore_rule(self,cmo,line_pattern,actor,reason,*,run_id=None,issue_id=None):
         if not actor.strip() or not reason.strip(): raise ValueError('Actor and reason are required')
         if not line_pattern.strip() or not re.search(r'[A-Za-z]',line_pattern):
             raise ValueError('Ignore rules need a text pattern; a bare number would hide data')
-        rule={'id':uuid.uuid4().hex,'cmo':cmo,'pattern':line_pattern.strip(),'actor':actor,'reason':reason,'at':utc(),'run_id':run_id}
-        self.repo.add_ignore_rule(rule); self.audit('ignore_rule_added',rule=rule)
+        rule={'id':uuid.uuid4().hex,'cmo':cmo,'pattern':line_pattern.strip(),'actor':actor,'reason':reason,'at':utc(),
+              'run_id':run_id,'issue_id':issue_id}
+        with self.repo.transaction():
+            self.repo.add_ignore_rule(rule); self.audit('ignore_rule_added',rule=rule)
         return rule
 
     def save(self,run): self.repo.save_run(run)
@@ -437,7 +430,7 @@ class IngestionService:
                             'template_version':template['version'] if template else None,
                             'confirmed':bool(template),'template_origin':template['origin'] if template else None,
                             'based_on':based_on,'example_source_id':doc['source_id'],'path':doc['path'],'records':0}
-                    layouts[fp]=layout
+                    layouts[fp]=layout; run['layouts'].append(layout)
                     tabular_without_parameters=not template and not proposed.columns and row_number is not None
                     if not template and not tabular_without_parameters and self.has_kind(cmo,doc['doc_type']):
                         issue('LAYOUT_CHANGED',path=doc['path'],fingerprint=fp)
@@ -496,7 +489,6 @@ class IngestionService:
                         count=sum(1 for e in elements.values() if e['path']==doc['path'] and e['column']==h and e['sheet']==sheet)
                         issue('UNMAPPED_FIELD',path=doc['path'],header=h,fingerprint=fp,**({'sheet':sheet} if sheet else {}),
                               **({'elements':count} if row_number is not None else {}))
-            run['layouts']=list(layouts.values())
             leftover=defaultdict(list)
             for e in elements.values():
                 if e['state']=='pending' and Path(e['path']).suffix.lower() not in STRUCTURED and not e['id'].startswith('file:') and e['column'] is None:
@@ -568,19 +560,8 @@ class IngestionService:
                 blocking=[i['rule_code'] for i in run['issues'] if blocks(i,m)]
                 m['rule_codes']=sorted(set(m['rule_codes']+blocking))
                 if not m['rule_codes']: m['status']='auto_accepted'
-                m['confidence']=0.0 if m['value'] is None else min(1 if m['template_id'] else 0.6,
-                    1 if m['source_verified'] else 0.5,1 if not m['rule_codes'] else 0.5)
-            relationships=[]
-            by_batch=defaultdict(set)
-            for m in run['measurements']: by_batch[m['batch']].add(m['source']['path'])
-            for batch,paths in by_batch.items():
-                process_paths=[d['path'] for d in run['documents'] if d['doc_type']=='instrument_export' and d['path'] in paths]
-                for path in sorted(paths):
-                    for process_path in process_paths:
-                        if path!=process_path:
-                            relationships.append({'left':path,'right':process_path,'batch':batch,'relation':'batch_evidence',
-                                'status':'candidate' if any(i['rule_code']=='BATCH_MISMATCH' and i.get('path')==path for i in run['issues']) else 'source_linked'})
-            run['relationships']=relationships
+                m['confidence']=quality.confidence(m)
+            run['relationships']=quality.relationships(run)
             run['elements']=list(elements.values())
             run['coverage']=quality.account(run['elements'],run['issues'])
             stage('Review','pending' if any(m['status']=='needs_review' for m in run['measurements']) or run['issues'] else 'complete')
@@ -594,23 +575,7 @@ class IngestionService:
             self.save(run); self.audit('run_failed',run_id=run['id'],error=run['error'])
             return run
 
-    def summarize(self,run):
-        measures=run['measurements']; accepted=[m for m in measures if m['status'] in {'auto_accepted','accepted','corrected'}]
-        coverage=run.get('coverage') or {}
-        if run.get('elements') is not None: coverage=run['coverage']=quality.account([dict(e) for e in run['elements']],run['issues'])
-        run['summary']={'measurements':len(measures),'auto_accepted':sum(m['status']=='auto_accepted' for m in measures),
-            'accepted':len(accepted),'needs_review':sum(m['status']=='needs_review' for m in measures),
-            'rejected':sum(m['status']=='rejected' for m in measures),
-            'open_issues':sum(i['status']=='open' for i in run['issues']),
-            'review_groups':len(quality.review_groups(run)),
-            'unconfirmed_layouts':sum(not l['confirmed'] for l in run.get('layouts',[])),
-            'corrections':sum(r['decision']=='correct' for r in run['reviews']),'model_calls':len(run['model_usage']),
-            'inference_cost_usd':sum(x['cost_usd'] for x in run['model_usage']) if all(x['cost_usd'] is not None for x in run['model_usage']) else None,
-            'input_tokens':sum(x['input_tokens'] for x in run['model_usage']) if all(x['input_tokens'] is not None for x in run['model_usage']) else None,
-            'output_tokens':sum(x['output_tokens'] for x in run['model_usage']) if all(x['output_tokens'] is not None for x in run['model_usage']) else None,
-            'elements':coverage.get('elements'),'unaccounted':coverage.get('unaccounted'),
-            'verified_package':bool(measures) and all(m['status'] in {'auto_accepted','accepted','corrected','rejected'} for m in measures)
-                and not any(i['status']=='open' for i in run['issues']) and not coverage.get('unaccounted')}
+    def summarize(self,run): return quality.summarize(run)
 
     def _apply_review(self,run,m,decision,actor,reason,*,value=None,parameter=None,unit=None,batch=None,time_value=None,carried_from=None):
         if decision not in {'accept','correct','reject'}: raise ValueError('Invalid review decision')
@@ -627,7 +592,7 @@ class IngestionService:
             # A real excursion is not a transcription error. Preserve the
             # review warning while allowing an explicitly reasoned correction.
             if not VOCAB[p]['range'][0]<=n<=VOCAB[p]['range'][1]:
-                revised['rule_codes']=list(dict.fromkeys([*m['rule_codes'],'RANGE']))
+                revised['rule_codes']=sorted({*m['rule_codes'],'RANGE'})
             revised.update(value=n,unit=u,parameter=p,status='corrected')
             if batch is not None: revised['batch']=batch.strip().upper()
             if time_value is not None: revised['time']=str(time_value).strip()
@@ -635,6 +600,7 @@ class IngestionService:
             revised['supersedes']=m['id']
             run.setdefault('superseded_measurements',[]).append({**m,'status':'superseded','superseded_by':revised['id']})
         else: revised['status']='accepted' if decision=='accept' else 'rejected'
+        if 'confidence' in m: revised['confidence']=quality.confidence(revised)
         if decision=='accept' and m['value'] is None: raise ValueError('Invalid numeric value must be corrected or rejected')
         if decision!='reject':
             if not revised['batch']: raise ValueError('Batch identity is required before acceptance')
@@ -650,7 +616,7 @@ class IngestionService:
     def review(self,run_id,measurement_id,decision,actor,reason,*,binding,value=None,parameter=None,unit=None,batch=None,time_value=None):
         if decision not in {'accept','correct','reject'}: raise ValueError('Invalid review decision')
         if not actor.strip() or not reason.strip(): raise ValueError('Actor and review reason are required')
-        with self._lock:
+        with self._lock, self.repo.transaction():
             run=self.get(run_id); m=next((m for m in run['measurements'] if m['id']==measurement_id),None)
             if not m:
                 if any(x['id']==measurement_id for x in run.get('superseded_measurements',[])):
@@ -666,7 +632,7 @@ class IngestionService:
         if decision not in {'accept','reject'}: raise ValueError('Group decisions are accept or reject; correct values individually')
         if not actor.strip() or not reason.strip(): raise ValueError('Actor and review reason are required')
         if not items or len(items)>20000: raise ValueError('Select between 1 and 20000 values')
-        with self._lock:
+        with self._lock, self.repo.transaction():
             run=self.get(run_id); current={m['id']:m for m in run['measurements']}
             applied=[]; failed=[]
             for item in items:
@@ -683,7 +649,7 @@ class IngestionService:
         code that the reviewer settles with the same reason (for example every
         blank glucose cell in one file)."""
         if not actor.strip() or not reason.strip(): raise ValueError('Actor and disposition reason required')
-        with self._lock:
+        with self._lock, self.repo.transaction():
             run=self.get(run_id); issue=next((i for i in run['issues'] if i['id']==issue_id),None)
             if not issue: raise KeyError('Unknown issue')
             siblings=[i for i in run['issues'] if i['id'] in set(also) and i['id']!=issue_id]
@@ -699,7 +665,7 @@ class IngestionService:
                 existing={r['pattern'] for r in self.repo.ignore_rules(run['cmo'])}
                 for pattern in dict.fromkeys(line['pattern'] for line in issue['lines']):
                     if pattern not in existing and re.search(r'[A-Za-z]',pattern):
-                        rules.append(self.add_ignore_rule(run['cmo'],pattern,actor,reason,run_id=run_id)['id'])
+                        rules.append(self.add_ignore_rule(run['cmo'],pattern,actor,reason,run_id=run_id,issue_id=issue_id)['id'])
             issue.update(status='resolved',actor=actor,reason=reason,at=utc(),ignore_rules=rules)
             self.audit('issue_disposition',run_id=run_id,issue=issue)
             if ignore_in_future:
@@ -715,8 +681,9 @@ class IngestionService:
     def carry_over(self,old_id,new_run):
         """Re-apply prior human decisions to a reprocessed run when the decision
         concerns the same source element, raw text and parameter."""
-        old=self.get(old_id); carried=[]; skipped=[]
-        with self._lock:
+        carried=[]; skipped=[]
+        with self._lock, self.repo.transaction():
+            old=self.get(old_id)
             run=self.get(new_run['id'])
             for receipt in old.get('reviews',[]):
                 before=receipt['before']

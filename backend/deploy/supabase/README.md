@@ -1,56 +1,79 @@
-# Hosting CMO deliveries on Supabase
+# Hosting the platform database on Supabase
 
-The API keeps parsing local and stores its system of record in Supabase:
-PostgreSQL for runs, confirmed mappings, ignore rules, deliveries and the
-hash-chained audit trail; a private Storage bucket for original files. Without
-these variables it falls back to local SQLite and files (development only).
+The platform and CMO delivery verification share one PostgreSQL database. The
+schema is normalized (decision D52): every mutable fact has one home row,
+derived values are computed when read, and decisions are append-only receipts
+in the shared, hash-chained `audit` table. Every table is tenant-scoped with
+row-level security, and the backend connects as the non-owner `lifesci_app`
+role. Supabase's `anon` and `authenticated` roles get no access, because browsers
+never query these tables.
 
 ## One-time setup
 
-1. Apply `migrations/0001_cmo_ingestion.sql` in the Supabase SQL editor (or
-   `psql "$SUPABASE_DB_URL" -f migrations/0001_cmo_ingestion.sql`). It is
-   idempotent, enables RLS with no policies, revokes `anon`/`authenticated`,
-   and makes templates, ignore rules and audit events append-only.
-2. Create a **private** Storage bucket named `cmo-evidence` (no public access).
-3. Set these on the API service (never in the frontend):
+Either run the migration command:
 
-```dotenv
-CMO_DATABASE_URL=postgresql://postgres.<ref>:<password>@<pooler-host>:5432/postgres?sslmode=require
-SUPABASE_URL=https://<ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<service role key>
-CMO_STORAGE_BUCKET=cmo-evidence
-CMO_API_TOKEN=<long random token shared with testers out of band>
-CMO_INGESTION_ROOT=/data/cmo          # local parse cache; safe to lose
-BIODEMO_ALLOWED_ORIGINS=https://<frontend-host>   # only if UI and API are on different origins
-# Hosted extraction for PDFs in unfamiliar layouts (customer files are sent to these providers):
-CMO_HOSTED_INFERENCE_APPROVED=true
-OPENAI_API_KEY=...
-CLOUDFLARE_ACCOUNT_ID=...
-CLOUDFLARE_AUTH_TOKEN=...
-CMO_ALLOWED_ORIGINS=https://api.openai.com,https://api.cloudflare.com
-DOCLING_ARTIFACTS_PATH=/models/docling
+```bash
+# owner = the `postgres` session-pooler URL; runtime = lifesci_app.<ref> on the same pooler
+LIFESCI_MIGRATION_DATABASE_URL='postgresql://postgres.<ref>:<db password>@<pooler-host>:5432/postgres?sslmode=require' \
+LIFESCI_DATABASE_URL='postgresql://lifesci_app.<ref>:<app password>@<pooler-host>:5432/postgres?sslmode=require' \
+python -m src.lifesci db-migrate
 ```
 
-Use the session-mode pooler (port 5432) connection string; the audit chain
-uses a transaction-scoped advisory lock. Build the frontend with no
-`NEXT_PUBLIC_CMO_API_URL` when nginx proxies `/api/` on the same origin, or set
-it to the API URL otherwise.
+or paste the SQL into the Supabase SQL editor, in order:
 
-## What happens on restart
+1. `migrations/0002_lifesci_platform.sql`: first replace
+   `REPLACE_WITH_APP_PASSWORD` with a new password of 16 or more characters for
+   `lifesci_app`. Don't commit the edited copy.
+2. `migrations/0003_cmo_records.sql`.
 
-Runs, mappings, decisions and audit history are in PostgreSQL. Originals are
-restored from Storage on demand and re-hashed before display or export; a
-mismatch blocks the request. Runs that were processing when the service stopped
-are marked `interrupted` and must be started again; nothing partial is accepted.
+Both files are generated from the code (`python -m src.lifesci supabase-sql`),
+and a test fails if they fall out of date. They are idempotent. They also
+upgrade databases created by earlier versions, but only after confirming that
+every current record equals its stored revision; otherwise they stop and change
+nothing.
+
+Then create a **private** Storage bucket named `cmo-evidence`, and set these on
+the API service (never in the frontend):
+
+```dotenv
+LIFESCI_DATABASE_URL=postgresql://lifesci_app.<ref>:<app password>@<pooler-host>:5432/postgres?sslmode=require
+LIFESCI_DB_MIGRATE=0
+SUPABASE_URL=https://<ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<secret key>   # Storage only; bypasses RLS, keep server-side
+CMO_STORAGE_BUCKET=cmo-evidence
+CMO_API_TOKEN=<long random token>        # until real sign-in replaces the development identity
+```
+
+`CMO_DATABASE_URL` is optional. Set it only to keep CMO records in a different
+database.
+
+## Moving existing CMO records
+
+Records saved in the old one-document-per-run layout (`cmo.sqlite`, or the
+`cmo_*` tables from the retired `0001_cmo_ingestion.sql`) are copied with:
+
+```bash
+python -m src.lifesci cmo-import-legacy backend/.cache/cmo-ingestion/cmo.sqlite --tenant demo-northfield
+```
+
+The importer verifies the old hash chain before writing anything, writes each
+customer's records in one transaction, re-chains the receipts in `audit`, and
+reloads every run to report any difference from the original. A second run is
+skipped, and the source is never modified.
 
 ## Verified so far
 
-The PostgreSQL repository and migration were exercised against local
-PostgreSQL 16 (`CMO_TEST_DATABASE_URL=... pytest tests/test_cmo_postgres.py`),
-including append-only enforcement. The Storage adapter is tested against a
-mocked Supabase Storage API. Neither has yet been run against a live Supabase
-project; do that with synthetic files before giving a tester access.
+- Both SQL files were run twice with `psql` on a disposable PostgreSQL 16 cluster
+  that had `anon`/`authenticated` roles: once on an empty database and once on
+  a database in the earlier shape. The backend then ran there as `lifesci_app`.
+- The upgrade ran on a copy of the local development database: the same 28
+  current records, with an identical content fingerprint before and after.
+- The importer ran on a copy of the local `cmo.sqlite`: 32 runs, 29 templates,
+  28 ignore rules and 772 receipts, with no differences and a valid chain. One
+  identical duplicate issue was merged.
+- Tests cover RLS isolation, insert-only grants, append-only triggers and
+  derived-value round trips (`tests/lifesci/test_postgres.py`).
 
-`CMO_API_TOKEN` is a shared secret, not per-user identity. Reviewer names are
-typed by the reviewer. Put SSO in front before any regulated or multi-customer
-use; this deployment is not a validated GxP system.
+None of this has yet been run against a live Supabase project. Do that with
+synthetic files before giving anyone access. This deployment is not a validated
+GxP system.

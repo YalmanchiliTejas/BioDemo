@@ -84,6 +84,11 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
     def conversation_artifact(thread_id: str, kind: str, artifact_id: str, ctx=Depends(ctx_dep)):
         return conversations.artifact(ctx, thread_id, kind, artifact_id)
 
+    @app.get('/v1/process-model/bioprocess/catalog')
+    def bioprocess_catalog(ctx=Depends(ctx_dep)):
+        p.identity.require(ctx, 'read', 'scientific_model_catalog')
+        return p.bioprocess.catalog()
+
     @app.get('/v1/process-model/llm-connection')
     def llm_connection(ctx=Depends(ctx_dep)):
         from ..gateway.configuration import ENGINEERING_TASKS

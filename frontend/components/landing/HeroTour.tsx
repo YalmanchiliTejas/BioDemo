@@ -3,9 +3,9 @@
 import { useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Activity, ArrowDown, ArrowRight, Atom, Check, CircleDashed, ClipboardCheck, Database, GitCompareArrows, PackageCheck, TriangleAlert } from 'lucide-react';
-import { PlantScene, STATIONS } from './PlantScene';
-import { cameraTransform } from './sceneKit';
-import { clamp, easeInOut, lerp, useReducedMotion, useScrollFrame } from './motion';
+import type { STATIONS } from './PlantScene';
+import { LabStage, type StageHandle, type View } from './LabStage';
+import { clamp, easeInOut, useReducedMotion, useScrollFrame } from './motion';
 import { cn } from '@/lib/cn';
 
 type Station = keyof typeof STATIONS;
@@ -127,8 +127,8 @@ const CHAPTERS: Chapter[] = [
 const INTRO = 0.08;
 const END = 0.93;
 const SEG = (END - INTRO) / CHAPTERS.length;
-const OVERVIEW = { f: STATIONS.overview, z: 0.92 };
-const keyOf = (i: number) => (i < 0 || i >= CHAPTERS.length ? OVERVIEW : { f: STATIONS[CHAPTERS[i].station], z: CHAPTERS[i].zoom });
+const OVERVIEW: View = { station: 'overview', zoom: 0.92 };
+const keyOf = (i: number): View => (i < 0 || i >= CHAPTERS.length ? OVERVIEW : { station: CHAPTERS[i].station, zoom: CHAPTERS[i].zoom });
 
 function Copy({ className }: { className?: string }) {
   return (
@@ -164,7 +164,7 @@ export function HeroTour() {
   const reduced = useReducedMotion();
   const section = useRef<HTMLElement>(null);
   const sticky = useRef<HTMLDivElement>(null);
-  const camera = useRef<SVGGElement>(null);
+  const stage = useRef<StageHandle>(null);
   const [active, setActive] = useState(-1);
   const activeRef = useRef(-1);
 
@@ -176,9 +176,7 @@ export function HeroTour() {
       const local = (p - INTRO - chapter * SEG) / SEG;
       from = chapter - 1; to = chapter; t = easeInOut(clamp(local / 0.42));
     } else { outro = clamp((p - END) / (1 - END - 0.02)); from = CHAPTERS.length - 1; to = CHAPTERS.length; t = easeInOut(outro); }
-    const a = keyOf(from), b = keyOf(to);
-    const focus = [lerp(a.f[0], b.f[0], t), lerp(a.f[1], b.f[1], t), lerp(a.f[2], b.f[2], t)] as const;
-    camera.current?.setAttribute('transform', cameraTransform(focus, lerp(a.z, b.z, t)));
+    stage.current?.setView(keyOf(from), keyOf(to), t);
     const intro = Math.max(1 - p / INTRO, outro);
     const el = sticky.current;
     if (el) {
@@ -221,7 +219,7 @@ export function HeroTour() {
     <section ref={section} className="lp-tour" aria-label="A tour of the platform">
       <div ref={sticky} className="lp-tour-sticky" data-touring={active >= 0 || undefined}>
         <div className="lp-stage">
-          <PlantScene ref={camera} initial={cameraTransform(OVERVIEW.f, OVERVIEW.z)} className="h-full w-full" />
+          <LabStage ref={stage} initial={OVERVIEW} className="h-full w-full" />
         </div>
         <div className="lp-grain" aria-hidden />
 
@@ -259,7 +257,7 @@ export function HeroTour() {
 function StaticScene() {
   return (
     <div className="relative aspect-[4/3]">
-      <PlantScene initial={cameraTransform(OVERVIEW.f, OVERVIEW.z, 0.46)} className="h-full w-full" />
+      <LabStage still initial={OVERVIEW} anchor={0.46} className="h-full w-full" />
       <div className="lp-grain" aria-hidden />
     </div>
   );

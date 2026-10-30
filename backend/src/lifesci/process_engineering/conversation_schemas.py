@@ -10,7 +10,8 @@ class ChatPipelineSpec(PipelineSpec):
 
 Operator = Literal['physical_demo_context', 'physical_context_variant', 'physical_pipeline_prepare',
     'physical_pipeline_execute', 'physical_results_compare', 'physical_results_assess',
-    'physical_analysis_review', 'physical_model_adapter_propose']
+    'physical_analysis_review', 'physical_model_adapter_propose',
+    'bioprocess_demo_case', 'bioprocess_forecast', 'cho_dataset_forecast']
 
 class ConversationIn(StrictModel):
     site_id: str = Field(default='NF1', min_length=1, max_length=100)
@@ -50,6 +51,8 @@ class ChatDecision(StrictModel):
             raise ValueError('ask for missing information before running a workflow')
         if sum(n.task_kind == 'physical_pipeline_execute' for n in self.workflow) > 3:
             raise ValueError('at most three numerical analyses per conversational turn')
+        if sum(n.task_kind in ('bioprocess_forecast', 'cho_dataset_forecast') for n in self.workflow) > 3:
+            raise ValueError('at most three bioprocess forecasts per conversational turn')
         if sum(n.task_kind == 'physical_results_assess' for n in self.workflow) > 1:
             raise ValueError('at most one agent interpretation per conversational turn')
         return self
@@ -78,3 +81,20 @@ class ResultId(StrictModel):
 
 class Compare(StrictModel):
     result_ids: list[str] = Field(min_length=2, max_length=3)
+
+CASE_ID = r'^NC-[0-9a-f]{12}$'
+
+class DemoCase(StrictModel):
+    case_id: str = Field(pattern=CASE_ID)
+
+class BioForecast(StrictModel):
+    # The demo case id, or the id of a bioprocess_case record loaded earlier in this conversation.
+    case_id: str = Field(pattern=r'^(NC-[0-9a-f]{12}|biop_[0-9A-Z]{26})$')
+    actions: list[str] = Field(min_length=1, max_length=11)
+    rationale: str = Field(min_length=8, max_length=2000)
+
+class ChoForecast(StrictModel):
+    dataset_id: str = Field(min_length=1, max_length=200)
+    batch: str = Field(min_length=1, max_length=100)
+    cutoff_h: float = Field(default=72., ge=12., le=110.)
+    rationale: str = Field(min_length=8, max_length=2000)

@@ -8,6 +8,7 @@ import zipfile
 import pytest
 
 from src.manufacturing_data.cmo.cases import CaseService
+from src.manufacturing_data.cmo.persistence import tenant_scope
 from src.manufacturing_data.cmo.pipeline import digest
 
 DATA=b'batch_id,elapsed_h,temperature [K],pH [pH],product [g/L]\nDEV-A,0,305,7,0\nDEV-A,2,306,7.1,2\nDEV-B,0,305,7,0\nDEV-B,2,306,6.9,1\n'
@@ -20,6 +21,12 @@ def execute(service,ident):
     job=service.job(ident,'tenant-a')
     assert job['status']=='complete',job.get('error')
     return job
+
+
+@pytest.fixture(autouse=True)
+def customer_context():
+    # Ingestion records are tenant-scoped; direct service calls below act for tenant-a.
+    with tenant_scope('tenant-a'): yield
 
 
 @pytest.fixture

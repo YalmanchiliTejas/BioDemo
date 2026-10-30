@@ -92,8 +92,8 @@ def test_source_tampering_blocks_export_and_immutable_review(setup):
         service.review(run['id'],m['id'],'accept','qa-test','Stale browser',binding=digest(m))
     path,_=service.original(run['id'],m['source_id']); path.chmod(0o600); path.write_text('changed')
     with pytest.raises(ValueError,match='integrity'): service.export(run['id'])
-    with service.connect() as con:
-        with pytest.raises(sqlite3.IntegrityError): con.execute("UPDATE events SET hash='tampered'")
+    with sqlite3.connect(service.repo.path) as con:
+        with pytest.raises(sqlite3.IntegrityError): con.execute("UPDATE audit SET after_hash='tampered'")
 
 
 def test_byte_identical_normalized_exports_after_confirmation(setup):

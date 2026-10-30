@@ -32,6 +32,15 @@
 .lp-tour-sticky { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; --intro: 1; --tour: 0; --route: 1; }
 .lp-stage { position: absolute; inset: 64px 0 0 0; transform: translateX(calc(var(--intro) * 24%)) scale(calc(1 - var(--intro) * 0.12)); transform-origin: 50% 45%; will-change: transform; }
 .lp-grain { position: absolute; inset: 0; pointer-events: none; opacity: 0.32; mix-blend-mode: multiply; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.lp-lab { position: relative; }
+.lp-lab-canvas { position: absolute; inset: 0; opacity: 0; transition: opacity 0.9s ease; }
+.lp-lab[data-mode='webgl'] .lp-lab-canvas { opacity: 1; }
+.lp-lab-placeholder { position: absolute; inset: 6% 4%; pointer-events: none; background: radial-gradient(ellipse 50% 42% at 54% 54%, rgba(196, 202, 207, 0.5), rgba(220, 224, 227, 0.22) 55%, transparent 75%); transition: opacity 0.9s ease; }
+.lp-lab[data-mode='webgl'] .lp-lab-placeholder { opacity: 0; }
+.lp-tour-sticky:has(.lp-lab[data-mode='webgl']) .lp-grain { opacity: 0.08; }
+.lp-lab[data-mode='webgl'] + .lp-grain { opacity: 0; }
+.lp-hero-copy > * { position: relative; }
+.lp-tour-sticky:has(.lp-lab[data-mode='webgl']) .lp-hero-copy::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(248, 249, 250, 0.98) 0%, rgba(248, 249, 250, 0.96) 46%, rgba(248, 249, 250, 0) 64%); }
 .lp-hero-copy { position: absolute; inset: 0; padding: 0 1.5rem; display: flex; align-items: center; opacity: var(--intro); transform: translateY(calc((1 - var(--intro)) * -36px)); pointer-events: none; }
 .lp-hero-copy > * > * { pointer-events: auto; }
 .lp-tour-sticky[data-touring] .lp-hero-copy, .lp-tour-sticky[data-touring] .lp-hero-copy * { pointer-events: none; }
@@ -43,8 +52,9 @@
 .lp-marquee-track span::before { content: ''; display: inline-block; width: 5px; height: 5px; margin-right: 0.9rem; border-radius: 50%; background: #67c4ce; vertical-align: middle; }
 @keyframes lp-marquee { to { transform: translateX(-50%); } }
 
-.lp-callout { opacity: 0; transform: translateY(10px); transition: opacity 0.35s ease, transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1); }
-.lp-callout[data-active] { opacity: 1; transform: none; transition-delay: 0.22s; }
+/* The outgoing callout disappears at once so two callouts never overlap; only the incoming one fades in. */
+.lp-callout { opacity: 0; visibility: hidden; transform: translateY(10px); transition: none; }
+.lp-callout[data-active] { opacity: 1; visibility: visible; transform: none; transition: opacity 0.35s ease 0.22s, transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) 0.22s; }
 
 .lp-skip { position: absolute; z-index: 30; top: 84px; right: max(1.5rem, calc((100vw - 72rem) / 2 + 1.5rem)); display: inline-flex; align-items: center; gap: 0.5rem; height: 2.5rem; padding: 0 0.9rem; border: 1px solid #e2e8f0; border-radius: 4px; background: rgba(255, 255, 255, 0.85); font-size: 13px; color: #475569; opacity: 0; pointer-events: none; transition: opacity 0.3s, color 0.2s; backdrop-filter: blur(6px); }
 .lp-skip:hover { color: #0b1e22; }
@@ -52,7 +62,7 @@
 
 .lp-caption { position: absolute; z-index: 20; left: 0; right: 0; bottom: 20px; padding: 0 1rem; opacity: 0; transform: translateY(14px); transition: opacity 0.35s, transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1); }
 .lp-tour-sticky[data-touring] .lp-caption { opacity: 1; transform: none; }
-.lp-caption-inner { display: flex; align-items: center; justify-content: space-between; gap: 2rem; max-width: 76rem; margin: 0 auto; padding: 1.25rem 1.5rem; border: 1px solid #e2e8f0; border-radius: 6px; background: rgba(250, 250, 249, 0.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); animation: lp-caption-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.lp-caption-inner { display: flex; align-items: center; justify-content: space-between; gap: 2rem; max-width: 76rem; margin: 0 auto; padding: 1.25rem 1.5rem; border: 1px solid #e2e8f0; border-radius: 6px; background: #fafaf9; box-shadow: 0 12px 32px -18px rgba(11, 30, 34, 0.35); animation: lp-caption-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
 @keyframes lp-caption-in { from { opacity: 0.2; transform: translateY(6px); } }
 .lp-caption-bar { flex: none; width: 140px; height: 2px; background: #e2e8f0; overflow: hidden; }
 .lp-caption-bar span { display: block; height: 100%; background: #0e7490; transform-origin: left; transform: scaleX(var(--tour)); }
@@ -62,6 +72,7 @@
   .lp-stage { inset: 64px -20% 0 -20%; transform: translateY(calc(var(--intro) * 46%)) scale(calc(1 - var(--intro) * 0.18)); }
   .lp-hero-copy { align-items: flex-start; padding-top: 104px; }
   .lp-hero-marquee { display: none; }
+  .lp-tour-sticky:has(.lp-lab[data-mode='webgl']) .lp-hero-copy::before { background: linear-gradient(180deg, rgba(248, 249, 250, 0.95) 0%, rgba(248, 249, 250, 0.85) 48%, rgba(248, 249, 250, 0) 72%); }
   .lp-caption-bar { display: none; }
   .lp-caption-inner { padding: 1rem 1.1rem; }
 }

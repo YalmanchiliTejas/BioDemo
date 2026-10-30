@@ -86,10 +86,12 @@ def test_LS011_method_authoring_rejects_invalid_units_parameters_limits(env):
     assert ok["validation_errors"] == [] and ok["category"] == "lab_method"
     assert ok["draft"]["steps"][0]["media"][1] == {"type": "pdf", "ref": "pdf://assay-sop"}
 
+    names = iter(range(1000))  # id(d) can repeat once a definition is garbage collected
+
     def bad(mutate):
         d = method()
         mutate(d)
-        return e.lab.author_method(ctx, f"M-{id(d)}", name="bad", definition=d)["validation_errors"]
+        return e.lab.author_method(ctx, f"M-BAD-{next(names)}", name="bad", definition=d)["validation_errors"]
 
     assert any("unit" in x and "unknown" in x for x in bad(lambda d: d["steps"][1]["parameters"][0].update(unit="parsecs_per_fortnight")))
     assert any("low 0.5 greater than high 0.2" in x for x in bad(lambda d: d["steps"][1]["parameters"][0].update(low=0.5)))

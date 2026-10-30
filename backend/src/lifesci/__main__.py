@@ -3,6 +3,8 @@
   python -m src.lifesci serve [--port 8100] [--seed-demo]
   python -m src.lifesci seed-demo
   python -m src.lifesci db-migrate [--owner-url ...] [--app-role ...] [--verify]
+  python -m src.lifesci supabase-sql      # regenerate deploy/supabase/migrations from the schema
+  python -m src.lifesci cmo-import-legacy SOURCE [--tenant demo-cdmo]
   python -m src.lifesci worker            # Temporal mission worker (needs TEMPORAL_ADDRESS)
 
 Configuration is read from ``backend/.env.local`` (git-ignored) when present. Set
@@ -88,10 +90,26 @@ def main() -> None:
     migrate.add_argument("--owner-url", help="schema owner connection (default: LIFESCI_MIGRATION_DATABASE_URL)")
     migrate.add_argument("--app-role", help="runtime role (default: the role in LIFESCI_DATABASE_URL)")
     sub.add_parser("worker")
+    sub.add_parser("supabase-sql", help="regenerate the Supabase SQL-editor migrations from the schema")
+    legacy = sub.add_parser("cmo-import-legacy",
+                            help="copy CMO records from the pre-normalization cmo.sqlite file or PostgreSQL tables")
+    legacy.add_argument("source", help="path to the old cmo.sqlite, or a postgresql:// URL holding the old cmo_* tables")
+    legacy.add_argument("--tenant", default=None, help="customer for records without a case tenant (default: CMO_DEFAULT_TENANT or demo-cdmo)")
     args = parser.parse_args()
 
     if args.cmd == "db-migrate":
         _migrate(args)
+        return
+    if args.cmd == "supabase-sql":
+        from .supabase_sql import write
+        for path in write():
+            print(f"wrote {path}")
+        return
+    if args.cmd == "cmo-import-legacy":
+        from ..manufacturing_data.cmo.legacy import import_legacy
+        from ..manufacturing_data.cmo.persistence import Repository, database_url
+        root = Path(os.environ.get("CMO_INGESTION_ROOT", Path(__file__).resolve().parents[2] / ".cache" / "cmo-ingestion"))
+        print(json.dumps(import_legacy(args.source, Repository(database_url(root)), default=args.tenant), indent=2))
         return
 
     os.environ.setdefault("LIFESCI_DATABASE_URL", DEV_DB)

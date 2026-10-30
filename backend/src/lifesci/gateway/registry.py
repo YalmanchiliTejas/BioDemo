@@ -156,7 +156,8 @@ def default_policies() -> list[TaskPolicy]:
         P("comparison_explanation", "moderate", "M2", output_schema={"explanation": "str", "source_refs": "list"}),
         P("task_decomposition", "moderate", "M2", output_schema={"tasks": "list"}),
         # M3 — frontier
-        P("investigation_planning", "high", "M3", requires_human_review=True, max_output_tokens=6_000),
+        # Reasoning models count reasoning against this limit; 6,000 was exhausted before the JSON answer.
+        P("investigation_planning", "high", "M3", requires_human_review=True, max_output_tokens=16_000),
         P("conflicting_evidence_synthesis", "high", "M3", requires_human_review=True, max_output_tokens=6_000),
         P("optimization_reasoning", "high", "M3", requires_human_review=True, max_output_tokens=6_000),
     ]

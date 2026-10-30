@@ -104,21 +104,24 @@ class AuditEntry:
     details: dict[str, Any]
 
 
+# Each fact is stored once. A record's content lives only in its immutable
+# revisions; ``aggregates`` holds just the pointer to the current revision.
+# ``prev_hash`` is set on hash-chained audit entries (CMO verification decisions).
 _SQLITE_DDL = """
-CREATE TABLE IF NOT EXISTS aggregates (
-  tenant_id TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL,
-  revision INTEGER NOT NULL, state TEXT NOT NULL, content_hash TEXT NOT NULL,
-  updated_at TEXT NOT NULL, PRIMARY KEY (tenant_id, kind, id));
-CREATE INDEX IF NOT EXISTS aggregates_kind ON aggregates (tenant_id, kind, updated_at);
 CREATE TABLE IF NOT EXISTS aggregate_revisions (
   tenant_id TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, revision INTEGER NOT NULL,
   state TEXT NOT NULL, content_hash TEXT NOT NULL, recorded_at TEXT NOT NULL,
   PRIMARY KEY (tenant_id, kind, id, revision));
+CREATE TABLE IF NOT EXISTS aggregates (
+  tenant_id TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, revision INTEGER NOT NULL,
+  PRIMARY KEY (tenant_id, kind, id),
+  CONSTRAINT aggregates_current_revision FOREIGN KEY (tenant_id, kind, id, revision)
+    REFERENCES aggregate_revisions (tenant_id, kind, id, revision));
 CREATE TABLE IF NOT EXISTS audit (
   seq INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL, actor_id TEXT NOT NULL,
   action TEXT NOT NULL, aggregate_kind TEXT NOT NULL, aggregate_id TEXT NOT NULL,
   revision INTEGER NOT NULL, before_hash TEXT, after_hash TEXT NOT NULL, reason TEXT,
-  occurred_at TEXT NOT NULL, details TEXT NOT NULL);
+  occurred_at TEXT NOT NULL, details TEXT NOT NULL, prev_hash TEXT);
 CREATE INDEX IF NOT EXISTS audit_aggregate ON audit (tenant_id, aggregate_kind, aggregate_id);
 CREATE TABLE IF NOT EXISTS outbox (
   seq INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT NOT NULL UNIQUE, tenant_id TEXT NOT NULL,
@@ -137,9 +140,6 @@ CREATE TABLE IF NOT EXISTS edges (
   down_kind TEXT NOT NULL, down_id TEXT NOT NULL, relation TEXT NOT NULL, created_at TEXT NOT NULL,
   PRIMARY KEY (tenant_id, up_kind, up_id, down_kind, down_id, relation));
 CREATE INDEX IF NOT EXISTS edges_down ON edges (tenant_id, down_kind, down_id);
-CREATE TABLE IF NOT EXISTS idx (
-  tenant_id TEXT NOT NULL, kind TEXT NOT NULL, field TEXT NOT NULL, value TEXT NOT NULL, id TEXT NOT NULL,
-  PRIMARY KEY (tenant_id, kind, field, value, id));
 CREATE TABLE IF NOT EXISTS blobs (
   tenant_id TEXT NOT NULL, digest TEXT NOT NULL, content BLOB NOT NULL, media_type TEXT,
   stored_at TEXT NOT NULL, PRIMARY KEY (tenant_id, digest));
@@ -150,6 +150,106 @@ _PG_DDL = (
     .replace("BLOB", "BYTEA")
 )
 
+_CURRENT = ("FROM aggregates a JOIN aggregate_revisions r ON r.tenant_id=a.tenant_id AND r.kind=a.kind "
+            "AND r.id=a.id AND r.revision=a.revision")
+
+# Event fields held in their own outbox columns; the payload column stores only the rest.
+_EVENT_COLUMNS = ("event_id", "tenant_id", "type", "aggregate_kind", "aggregate_id", "revision", "occurred_at")
+_OUTBOX_SELECT = "SELECT seq, " + ", ".join(_EVENT_COLUMNS) + ", payload FROM outbox"
+
+
+def _event_from_row(row: tuple) -> tuple[int, Event]:
+    body = json.loads(row[-1])
+    body.update(zip(_EVENT_COLUMNS, row[1:-1]))
+    body["revision"] = int(body["revision"])
+    return int(row[0]), Event(**body)
+
+
+_FIELD_NAME = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
+
+
+def _indexed_fields() -> list[str]:
+    fields = sorted({f for names in DEFAULT_INDEXES.values() for f in names})
+    if any(not _FIELD_NAME.match(f) for f in fields):
+        raise ValueError("indexed field names must be lowercase identifiers")
+    return fields
+
+
+def _upgrade_sqlite(conn: sqlite3.Connection) -> None:
+    """Bring a database created by an earlier schema to the normalized shape.
+
+    Earlier versions copied the current state, hash and timestamp into
+    ``aggregates`` and kept a derived ``idx`` table. The copy is dropped only
+    after every row is shown to equal its recorded revision.
+    """
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(aggregates)")}
+    if "state" in columns:
+        drift = conn.execute(
+            "SELECT COUNT(*) FROM aggregates a LEFT JOIN aggregate_revisions r ON r.tenant_id=a.tenant_id "
+            "AND r.kind=a.kind AND r.id=a.id AND r.revision=a.revision "
+            "WHERE r.state IS NULL OR r.state<>a.state OR r.content_hash<>a.content_hash").fetchone()[0]
+        if drift:
+            raise RuntimeError(f"{drift} current record(s) differ from their recorded revision; refusing to drop the copy")
+        conn.executescript("""
+            BEGIN IMMEDIATE;
+            CREATE TABLE aggregates_v2 (
+              tenant_id TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, revision INTEGER NOT NULL,
+              PRIMARY KEY (tenant_id, kind, id),
+              CONSTRAINT aggregates_current_revision FOREIGN KEY (tenant_id, kind, id, revision)
+                REFERENCES aggregate_revisions (tenant_id, kind, id, revision));
+            INSERT INTO aggregates_v2 (tenant_id, kind, id, revision) SELECT tenant_id, kind, id, revision FROM aggregates;
+            DROP TABLE aggregates;
+            ALTER TABLE aggregates_v2 RENAME TO aggregates;
+            COMMIT;
+        """)
+    if "prev_hash" not in {row[1] for row in conn.execute("PRAGMA table_info(audit)")}:
+        conn.execute("ALTER TABLE audit ADD COLUMN prev_hash TEXT")
+    conn.execute("DROP TABLE IF EXISTS idx")
+
+
+# Same append-only guarantee PostgreSQL enforces with lifesci_no_mutation().
+_SQLITE_APPEND_ONLY = "".join(
+    f"CREATE TRIGGER IF NOT EXISTS {t}_no_{op.lower()} BEFORE {op} ON {t} "
+    f"BEGIN SELECT RAISE(ABORT, 'append-only table {t}'); END;\n"
+    for t in ("audit", "aggregate_revisions") for op in ("UPDATE", "DELETE"))
+
+
+def apply_sqlite_schema(conn: sqlite3.Connection) -> None:
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.executescript(_SQLITE_DDL)
+    _upgrade_sqlite(conn)
+    conn.executescript(_SQLITE_APPEND_ONLY)
+    conn.execute("CREATE INDEX IF NOT EXISTS audit_chain ON audit (tenant_id, seq) WHERE prev_hash IS NOT NULL")
+
+
+# Idempotent upgrade of databases created before normalization. Runs as the
+# schema owner; row_security=off makes it fail loudly rather than verify an
+# RLS-filtered (empty) view of the data.
+_PG_UPGRADE = """
+DO $$ BEGIN
+  PERFORM set_config('row_security', 'off', true);
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema()
+             AND table_name = 'aggregates' AND column_name = 'state') THEN
+    IF EXISTS (SELECT 1 FROM aggregates a LEFT JOIN aggregate_revisions r ON r.tenant_id = a.tenant_id
+               AND r.kind = a.kind AND r.id = a.id AND r.revision = a.revision
+               WHERE r.state IS DISTINCT FROM a.state OR r.content_hash IS DISTINCT FROM a.content_hash) THEN
+      RAISE EXCEPTION 'current records differ from their recorded revision; refusing to drop the copy';
+    END IF;
+    ALTER TABLE aggregates DROP COLUMN state, DROP COLUMN content_hash, DROP COLUMN updated_at;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'aggregates_current_revision') THEN
+    ALTER TABLE aggregates ADD CONSTRAINT aggregates_current_revision FOREIGN KEY (tenant_id, kind, id, revision)
+      REFERENCES aggregate_revisions (tenant_id, kind, id, revision);
+  END IF;
+END $$;
+DROP INDEX IF EXISTS aggregates_kind;
+DROP TABLE IF EXISTS idx;
+ALTER TABLE audit ADD COLUMN IF NOT EXISTS prev_hash TEXT;
+CREATE INDEX IF NOT EXISTS audit_chain ON audit (tenant_id, seq) WHERE prev_hash IS NOT NULL;
+""" + "".join(
+    f"CREATE INDEX IF NOT EXISTS revisions_by_{f} ON aggregate_revisions (tenant_id, kind, ((state::jsonb) ->> '{f}'));\n"
+    for f in _indexed_fields())
+
 
 class _Sqlite:
     paramstyle = "?"
@@ -157,9 +257,12 @@ class _Sqlite:
     def __init__(self, path: str) -> None:
         self.conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
         self.conn.execute("PRAGMA journal_mode=WAL") if path != ":memory:" else None
-        self.conn.execute("PRAGMA foreign_keys=ON")
-        self.conn.executescript(_SQLITE_DDL)
+        apply_sqlite_schema(self.conn)
         self.lock = threading.RLock()
+
+    @staticmethod
+    def json_text(column: str, field: str) -> str:
+        return f"json_extract({column}, '$.{field}')"
 
     def begin(self) -> None:
         self.conn.execute("BEGIN IMMEDIATE")
@@ -191,7 +294,7 @@ class _Sqlite:
 
 _PG_RLS = """
 DO $$ DECLARE t text; BEGIN
-  FOREACH t IN ARRAY ARRAY['aggregates','aggregate_revisions','audit','outbox','leases','blobs','edges','idx'] LOOP
+  FOREACH t IN ARRAY ARRAY['aggregates','aggregate_revisions','audit','outbox','leases','blobs','edges'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', t);
@@ -216,15 +319,26 @@ def migrate_postgres(owner_url: str, app_role: str | None = None) -> None:
     """
     import psycopg
 
+    from .cmo_schema import CMO_PG_DDL, CMO_PG_POLICIES, cmo_grants
+
     with psycopg.connect(owner_url, autocommit=True) as conn:
         conn.execute(_PG_DDL)
+        conn.execute(_PG_UPGRADE)
         conn.execute(_PG_RLS)
+        conn.execute(CMO_PG_DDL)
+        conn.execute(CMO_PG_POLICIES)
         if app_role:
-            conn.execute(f'GRANT USAGE ON SCHEMA public TO "{app_role}"')
-            conn.execute(f'GRANT SELECT, INSERT, UPDATE ON aggregates, outbox, leases, inbox, edges TO "{app_role}"')
-            conn.execute(f'GRANT SELECT, INSERT, DELETE ON idx TO "{app_role}"')
-            conn.execute(f'GRANT SELECT, INSERT ON aggregate_revisions, audit, blobs TO "{app_role}"')
-            conn.execute(f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO "{app_role}"')
+            for statement in platform_grants(app_role) + cmo_grants(app_role):
+                conn.execute(statement)
+
+
+def platform_grants(role: str) -> list[str]:
+    return [
+        f'GRANT USAGE ON SCHEMA public TO "{role}"',
+        f'GRANT SELECT, INSERT, UPDATE ON aggregates, outbox, leases, inbox, edges TO "{role}"',
+        f'GRANT SELECT, INSERT ON aggregate_revisions, audit, blobs TO "{role}"',
+        f'GRANT USAGE ON SEQUENCE audit_seq_seq, outbox_seq_seq TO "{role}"',
+    ]
 
 
 _ROLE_NAME = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
@@ -301,6 +415,11 @@ class _Postgres:
     def bind_tenant(self, tenant_id: str, local: bool) -> None:
         self.conn.execute("SELECT set_config('app.tenant_id', %s, %s)", (tenant_id, local))
 
+    @staticmethod
+    def json_text(column: str, field: str) -> str:
+        # Matches the revisions_by_<field> expression indexes.
+        return f"(({column})::jsonb ->> '{field}')"
+
     def execute(self, sql: str, params: tuple = ()) -> Any:
         cur = self.conn.cursor()
         cur.execute(sql.replace("?", "%s"), params)
@@ -341,7 +460,7 @@ class Transaction:
     def get(self, tenant_id: str, kind: str, id: str) -> Record | None:
         self._bind(tenant_id)
         row = self._db.fetchone(
-            "SELECT revision, state, content_hash, updated_at FROM aggregates WHERE tenant_id=? AND kind=? AND id=?",
+            f"SELECT a.revision, r.state, r.content_hash, r.recorded_at {_CURRENT} WHERE a.tenant_id=? AND a.kind=? AND a.id=?",
             (tenant_id, kind, id),
         )
         if row is None:
@@ -359,7 +478,8 @@ class Transaction:
              limit: int | None = None) -> list[Record]:
         self._bind(tenant_id)
         rows = self._db.fetchall(
-            "SELECT id, revision, state, content_hash, updated_at FROM aggregates WHERE tenant_id=? AND kind=? ORDER BY updated_at, id",
+            f"SELECT a.id, a.revision, r.state, r.content_hash, r.recorded_at {_CURRENT} "
+            "WHERE a.tenant_id=? AND a.kind=? ORDER BY r.recorded_at, a.id",
             (tenant_id, kind),
         )
         out = []
@@ -372,15 +492,18 @@ class Transaction:
         return out
 
     def find(self, tenant_id: str, kind: str, field: str, value: Any) -> list[Record]:
-        """Indexed lookup by a declared field (see DEFAULT_INDEXES); O(matches), not O(kind)."""
+        """Lookup by a declared field of the current revision (see DEFAULT_INDEXES).
+
+        Reads the field from the stored content itself (indexed by expression on
+        PostgreSQL), so there is no separate copy that could fall out of date.
+        """
         self._bind(tenant_id)
-        if field not in self.store.indexes.get(kind, ()):
+        if field not in self.store.indexes.get(kind, ()) or not _FIELD_NAME.match(field):
             raise KeyError(f"{kind}.{field} is not indexed")
         rows = self._db.fetchall(
-            "SELECT a.id, a.revision, a.state, a.content_hash, a.updated_at FROM idx i JOIN aggregates a "
-            "ON a.tenant_id=i.tenant_id AND a.kind=i.kind AND a.id=i.id "
-            "WHERE i.tenant_id=? AND i.kind=? AND i.field=? AND i.value=? ORDER BY a.id",
-            (tenant_id, kind, field, str(value)))
+            f"SELECT a.id, a.revision, r.state, r.content_hash, r.recorded_at {_CURRENT} "
+            f"WHERE a.tenant_id=? AND a.kind=? AND r.kind=? AND {self._db.json_text('r.state', field)}=? ORDER BY a.id",
+            (tenant_id, kind, kind, str(value)))
         return [Record(tenant_id, kind, r[0], int(r[1]), json.loads(r[2]), r[3], r[4]) for r in rows]
 
     def revision(self, tenant_id: str, kind: str, id: str, revision: int) -> Record | None:
@@ -408,27 +531,16 @@ class Transaction:
         now = iso(utc_now())
         digest = content_hash(state)
         encoded = canonical_json(state)
-        if current is None:
-            self._db.execute(
-                "INSERT INTO aggregates (tenant_id, kind, id, revision, state, content_hash, updated_at) VALUES (?,?,?,?,?,?,?)",
-                (tenant_id, kind, id, revision, encoded, digest, now),
-            )
-        else:
-            self._db.execute(
-                "UPDATE aggregates SET revision=?, state=?, content_hash=?, updated_at=? WHERE tenant_id=? AND kind=? AND id=? AND revision=?",
-                (revision, encoded, digest, now, tenant_id, kind, id, expected_revision),
-            )
         self._db.execute(
             "INSERT INTO aggregate_revisions (tenant_id, kind, id, revision, state, content_hash, recorded_at) VALUES (?,?,?,?,?,?,?)",
             (tenant_id, kind, id, revision, encoded, digest, now),
         )
-        fields = self.store.indexes.get(kind, ())
-        if fields:
-            self._db.execute("DELETE FROM idx WHERE tenant_id=? AND kind=? AND id=?", (tenant_id, kind, id))
-            for f in fields:
-                if state.get(f) is not None:
-                    self._db.execute("INSERT INTO idx (tenant_id, kind, field, value, id) VALUES (?,?,?,?,?)",
-                                     (tenant_id, kind, f, str(state[f]), id))
+        if current is None:
+            self._db.execute("INSERT INTO aggregates (tenant_id, kind, id, revision) VALUES (?,?,?,?)",
+                             (tenant_id, kind, id, revision))
+        else:
+            self._db.execute("UPDATE aggregates SET revision=? WHERE tenant_id=? AND kind=? AND id=? AND revision=?",
+                             (revision, tenant_id, kind, id, expected_revision))
         self._db.execute(
             "INSERT INTO audit (tenant_id, actor_id, action, aggregate_kind, aggregate_id, revision, before_hash, after_hash, reason, occurred_at, details) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (tenant_id, self.actor_id, action, kind, id, revision,
@@ -445,7 +557,8 @@ class Transaction:
                       correlation_id=self.correlation_id, scope=scope or {})
         self._db.execute(
             "INSERT INTO outbox (event_id, tenant_id, type, aggregate_kind, aggregate_id, revision, payload, occurred_at) VALUES (?,?,?,?,?,?,?,?)",
-            (event.event_id, tenant_id, type, kind, id, revision, canonical_json(event.to_dict()), event.occurred_at),
+            (event.event_id, tenant_id, type, kind, id, revision,
+             canonical_json({k: v for k, v in event.to_dict().items() if k not in _EVENT_COLUMNS}), event.occurred_at),
         )
         self.events.append(event)
         return event
@@ -594,15 +707,15 @@ class RecordStore:
         with self._db.lock:
             if tenant_id:
                 self._db.bind_tenant(tenant_id, False)
-                rows = self._db.fetchall("SELECT seq, payload FROM outbox WHERE published_at IS NULL AND tenant_id=? "
+                rows = self._db.fetchall(f"{_OUTBOX_SELECT} WHERE published_at IS NULL AND tenant_id=? "
                                          "ORDER BY seq LIMIT ?", (tenant_id, limit))
             else:
                 rows = self._db.fetchall(
-                    "SELECT seq, payload FROM outbox WHERE published_at IS NULL ORDER BY seq LIMIT ?", (limit,))
+                    f"{_OUTBOX_SELECT} WHERE published_at IS NULL ORDER BY seq LIMIT ?", (limit,))
         count = 0
-        for seq, payload in rows:
-            data = json.loads(payload)
-            publish(Event(**data))
+        for row in rows:
+            seq, event = _event_from_row(row)
+            publish(event)
             with self._db.lock:
                 self._db.begin()
                 if tenant_id:
@@ -622,13 +735,13 @@ class RecordStore:
         with self._db.lock:
             self._db.bind_tenant(tenant_id, False)
             rows = self._db.fetchall(
-                "SELECT seq, payload FROM outbox WHERE tenant_id=? AND seq>? ORDER BY seq LIMIT ?",
+                f"{_OUTBOX_SELECT} WHERE tenant_id=? AND seq>? ORDER BY seq LIMIT ?",
                 (tenant_id, after_seq, limit))
         out = []
-        for seq, payload in rows:
-            event = Event(**json.loads(payload))
+        for row in rows:
+            seq, event = _event_from_row(row)
             if types is None or event.type in types:
-                out.append((int(seq), event))
+                out.append((seq, event))
         return out
 
     def head_seq(self, tenant_id: str) -> int:

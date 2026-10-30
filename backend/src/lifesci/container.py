@@ -51,6 +51,7 @@ class Platform:
     media_providers: dict[str, Any] = field(default_factory=dict)
     partners: Any = field(init=False)
     process_models: Any = field(init=False)
+    bioprocess: Any = field(init=False)
     engineering_conversations: Any = field(init=False)
     fermentation: Any = field(init=False)
     allow_unqualified: bool = False
@@ -100,6 +101,8 @@ class Platform:
         self.connectors = ConnectorService(self)
         from .flows import FlowService
         self.flows = FlowService(self)
+        from .bioprocess.service import BioprocessService
+        self.bioprocess = BioprocessService(self)
         from .process_engineering.conversation import EngineeringConversationService
         self.engineering_conversations = EngineeringConversationService(self)
         from .fermentation.service import FermentationService

@@ -1,0 +1,781 @@
+{
+  "status": "completed",
+  "arm": "B",
+  "model": "modal/zai-org/GLM-5.3",
+  "submission": {
+    "action_id": "strong_feed_reduction",
+    "evidence": [
+      "Receiving DO2 drops from 10.2 mg/L (t=50.0) to 4.86 (t=50.2) to 4.32 (t=52.0), versus ~10.5-11.5 mg/L in source-1/2/3 at the same batch age",
+      "Source-reference trajectory: identical DO2 profile shape pre-50h including induction dip to 7.3-8.6 mg/L at t=24-28",
+      "P assay at t=48 (avail 52): 2.88 g/L, comparable to sources (2.98-3.06 g/L)",
+      "Forward model strong_feed_reduction: below_limit_h=0, min DO 2.58 mg/L, 256.2 kg, 4/5 feasible sensitivity members",
+      "Forward model keep/reduce_feed/increase_air/combined all violate the 2.0 mg/L oxygen limit (min DO 1.36-1.65)",
+      "Inferred oxygen transfer multiplier 0.5246 (model update at t=52)"
+    ],
+    "predictions": {},
+    "rationale": "Receiving DO2 diverges sharply from all three source batches at t~50h, collapsing from ~10.2 to ~4.3-4.9 mg/L and still falling, indicating a large step increase in oxygen demand the vessel cannot supply (inferred transfer multiplier ~0.52). Nominal source-calibrated forward model shows KEEP and milder actions breach the 2.0 mg/L oxygen limit (min DO 1.36-1.65 mg/L, 2.8-5.4 h below limit), whereas strong_feed_reduction keeps min DO at 2.58 mg/L with zero below-limit time, retains full product mass (~256 kg, the highest of all actions), and is feasible in 4/5 sensitivity members. Feed reduction targets the root cause (excess demand) rather than relying on limited aeration headroom; the 1.15x air bump adds margin. Stop would forfeit all counted production.",
+    "uncertainty": "The forward model is nominal and source-calibrated, not the hidden evaluator realization; the 5-member sensitivity still includes realizations with min DO down to ~1.31 mg/L, so residual constraint risk exists. The DO crash onset (~50h) is recent, so the demand regime estimate is data-limited; if the DO decline is transient rather than sustained, strong feed reduction could cost some product versus keep. Assay delay (4h) and the fact that the process runs KEEP until any decision mean the DO may fall further before actuation. Product quality/impurity effects of feed cut are not observable from the available data."
+  },
+  "evaluation": {
+    "proposal": {
+      "action_id": "strong_feed_reduction",
+      "decision_time_h": 52.0,
+      "rationale": "Receiving DO2 diverges sharply from all three source batches at t~50h, collapsing from ~10.2 to ~4.3-4.9 mg/L and still falling, indicating a large step increase in oxygen demand the vessel cannot supply (inferred transfer multiplier ~0.52). Nominal source-calibrated forward model shows KEEP and milder actions breach the 2.0 mg/L oxygen limit (min DO 1.36-1.65 mg/L, 2.8-5.4 h below limit), whereas strong_feed_reduction keeps min DO at 2.58 mg/L with zero below-limit time, retains full product mass (~256 kg, the highest of all actions), and is feasible in 4/5 sensitivity members. Feed reduction targets the root cause (excess demand) rather than relying on limited aeration headroom; the 1.15x air bump adds margin. Stop would forfeit all counted production.",
+      "uncertainty": "The forward model is nominal and source-calibrated, not the hidden evaluator realization; the 5-member sensitivity still includes realizations with min DO down to ~1.31 mg/L, so residual constraint risk exists. The DO crash onset (~50h) is recent, so the demand regime estimate is data-limited; if the DO decline is transient rather than sustained, strong feed reduction could cost some product versus keep. Assay delay (4h) and the fact that the process runs KEEP until any decision mean the DO may fall further before actuation. Product quality/impurity effects of feed cut are not observable from the available data.",
+      "evidence": [
+        "Receiving DO2 drops from 10.2 mg/L (t=50.0) to 4.86 (t=50.2) to 4.32 (t=52.0), versus ~10.5-11.5 mg/L in source-1/2/3 at the same batch age",
+        "Source-reference trajectory: identical DO2 profile shape pre-50h including induction dip to 7.3-8.6 mg/L at t=24-28",
+        "P assay at t=48 (avail 52): 2.88 g/L, comparable to sources (2.98-3.06 g/L)",
+        "Forward model strong_feed_reduction: below_limit_h=0, min DO 2.58 mg/L, 256.2 kg, 4/5 feasible sensitivity members",
+        "Forward model keep/reduce_feed/increase_air/combined all violate the 2.0 mg/L oxygen limit (min DO 1.36-1.65)",
+        "Inferred oxygen transfer multiplier 0.5246 (model update at t=52)"
+      ],
+      "approval_status": "not_approved_for_manufacturing",
+      "execution": "virtual_replay_only"
+    },
+    "outcome": {
+      "action_id": "strong_feed_reduction",
+      "stopped": false,
+      "product_mass_kg": 234.54989917720567,
+      "terminal_concentration_g_l": 2.997457853744215,
+      "terminal_volume_l": 78249.60704092045,
+      "pre_decision": {
+        "below_limit_h": 0.0,
+        "oxygen_deficit_mg_h_l": 0.0,
+        "minimum_do_mg_l": 4.024553780987944
+      },
+      "post_decision": {
+        "below_limit_h": 0.0,
+        "oxygen_deficit_mg_h_l": 0.0,
+        "minimum_do_mg_l": 2.385130685315841
+      },
+      "whole_process": {
+        "below_limit_h": 0.0,
+        "oxygen_deficit_mg_h_l": 0.0,
+        "minimum_do_mg_l": 2.385130685315841
+      },
+      "post_decision_feasible": true,
+      "stop_avoided_further_operation": false,
+      "measured_product_quality": null,
+      "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+      "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+    },
+    "measurement_requests": 0,
+    "assumed_measurement_work_minutes": 0.0,
+    "physical_decision_delay_h": 0.0,
+    "events": [
+      {
+        "kind": "model_prediction",
+        "action_id": "keep",
+        "time_h": 52.0,
+        "result": {
+          "classification": "model_prediction_not_observation",
+          "model_update": {
+            "time_h": 52.0,
+            "estimated_change_h": 50.0,
+            "estimated_transfer_multiplier": 0.5245623192667768,
+            "cost": 21.09530087466154,
+            "latest_observation_h": 52.0
+          },
+          "outcome_prediction": {
+            "action_id": "keep",
+            "stopped": false,
+            "product_mass_kg": 201.32971169066687,
+            "terminal_concentration_g_l": 2.5259787120333916,
+            "terminal_volume_l": 79703.64545495245,
+            "pre_decision": {
+              "below_limit_h": 0.0,
+              "oxygen_deficit_mg_h_l": 0.0,
+              "minimum_do_mg_l": 4.198989701235511
+            },
+            "post_decision": {
+              "below_limit_h": 5.4,
+              "oxygen_deficit_mg_h_l": 2.084507907977729,
+              "minimum_do_mg_l": 1.3560564246209803
+            },
+            "whole_process": {
+              "below_limit_h": 5.4,
+              "oxygen_deficit_mg_h_l": 2.084507907977729,
+              "minimum_do_mg_l": 1.3560564246209803
+            },
+            "post_decision_feasible": false,
+            "stop_avoided_further_operation": false,
+            "measured_product_quality": null,
+            "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+            "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+          },
+          "sensitivity": {
+            "members": 5,
+            "feasible_members": 0,
+            "product_mass_kg_range": [
+              177.53663840267518,
+              250.05867043798239
+            ],
+            "minimum_do_mg_l_range": [
+              1.1326415844990936,
+              1.7981769658697473
+            ],
+            "interpretation": "Finite assumed parameter sensitivity, not probability of feasibility or calibrated uncertainty coverage."
+          }
+        }
+      },
+      {
+        "kind": "model_prediction",
+        "action_id": "reduce_feed",
+        "time_h": 52.0,
+        "result": {
+          "classification": "model_prediction_not_observation",
+          "model_update": {
+            "time_h": 52.0,
+            "estimated_change_h": 50.0,
+            "estimated_transfer_multiplier": 0.5245623192667768,
+            "cost": 21.09530087466154,
+            "latest_observation_h": 52.0
+          },
+          "outcome_prediction": {
+            "action_id": "reduce_feed",
+            "stopped": false,
+            "product_mass_kg": 211.18030469428672,
+            "terminal_concentration_g_l": 2.6791758068968248,
+            "terminal_volume_l": 78822.86192293139,
+            "pre_decision": {
+              "below_limit_h": 0.0,
+              "oxygen_deficit_mg_h_l": 0.0,
+              "minimum_do_mg_l": 4.198989701235511
+            },
+            "post_decision": {
+              "below_limit_h": 3.0,
+              "oxygen_deficit_mg_h_l": 0.6069444799637255,
+              "minimum_do_mg_l": 1.623023286078261
+            },
+            "whole_process": {
+              "below_limit_h": 3.0,
+              "oxygen_deficit_mg_h_l": 0.6069444799637255,
+              "minimum_do_mg_l": 1.623023286078261
+            },
+            "post_decision_feasible": false,
+            "stop_avoided_further_operation": false,
+            "measured_product_quality": null,
+            "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+            "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+          },
+          "sensitivity": {
+            "members": 5,
+            "feasible_members": 1,
+            "product_mass_kg_range": [
+              185.40774038767302,
+              278.3490661220601
+            ],
+            "minimum_do_mg_l_range": [
+              1.0307757319312927,
+              2.6844437566830264
+            ],
+            "interpretation": "Finite assumed parameter sensitivity, not probability of feasibility or calibrated uncertainty coverage."
+          }
+        }
+      },
+      {
+        "kind": "model_prediction",
+        "action_id": "increase_air",
+        "time_h": 52.0,
+        "result": {
+          "classification": "model_prediction_not_observation",
+          "model_update": {
+            "time_h": 52.0,
+            "estimated_change_h": 50.0,
+            "estimated_transfer_multiplier": 0.5245623192667768,
+            "cost": 21.09530087466154,
+            "latest_observation_h": 52.0
+          },
+          "outcome_prediction": {
+            "action_id": "increase_air",
+            "stopped": false,
+            "product_mass_kg": 206.36806952617232,
+            "terminal_concentration_g_l": 2.5857473264808446,
+            "terminal_volume_l": 79809.83579205148,
+            "pre_decision": {
+              "below_limit_h": 0.0,
+              "oxygen_deficit_mg_h_l": 0.0,
+              "minimum_do_mg_l": 4.198989701235511
+            },
+            "post_decision": {
+              "below_limit_h": 4.0,
+              "oxygen_deficit_mg_h_l": 1.0255981342665328,
+              "minimum_do_mg_l": 1.5297626441235221
+            },
+            "whole_process": {
+              "below_limit_h": 4.0,
+              "oxygen_deficit_mg_h_l": 1.0255981342665328,
+              "minimum_do_mg_l": 1.5297626441235221
+            },
+            "post_decision_feasible": false,
+            "stop_avoided_further_operation": false,
+            "measured_product_quality": null,
+            "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+            "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+          },
+          "sensitivity": {
+            "members": 5,
+            "feasible_members": 1,
+            "product_mass_kg_range": [
+              181.33766518684916,
+              268.03718393716815
+            ],
+            "minimum_do_mg_l_range": [
+              1.0360809553270416,
+              2.0903033814060143
+            ],
+            "interpretation": "Finite assumed parameter sensitivity, not probability of feasibility or calibrated uncertainty coverage."
+          }
+        }
+      },
+      {
+        "kind": "model_prediction",
+        "action_id": "combined",
+        "time_h": 52.0,
+        "result": {
+          "classification": "model_prediction_not_observation",
+          "model_update": {
+            "time_h": 52.0,
+            "estimated_change_h": 50.0,
+            "estimated_transfer_multiplier": 0.5245623192667768,
+            "cost": 21.09530087466154,
+            "latest_observation_h": 52.0
+          },
+          "outcome_prediction": {
+            "action_id": "combined",
+            "stopped": false,
+            "product_mass_kg": 229.92713848697255,
+            "terminal_concentration_g_l": 2.9067915071589963,
+            "terminal_volume_l": 79099.97601159083,
+            "pre_decision": {
+              "below_limit_h": 0.0,
+              "oxygen_deficit_mg_h_l": 0.0,
+              "minimum_do_mg_l": 4.198989701235511
+            },
+            "post_decision": {
+              "below_limit_h": 2.8000000000000003,
+              "oxygen_deficit_mg_h_l": 0.5157806528280283,
+              "minimum_do_mg_l": 1.6460627921243256
+            },
+            "whole_process": {
+              "below_limit_h": 2.8000000000000003,
+              "oxygen_deficit_mg_h_l": 0.5157806528280283,
+              "minimum_do_mg_l": 1.6460627921243256
+            },
+            "post_decision_feasible": false,
+            "stop_avoided_further_operation": false,
+            "measured_product_quality": null,
+            "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+            "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+          },
+          "sensitivity": {
+            "members": 5,
+            "feasible_members": 1,
+            "product_mass_kg_range": [
+              195.2409398701554,
+              310.47447237145457
+            ],
+            "minimum_do_mg_l_range": [
+              1.1787133821440443,
+              2.3571671516502386
+            ],
+            "interpretation": "Finite assumed parameter sensitivity, not probability of feasibility or calibrated uncertainty coverage."
+          }
+        }
+      },
+      {
+        "kind": "model_prediction",
+        "action_id": "strong_feed_reduction",
+        "time_h": 52.0,
+        "result": {
+          "classification": "model_prediction_not_observation",
+          "model_update": {
+            "time_h": 52.0,
+            "estimated_change_h": 50.0,
+            "estimated_transfer_multiplier": 0.5245623192667768,
+            "cost": 21.09530087466154,
+            "latest_observation_h": 52.0
+          },
+          "outcome_prediction": {
+            "action_id": "strong_feed_reduction",
+            "stopped": false,
+            "product_mass_kg": 256.1862329138812,
+            "terminal_concentration_g_l": 3.2777293254125053,
+            "terminal_volume_l": 78159.66709869794,
+            "pre_decision": {
+              "below_limit_h": 0.0,
+              "oxygen_deficit_mg_h_l": 0.0,
+              "minimum_do_mg_l": 4.198989701235511
+            },
+            "post_decision": {
+              "below_limit_h": 0.0,
+              "oxygen_deficit_mg_h_l": 0.0,
+              "minimum_do_mg_l": 2.5834249236917617
+            },
+            "whole_process": {
+              "below_limit_h": 0.0,
+              "oxygen_deficit_mg_h_l": 0.0,
+              "minimum_do_mg_l": 2.5834249236917617
+            },
+            "post_decision_feasible": true,
+            "stop_avoided_further_operation": false,
+            "measured_product_quality": null,
+            "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+            "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+          },
+          "sensitivity": {
+            "members": 5,
+            "feasible_members": 4,
+            "product_mass_kg_range": [
+              200.85334178646949,
+              622.7730229603318
+            ],
+            "minimum_do_mg_l_range": [
+              1.3098205399034455,
+              3.335616105836039
+            ],
+            "interpretation": "Finite assumed parameter sensitivity, not probability of feasibility or calibrated uncertainty coverage."
+          }
+        }
+      },
+      {
+        "kind": "recommendation",
+        "proposal": {
+          "action_id": "strong_feed_reduction",
+          "decision_time_h": 52.0,
+          "rationale": "Receiving DO2 diverges sharply from all three source batches at t~50h, collapsing from ~10.2 to ~4.3-4.9 mg/L and still falling, indicating a large step increase in oxygen demand the vessel cannot supply (inferred transfer multiplier ~0.52). Nominal source-calibrated forward model shows KEEP and milder actions breach the 2.0 mg/L oxygen limit (min DO 1.36-1.65 mg/L, 2.8-5.4 h below limit), whereas strong_feed_reduction keeps min DO at 2.58 mg/L with zero below-limit time, retains full product mass (~256 kg, the highest of all actions), and is feasible in 4/5 sensitivity members. Feed reduction targets the root cause (excess demand) rather than relying on limited aeration headroom; the 1.15x air bump adds margin. Stop would forfeit all counted production.",
+          "uncertainty": "The forward model is nominal and source-calibrated, not the hidden evaluator realization; the 5-member sensitivity still includes realizations with min DO down to ~1.31 mg/L, so residual constraint risk exists. The DO crash onset (~50h) is recent, so the demand regime estimate is data-limited; if the DO decline is transient rather than sustained, strong feed reduction could cost some product versus keep. Assay delay (4h) and the fact that the process runs KEEP until any decision mean the DO may fall further before actuation. Product quality/impurity effects of feed cut are not observable from the available data.",
+          "evidence": [
+            "Receiving DO2 drops from 10.2 mg/L (t=50.0) to 4.86 (t=50.2) to 4.32 (t=52.0), versus ~10.5-11.5 mg/L in source-1/2/3 at the same batch age",
+            "Source-reference trajectory: identical DO2 profile shape pre-50h including induction dip to 7.3-8.6 mg/L at t=24-28",
+            "P assay at t=48 (avail 52): 2.88 g/L, comparable to sources (2.98-3.06 g/L)",
+            "Forward model strong_feed_reduction: below_limit_h=0, min DO 2.58 mg/L, 256.2 kg, 4/5 feasible sensitivity members",
+            "Forward model keep/reduce_feed/increase_air/combined all violate the 2.0 mg/L oxygen limit (min DO 1.36-1.65)",
+            "Inferred oxygen transfer multiplier 0.5246 (model update at t=52)"
+          ],
+          "approval_status": "not_approved_for_manufacturing",
+          "execution": "virtual_replay_only"
+        }
+      },
+      {
+        "kind": "simulated_outcome",
+        "outcome": {
+          "action_id": "strong_feed_reduction",
+          "stopped": false,
+          "product_mass_kg": 234.54989917720567,
+          "terminal_concentration_g_l": 2.997457853744215,
+          "terminal_volume_l": 78249.60704092045,
+          "pre_decision": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 4.024553780987944
+          },
+          "post_decision": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 2.385130685315841
+          },
+          "whole_process": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 2.385130685315841
+          },
+          "post_decision_feasible": true,
+          "stop_avoided_further_operation": false,
+          "measured_product_quality": null,
+          "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+          "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+        }
+      }
+    ],
+    "observed_human_time_saved": null
+  },
+  "wall_seconds": 121.09164012499969,
+  "model_calls": 4,
+  "usage": [
+    {
+      "input": 122063,
+      "output": 202,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 122265,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    },
+    {
+      "input": 1770,
+      "output": 29,
+      "cacheRead": 122240,
+      "cacheWrite": 0,
+      "totalTokens": 124039,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    },
+    {
+      "input": 422,
+      "output": 1081,
+      "cacheRead": 124032,
+      "cacheWrite": 0,
+      "totalTokens": 125535,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    },
+    {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 0,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    }
+  ],
+  "tools": [
+    {
+      "name": "physical_forward_model",
+      "arguments": {
+        "action_id": "keep"
+      },
+      "result": {
+        "classification": "model_prediction_not_observation",
+        "model_update": {
+          "time_h": 52.0,
+          "estimated_change_h": 50.0,
+          "estimated_transfer_multiplier": 0.5245623192667768,
+          "cost": 21.09530087466154,
+          "latest_observation_h": 52.0
+        },
+        "outcome_prediction": {
+          "action_id": "keep",
+          "stopped": false,
+          "product_mass_kg": 201.32971169066687,
+          "terminal_concentration_g_l": 2.5259787120333916,
+          "terminal_volume_l": 79703.64545495245,
+          "pre_decision": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 4.198989701235511
+          },
+          "post_decision": {
+            "below_limit_h": 5.4,
+            "oxygen_deficit_mg_h_l": 2.084507907977729,
+            "minimum_do_mg_l": 1.3560564246209803
+          },
+          "whole_process": {
+            "below_limit_h": 5.4,
+            "oxygen_deficit_mg_h_l": 2.084507907977729,
+            "minimum_do_mg_l": 1.3560564246209803
+          },
+          "post_decision_feasible": false,
+          "stop_avoided_further_operation": false,
+          "measured_product_quality": null,
+          "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+          "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+        },
+        "sensitivity": {
+          "members": 5,
+          "feasible_members": 0,
+          "product_mass_kg_range": [
+            177.53663840267518,
+            250.05867043798239
+          ],
+          "minimum_do_mg_l_range": [
+            1.1326415844990936,
+            1.7981769658697473
+          ],
+          "interpretation": "Finite assumed parameter sensitivity, not probability of feasibility or calibrated uncertainty coverage."
+        }
+      },
+      "wall_seconds": 9.273181374999695
+    },
+    {
+      "name": "physical_forward_model",
+      "arguments": {
+        "action_id": "reduce_feed"
+      },
+      "result": {
+        "classification": "model_prediction_not_observation",
+        "model_update": {
+          "time_h": 52.0,
+          "estimated_change_h": 50.0,
+          "estimated_transfer_multiplier": 0.5245623192667768,
+          "cost": 21.09530087466154,
+          "latest_observation_h": 52.0
+        },
+        "outcome_prediction": {
+          "action_id": "reduce_feed",
+          "stopped": false,
+          "product_mass_kg": 211.18030469428672,
+          "terminal_concentration_g_l": 2.6791758068968248,
+          "terminal_volume_l": 78822.86192293139,
+          "pre_decision": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 4.198989701235511
+          },
+          "post_decision": {
+            "below_limit_h": 3.0,
+            "oxygen_deficit_mg_h_l": 0.6069444799637255,
+            "minimum_do_mg_l": 1.623023286078261
+          },
+          "whole_process": {
+            "below_limit_h": 3.0,
+            "oxygen_deficit_mg_h_l": 0.6069444799637255,
+            "minimum_do_mg_l": 1.623023286078261
+          },
+          "post_decision_feasible": false,
+          "stop_avoided_further_operation": false,
+          "measured_product_quality": null,
+          "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+          "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+        },
+        "sensitivity": {
+          "members": 5,
+          "feasible_members": 1,
+          "product_mass_kg_range": [
+            185.40774038767302,
+            278.3490661220601
+          ],
+          "minimum_do_mg_l_range": [
+            1.0307757319312927,
+            2.6844437566830264
+          ],
+          "interpretation": "Finite assumed parameter sensitivity, not probability of feasibility or calibrated uncertainty coverage."
+        }
+      },
+      "wall_seconds": 0.8466908330156002
+    },
+    {
+      "name": "physical_forward_model",
+      "arguments": {
+        "action_id": "increase_air"
+      },
+      "result": {
+        "classification": "model_prediction_not_observation",
+        "model_update": {
+          "time_h": 52.0,
+          "estimated_change_h": 50.0,
+          "estimated_transfer_multiplier": 0.5245623192667768,
+          "cost": 21.09530087466154,
+          "latest_observation_h": 52.0
+        },
+        "outcome_prediction": {
+          "action_id": "increase_air",
+          "stopped": false,
+          "product_mass_kg": 206.36806952617232,
+          "terminal_concentration_g_l": 2.5857473264808446,
+          "terminal_volume_l": 79809.83579205148,
+          "pre_decision": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 4.198989701235511
+          },
+          "post_decision": {
+            "below_limit_h": 4.0,
+            "oxygen_deficit_mg_h_l": 1.0255981342665328,
+            "minimum_do_mg_l": 1.5297626441235221
+          },
+          "whole_process": {
+            "below_limit_h": 4.0,
+            "oxygen_deficit_mg_h_l": 1.0255981342665328,
+            "minimum_do_mg_l": 1.5297626441235221
+          },
+          "post_decision_feasible": false,
+          "stop_avoided_further_operation": false,
+          "measured_product_quality": null,
+          "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+          "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+        },
+        "sensitivity": {
+          "members": 5,
+          "feasible_members": 1,
+          "product_mass_kg_range": [
+            181.33766518684916,
+            268.03718393716815
+          ],
+          "minimum_do_mg_l_range": [
+            1.0360809553270416,
+            2.0903033814060143
+          ],
+          "interpretation": "Finite assumed parameter sensitivity, not probability of feasibility or calibrated uncertainty coverage."
+        }
+      },
+      "wall_seconds": 0.5840538339980412
+    },
+    {
+      "name": "physical_forward_model",
+      "arguments": {
+        "action_id": "combined"
+      },
+      "result": {
+        "classification": "model_prediction_not_observation",
+        "model_update": {
+          "time_h": 52.0,
+          "estimated_change_h": 50.0,
+          "estimated_transfer_multiplier": 0.5245623192667768,
+          "cost": 21.09530087466154,
+          "latest_observation_h": 52.0
+        },
+        "outcome_prediction": {
+          "action_id": "combined",
+          "stopped": false,
+          "product_mass_kg": 229.92713848697255,
+          "terminal_concentration_g_l": 2.9067915071589963,
+          "terminal_volume_l": 79099.97601159083,
+          "pre_decision": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 4.198989701235511
+          },
+          "post_decision": {
+            "below_limit_h": 2.8000000000000003,
+            "oxygen_deficit_mg_h_l": 0.5157806528280283,
+            "minimum_do_mg_l": 1.6460627921243256
+          },
+          "whole_process": {
+            "below_limit_h": 2.8000000000000003,
+            "oxygen_deficit_mg_h_l": 0.5157806528280283,
+            "minimum_do_mg_l": 1.6460627921243256
+          },
+          "post_decision_feasible": false,
+          "stop_avoided_further_operation": false,
+          "measured_product_quality": null,
+          "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+          "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+        },
+        "sensitivity": {
+          "members": 5,
+          "feasible_members": 1,
+          "product_mass_kg_range": [
+            195.2409398701554,
+            310.47447237145457
+          ],
+          "minimum_do_mg_l_range": [
+            1.1787133821440443,
+            2.3571671516502386
+          ],
+          "interpretation": "Finite assumed parameter sensitivity, not probability of feasibility or calibrated uncertainty coverage."
+        }
+      },
+      "wall_seconds": 0.5855888329970185
+    },
+    {
+      "name": "physical_forward_model",
+      "arguments": {
+        "action_id": "strong_feed_reduction"
+      },
+      "result": {
+        "classification": "model_prediction_not_observation",
+        "model_update": {
+          "time_h": 52.0,
+          "estimated_change_h": 50.0,
+          "estimated_transfer_multiplier": 0.5245623192667768,
+          "cost": 21.09530087466154,
+          "latest_observation_h": 52.0
+        },
+        "outcome_prediction": {
+          "action_id": "strong_feed_reduction",
+          "stopped": false,
+          "product_mass_kg": 256.1862329138812,
+          "terminal_concentration_g_l": 3.2777293254125053,
+          "terminal_volume_l": 78159.66709869794,
+          "pre_decision": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 4.198989701235511
+          },
+          "post_decision": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 2.5834249236917617
+          },
+          "whole_process": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 2.5834249236917617
+          },
+          "post_decision_feasible": true,
+          "stop_avoided_further_operation": false,
+          "measured_product_quality": null,
+          "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+          "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+        },
+        "sensitivity": {
+          "members": 5,
+          "feasible_members": 4,
+          "product_mass_kg_range": [
+            200.85334178646949,
+            622.7730229603318
+          ],
+          "minimum_do_mg_l_range": [
+            1.3098205399034455,
+            3.335616105836039
+          ],
+          "interpretation": "Finite assumed parameter sensitivity, not probability of feasibility or calibrated uncertainty coverage."
+        }
+      },
+      "wall_seconds": 0.6737270420126151
+    },
+    {
+      "name": "submit_decision",
+      "arguments": {
+        "action_id": "strong_feed_reduction",
+        "evidence": [
+          "Receiving DO2 drops from 10.2 mg/L (t=50.0) to 4.86 (t=50.2) to 4.32 (t=52.0), versus ~10.5-11.5 mg/L in source-1/2/3 at the same batch age",
+          "Source-reference trajectory: identical DO2 profile shape pre-50h including induction dip to 7.3-8.6 mg/L at t=24-28",
+          "P assay at t=48 (avail 52): 2.88 g/L, comparable to sources (2.98-3.06 g/L)",
+          "Forward model strong_feed_reduction: below_limit_h=0, min DO 2.58 mg/L, 256.2 kg, 4/5 feasible sensitivity members",
+          "Forward model keep/reduce_feed/increase_air/combined all violate the 2.0 mg/L oxygen limit (min DO 1.36-1.65)",
+          "Inferred oxygen transfer multiplier 0.5246 (model update at t=52)"
+        ],
+        "predictions": {},
+        "rationale": "Receiving DO2 diverges sharply from all three source batches at t~50h, collapsing from ~10.2 to ~4.3-4.9 mg/L and still falling, indicating a large step increase in oxygen demand the vessel cannot supply (inferred transfer multiplier ~0.52). Nominal source-calibrated forward model shows KEEP and milder actions breach the 2.0 mg/L oxygen limit (min DO 1.36-1.65 mg/L, 2.8-5.4 h below limit), whereas strong_feed_reduction keeps min DO at 2.58 mg/L with zero below-limit time, retains full product mass (~256 kg, the highest of all actions), and is feasible in 4/5 sensitivity members. Feed reduction targets the root cause (excess demand) rather than relying on limited aeration headroom; the 1.15x air bump adds margin. Stop would forfeit all counted production.",
+        "uncertainty": "The forward model is nominal and source-calibrated, not the hidden evaluator realization; the 5-member sensitivity still includes realizations with min DO down to ~1.31 mg/L, so residual constraint risk exists. The DO crash onset (~50h) is recent, so the demand regime estimate is data-limited; if the DO decline is transient rather than sustained, strong feed reduction could cost some product versus keep. Assay delay (4h) and the fact that the process runs KEEP until any decision mean the DO may fall further before actuation. Product quality/impurity effects of feed cut are not observable from the available data."
+      },
+      "result": {
+        "accepted": true,
+        "decision_frozen": true
+      },
+      "wall_seconds": 0.15863920899573714
+    }
+  ],
+  "error": null,
+  "capability_audit": {
+    "type": "capability_audit",
+    "active_tools": [
+      "physical_forward_model",
+      "python_analysis",
+      "request_measurement",
+      "submit_decision"
+    ],
+    "native_kernel": false,
+    "children": false,
+    "external_retrieval": false,
+    "cwd_memory_loaded": false,
+    "model": "modal/zai-org/GLM-5.3",
+    "shared_tool_schema_sha256": "bef6c5f94bbfb0b78063a8384f18ded77219ada49d9017ed23bb625453b93706"
+  },
+  "provider_billing": "unknown",
+  "real_equipment_actions": false
+}

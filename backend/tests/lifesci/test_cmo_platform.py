@@ -26,7 +26,8 @@ def platform_client(tmp_path, monkeypatch):
     monkeypatch.setenv('CMO_HOSTED_INFERENCE_APPROVED', 'true')
     p = Platform(RecordStore(), providers={})
     seed(p)
-    return p, TestClient(create_app(p))
+    # Delivery verification uses the platform identity, like every other route.
+    return p, TestClient(create_app(p), headers=HEADERS)
 
 
 def _wait(client, ident):
@@ -79,7 +80,12 @@ def test_only_current_verified_deliveries_publish_as_evidence(platform_client):
     assert detail['summary']['guarantee_holds'] and detail['summary']['measurement_count'] == 4
     stored = json.loads(p.evidence.original(p.identity.context_for(TENANT, 'priya'), dataset['id']))
     assert {m['source']['path'] for m in stored['measurements']} == {'lot export.csv'}
-    assert client.post('/v1/cmo-datasets', json={'run_id': newer['id']}).status_code in (401, 403)
+    anonymous = {'X-Tenant-Id': '', 'X-Actor-Id': ''}
+    assert client.post('/v1/cmo-datasets', json={'run_id': newer['id']}, headers=anonymous).status_code in (401, 403)
+    assert client.get(f"/api/cmo-ingestion/runs/{newer['id']}", headers=anonymous).status_code == 401
+    other = {'X-Tenant-Id': 'other-customer', 'X-Actor-Id': 'priya'}
+    assert client.get(f"/api/cmo-ingestion/runs/{newer['id']}", headers=other).status_code == 404
+    assert client.post('/v1/cmo-datasets', json={'run_id': newer['id']}, headers=other).status_code in (403, 404)
 
 
 def test_assistant_receives_verified_dataset_as_cited_evidence(platform_client, monkeypatch):

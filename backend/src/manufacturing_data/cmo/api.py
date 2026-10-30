@@ -1,6 +1,7 @@
 """CMO delivery API mounted in the existing application; no arbitrary server paths."""
 from __future__ import annotations
 
+import contextvars
 import csv
 import hashlib
 import io
@@ -19,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from . import quality
 from .evidence import restore
+from .persistence import set_tenant, tenant_scope
 from .pipeline import CONFIGURATIONS, IngestionService, digest, hosted_inference_approved, utc
 from .schema import VOCAB
 
@@ -114,22 +116,28 @@ def safe_member(name):
     return path
 
 
-def router(repository: Path):
+def check_token(supplied):
+    import secrets
+    expected=os.getenv('CMO_API_TOKEN')
+    if expected and (not supplied or not secrets.compare_digest(expected,supplied)):
+        raise HTTPException(401,'CMO API token required')
+
+
+def router(repository: Path, tenant_dependency=None):
+    """``tenant_dependency`` resolves the caller's platform identity when mounted in
+    the platform API; standalone deployments fall back to the X-Tenant-Id header.
+
+    Every record query is scoped to the bound tenant (row-level security on
+    PostgreSQL), so another customer's runs are simply not found. The
+    dependency is async so the tenant it binds is inherited by the endpoint."""
     from .settings import load_local_settings
     load_local_settings()
-    def authorize(request:Request,x_cmo_token: str | None = Header(default=None),x_tenant_id:str=Header(default='demo-cdmo')):
-        import secrets
-        expected=os.getenv('CMO_API_TOKEN')
-        if expected and (not x_cmo_token or not secrets.compare_digest(expected,x_cmo_token)):
-            raise HTTPException(401,'CMO API token required')
-        # Case-owned source/review/export routes must not bypass case isolation.
-        parts=request.url.path.split('/')
-        if 'runs' in parts:
-            index=parts.index('runs')
-            if len(parts)>index+1 and parts[index+1]:
-                try: owner=service.get(parts[index+1]).get('project_tenant')
-                except KeyError: owner=None
-                if owner and owner!=x_tenant_id: raise HTTPException(404,'Run unavailable in this customer context')
+    if tenant_dependency is None:
+        async def authorize(x_cmo_token: str | None = Header(default=None),x_tenant_id: str | None = Header(default=None)):
+            check_token(x_cmo_token); set_tenant(x_tenant_id)
+    else:
+        async def authorize(x_cmo_token: str | None = Header(default=None),ctx=Depends(tenant_dependency)):
+            check_token(x_cmo_token); set_tenant(ctx.tenant_id)
     api=APIRouter(prefix='/api/cmo-ingestion',dependencies=[Depends(authorize)])
     root=Path(os.getenv('CMO_INGESTION_ROOT',str(repository/'.cache'/'cmo-ingestion')))
     packages=Path(os.getenv('CMO_PACKAGES_ROOT',str(repository/'benchmarks'/'cmo_ingestion'/'generated')))
@@ -139,10 +147,12 @@ def router(repository: Path):
 
     # Worker threads do not survive a restart; say so instead of showing a
     # run that is "running" forever.
-    for stale in service.runs():
-        if stale.get('status') in {'queued','running'}:
-            stale.update(status='interrupted',error='The service restarted during processing. Start the run again; no partial results were accepted.')
-            service.save(stale)
+    for tenant in service.repo.tenants():
+        with tenant_scope(tenant):
+            for stale in service.repo.run_headers():
+                if stale['status'] in {'queued','running'}:
+                    service.repo.update_run(stale['id'],status='interrupted',
+                        error='The service restarted during processing. Start the run again; no partial results were accepted.')
 
     def guard(function):
         try: return function()
@@ -213,7 +223,8 @@ def router(repository: Path):
                 with lock: jobs[run_id]={'id':run_id,'status':result['status'],'stages':result['stages']}
             except Exception as exc:
                 with lock: jobs[run_id].update(status='failed',error=f'{type(exc).__name__}: {exc}')
-        threading.Thread(target=worker,daemon=True,name='cmo-ingestion-'+run_id[:8]).start()
+        context=contextvars.copy_context()
+        threading.Thread(target=context.run,args=(worker,),daemon=True,name='cmo-ingestion-'+run_id[:8]).start()
         return {'id':run_id,'status':'queued'}
 
     @api.get('/catalog')
@@ -224,7 +235,7 @@ def router(repository: Path):
                 'customer_availability':{c:service.availability(c,approved=approved) for c in ['clairic_decisions','decisions']},
                 'hosted_inference_approved':approved,
                 'storage':{'records':service.repo.backend,'originals':service.evidence.backend},
-                'cmos':sorted({r['cmo'] for r in service.runs()}|{i['cmo'] for i in catalog() if i.get('kind')=='delivery'}),
+                'cmos':sorted({r['cmo'] for r in service.repo.run_headers()}|{i['cmo'] for i in catalog() if i.get('kind')=='delivery'}),
                 'deployment':'Set CMO_API_TOKEN before exposing beyond loopback.'}
 
     @api.get('/vocabulary')
@@ -402,9 +413,10 @@ def router(repository: Path):
                      'X-Values-Pending':str(run['summary']['needs_review'])})
 
     def verified_payload(run_id:str,tenant:str|None=None):
+        if tenant is not None:
+            # Same-process callers (the platform API) pass their authenticated tenant.
+            with tenant_scope(tenant): return verified_payload(run_id)
         run=guard(lambda:service.get(run_id))
-        owner=run.get('project_tenant')
-        if tenant is not None and owner and owner!=tenant: raise HTTPException(404,'Run unavailable in this customer context')
         if run['status']!='complete' or not run.get('summary',{}).get('verified_package'):
             raise HTTPException(409,'Package still requires verification; downstream consumption is blocked')
         check=quality.guarantee(run)
@@ -462,13 +474,14 @@ def router(repository: Path):
             seconds=(now-previous) if previous is not None and now-previous<=15 and value.action!='start' else 0
             if value.action=='stop': activity.pop(ident,None)
             else: activity[ident]=now
-            run=service.get(run_id)
-            run['human_minutes']=(run['human_minutes'] or 0)+seconds/60
-            run['human_time_status']='observed_interaction_partial; not a completed human study'
-            service.audit('human_activity',run_id=run_id,screen=value.screen,action_name=value.action,
-                          session_id=value.session_id,credited_seconds=seconds)
-            service.save(run)
-        return {'human_minutes':run['human_minutes'],'status':run['human_time_status']}
+            with service.repo.transaction():
+                run=service.get(run_id)
+                minutes=(run['human_minutes'] or 0)+seconds/60
+                status='observed_interaction_partial; not a completed human study'
+                service.repo.update_run(run_id,human_minutes=minutes,human_time_status=status)
+                service.audit('human_activity',run_id=run_id,screen=value.screen,action_name=value.action,
+                              session_id=value.session_id,credited_seconds=seconds)
+        return {'human_minutes':minutes,'status':status}
 
     @api.get('/comparison')
     def comparison():

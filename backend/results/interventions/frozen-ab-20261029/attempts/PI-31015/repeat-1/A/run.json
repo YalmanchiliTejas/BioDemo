@@ -1,0 +1,188 @@
+{
+  "status": "completed",
+  "arm": "A",
+  "model": "modal/zai-org/GLM-5.3",
+  "submission": {
+    "action_id": "combined",
+    "evidence": [
+      "Receiving DO2 drops from 11.45 mg/L at t=48.0 h to 3.97 mg/L at t=48.2 h and continues declining to 2.78 mg/L at t=52.0 h",
+      "Minimum DO constraint is 2.0 mg/L; extrapolated KEEP trajectory violates it within ~6-10 h",
+      "Receiving P assay at t=48 h = 3.0 g/L and rising, so stop (zero production) and strong feed reduction (feed x0.6) would forfeit substantial product mass",
+      "Source batches show no equivalent DO2 crash through 52 h (~10.8 mg/L), indicating a receiving-process-specific oxygen supply/demand imbalance",
+      "Combined intervention bounds: feed x0.8 (cuts oxygen demand) with air x1.15 (raises transfer), giving the widest margin above the 2.0 mg/L floor while retaining 80% feed"
+    ],
+    "predictions": {},
+    "rationale": "Receiving DO2 crashed at t=48.2 h from ~11.5 to ~4 mg/L and is falling ~0.06-0.08 mg/L/h, reaching 2.78 mg/L at t=52 h. The 2.0 mg/L minimum will likely be violated under KEEP within ~6-10 h. Combined action (feed x0.8, air x1.15) both reduces oxygen uptake and increases oxygen supply, giving the largest safety margin while retaining 80% of feed, preserving product mass (P=3.0 g/L at 48 h and still rising). Stop yields zero counted production and strong feed reduction sacrifices too much productivity for the same constraint relief.",
+    "uncertainty": "Root cause of the DO2 crash (feed-driven oxygen demand spike vs. aeration equipment issue) is not directly observable; if purely an aeration fault, increase_air alone could suffice, but combined hedges both causes at modest productivity cost. Projected DO2 trajectory relies on noisy online sensor extrapolation over a short window; the decline rate could steepen or flatten. Delayed product assays (4 h turnaround) lag the current state, so P trajectory beyond 48 h is inferred."
+  },
+  "evaluation": {
+    "proposal": {
+      "action_id": "combined",
+      "decision_time_h": 52.0,
+      "rationale": "Receiving DO2 crashed at t=48.2 h from ~11.5 to ~4 mg/L and is falling ~0.06-0.08 mg/L/h, reaching 2.78 mg/L at t=52 h. The 2.0 mg/L minimum will likely be violated under KEEP within ~6-10 h. Combined action (feed x0.8, air x1.15) both reduces oxygen uptake and increases oxygen supply, giving the largest safety margin while retaining 80% of feed, preserving product mass (P=3.0 g/L at 48 h and still rising). Stop yields zero counted production and strong feed reduction sacrifices too much productivity for the same constraint relief.",
+      "uncertainty": "Root cause of the DO2 crash (feed-driven oxygen demand spike vs. aeration equipment issue) is not directly observable; if purely an aeration fault, increase_air alone could suffice, but combined hedges both causes at modest productivity cost. Projected DO2 trajectory relies on noisy online sensor extrapolation over a short window; the decline rate could steepen or flatten. Delayed product assays (4 h turnaround) lag the current state, so P trajectory beyond 48 h is inferred.",
+      "evidence": [
+        "Receiving DO2 drops from 11.45 mg/L at t=48.0 h to 3.97 mg/L at t=48.2 h and continues declining to 2.78 mg/L at t=52.0 h",
+        "Minimum DO constraint is 2.0 mg/L; extrapolated KEEP trajectory violates it within ~6-10 h",
+        "Receiving P assay at t=48 h = 3.0 g/L and rising, so stop (zero production) and strong feed reduction (feed x0.6) would forfeit substantial product mass",
+        "Source batches show no equivalent DO2 crash through 52 h (~10.8 mg/L), indicating a receiving-process-specific oxygen supply/demand imbalance",
+        "Combined intervention bounds: feed x0.8 (cuts oxygen demand) with air x1.15 (raises transfer), giving the widest margin above the 2.0 mg/L floor while retaining 80% feed"
+      ],
+      "approval_status": "not_approved_for_manufacturing",
+      "execution": "virtual_replay_only"
+    },
+    "outcome": {
+      "action_id": "combined",
+      "stopped": false,
+      "product_mass_kg": 170.22623378678884,
+      "terminal_concentration_g_l": 2.1932888579238345,
+      "terminal_volume_l": 77612.31867467053,
+      "pre_decision": {
+        "below_limit_h": 0.0,
+        "oxygen_deficit_mg_h_l": 0.0,
+        "minimum_do_mg_l": 2.6098056675698893
+      },
+      "post_decision": {
+        "below_limit_h": 7.0,
+        "oxygen_deficit_mg_h_l": 3.3636265884328447,
+        "minimum_do_mg_l": 1.2030131448113388
+      },
+      "whole_process": {
+        "below_limit_h": 7.0,
+        "oxygen_deficit_mg_h_l": 3.3636265884328447,
+        "minimum_do_mg_l": 1.2030131448113388
+      },
+      "post_decision_feasible": false,
+      "stop_avoided_further_operation": false,
+      "measured_product_quality": null,
+      "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+      "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+    },
+    "measurement_requests": 0,
+    "assumed_measurement_work_minutes": 0.0,
+    "physical_decision_delay_h": 0.0,
+    "events": [
+      {
+        "kind": "recommendation",
+        "proposal": {
+          "action_id": "combined",
+          "decision_time_h": 52.0,
+          "rationale": "Receiving DO2 crashed at t=48.2 h from ~11.5 to ~4 mg/L and is falling ~0.06-0.08 mg/L/h, reaching 2.78 mg/L at t=52 h. The 2.0 mg/L minimum will likely be violated under KEEP within ~6-10 h. Combined action (feed x0.8, air x1.15) both reduces oxygen uptake and increases oxygen supply, giving the largest safety margin while retaining 80% of feed, preserving product mass (P=3.0 g/L at 48 h and still rising). Stop yields zero counted production and strong feed reduction sacrifices too much productivity for the same constraint relief.",
+          "uncertainty": "Root cause of the DO2 crash (feed-driven oxygen demand spike vs. aeration equipment issue) is not directly observable; if purely an aeration fault, increase_air alone could suffice, but combined hedges both causes at modest productivity cost. Projected DO2 trajectory relies on noisy online sensor extrapolation over a short window; the decline rate could steepen or flatten. Delayed product assays (4 h turnaround) lag the current state, so P trajectory beyond 48 h is inferred.",
+          "evidence": [
+            "Receiving DO2 drops from 11.45 mg/L at t=48.0 h to 3.97 mg/L at t=48.2 h and continues declining to 2.78 mg/L at t=52.0 h",
+            "Minimum DO constraint is 2.0 mg/L; extrapolated KEEP trajectory violates it within ~6-10 h",
+            "Receiving P assay at t=48 h = 3.0 g/L and rising, so stop (zero production) and strong feed reduction (feed x0.6) would forfeit substantial product mass",
+            "Source batches show no equivalent DO2 crash through 52 h (~10.8 mg/L), indicating a receiving-process-specific oxygen supply/demand imbalance",
+            "Combined intervention bounds: feed x0.8 (cuts oxygen demand) with air x1.15 (raises transfer), giving the widest margin above the 2.0 mg/L floor while retaining 80% feed"
+          ],
+          "approval_status": "not_approved_for_manufacturing",
+          "execution": "virtual_replay_only"
+        }
+      },
+      {
+        "kind": "simulated_outcome",
+        "outcome": {
+          "action_id": "combined",
+          "stopped": false,
+          "product_mass_kg": 170.22623378678884,
+          "terminal_concentration_g_l": 2.1932888579238345,
+          "terminal_volume_l": 77612.31867467053,
+          "pre_decision": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 2.6098056675698893
+          },
+          "post_decision": {
+            "below_limit_h": 7.0,
+            "oxygen_deficit_mg_h_l": 3.3636265884328447,
+            "minimum_do_mg_l": 1.2030131448113388
+          },
+          "whole_process": {
+            "below_limit_h": 7.0,
+            "oxygen_deficit_mg_h_l": 3.3636265884328447,
+            "minimum_do_mg_l": 1.2030131448113388
+          },
+          "post_decision_feasible": false,
+          "stop_avoided_further_operation": false,
+          "measured_product_quality": null,
+          "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+          "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+        }
+      }
+    ],
+    "observed_human_time_saved": null
+  },
+  "wall_seconds": 24.773263500013854,
+  "model_calls": 2,
+  "usage": [
+    {
+      "input": 121217,
+      "output": 1186,
+      "cacheRead": 704,
+      "cacheWrite": 0,
+      "totalTokens": 123107,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    },
+    {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 0,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    }
+  ],
+  "tools": [
+    {
+      "name": "submit_decision",
+      "arguments": {
+        "action_id": "combined",
+        "evidence": [
+          "Receiving DO2 drops from 11.45 mg/L at t=48.0 h to 3.97 mg/L at t=48.2 h and continues declining to 2.78 mg/L at t=52.0 h",
+          "Minimum DO constraint is 2.0 mg/L; extrapolated KEEP trajectory violates it within ~6-10 h",
+          "Receiving P assay at t=48 h = 3.0 g/L and rising, so stop (zero production) and strong feed reduction (feed x0.6) would forfeit substantial product mass",
+          "Source batches show no equivalent DO2 crash through 52 h (~10.8 mg/L), indicating a receiving-process-specific oxygen supply/demand imbalance",
+          "Combined intervention bounds: feed x0.8 (cuts oxygen demand) with air x1.15 (raises transfer), giving the widest margin above the 2.0 mg/L floor while retaining 80% feed"
+        ],
+        "predictions": {},
+        "rationale": "Receiving DO2 crashed at t=48.2 h from ~11.5 to ~4 mg/L and is falling ~0.06-0.08 mg/L/h, reaching 2.78 mg/L at t=52 h. The 2.0 mg/L minimum will likely be violated under KEEP within ~6-10 h. Combined action (feed x0.8, air x1.15) both reduces oxygen uptake and increases oxygen supply, giving the largest safety margin while retaining 80% of feed, preserving product mass (P=3.0 g/L at 48 h and still rising). Stop yields zero counted production and strong feed reduction sacrifices too much productivity for the same constraint relief.",
+        "uncertainty": "Root cause of the DO2 crash (feed-driven oxygen demand spike vs. aeration equipment issue) is not directly observable; if purely an aeration fault, increase_air alone could suffice, but combined hedges both causes at modest productivity cost. Projected DO2 trajectory relies on noisy online sensor extrapolation over a short window; the decline rate could steepen or flatten. Delayed product assays (4 h turnaround) lag the current state, so P trajectory beyond 48 h is inferred."
+      },
+      "result": {
+        "accepted": true,
+        "decision_frozen": true
+      },
+      "wall_seconds": 0.14394708297913894
+    }
+  ],
+  "error": null,
+  "capability_audit": {
+    "type": "capability_audit",
+    "active_tools": [
+      "python_analysis",
+      "request_measurement",
+      "submit_decision"
+    ],
+    "native_kernel": false,
+    "children": false,
+    "external_retrieval": false,
+    "cwd_memory_loaded": false,
+    "model": "modal/zai-org/GLM-5.3",
+    "shared_tool_schema_sha256": "bef6c5f94bbfb0b78063a8384f18ded77219ada49d9017ed23bb625453b93706"
+  },
+  "provider_billing": "unknown",
+  "real_equipment_actions": false
+}

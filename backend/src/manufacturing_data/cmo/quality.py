@@ -127,6 +127,49 @@ def guarantee(run, *, audit_valid=None):
             'scope':'Guarantees accounting and acceptance rules for this run. It does not prove a source document itself is correct or complete.'}
 
 
+def confidence(m):
+    """Review-priority score of a measurement, a function of its stored facts.
+    Not a calibrated probability of correctness."""
+    return 0.0 if m['value'] is None else min(1 if m['template_id'] else 0.6, 1 if m['source_verified'] else 0.5,
+                                              1 if not m['rule_codes'] else 0.5)
+
+
+def relationships(run):
+    """Candidate links between each batch's documents and its process export."""
+    result=[]; by_batch=defaultdict(set)
+    for m in run['measurements']: by_batch[m['batch']].add(m['source']['path'])
+    for batch,paths in by_batch.items():
+        process_paths=[d['path'] for d in run['documents'] if d['doc_type']=='instrument_export' and d['path'] in paths]
+        for path in sorted(paths):
+            for process_path in process_paths:
+                if path!=process_path:
+                    result.append({'left':path,'right':process_path,'batch':batch,'relation':'batch_evidence',
+                        'status':'candidate' if any(i['rule_code']=='BATCH_MISMATCH' and i.get('path')==path for i in run['issues']) else 'source_linked'})
+    return result
+
+
+def summarize(run):
+    """Derived totals for a completed run; recomputed from current facts on every read."""
+    measures=run['measurements']; accepted=[m for m in measures if m['status'] in ACCEPTED]
+    coverage=run.get('coverage') or {}
+    if run.get('elements') is not None: coverage=run['coverage']=account([dict(e) for e in run['elements']],run['issues'])
+    run['relationships']=relationships(run)
+    usage=run.get('model_usage',[])
+    total=lambda key: sum(x[key] for x in usage) if all(x.get(key) is not None for x in usage) else None
+    run['summary']={'measurements':len(measures),'auto_accepted':sum(m['status']=='auto_accepted' for m in measures),
+        'accepted':len(accepted),'needs_review':sum(m['status']=='needs_review' for m in measures),
+        'rejected':sum(m['status']=='rejected' for m in measures),
+        'open_issues':sum(i['status']=='open' for i in run['issues']),
+        'review_groups':len(review_groups(run)),
+        'unconfirmed_layouts':sum(not l['confirmed'] for l in run.get('layouts',[])),
+        'corrections':sum(r['decision']=='correct' for r in run.get('reviews',[])),'model_calls':len(usage),
+        'inference_cost_usd':total('cost_usd'),'input_tokens':total('input_tokens'),'output_tokens':total('output_tokens'),
+        'elements':coverage.get('elements'),'unaccounted':coverage.get('unaccounted'),
+        'verified_package':bool(measures) and all(m['status'] in {'auto_accepted','accepted','corrected','rejected'} for m in measures)
+            and not any(i['status']=='open' for i in run['issues']) and not coverage.get('unaccounted')}
+    return run['summary']
+
+
 def batch_completeness(run):
     """Per-batch documents expected in every delivery that contains the batch."""
     doc_type={d['source_id']:d['doc_type'] for d in run['documents']}
