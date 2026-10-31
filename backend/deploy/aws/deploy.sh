@@ -77,6 +77,15 @@ names = {"ImageUri": "IMAGE", "FunctionName": "FUNCTION", "DatabaseUrl": "DATABA
 params = {k: os.environ[v] for k, v in names.items() if os.environ.get(v)}
 json.dump({"Parameters": params}, open(sys.argv[1], "w"))  # the form `deploy --parameter-overrides file://` accepts
 PY
+# A stack whose first creation failed holds nothing and cannot be updated; clear it.
+STATE="$(aws cloudformation describe-stacks --stack-name "$STACK" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NONE)"
+case "$STATE" in
+  ROLLBACK_COMPLETE|ROLLBACK_FAILED)
+    echo "Stack $STACK never finished creating ($STATE); deleting it before deploying again"
+    aws cloudformation delete-stack --stack-name "$STACK"
+    aws cloudformation wait stack-delete-complete --stack-name "$STACK" ;;
+esac
+
 aws cloudformation deploy --stack-name "$STACK" --template-file "$HERE/template.yaml" \
   --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND --no-fail-on-empty-changeset \
   --parameter-overrides "file://$PARAMS"
