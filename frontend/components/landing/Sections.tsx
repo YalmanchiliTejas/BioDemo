@@ -479,7 +479,7 @@ export function Closing() {
       <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-8 md:flex-row md:items-center">
         <Reveal><h2 className="lp-h2 max-w-2xl">See the platform on a real manufacturing problem.</h2></Reveal>
         <Reveal delay={120} className="flex flex-wrap gap-3">
-          <Link href="/demo/" className="lp-btn bg-white text-brand-teal-dark hover:bg-brand-teal-light">Explore the platform<ArrowRight className="h-4 w-4" /></Link>
+          <Link href="/sign-in/" className="lp-btn bg-white text-brand-teal-dark hover:bg-brand-teal-light">Sign in<ArrowRight className="h-4 w-4" /></Link>
           <Link href="/demo/" className="lp-btn border border-white/70 text-white hover:bg-white hover:text-brand-teal-dark">Try the live demo</Link>
         </Reveal>
       </div>
@@ -504,7 +504,7 @@ export function Footer() {
                 <a href="#physics" className="hover:text-white">Physics models</a>
                 <a href="#results" className="hover:text-white">Results</a>
                 <a href="#how" className="hover:text-white">How it works</a>
-                <Link href="/demo/" className="hover:text-white">Open the app</Link>
+                <Link href="/sign-in/" className="hover:text-white">Sign in</Link>
                 <Link href="/demo/" className="hover:text-white">Live demo</Link>
               </nav>
             </div>

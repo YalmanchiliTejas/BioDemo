@@ -41,7 +41,7 @@ function Nav() {
           </nav>
           <div className="flex items-center gap-4">
             <Link href="/demo/" className="lp-nav-link hidden sm:inline">Live demo</Link>
-            <Link href="/demo/" className="lp-btn lp-btn-primary h-9 px-4 text-[14px]">Explore the platform</Link>
+            <Link href="/sign-in/" className="lp-btn lp-btn-primary h-9 px-4 text-[14px]">Sign in</Link>
             <button type="button" className="-mr-1 flex h-9 w-9 items-center justify-center rounded-[4px] text-ink lg:hidden" aria-expanded={open} aria-controls="lp-mobile-nav" aria-label={open ? 'Close menu' : 'Open menu'} onClick={() => setOpen(o => !o)}>
               {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
