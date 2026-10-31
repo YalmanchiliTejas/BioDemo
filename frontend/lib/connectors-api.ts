@@ -29,6 +29,8 @@ export type Connector = {
     enabled: boolean;
     mapping?: Mapping;
     write_operations: string[];
+    mapping_confirmed?: boolean;
+    source_group?: string;
     last_sync?: string;
     last_error?: string;
     revision?: number;
@@ -58,11 +60,11 @@ export async function connectorRequest<T>(path: string, body?: unknown): Promise
     }
     const data = await response.json().catch(() => null);
     if (!response.ok)
-        throw new Error(response.status === 403 ? 'Your account does not have access to configure connections for this site. Ask your administrator for access.' : typeof data?.detail === 'string' ? data.detail : `The request failed (${response.status}). Check your configuration and try again.`);
+        throw new Error(response.status === 403 ? 'Your account does not have permission for this action at this site. Ask your administrator for access.' : typeof data?.detail === 'string' ? data.detail : `The request failed (${response.status}). Check your configuration and try again.`);
     return data as T;
 }
 // Never send status fields back as configuration; the server remains authoritative.
 export function configuration(c: Connector): Connector {
-    const { connector_id, family, transport, site_id, owner, vendor, version, options, enabled, mapping, write_operations } = c;
-    return { connector_id, family, transport, site_id, owner, vendor, version, options, enabled, mapping, write_operations };
+    const { connector_id, family, transport, site_id, owner, vendor, version, options, enabled, mapping, write_operations, mapping_confirmed, source_group } = c;
+    return { connector_id, family, transport, site_id, owner, vendor, version, options, enabled, mapping, write_operations, mapping_confirmed, source_group };
 }

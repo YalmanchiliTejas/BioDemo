@@ -51,8 +51,9 @@ _ENV = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 def family_template(family: str) -> ConnectorTemplate:
     kind, fields = FAMILIES[family]
+    context = ("batch_id", "elapsed_h") if family in {"LIMS", "HISTORIAN"} else ()
     return ConnectorTemplate(f"{family.lower()}-v1", family, kind,
-                             tuple(FieldMap(name, name) for name in fields))
+                             tuple(FieldMap(name, name) for name in (*fields, *context)))
 
 
 def _secret(name: str | None) -> str | None:
@@ -288,6 +289,8 @@ class ConnectorService:
         if not config.get("site_id"):
             raise ValueError("a connector requires an explicit site")
         self.identity.require(ctx, "configure", "connector", cid, site_id=config["site_id"])
+        if config.get('source_group') is not None and not config['source_group'].strip():
+            raise ValueError('source_group must be a nonempty CDMO or source-group name')
         options = dict(config.get("options", {}))
         required = {"rest": ("base_url",), "mqtt": ("base_url", "addresses"),
                     "opcua": ("base_url", "addresses", "security_string_env"),
@@ -345,6 +348,8 @@ class ConnectorService:
                     raise ValueError("use a new connector id when changing family or site")
             state = {"connector_id": cid, "family": family, "transport": transport, "site_id": config["site_id"],
                      "owner": config["owner"], "configured_by": ctx.actor_id, "options": options,
+                     "mapping_confirmed": config.get("mapping_confirmed", False),
+                     "source_group": config.get("source_group", '').strip() if config.get("source_group") else cid,
                      "mapping": template.to_dict(), "write_operations": writes,
                      "vendor": config.get("vendor", "generic"), "version": config.get("version", "1"),
                      "enabled": config.get("enabled", True), "last_sync": None, "last_error": None}
@@ -366,6 +371,9 @@ class ConnectorService:
             state["contract_id"] = contract["contract_id"]
             rec = tx.put(ctx.tenant_id, "connector", cid, state,
                          expected_revision=current.revision if current else None, action="configure_connector")
+            self.intake.verification.configure(ctx, cid, template, site_id=config['site_id'],
+                confirmed=state['mapping_confirmed'], source_group=state['source_group'])
+            self.intake.verification.recheck(ctx, cid)
         self.platform.runtime.track(ctx.tenant_id)
         with self._lock:
             for key in [k for k in self._instances if k[:2] == (ctx.tenant_id, cid)]:
@@ -428,7 +436,8 @@ class ConnectorService:
         try:
             source = self._build(ctx.tenant_id, rec)
             result = self.intake.sync(ctx, source, ConnectorTemplate.from_dict(rec.state["mapping"]),
-                site_id=rec.state["site_id"], batch_size=rec.state["options"].get("batch_size", 100), max_batches=10)
+                site_id=rec.state["site_id"], batch_size=rec.state["options"].get("batch_size", 100), max_batches=10,
+                mapping_confirmed=rec.state.get("mapping_confirmed", False), source_group=rec.state.get("source_group"))
             rejects = getattr(source, "rejects", [])
             result["rejected_records"] = rejects
             self._status(ctx, cid, result, "file rows rejected; inspect rejected_records" if rejects else None)

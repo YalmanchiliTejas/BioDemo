@@ -112,6 +112,9 @@ def require_dataset(p, ctx, evidence_id: str, site_id: str):
     rec = _record(p, ctx, evidence_id, site_id)
     if rec.state.get("status") != "current":
         raise ValueError("verified dataset was superseded or withdrawn; publish the current delivery again")
+    basis = rec.state.get('metadata', {}).get('verification_basis', [])
+    if basis:
+        p.identity.validate_refs(ctx, basis, require_current=True)
     return rec
 
 
@@ -139,17 +142,20 @@ def conversation_source(p, ctx, evidence_id: str, site_id: str) -> tuple[dict[st
 
 def install_cmo_api(p, app: FastAPI, ctx_dep) -> None:
     """Mount delivery verification in this API and expose verified deliveries as evidence."""
+    cmo = None
     try:
         from ..manufacturing_data.cmo.api import router as cmo_router
-    except ImportError as exc:  # optional manufacturing-data extras are not installed
+    except ImportError as exc:  # live verified datasets remain available without file-parser extras
         log.warning("CMO delivery verification unavailable: %s", exc)
-        return
-    repository = Path(os.environ.get("CMO_REPOSITORY_ROOT", Path(__file__).resolve().parents[2]))
-    cmo = cmo_router(repository, tenant_dependency=ctx_dep, tasks=app.state.tasks)
-    app.include_router(cmo)
+    else:
+        repository = Path(os.environ.get("CMO_REPOSITORY_ROOT", Path(__file__).resolve().parents[2]))
+        cmo = cmo_router(repository, tenant_dependency=ctx_dep, tasks=app.state.tasks)
+        app.include_router(cmo)
 
     @app.post("/v1/cmo-datasets", status_code=201)
     def publish(body: PublishIn, ctx=Depends(ctx_dep)):
+        if cmo is None:
+            raise HTTPException(503, "File-delivery verification is not installed on this server")
         payload = cmo.verified_payload(body.run_id, tenant=ctx.tenant_id)
         if payload.get("superseded_by"):
             raise HTTPException(409, "A newer check of this delivery exists; publish the current run")
@@ -170,11 +176,19 @@ def install_cmo_api(p, app: FastAPI, ctx_dep) -> None:
             if rec.state.get("metadata", {}).get("classification") != CLASSIFICATION or rec.state.get("site_id") != site_id:
                 continue
             if rec.state.get("status") == "current" and p.identity.check(ctx, "read", "evidence", rec.id, site_id=site_id):
-                out.append(listing(rec))
+                item = listing(rec)
+                try:
+                    require_dataset(p, ctx, rec.id, site_id)
+                except (ValueError, PermissionError):
+                    item['status'] = 'stale_basis'
+                out.append(item)
         return {"datasets": sorted(out, key=lambda d: d["published_at"], reverse=True)}
 
     @app.get("/v1/cmo-datasets/{evidence_id}")
     def dataset(evidence_id: str, ctx=Depends(ctx_dep)):
-        rec = _record(p, ctx, evidence_id)
+        try:
+            rec = require_dataset(p, ctx, evidence_id, _record(p, ctx, evidence_id).state['site_id'])
+        except ValueError as exc:
+            raise HTTPException(409, 'Dataset basis changed; review and publish a current snapshot') from exc
         data = json.loads(p.evidence.original(ctx, evidence_id, rec.revision))
         return {**listing(rec), "summary": summarize(data, sample_rows=10)}

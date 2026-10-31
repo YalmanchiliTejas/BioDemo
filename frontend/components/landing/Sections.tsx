@@ -45,7 +45,7 @@ export function UsesRoll() {
               {USES.map((u, i) => <li key={u} data-distance={Math.min(3, Math.abs(i - active))}>{u}</li>)}
             </ul>
           </div>
-          <div className="hidden md:block"><Link href="/home/" className="lp-btn lp-btn-outline">Explore</Link></div>
+          <div className="hidden md:block"><Link href="/demo/" className="lp-btn lp-btn-outline">Explore</Link></div>
         </div>
       </div>
     </section>
@@ -379,7 +379,7 @@ export function RealData() {
           <Reveal delay={80}><h2 className="lp-h3 mt-6">Verified data from your contract manufacturers, inside the same platform.</h2></Reveal>
           <Reveal delay={140}><p className="mt-6 text-[15.5px] leading-relaxed text-text-secondary">Drop in a delivery as it arrived. The platform reads each file, traces every value to its source cell and lists what it cannot account for. Once a delivery is verified, send it to the assistant: it answers with the batch, time and source file behind each value.</p></Reveal>
           <Reveal delay={170}><p className="mt-4 text-[13.5px] leading-relaxed text-text-tertiary">Measured on 24 real CHO bioreactor runs from a published dataset, repackaged as monthly deliveries from a fictional CMO.</p></Reveal>
-          <Reveal delay={200} className="mt-8 flex flex-wrap gap-3"><Link href="/cmo/?demo=1" className="lp-btn lp-btn-primary">Try the live demo<ArrowRight className="h-4 w-4" /></Link><Link href="/cmo/" className="lp-btn lp-btn-outline">Use your own files</Link></Reveal>
+          <Reveal delay={200} className="mt-8 flex flex-wrap gap-3"><Link href="/demo/" className="lp-btn lp-btn-primary">Try the live demo<ArrowRight className="h-4 w-4" /></Link><Link href="/cmo/" className="lp-btn lp-btn-outline">Use your own files</Link></Reveal>
         </div>
         <div className="grid gap-px self-start overflow-hidden rounded-[6px] border border-border-hairline bg-border-hairline sm:grid-cols-2">
           {[
@@ -479,8 +479,8 @@ export function Closing() {
       <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-8 md:flex-row md:items-center">
         <Reveal><h2 className="lp-h2 max-w-2xl">See the platform on a real manufacturing problem.</h2></Reveal>
         <Reveal delay={120} className="flex flex-wrap gap-3">
-          <Link href="/home/" className="lp-btn bg-white text-brand-teal-dark hover:bg-brand-teal-light">Explore the platform<ArrowRight className="h-4 w-4" /></Link>
-          <Link href="/cmo/?demo=1" className="lp-btn border border-white/70 text-white hover:bg-white hover:text-brand-teal-dark">Try the live demo</Link>
+          <Link href="/demo/" className="lp-btn bg-white text-brand-teal-dark hover:bg-brand-teal-light">Explore the platform<ArrowRight className="h-4 w-4" /></Link>
+          <Link href="/demo/" className="lp-btn border border-white/70 text-white hover:bg-white hover:text-brand-teal-dark">Try the live demo</Link>
         </Reveal>
       </div>
     </section>
@@ -504,8 +504,8 @@ export function Footer() {
                 <a href="#physics" className="hover:text-white">Physics models</a>
                 <a href="#results" className="hover:text-white">Results</a>
                 <a href="#how" className="hover:text-white">How it works</a>
-                <Link href="/home/" className="hover:text-white">Open the app</Link>
-                <Link href="/cmo/?demo=1" className="hover:text-white">Live demo</Link>
+                <Link href="/demo/" className="hover:text-white">Open the app</Link>
+                <Link href="/demo/" className="hover:text-white">Live demo</Link>
               </nav>
             </div>
             <div className="space-y-2 text-[12px] leading-relaxed text-white/45">

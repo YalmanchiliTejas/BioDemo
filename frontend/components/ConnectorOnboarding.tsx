@@ -1,4 +1,5 @@
 'use client';
+import { SourceVerificationPanel } from '@/components/SourceVerificationPanel';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Check, Database, FlaskConical, ShieldCheck, Activity, BookOpen, Wrench, Boxes, Factory, RefreshCw, Plus, Loader2 } from 'lucide-react';
@@ -48,6 +49,7 @@ export function ConnectorOnboarding() {
     const [saved, setSaved] = useState(false);
     const [editingId, setEditingId] = useState('');
     const [interval, setInterval] = useState(300);
+    const [verificationId, setVerificationId] = useState<string | null>(null);
     const refresh = useCallback(async () => {
         const connections = await connectorRequest<{
             items: Connector[];
@@ -73,7 +75,7 @@ export function ConnectorOnboarding() {
         }
     }, []);
     useEffect(() => { void load(); }, [load]);
-    const change = (key: keyof Connector, value: unknown) => { setDraft(d => d ? { ...d, [key]: value } : null); setSaved(false); setPreview(null); };
+    const change = (key: keyof Connector, value: unknown) => { setDraft(d => d ? { ...d, [key]: value, ...(key === 'mapping' ? { mapping_confirmed: false } : {}) } : null); setSaved(false); setPreview(null); };
     const option = (key: string, value: string | string[]) => {
         setDraft(d => {
             if (!d)
@@ -186,6 +188,7 @@ export function ConnectorOnboarding() {
       {stage === 1 && draft && <><button className="setup-back" onClick={() => setStage(0)}><ArrowLeft size={15}/> All sources</button><h2>Connect your {draft.family}.</h2><p className="setup-subtitle">Use access approved by your system owner. Start with a manual test.</p>
         <form className="connector-form" onSubmit={save}><div className="setup-two-columns"><label>Connection ID<input readOnly={!!editingId} required pattern="[A-Za-z0-9_.-]{1,80}" maxLength={80} placeholder="e.g. mesa-lims" value={draft.connector_id} onChange={e => change('connector_id', e.target.value)}/></label>
         <label>Site{me?.site_ids.length ? <select value={draft.site_id} onChange={e => change('site_id', e.target.value)}>{me.site_ids.map(s => <option key={s}>{s}</option>)}</select> : <input required placeholder="Your authorized site ID" value={draft.site_id} onChange={e => change('site_id', e.target.value)}/>}</label></div>
+        <label>CDMO / source group <span className="setup-optional">optional</span><input maxLength={120} placeholder="e.g. northfield-cdmo" value={draft.source_group || ''} onChange={e => change('source_group', e.target.value || undefined)}/><small>Use the same group for this CDMO’s lab and process connections. Checks compare records within this site and group.</small></label>
         <label>Connection method<select value={draft.transport} onChange={e => { change('transport', e.target.value); change('options', { poll_seconds: 0 }); }}>{catalog?.transports.map(t => <option key={t.transport} value={t.transport} disabled={!t.available}>{transports[t.transport]}{!t.available ? ' — unavailable on this server' : ''}</option>)}</select></label>
         {['rest', 'mqtt', 'opcua'].includes(draft.transport) && <label>Source endpoint<input required placeholder={draft.transport === 'rest' ? 'https://your-system.example.com/api' : draft.transport === 'mqtt' ? 'mqtts://broker.example.com:8883' : 'opc.tcp://server.example.com:4840'} value={String(o.base_url || '')} onChange={e => option('base_url', e.target.value)}/><small>Your administrator must allow this host on the API server.</small></label>}
         {draft.transport === 'rest' && <><label>Records path<input required placeholder="/events" value={String(o.events_path || '')} onChange={e => option('events_path', e.target.value)}/></label><label>Read credential reference <span className="setup-optional">optional</span><input pattern="[A-Za-z_][A-Za-z0-9_]*" placeholder="e.g. MESA_LIMS_READ_TOKEN" value={String(o.auth_env || '')} onChange={e => option('auth_env', e.target.value)}/><small>Name of a secret installed on the API server. Do not paste a token here.</small></label></>}
@@ -197,7 +200,7 @@ export function ConnectorOnboarding() {
                         const mapping = draft.mapping || catalog?.families.find(f => f.system === draft.family)?.template;
                         if (mapping)
                             change('mapping', { ...mapping, fields: mapping.fields.map((f, n) => n === i ? { ...f, source: e.target.value } : f) } as Mapping);
-                    }}/></label>)}</details>
+                    }}/></label>)}<label className="source-confirm-mapping"><input type="checkbox" checked={draft.mapping_confirmed || false} onChange={e => change('mapping_confirmed', e.target.checked)}/><span>I checked this mapping against the source. Values that pass all checks may be accepted automatically.</span></label></details>
         <button className="setup-primary" disabled={!!busy} type="submit">{busy ? 'Saving…' : 'Save & continue'} <ArrowRight size={17}/></button></form></>}
       {stage === 2 && draft && <><h2>Make sure it connects.</h2><p className="setup-subtitle">{draft.connector_id} · {transports[draft.transport]} · {draft.site_id}</p>
         {draft.transport === 'webhook' ? <div className="setup-message"><strong>Your webhook receiver</strong><code>/v1/webhooks/{me?.tenant_id}/{draft.connector_id}</code><p>Send signed deliveries to this path on the API server. Webhooks receive data when your source sends it; recurring polling is not needed.</p><button className="setup-primary" onClick={() => setStage(3)}>Finish setup <Check size={16}/></button></div> : <>
@@ -207,7 +210,8 @@ export function ConnectorOnboarding() {
         <p className="setup-fine">Starting collection reads source data into this workspace. Recurring sync runs on the server and can be paused below.</p><button className="setup-primary" disabled={!!busy || (draft.transport !== 'mqtt' && (!preview?.ok))} onClick={activate}>{busy === 'activate' ? 'Starting collection…' : 'Run first sync & finish'} <ArrowRight size={17}/></button></>}
         <button className="setup-text-link" disabled={!!busy} onClick={() => { setStage(0); setDraft(null); }}>Keep saved and return to connections</button></>}
       {stage === 3 && <div className="setup-complete"><span><Check size={28}/></span><h2>Your source is set up.</h2><p>Review collection status below, add another source, or start working with your data.</p><button className="setup-primary" onClick={() => { setStage(0); setDraft(null); setNotice(''); }}><Plus size={17}/> Add another source</button><Link className="setup-text-link" href="/cmo/">Open workspace <ArrowRight size={16}/></Link></div>}
-      {items.length > 0 && <section className="saved-connections"><div><h3>Your connections <span>{items.length}</span></h3><button aria-label="Refresh connections" disabled={!!busy} onClick={() => void run('refresh', refresh)}><RefreshCw size={16}/></button></div>{items.map(c => <article key={c.connector_id}><Database size={20}/><div><strong>{c.connector_id}</strong><p>{c.family} · {c.site_id} · {!c.enabled ? 'Paused' : Number(c.options.poll_seconds) ? `Every ${c.options.poll_seconds}s` : c.transport === 'webhook' ? 'Receives webhooks' : 'Manual'}</p><p>{c.last_sync ? `Last attempt: ${new Date(c.last_sync).toLocaleString()}` : 'No sync attempt recorded'}{c.last_error && <span className="connection-error"> · {c.last_error}</span>}</p></div><div className="connection-actions"><button disabled={!!busy} onClick={() => edit(c)}>Configure</button><button disabled={!!busy} onClick={() => manage(c, 'toggle')}>{c.enabled ? 'Pause' : 'Resume'}</button>{c.transport !== 'webhook' && <button disabled={!!busy || !c.enabled} onClick={() => manage(c, 'sync')}>{busy === `sync:${c.connector_id}` ? 'Syncing…' : 'Sync now'}</button>}</div></article>)}</section>}
+      {items.length > 0 && <section className="saved-connections"><div><h3>Your connections <span>{items.length}</span></h3><button aria-label="Refresh connections" disabled={!!busy} onClick={() => void run('refresh', refresh)}><RefreshCw size={16}/></button></div>{items.map(c => <article key={c.connector_id}><Database size={20}/><div><strong>{c.connector_id}</strong><p>{c.family} · {c.site_id} · {!c.enabled ? 'Paused' : Number(c.options.poll_seconds) ? `Every ${c.options.poll_seconds}s` : c.transport === 'webhook' ? 'Receives webhooks' : 'Manual'}</p><p>{c.last_sync ? `Last attempt: ${new Date(c.last_sync).toLocaleString()}` : 'No sync attempt recorded'}{c.last_error && <span className="connection-error"> · {c.last_error}</span>}</p></div><div className="connection-actions"><button disabled={!!busy} onClick={() => setVerificationId(c.connector_id)}>Verify data</button><button disabled={!!busy} onClick={() => edit(c)}>Configure</button><button disabled={!!busy} onClick={() => manage(c, 'toggle')}>{c.enabled ? 'Pause' : 'Resume'}</button>{c.transport !== 'webhook' && <button disabled={!!busy || !c.enabled} onClick={() => manage(c, 'sync')}>{busy === `sync:${c.connector_id}` ? 'Syncing…' : 'Sync now'}</button>}</div></article>)}</section>}
+      {verificationId && <><button className="setup-text-link" onClick={() => setVerificationId(null)}>Close source verification</button><SourceVerificationPanel key={verificationId} connectorId={verificationId}/></>}
       <div className="setup-bottom"><Link href="/cmo/">Continue without adding a source <ArrowRight size={15}/></Link><span>You can return here anytime.</span></div>
       </>}
     </section>

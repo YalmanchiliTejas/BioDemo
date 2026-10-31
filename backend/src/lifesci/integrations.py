@@ -268,8 +268,13 @@ class ConnectorTemplate:
             seen.add(f.canonical)
             if f.target_unit and not (f.unit or f.unit_field):
                 out.append(f"{f.source}: target_unit without a source unit")
+            from ..ingestion.schema import VOCAB, canonical_unit, known_unit
+            if f.canonical in VOCAB and f.target_unit and canonical_unit(f.target_unit) != VOCAB[f.canonical]['unit']:
+                out.append(f"{f.source}: target unit must match the shared canonical unit {VOCAB[f.canonical]['unit']}")
             for unit in (f.unit, f.target_unit):
                 if unit:
+                    if f.canonical in VOCAB and known_unit(unit):
+                        continue
                     try:
                         _ureg().Unit(unit)
                     except Exception:
@@ -278,7 +283,7 @@ class ConnectorTemplate:
 
     def envelope_fields(self) -> set[str]:
         names = {self.id_field, self.timestamp_field, self.sequence_field, self.version_field, "source_record_id",
-                 "site_id", "classification", "occurred_at", "missing_ranges", *self.ignore_fields}
+                 "site_id", "classification", "occurred_at", "missing_ranges", "source_file", *self.ignore_fields}
         names |= {f.unit_field for f in self.fields if f.unit_field}
         if self.stream_field:
             names.add(self.stream_field)
@@ -354,6 +359,17 @@ def apply_mapping(template: ConnectorTemplate, payload: dict[str, Any]) -> dict[
             value = _transform(raw, fm.transform)
             source_unit = fm.unit or (payload.get(fm.unit_field) if fm.unit_field else None)
             if source_unit:
+                from ..ingestion.schema import VOCAB, normalize
+                if fm.canonical in VOCAB:
+                    # Public measurement quantities share exactly the delivery unit policy,
+                    # including offset temperatures and dimensionless pH.
+                    value, canonical_unit = normalize(value, source_unit, fm.canonical)
+                    units[fm.canonical] = canonical_unit
+                    if canonical_unit != source_unit:
+                        conversions.append({"field": fm.canonical, "raw_value": raw, "from_unit": source_unit,
+                                            "to_unit": canonical_unit, "value": value})
+                    fields[fm.canonical] = value
+                    continue
                 qty = _ureg().Quantity(float(value), source_unit)
                 if fm.target_unit and fm.target_unit != source_unit:
                     value = _round(qty.to(fm.target_unit).magnitude)
@@ -420,31 +436,38 @@ class IntakeService:
 
     def __init__(self, store: RecordStore, evidence: EvidenceService) -> None:
         self.store, self.evidence, self.identity = store, evidence, evidence.identity
+        from .source_verification import SourceVerificationService
+        self.verification = SourceVerificationService(store, self.identity, evidence)
 
     def cursor(self, tenant_id: str, connector_id: str) -> dict[str, Any] | None:
         rec = self.store.read().get(tenant_id, "connector_cursor", connector_id)
         return {**rec.state, "revision": rec.revision} if rec else None
 
     def sync(self, ctx: AccessContext, connector: Any, mapping: ConnectorTemplate, *, batch_size: int = 100,
-             max_batches: int = 100, site_id: str | None = None) -> dict[str, Any]:
+             max_batches: int = 100, site_id: str | None = None, mapping_confirmed: bool = False,
+             source_group: str | None = None) -> dict[str, Any]:
         cid = connector.connector_id
         self.identity.require(ctx, "configure", "connector", cid, site_id=site_id)
+        verification_mapping = self.verification.configure(ctx, cid, mapping, site_id=site_id,
+            confirmed=mapping_confirmed, source_group=source_group)
         totals = {"connector_id": cid, "ingested": 0, "duplicates": 0, "corrections": 0, "late": 0,
                   "gaps_opened": 0, "mapping_issues": 0, "batches": 0}
         for _ in range(max_batches):
             cur = self.store.read().get(ctx.tenant_id, "connector_cursor", cid)
             state = cur.state if cur else {"checkpoint": None, "high_water": None, "last_sequence": {}, "records": 0}
             batch: PullBatch = connector.pull(state["checkpoint"], batch_size)
-            results = [self._ingest(ctx, rec, mapping, state, site_id) for rec in batch.records]
+            results = [self._ingest(ctx, rec, mapping, state, site_id, verification_mapping) for rec in batch.records]
             self._commit(ctx, cid, mapping, batch, results, state, cur.revision if cur else None, totals)
             totals["batches"] += 1
             if not batch.has_more:
                 break
+        self.verification.refresh(ctx, cid)
         totals["checkpoint"] = (self.cursor(ctx.tenant_id, cid) or {}).get("checkpoint")
+        totals["verification"] = self.verification.summary(ctx, cid)
         return totals
 
     def _ingest(self, ctx: AccessContext, rec: SourceRecord, mapping: ConnectorTemplate, state: dict[str, Any],
-                site_id: str | None) -> dict[str, Any]:
+                site_id: str | None, verification_mapping: Any) -> dict[str, Any]:
         payload = rec.payload
         mapped = apply_mapping(mapping, payload)
         et = iso(rec.occurred_at)
@@ -461,6 +484,7 @@ class IntakeService:
             content=canonical_json(payload).encode(), media_type="application/json", site_id=site_id or rec.site_id,
             event_time=et, source_revision=str(version) if version is not None else None,
             mapping_version=f"{mapping.template_id}@{mapping.version}", metadata=metadata)
+        self.verification.record(ctx, verification_mapping.id, rec, mapped, res, verification_mapping)
         dup = bool(res.get("duplicate"))
         if not dup:
             ref = EvidenceRef("evidence", res["evidence_id"], res["revision"], res.get("site_id"))

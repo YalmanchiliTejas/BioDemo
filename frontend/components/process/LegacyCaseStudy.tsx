@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button, Card, CardHeader } from '@/components/ui';
-import { useCompanion } from '@/lib/companion-context';
+import { useOptionalCompanion } from '@/lib/companion-context';
 
 type Citation = { evidence_id: string; text: string; source_url?: string; available_at?: string; source: { path: string; page?: number; row?: number; sheet?: string; span?: string; cell?: string } };
 type Run = { id: string; case: string; mode: string; status: string; corpus_files: number; corpus_version: string; corpus_sha256: string; error?: string; failure_reason?: string; wall_seconds: number; metrics?: Record<string, unknown> };
@@ -11,7 +11,7 @@ type Report = { disclosure: string; runs: Run[]; details: Record<string, Detail>
 const format = (v: unknown) => typeof v === 'number' ? (v <= 1 && v >= 0 ? `${(v * 100).toFixed(1)}%` : v.toFixed(2)) : v == null ? 'not evaluated' : String(v);
 
 export function LegacyCaseStudy({ caseId }: { caseId: 'sanofi' | 'indpensim' }) {
-  const companion = useCompanion();
+  const companion = useOptionalCompanion();
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState(''); const [selected, setSelected] = useState('');
   const tab = caseId; const [filter, setFilter] = useState('');
@@ -39,7 +39,7 @@ export function LegacyCaseStudy({ caseId }: { caseId: 'sanofi' | 'indpensim' }) 
         <Card className="p-4 text-sm"><p className="font-medium">{detail.objective}</p><p>Historical availability cutoff: {detail.cutoff}. Only eligible source bytes were staged.</p><details className="mt-3"><summary className="cursor-pointer">Ingestion coverage and failures</summary><pre className="overflow-auto text-xs mt-2">{JSON.stringify(detail.ingestion, null, 2)}</pre></details><details className="mt-3"><summary className="cursor-pointer">Findings, scope, hypotheses and limitations</summary><pre className="overflow-auto whitespace-pre-wrap text-xs mt-2">{JSON.stringify(detail.analysis, null, 2)}</pre></details></Card>
         <Card><CardHeader title="Evidence and source references" subtitle="Open original source bytes; page, row and paragraph references remain attached." /><div className="p-4"><label className="text-sm">Filter evidence <input className="border rounded-control p-2 w-full my-2" value={filter} onChange={e => setFilter(e.target.value)} /></label><div className="max-h-[480px] overflow-auto space-y-3">{detail.citations.filter(c => `${c.text} ${c.source.path}`.toLowerCase().includes(filter.toLowerCase())).map(c => <article className="border-t pt-3 text-sm" key={c.evidence_id}><p>{c.text}</p><a className="text-brand-teal underline break-all" href={c.source_url} target="_blank" rel="noreferrer">{c.source.path}</a><p className="text-xs text-text-tertiary">{c.source.sheet} {c.source.cell} {c.source.row ? `row ${c.source.row}` : ''} {c.source.page ? `page ${c.source.page}` : ''} {c.source.span} · {c.evidence_id}</p></article>)}</div></div></Card>
         <div className="grid md:grid-cols-2 gap-4"><Card className="p-4"><details><summary className="cursor-pointer text-sm">Source explorer · {detail.sources.length} available files</summary><ul className="max-h-80 overflow-auto text-xs space-y-2 mt-3">{detail.sources.map(s => <li key={s.path}><a className="text-brand-teal underline" href={s.source_url} target="_blank" rel="noreferrer">{s.path}</a><br />Available {s.available_at}<br /><span className="break-all">SHA-256 {s.sha256}</span></li>)}</ul></details></Card><Card className="p-4"><details><summary className="cursor-pointer text-sm">Discovery and inspection trace · {detail.trace.length} events</summary><ol className="max-h-80 overflow-auto text-xs space-y-2 mt-3">{detail.trace.map((t, i) => <li key={i}><pre className="whitespace-pre-wrap">{JSON.stringify(t, null, 2)}</pre></li>)}</ol></details></Card></div>
-        <Button onClick={() => companion.show({ kind:'text', label:'Case evidence · '+selected, page_path:'/case-studies', captured_at:new Date().toISOString(), content:JSON.stringify({ objective:detail.objective, cutoff:detail.cutoff, source_package_sha256:detail.source_package_sha256, citations:detail.citations }) })}>Discuss selected evidence with the companion</Button>
+        <Button disabled={!companion} onClick={() => companion?.show({ kind:'text', label:'Case evidence · '+selected, page_path:'/case-studies', captured_at:new Date().toISOString(), content:JSON.stringify({ objective:detail.objective, cutoff:detail.cutoff, source_package_sha256:detail.source_package_sha256, citations:detail.citations }) })}>Discuss selected evidence with the companion</Button>
       </>}
     </>}
     {report && tab === 'indpensim' && <>

@@ -6,12 +6,13 @@ import { Menu, X } from 'lucide-react';
 import { BrandMark } from '@/components/shell/BrandMark';
 import { HeroTour } from '@/components/landing/HeroTour';
 import { Closing, Footer, How, Physics, Platform, Problem, RealData, Systems, UsesRoll } from '@/components/landing/Sections';
+import { CaseStudies } from '@/components/landing/CaseStudies';
 import { cn } from '@/lib/cn';
 
 const NAV = [
   { href: '#platform', label: 'Platform' },
   { href: '#physics', label: 'Physics models' },
-  { href: '#results', label: 'Results' },
+  { href: '#case-studies', label: 'Case studies' },
   { href: '#how', label: 'How it works' },
 ];
 
@@ -39,8 +40,8 @@ function Nav() {
             {NAV.map(item => <a key={item.href} href={item.href} className="lp-nav-link">{item.label}</a>)}
           </nav>
           <div className="flex items-center gap-4">
-            <Link href="/cmo/?demo=1" className="lp-nav-link hidden sm:inline">Live demo</Link>
-            <Link href="/home/" className="lp-btn lp-btn-primary h-9 px-4 text-[14px]">Explore the platform</Link>
+            <Link href="/demo/" className="lp-nav-link hidden sm:inline">Live demo</Link>
+            <Link href="/demo/" className="lp-btn lp-btn-primary h-9 px-4 text-[14px]">Explore the platform</Link>
             <button type="button" className="-mr-1 flex h-9 w-9 items-center justify-center rounded-[4px] text-ink lg:hidden" aria-expanded={open} aria-controls="lp-mobile-nav" aria-label={open ? 'Close menu' : 'Open menu'} onClick={() => setOpen(o => !o)}>
               {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -48,7 +49,7 @@ function Nav() {
         </div>
         <nav id="lp-mobile-nav" hidden={!open} className="border-t border-border-hairline px-5 pb-4 pt-2 lg:hidden" aria-label="Sections">
           {NAV.map(item => <a key={item.href} href={item.href} onClick={() => setOpen(false)} className="block py-2.5 text-[15px] text-ink">{item.label}</a>)}
-          <Link href="/cmo/?demo=1" className="block py-2.5 text-[15px] text-ink sm:hidden">Live demo</Link>
+          <Link href="/demo/" className="block py-2.5 text-[15px] text-ink sm:hidden">Live demo</Link>
         </nav>
       </div>
     </header>
@@ -66,6 +67,7 @@ export default function LandingPage() {
         <Platform />
         <Physics />
         <RealData />
+        <CaseStudies />
         <How />
         <Systems />
         <Closing />

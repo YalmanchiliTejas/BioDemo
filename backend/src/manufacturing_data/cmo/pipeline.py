@@ -26,6 +26,7 @@ from pathlib import Path
 from ..ingest import ingest_package
 from ..store import ManufacturingStore
 from ..verification import verify_originals
+from ...ingestion.verification import validate_measurement, validate_collection
 from . import quality
 from .classify import by_content, by_filename
 from .evidence import evidence_store, original_key, restore
@@ -490,19 +491,8 @@ class IngestionService:
                         'extraction_spans':obs.get('extraction_spans'),
                         'extraction_review_reasons':obs.get('extraction_review_reasons',[])}
                     if obs['id'] in elements: elements[obs['id']]['state']='measurement'
-                    if not batch or not elapsed: measurement['rule_codes'].append('MISSING_FIELD')
-                    try: time_key(elapsed)
-                    except ValueError: measurement['rule_codes'].append('TIME_ORDER')
-                    try:
-                        measurement['value'],measurement['unit']=normalize(raw,unit,p)
-                        lo,hi=VOCAB[p]['range']
-                        if not lo<=measurement['value']<=hi: measurement['rule_codes'].append('RANGE')
-                    except (ValueError,TypeError): measurement['rule_codes'].append('UNIT_UNKNOWN' if unit is None or unit=='unknown' else 'UNIT_CONVERT')
-                    if not measurement['source_verified']: measurement['rule_codes'].append('SOURCE_REVIEW')
-                    if unit=='unspecified' and not measurement['unit_declared']: measurement['rule_codes'].append('UNIT_UNKNOWN')
-                    if not layout['confirmed']: measurement['rule_codes'].append('DRAFT_MAPPING')
+                    validate_measurement(measurement, mapping_confirmed=layout['confirmed'], raw_unit=unit)
                     if fp in seen_layout_change: measurement['rule_codes'].append('LAYOUT_CHANGED')
-                    if measurement['value'] is None: measurement['rule_codes'].append('VALUE_INVALID')
                     run['measurements'].append(measurement)
                 for h in headers:
                     if h not in mapping.columns and h not in {mapping.batch_column,mapping.time_column} and h not in ignored:
@@ -520,63 +510,7 @@ class IngestionService:
                 issue('UNACCOUNTED_CONTENT',path=path,count=len(items),lines=lines[:500],truncated=len(lines)>500,
                       message=f'{len(items)} text element(s) were not converted into values. Read them, or ignore recurring boilerplate for future deliveries.')
             stage('Validate')
-            by_identity=defaultdict(list); by_doc=defaultdict(list)
-            for m in run['measurements']:
-                try: identity=(m['batch'],time_key(m['time']),m['parameter'])
-                except ValueError: identity=(m['batch'],m['time'],m['parameter'])
-                by_identity[identity].append(m)
-                by_doc[m['source']['path']].append(m)
-            suspect_rows=set()
-            for group in by_identity.values():
-                numbers=[m['value'] for m in group if m['value'] is not None]
-                if numbers and any(not math.isclose(n,numbers[0],rel_tol=1e-12,abs_tol=0) for n in numbers):
-                    for m in group:
-                        m['rule_codes'].append('DUPLICATE_CONFLICT')
-                        if m['source'].get('row') is not None: suspect_rows.add((m['source']['path'],m['source'].get('sheet'),m['source']['row']))
-                    issue('DUPLICATE_CONFLICT',path=group[-1]['source']['path'],batch=group[0]['batch'],
-                          parameter=group[0]['parameter'],time=group[0]['time'])
-            for group in by_identity.values():
-                numbers=[m['value'] for m in group if m['value'] is not None]
-                if len(group)<2 or (numbers and any(not math.isclose(n,numbers[0],rel_tol=1e-12,abs_tol=0) for n in numbers)): continue
-                # Agreement across documents corroborates; a repeat inside one
-                # file is a duplicated record that a person should resolve.
-                paths=defaultdict(list)
-                for m in group: paths[m['source']['path']].append(m)
-                for path,repeated in paths.items():
-                    if len(repeated)>1:
-                        for m in repeated: m['rule_codes'].append('DUPLICATE_RECORD')
-                        rows={(m['source']['path'],m['source'].get('sheet'),m['source'].get('row')) for m in repeated}
-                        # Rows already held by a conflict need no second item to review.
-                        if not rows<=suspect_rows:
-                            issue('DUPLICATE_RECORD',path=path,batch=group[0]['batch'],parameter=group[0]['parameter'],time=group[0]['time'])
-            # Other values on a row holding a conflicting value share its doubt.
-            for m in run['measurements']:
-                if m['source'].get('row') is not None and (m['source']['path'],m['source'].get('sheet'),m['source']['row']) in suspect_rows \
-                        and 'DUPLICATE_CONFLICT' not in m['rule_codes']:
-                    m['rule_codes'].append('ROW_CONFLICT')
-            doc_types={d['source_id']:d['doc_type'] for d in run['documents']}
-            process_batches={m['batch'] for m in run['measurements'] if doc_types.get(m['source_id'])=='instrument_export'}
-            for path,items in by_doc.items():
-                for m in items:
-                    if process_batches and m['batch'] not in process_batches:
-                        m['rule_codes'].append('BATCH_MISMATCH'); issue('BATCH_MISMATCH',path=path,batch=m['batch'])
-                structured=[m for m in items if m['source'].get('row') is not None]
-                times=defaultdict(list)
-                for m in structured:
-                    if m['parameter']!=structured[0]['parameter']: continue
-                    try: times[m['batch']].append((m['source']['row'],time_key(m['time'])))
-                    except ValueError: m['rule_codes'].append('TIME_ORDER')
-                for batch,entries in times.items():
-                    sequence=[t for _,t in sorted(entries)]
-                    if any(b<a for a,b in zip(sequence,sequence[1:])):
-                        issue('TIME_ORDER',path=path,batch=batch)
-                        for m in items:
-                            if m['batch']==batch: m['rule_codes'].append('TIME_ORDER')
-            previous=self.previous_verified(cmo,run['id'])
-            findings,basis=quality.expectations(run,previous)
-            for finding in [*quality.batch_completeness(run),*findings]:
-                finding=dict(finding); issue(finding.pop('rule_code'),**finding)
-            run['expectations_basis']=basis
+            validate_collection(run, issue, previous=self.previous_verified(cmo,run['id']))
             for m in run['measurements']:
                 blocking=[i['rule_code'] for i in run['issues'] if blocks(i,m)]
                 m['rule_codes']=sorted(set(m['rule_codes']+blocking))

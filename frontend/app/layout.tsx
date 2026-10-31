@@ -11,6 +11,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'sw
 const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
 export const metadata: Metadata = {
+  icons: { icon: { url: "/brand/symbol.svg", type: "image/svg+xml" }, apple: "/brand/symbol.svg" },
   title: { default: 'Sievance · Verified CMO data', template: '%s · Sievance' },
   description: 'Turn the files your CMOs send into one verified dataset. Every value links to its source; nothing is accepted or dropped without a record.',
 };

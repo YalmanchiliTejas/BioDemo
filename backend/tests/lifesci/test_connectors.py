@@ -201,3 +201,42 @@ def test_catalog_does_not_offer_persistent_transports_on_lambda(env, monkeypatch
     available = {item['transport']: item['available'] for item in catalog['transports']}
     assert available['rest'] is True
     assert available['mqtt'] is False and available['opcua'] is False
+
+
+def test_rest_poll_uses_shared_verification_and_agent_dataset(env, server):
+    p, client, headers, _ = env
+    url, _ = server
+    cfg = config('LIMS', base_url=url)
+    cfg.update(mapping_confirmed=True, source_group='cdmo-live', mapping={
+        'template_id':'rest-ph','system':'LIMS','record_type':'lab_result','fields':[
+            {'source':'id','canonical':'batch_id','required':True},
+            {'source':'value','canonical':'pH','required':True},
+            {'source':'status','canonical':'status'}]})
+    assert client.post('/v1/connectors',headers=headers(),json=cfg).status_code==201
+    sync=client.post('/v1/connectors/test-lims/sync',headers=headers())
+    assert sync.status_code==200,sync.text
+    assert sync.json()['verification']['accepted']==1
+    pub=client.post('/v1/connectors/test-lims/verification/publish',headers=headers())
+    assert pub.status_code==200,pub.text
+    data=client.get('/v1/cmo-datasets',params={'site_id':'S1'},headers=headers()).json()['datasets']
+    assert any(d['id']==pub.json()['id'] and d['status']=='current' for d in data)
+    detail=client.get('/v1/cmo-datasets/'+pub.json()['id'],headers=headers())
+    assert detail.status_code==200 and detail.json()['summary']['measurement_count']==1
+
+
+def test_signed_webhook_uses_same_record_verification(env):
+    _, client, headers, _ = env
+    cfg=config('HISTORIAN','webhook',secret_env='TEST_WEBHOOK_SECRET')
+    cfg.update(mapping_confirmed=True,mapping={'template_id':'webhook-ph','system':'HISTORIAN',
+        'record_type':'measurement','fields':[{'source':'batch_id','canonical':'batch_id','required':True},
+                                            {'source':'value','canonical':'pH','required':True}]})
+    assert client.post('/v1/connectors',headers=headers(),json=cfg).status_code==201
+    body=json.dumps({'id':'reading-1','timestamp':'2026-10-30T00:00:00Z','batch_id':'B1','value':99}).encode()
+    ts=str(int(time.time()))
+    signed={'X-Timestamp':ts,'X-Delivery-Id':'shared-verification',
+            'X-Signature':sign_payload('a signing secret for testing',ts,body)}
+    assert client.post('/v1/webhooks/T/test-historian',content=body,headers=signed).status_code==202
+    sync=client.post('/v1/connectors/test-historian/sync',headers=headers()).json()
+    assert sync['verification']['needs_review']==1
+    records=client.get('/v1/connectors/test-historian/verification',headers=headers()).json()['items']
+    assert records[0]['measurements'][0]['value_raw']==99 and 'RANGE' in records[0]['rule_codes']

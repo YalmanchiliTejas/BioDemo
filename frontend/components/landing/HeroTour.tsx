@@ -140,7 +140,7 @@ function Copy({ className }: { className?: string }) {
         Verify what your contract manufacturers send, investigate deviations with the evidence in view, and forecast process outcomes with physics-based models. Every proposed change waits for a named person to sign.
       </p>
       <div className="mt-8 flex flex-wrap gap-3">
-        <Link href="/home/" className="lp-btn lp-btn-primary">Explore the platform<ArrowRight className="h-4 w-4" /></Link>
+        <Link href="/demo/" className="lp-btn lp-btn-primary">Explore the platform<ArrowRight className="h-4 w-4" /></Link>
         <a href="#platform" className="lp-btn lp-btn-outline">See how it works</a>
       </div>
       <p className="mt-5 max-w-[31rem] text-[12.5px] leading-relaxed text-text-tertiary">Working now: CMO delivery verification on real CHO data, the assistant and freeze-drying forecasts. Monitoring and investigation screens preview a synthetic campaign.</p>

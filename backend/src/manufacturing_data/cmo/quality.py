@@ -23,7 +23,7 @@ from .schema import time_key
 ACCEPTED={'accepted','auto_accepted','corrected'}
 ELEMENT_STATES=('measurement','identifier','ignored','flagged','unaccounted')
 # Document types expected once per batch in a complete delivery.
-PER_BATCH_DOCUMENTS={'coa','batch_record','instrument_export'}
+from ...ingestion.verification import PER_BATCH_DOCUMENTS
 COVERING_RULES={'UNMAPPED_FIELD','UNACCOUNTED_CONTENT','UNRECOGNIZED_TABLE','PARSE_ERROR'}
 
 
@@ -170,38 +170,5 @@ def summarize(run):
     return run['summary']
 
 
-def batch_completeness(run):
-    """Per-batch documents expected in every delivery that contains the batch."""
-    doc_type={d['source_id']:d['doc_type'] for d in run['documents']}
-    present=defaultdict(set); batches=set()
-    for m in run['measurements']:
-        if not m['batch']: continue
-        batches.add(m['batch']); present[doc_type.get(m['source_id'])].add(m['batch'])
-    findings=[]
-    for kind in sorted(PER_BATCH_DOCUMENTS):
-        covered=present.get(kind,set())
-        # Only meaningful once the delivery itself shows the document is per batch.
-        if len(covered)>=2:
-            for batch in sorted(batches-covered):
-                findings.append({'rule_code':'BATCH_DOCUMENT_MISSING','batch':batch,'doc_type':kind,
-                    'message':f'Batch {batch} has no {kind.replace("_"," ")} values although {len(covered)} other batch(es) do'})
-    return findings
-
-
-def expectations(run, previous):
-    """Compare with the most recent fully verified delivery from the same CMO."""
-    if not previous: return [],None
-    findings=[]
-    before={d['doc_type'] for d in previous['documents'] if d['doc_type']!='other'}
-    now={d['doc_type'] for d in run['documents']}
-    for kind in sorted(before-now):
-        findings.append({'rule_code':'EXPECTED_DOCUMENT_MISSING','doc_type':kind,'previous_run':previous['id'],
-            'message':f'Previous verified delivery included a {kind.replace("_"," ")}; this delivery has none'})
-    params_before={m['parameter'] for m in previous['measurements'] if m['status'] in ACCEPTED}
-    params_now={m['parameter'] for m in run['measurements']}
-    for parameter in sorted(params_before-params_now):
-        findings.append({'rule_code':'EXPECTED_PARAMETER_MISSING','parameter':parameter,'previous_run':previous['id'],
-            'message':f'{parameter} was reported in the previous verified delivery but is absent here'})
-    basis={'run_id':previous['id'],'completed_at':previous.get('completed_at'),
-           'document_types':sorted(before),'parameters':sorted(params_before)}
-    return findings,basis
+# Kept as public imports for existing delivery callers.
+from ...ingestion.verification import batch_completeness, expectations

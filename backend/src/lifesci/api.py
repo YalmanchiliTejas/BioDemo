@@ -100,6 +100,16 @@ class ConnectorIn(BaseModel):
     mapping: dict[str, Any] | None = None
     write_operations: list[str] = []
     enabled: bool = True
+    mapping_confirmed: bool = False
+    source_group: str | None = Field(default=None, min_length=1, max_length=120)
+
+
+class SourceReviewIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    record_id: str = Field(min_length=1)
+    expected_revision: int = Field(ge=1)
+    decision: str
+    reason: str = Field(min_length=1, max_length=4000)
 
 
 class OutcomeIn(BaseModel):
@@ -492,6 +502,21 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
             raise
         except (ImportError, OSError) as exc:
             raise HTTPException(503, "Connector unavailable; check its driver, endpoint and credentials") from exc
+
+    @app.get(f"/{API_VERSION}/connectors/{{connector_id}}/verification")
+    def source_verification(connector_id: str, ctx: AccessContext = Depends(ctx_dep)):
+        platform.connectors.record(ctx, connector_id, action="read")
+        return platform.connectors.intake.verification.list_for(ctx, connector_id)
+
+    @app.post(f"/{API_VERSION}/connectors/{{connector_id}}/verification/review")
+    def review_source(connector_id: str, body: SourceReviewIn, ctx: AccessContext = Depends(ctx_dep)):
+        platform.connectors.record(ctx, connector_id, action="read")
+        return platform.connectors.intake.verification.review(ctx, connector_id, **body.model_dump())
+
+    @app.post(f"/{API_VERSION}/connectors/{{connector_id}}/verification/publish")
+    def publish_source(connector_id: str, ctx: AccessContext = Depends(ctx_dep)):
+        platform.connectors.record(ctx, connector_id, action="read")
+        return platform.connectors.intake.verification.publish(ctx, connector_id)
 
     @app.post(f"/{API_VERSION}/connectors/{{connector_id}}/intents/{{intent_id}}/dispatch")
     def dispatch_connector(connector_id: str, intent_id: str, ctx: AccessContext = Depends(ctx_dep)):
