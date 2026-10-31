@@ -34,7 +34,7 @@ type Preview = {
     };
     [key: string]: unknown;
 };
-export function ConnectorOnboarding() {
+export function ConnectorOnboarding({ embedded = false }: { embedded?: boolean }) {
     const { mode } = useSession();
     const [me, setMe] = useState<Identity | null>(null);
     const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -50,6 +50,7 @@ export function ConnectorOnboarding() {
     const [editingId, setEditingId] = useState('');
     const [interval, setInterval] = useState(300);
     const [verificationId, setVerificationId] = useState<string | null>(null);
+    const [sourceQuery, setSourceQuery] = useState('');
     const refresh = useCallback(async () => {
         const connections = await connectorRequest<{
             items: Connector[];
@@ -173,23 +174,23 @@ export function ConnectorOnboarding() {
         window.location.assign('/dashboard/');
     });
     const o = draft?.options || {};
-    return <main className="setup-main">
-    <aside className="setup-sidebar"><p className="setup-eyebrow">YOUR WORKSPACE, CONNECTED</p><h1>Start with what<br />you already know.</h1><p>Connect a source. Check the data.<br />Build from there.</p>
+    return <div className={`setup-main ${embedded ? 'setup-embedded' : ''}`}>
+    <aside className="setup-sidebar"><p className="setup-eyebrow">LET’S GET YOU STARTED</p><h1>Make room for<br />your data.</h1><p>Connect the tools you use.<br />Keep working the way you work.</p>
       <ol className="setup-steps">{['Choose a source', 'Configure access', 'Test & start collection', 'Ready to work'].map((label, i) => <li key={label} aria-current={stage === i ? 'step' : undefined} className={i <= stage ? 'active' : ''}><span>{stage > i ? <Check size={14}/> : i + 1}</span>{label}</li>)}</ol>
       <div className="setup-assurance"><ShieldCheck size={21}/><strong>Read access. Clear boundaries.</strong><p>Source records stay in your existing systems. Connections created here cannot write back.</p></div>
       {me && <p className="setup-identity">Workspace: {me.tenant_id}<br />{mode === 'development' ? 'Development identity' : me.actor_id}</p>}
     </aside>
     <section className="setup-content" aria-busy={!!busy || loading}>
-      <div className="setup-content-top"><span>WORKSPACE SETUP</span><span>{stage + 1} / 4</span></div>
+      <div className="setup-content-top"><span>{embedded ? 'DATA CONNECTIONS' : 'WELCOME TO YOUR WORKSPACE'}</span><span>Step {stage + 1} of 4</span></div>
       {mode === 'development' && <div className="setup-message">Development mode: using the local API identity. Configure Supabase before onboarding real users.</div>}
       {error && <div className="setup-message error" role="alert">{error} {!catalog && <button className="setup-text-link" onClick={load}>Try again</button>}</div>}
       {notice && <div className="setup-message" role="status">{notice}</div>}
       {loading ? <p role="status" className="setup-loading"><Loader2 className="animate-spin" size={20}/> Loading your workspace and available connections…</p> : <>
-      {stage === 0 && <><h2>Where does your data live?</h2><p className="setup-subtitle">Choose a system to connect. You can add more at any time.</p><div className="connector-grid">{catalog?.families.map(f => {
+      {stage === 0 && <><h2>Bring your context along.</h2><p className="setup-subtitle">Choose a source to connect. Start with one, add others later.</p><label className="source-catalog-search"><Database size={15}/><input aria-label="Search data sources" type="search" placeholder="Find a system or type of data…" value={sourceQuery} onChange={e => setSourceQuery(e.target.value)}/></label><div className="connector-grid">{catalog?.families.filter(f => `${f.system} ${f.record_type} ${families[f.system]?.title ?? ''} ${families[f.system]?.description ?? ''}`.toLowerCase().includes(sourceQuery.trim().toLowerCase())).map(f => {
                     const details = families[f.system] || { title: f.system, description: f.record_type, icon: Database };
                     const Icon = details.icon;
                     return <button key={f.system} className="connector-choice" onClick={() => choose(f.system)}><span className="connector-icon"><Icon size={23} strokeWidth={1.5}/></span><span className="connector-kind">{f.system}</span><strong>{details.title}</strong><span>{details.description}</span><ArrowRight size={17} className="connector-arrow"/></button>;
-                })}</div><p className="setup-fine">Connectors use configurable source mappings. Vendor qualification has not been performed.</p></>}
+                })}</div>{catalog && !catalog.families.some(f => `${f.system} ${f.record_type} ${families[f.system]?.title ?? ''} ${families[f.system]?.description ?? ''}`.toLowerCase().includes(sourceQuery.trim().toLowerCase())) && <p className="setup-fine" role="status">No sources match your search. Try a system type such as LIMS or MES.</p>}<p className="setup-fine">Connectors use configurable source mappings. Vendor qualification has not been performed.</p></>}
       {stage === 1 && draft && <><button className="setup-back" onClick={() => setStage(0)}><ArrowLeft size={15}/> All sources</button><h2>Connect your {draft.family}.</h2><p className="setup-subtitle">Use access approved by your system owner. Start with a manual test.</p>
         <form className="connector-form" onSubmit={save}><div className="setup-two-columns"><label>Connection ID<input readOnly={!!editingId} required pattern="[A-Za-z0-9_.-]{1,80}" maxLength={80} placeholder="e.g. mesa-lims" value={draft.connector_id} onChange={e => change('connector_id', e.target.value)}/></label>
         <label>Site{me?.site_ids.length ? <select value={draft.site_id} onChange={e => change('site_id', e.target.value)}>{me.site_ids.map(s => <option key={s}>{s}</option>)}</select> : <input required placeholder="Your authorized site ID" value={draft.site_id} onChange={e => change('site_id', e.target.value)}/>}</label></div>
@@ -220,5 +221,5 @@ export function ConnectorOnboarding() {
       <div className="setup-bottom"><button disabled={!!busy || loading} onClick={finishOnboarding}>Continue without adding a source <ArrowRight size={15}/></button><span>You can return here anytime.</span></div>
       </>}
     </section>
-  </main>;
+  </div>;
 }

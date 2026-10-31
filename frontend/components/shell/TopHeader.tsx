@@ -1,72 +1,65 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Check, LogOut, UserRound } from 'lucide-react';
-import { authMode, signOut, useSession } from '@/lib/auth';
-import { useAppContext } from '@/lib/app-context';
+import { usePathname } from 'next/navigation';
+import { Building2, Check, ChevronDown, ChevronRight, HelpCircle, LogOut, Menu, Search, Settings, UserRound } from 'lucide-react';
+import { organizationDestination } from '@/lib/organizations-api';
+import { selectOrganization, signOut } from '@/lib/auth';
+import { useWorkspace } from '@/lib/workspace-context';
+import { useTutorial } from '@/lib/tutorial-context';
+import { useAgent } from '@/lib/agent/agent-context';
 import { setReviewer, useReviewer } from '@/lib/reviewer';
-import { BrandMark } from './BrandMark';
-import { PrimaryNav } from './Sidebar';
-
-function Person() {
-  const name = useReviewer();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  if (editing || !name) {
-    return (
-      <form className="flex min-w-0 items-center gap-1" onSubmit={e => { e.preventDefault(); if (draft.trim()) { setReviewer(draft); setEditing(false); } }}>
-        <input autoFocus={editing} aria-label="Your name" placeholder="Your name" value={draft} onChange={e => setDraft(e.target.value)}
-          className="h-8 w-20 min-w-0 rounded-control sm:w-36 border border-amber-400 px-2 text-[13px]" />
-        <button type="submit" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-text-secondary hover:bg-surface-secondary" aria-label="Save name"><Check className="h-4 w-4" /></button>
-      </form>
-    );
-  }
-  return (
-    <button onClick={() => { setDraft(name); setEditing(true); }} title="Recorded on your decisions. Click to change."
-      className="flex h-8 items-center gap-1.5 rounded-control px-2 text-[13px] text-text-secondary hover:bg-surface-secondary">
-      <UserRound className="h-4 w-4" aria-hidden /><span className="max-w-[80px] truncate sm:max-w-[140px]">{name}</span>
-    </button>
-  );
-}
-
-/** Supabase mode: decisions are recorded under the signed-in email, so the name is not editable here. */
-function Account() {
-  const { email, loading } = useSession();
-  const { notify } = useAppContext();
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { if (email) setReviewer(email); }, [email]);
-  if (loading) return null;
-  if (!email) {
-    return <a href="/sign-in/" className="flex h-8 items-center rounded-control px-2 text-[13px] text-text-secondary hover:bg-surface-secondary">Sign in</a>;
-  }
-  const leave = async () => {
-    setBusy(true);
-    try { await signOut(); } catch { notify('Sign-out failed. Please try again.', 'warning'); setBusy(false); return; }
-    window.location.assign('/sign-in/');
-  };
-  return (
-    <div className="flex min-w-0 items-center gap-1">
-      <Link href="/settings/organization/" className="hidden sm:inline text-xs text-brand-teal">Organization</Link>
-      <span title={`Signed in as ${email}. Recorded on your decisions.`} className="flex h-8 min-w-0 items-center gap-1.5 px-2 text-[13px] text-text-secondary">
-        <UserRound className="h-4 w-4 shrink-0" aria-hidden /><span className="max-w-[80px] truncate sm:max-w-[180px]">{email}</span>
-      </span>
-      <button onClick={leave} disabled={busy} title="Sign out" aria-label="Sign out"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-text-secondary hover:bg-surface-secondary disabled:opacity-50">
-        <LogOut className="h-4 w-4" aria-hidden />
-      </button>
-    </div>
-  );
-}
+import { NAV_SECTIONS } from './Sidebar';
 
 export function TopHeader() {
-  return (
-    <header className="shrink-0 px-3 pt-3">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 rounded-xl sm:gap-6 border border-border-hairline bg-white/90 px-3 sm:px-5 shadow-[0_8px_30px_rgba(11,30,34,0.05)] backdrop-blur">
-        <BrandMark href="/dashboard/" className="max-sm:!w-7 max-sm:[&_.sievance-wordmark]:hidden" />
-        <div className="flex min-w-0 flex-1 justify-center"><PrimaryNav /></div>
-        {authMode() === 'supabase' ? <Account /> : <Person />}
+  const path = usePathname().replace(/\/$/, '');
+  const workspace = useWorkspace();
+  const guide = useTutorial();
+  const { openOverlay } = useAgent();
+  const reviewer = useReviewer();
+  const [menu, setMenu] = useState<'account' | 'organization' | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const container = useRef<HTMLElement>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const name = String(workspace.user?.user_metadata?.full_name || workspace.email?.split('@')[0] || reviewer || 'Your account');
+  const initials = name.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
+  const section = NAV_SECTIONS.find(s => s.groups.some(g => g.items.some(i => i.href === path)));
+  const page = section?.groups.flatMap(g => g.items).find(item => item.href === path)?.label ?? 'Workspace';
+  useEffect(() => { if (workspace.email) setReviewer(workspace.email); }, [workspace.email]);
+  useEffect(() => { setMenu(null); setError(''); }, [path]);
+  useEffect(() => {
+    if (!menu) return;
+    const outside = (e: PointerEvent) => { if (!container.current?.contains(e.target as Node)) setMenu(null); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setMenu(null); trigger.current?.focus(); } };
+    document.addEventListener('pointerdown', outside); document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', key); };
+  }, [menu]);
+  const toggle = (value: 'account' | 'organization', target: HTMLButtonElement) => { trigger.current = target; setError(''); setMenu(menu === value ? null : value); };
+  async function switchTo(id: string) {
+    const organization = workspace.account?.organizations.find(org => org.id === id);
+    if (!organization || id === workspace.organization?.id) return;
+    setBusy(true); setError('');
+    try { await selectOrganization(id); window.location.assign(organizationDestination(organization)); }
+    catch (err) { setError((err as Error).message); setBusy(false); }
+  }
+  async function leave() {
+    setBusy(true); setError('');
+    try { await signOut(); window.location.assign('/sign-in/'); }
+    catch (err) { setError((err as Error).message); setBusy(false); }
+  }
+  return <header ref={container} className="workspace-header">
+    <div className="header-location"><button type="button" className="chrome-icon mobile-only" aria-label="Open navigation" aria-controls="workspace-navigation" aria-expanded={workspace.mobileOpen} onClick={() => { setMenu(null); guide.close(); workspace.setMobileOpen(true); }}><Menu size={20} /></button><span className="header-section">{section?.label ?? 'Workspace'}<ChevronRight size={13} /></span><span>{page}</span></div>
+    <div className="header-actions">
+      <div className="chrome-dropdown org-dropdown"><button type="button" data-guide="organization-switcher" className="organization-switcher" aria-label="Switch organization" aria-expanded={menu === 'organization'} onClick={e => toggle('organization', e.currentTarget)}><Building2 size={17} /><span><small>Organization</small><strong>{workspace.organization?.name ?? (workspace.mode === 'development' ? 'Development workspace' : workspace.loadingAccount ? 'Loading…' : 'Select organization')}</strong></span><ChevronDown size={13} /></button>
+        {menu === 'organization' && <div className="chrome-popover" aria-label="Organization switcher"><div className="popover-label">YOUR ORGANIZATIONS</div>{workspace.loadingAccount && <p role="status">Loading organizations…</p>}{workspace.error && <div role="alert"><p>{workspace.error}</p><button type="button" className="popover-item" onClick={workspace.reload}>Try again</button></div>}{workspace.account?.organizations.map(org => <button type="button" className="popover-item" key={org.id} disabled={busy || org.id === workspace.organization?.id} onClick={() => switchTo(org.id)}><Building2 size={15} /><span>{org.name}<small>{org.roles.join(', ')}</small></span>{org.id === workspace.organization?.id && <Check size={15} />}</button>)}{error && <p role="alert">{error}</p>}<div className="popover-divider" /><Link href="/settings/organization/" className="popover-item"><Settings size={15} />Organization settings</Link><Link href="/account/?manage=1" className="popover-item">Manage organizations <ChevronRight size={14} /></Link></div>}
       </div>
-    </header>
-  );
+      <button type="button" className="header-search" aria-label="Search workspace" onClick={() => { setMenu(null); guide.close(); openOverlay('FIND'); }}><Search size={16} /><span>Find a page</span><kbd>⌘K</kbd></button>
+      <button type="button" className="chrome-icon" data-guide="help" aria-label="Open workspace guide" aria-expanded={guide.opened} onClick={() => { setMenu(null); if (guide.opened) guide.close(); else guide.open(); }}><HelpCircle size={19} /></button>
+      <div className="chrome-dropdown"><button type="button" className="account-trigger" data-guide="profile" aria-label="Open account menu" aria-expanded={menu === 'account'} onClick={e => toggle('account', e.currentTarget)}><span className="workspace-avatar">{initials}</span><ChevronDown size={12} /></button>
+        {menu === 'account' && <div className="chrome-popover account-popover" aria-label="Account menu"><div className="popover-account"><span className="workspace-avatar">{initials}</span><div><strong>{name}</strong><small>{workspace.email ?? 'Local development identity'}</small></div></div><div className="popover-divider" /><Link className="popover-item" href="/settings/profile/"><UserRound size={16} />My profile</Link><Link className="popover-item" href="/settings/organization/"><Building2 size={16} />Organization settings</Link><button type="button" className="popover-item" onClick={() => { setMenu(null); guide.open(); }}><HelpCircle size={16} />Workspace guide</button><div className="popover-divider" />{workspace.mode === 'supabase' ? <button type="button" className="popover-item" disabled={busy} onClick={leave}><LogOut size={16} />{busy ? 'Signing out…' : 'Sign out'}</button> : <Link href="/sign-in/" className="popover-item"><LogOut size={16} />Sign in</Link>}{error && <p role="alert">{error}</p>}</div>}
+      </div>
+    </div>
+  </header>;
 }

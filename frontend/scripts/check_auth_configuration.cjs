@@ -4,12 +4,12 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 const code = ts.transpileModule(fs.readFileSync(require.resolve('../lib/auth.ts'), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
-function auth(env, session=null) {
+function auth(env, session=null, updateUser=async()=>({error:null})) {
   const module={exports:{}};
   const storage=new Map([['sievance.organization:fixture','org_a']]);
   vm.runInNewContext(code,{
     exports:module.exports,module,process:{env},
-    require:name=>name==='react'?{}:{createClient:()=>({auth:{getSession:async()=>({data:{session},error:null})}})},
+    require:name=>name==='react'?{}:{createClient:()=>({auth:{getSession:async()=>({data:{session},error:null}),updateUser}})},
     localStorage:{getItem:key=>storage.get(key),setItem:(key,v)=>storage.set(key,v),removeItem:key=>storage.delete(key)},
   });
   return module.exports;
@@ -25,6 +25,13 @@ function auth(env, session=null) {
   assert.equal(h['X-Organization-Id'],'org_a');
   assert.equal(h['X-Tenant-Id'],undefined);
   assert.equal(h['X-Actor-Id'],undefined);
+  const updates = [];
+  const profile = auth({NODE_ENV:'production',NEXT_PUBLIC_SUPABASE_URL:'https://fixture.supabase.co',NEXT_PUBLIC_SUPABASE_ANON_KEY:'public-fixture'}, null, async value=>{updates.push(value);return {error:null};});
+  await profile.updateDisplayName('  Fixture Name  ');
+  assert.equal(JSON.stringify(updates), JSON.stringify([{data:{full_name:'Fixture Name'}}]));
+  await assert.rejects(profile.updateDisplayName(' '), /between 1 and 80/);
+  await assert.rejects(profile.updateDisplayName('a'.repeat(81)), /between 1 and 80/);
+  assert.equal(updates.length, 1);
   const development=auth({NODE_ENV:'development'});
   assert.equal(development.authMode(),'development');
   assert.equal((await development.authHeaders())['X-Actor-Id'],'priya');

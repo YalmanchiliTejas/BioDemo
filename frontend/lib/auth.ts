@@ -82,6 +82,15 @@ export async function updatePassword(password: string) {
   if (message) throw new Error(message);
 }
 
+/** Personal display metadata; approval attribution continues to use verified identity. */
+export async function updateDisplayName(name: string) {
+  const full_name = name.trim();
+  if (!full_name || full_name.length > 80) throw new Error('Enter a display name between 1 and 80 characters.');
+  const { error } = await attempt(() => supabase().auth.updateUser({ data: { full_name } }));
+  const message = plain(error, 'Your display name could not be saved. Try again.');
+  if (message) throw new Error(message);
+}
+
 /** The signed-in user in Supabase mode; `loading` is true until the stored session has been read. */
 export function useSession() {
   const enabled = authConfigured();

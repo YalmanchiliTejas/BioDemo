@@ -4,5 +4,5 @@ import Link from 'next/link';
 export default function OnboardingLayout({ children }: {
     children: React.ReactNode;
 }) {
-    return <SessionGate><div className="setup-shell"><header className="setup-header"><BrandMark href="/"/><Link href="/dashboard/">Go to workspace →</Link></header>{children}</div></SessionGate>;
+    return <SessionGate><div className="setup-shell onboarding-shell"><header className="setup-header"><BrandMark href="/"/><Link href="/dashboard/">Back to workspace →</Link></header>{children}</div></SessionGate>;
 }
