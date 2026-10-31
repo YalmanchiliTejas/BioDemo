@@ -6,10 +6,20 @@ Description: >
   the biodemo-lambda-deploy policy allows. Create once, as an administrator.
 
 Parameters:
+  Owner:
+    Type: String
+    Default: YalmanchiliTejas
+  OwnerId:
+    Type: String
+    Default: "85045556"
+    Description: Numeric GitHub owner ID (https://api.github.com/repos/OWNER/REPO -> owner.id).
   Repository:
     Type: String
-    Default: YalmanchiliTejas/BioDemo
-    Description: GitHub owner/name.
+    Default: BioDemo
+  RepositoryId:
+    Type: String
+    Default: "1380262900"
+    Description: Numeric GitHub repository ID (https://api.github.com/repos/OWNER/REPO -> id).
   Environment:
     Type: String
     Default: production
@@ -55,7 +65,9 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                token.actions.githubusercontent.com:sub: !Sub repo:${Repository}:environment:${Environment}
+                # GitHub's immutable subject format (repositories created after 2026-07-15):
+                # bound to the numeric IDs, so a deleted-and-recreated name cannot match.
+                token.actions.githubusercontent.com:sub: !Sub repo:${Owner}@${OwnerId}/${Repository}@${RepositoryId}:environment:${Environment}
       ManagedPolicyArns:
         - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${DeployPolicyName}
 
