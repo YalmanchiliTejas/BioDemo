@@ -75,7 +75,7 @@ names = {"ImageUri": "IMAGE", "FunctionName": "FUNCTION", "DatabaseUrl": "DATABA
          "RuntimeSchedule": "RUNTIME_SCHEDULE", "MemorySize": "MEMORY_SIZE", "ApiDomain": "API_DOMAIN",
          "CertificateArn": "CERTIFICATE_ARN"}
 params = {k: os.environ[v] for k, v in names.items() if os.environ.get(v)}
-json.dump(params, open(sys.argv[1], "w"))
+json.dump({"Parameters": params}, open(sys.argv[1], "w"))  # the form `deploy --parameter-overrides file://` accepts
 PY
 aws cloudformation deploy --stack-name "$STACK" --template-file "$HERE/template.yaml" \
   --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND --no-fail-on-empty-changeset \
