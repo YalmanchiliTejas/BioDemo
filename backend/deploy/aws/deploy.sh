@@ -26,6 +26,9 @@ STACK="${STACK_NAME:-biodemo-api}"
 FUNCTION="${FUNCTION_NAME:-biodemo-api}"
 REPO="${ECR_REPOSITORY:-biodemo-api}"
 export AWS_REGION AWS_DEFAULT_REGION="$AWS_REGION"
+# Zero means omit the reservation, not disable the function. Small accounts may
+# have no reservable capacity above AWS's required unreserved minimum.
+export RESERVED_CONCURRENCY="${RESERVED_CONCURRENCY:-0}"
 
 IFS=',' read -ra ORIGINS <<< "$CORS_ORIGINS"
 for origin in "${ORIGINS[@]}"; do
@@ -40,6 +43,14 @@ case "$DATABASE_URL" in
   postgresql://lifesci_app*|postgres://lifesci_app*) ;;
   *) echo "DATABASE_URL must connect as lifesci_app (the runtime role), not postgres" >&2; exit 1 ;;
 esac
+
+# A failed update rollback cannot accept a new change set. Report it before building.
+STACK_STATE="$(aws cloudformation describe-stacks --stack-name "$STACK" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NONE)"
+if [[ "$STACK_STATE" == "UPDATE_ROLLBACK_FAILED" ]]; then
+  echo "Stack $STACK is UPDATE_ROLLBACK_FAILED. Fix the deployment-role permissions, then continue rollback before retrying." >&2
+  echo "aws cloudformation continue-update-rollback --stack-name $STACK --region $AWS_REGION" >&2
+  exit 1
+fi
 
 command -v docker >/dev/null || { echo "Docker is required" >&2; exit 1; }
 docker info >/dev/null 2>&1 || { echo "Start Docker first" >&2; exit 1; }
@@ -73,7 +84,8 @@ names = {"ImageUri": "IMAGE", "FunctionName": "FUNCTION", "DatabaseUrl": "DATABA
          "ModalProxyToken": "MODAL_PROXY_TOKEN", "LlmModel": "LIFESCI_LLM_MODEL",
          "AllowUnqualifiedRoutes": "LIFESCI_ALLOW_UNQUALIFIED_ROUTES", "SupabaseJwtSecret": "SUPABASE_JWT_SECRET",
          "RuntimeSchedule": "RUNTIME_SCHEDULE", "MemorySize": "MEMORY_SIZE", "ApiDomain": "API_DOMAIN",
-         "CertificateArn": "CERTIFICATE_ARN", "MultiTenant": "LIFESCI_MULTI_TENANT"}
+         "CertificateArn": "CERTIFICATE_ARN", "MultiTenant": "LIFESCI_MULTI_TENANT",
+         "ReservedConcurrency": "RESERVED_CONCURRENCY"}
 params = {k: os.environ[v] for k, v in names.items() if os.environ.get(v)}
 json.dump({"Parameters": params}, open(sys.argv[1], "w"))  # the form `deploy --parameter-overrides file://` accepts
 PY
@@ -86,9 +98,15 @@ case "$STATE" in
     aws cloudformation wait stack-delete-complete --stack-name "$STACK" ;;
 esac
 
-aws cloudformation deploy --stack-name "$STACK" --template-file "$HERE/template.yaml" \
+if ! aws cloudformation deploy --stack-name "$STACK" --template-file "$HERE/template.yaml" \
   --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND --no-fail-on-empty-changeset \
-  --parameter-overrides "file://$PARAMS"
+  --parameter-overrides "file://$PARAMS"; then
+  echo "Deployment failed. Recent resource failures:" >&2
+  aws cloudformation describe-stack-events --stack-name "$STACK" \
+    --query 'StackEvents[?ResourceStatus==`UPDATE_FAILED` || ResourceStatus==`CREATE_FAILED` || ResourceStatus==`UPDATE_ROLLBACK_FAILED`].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+    --output table >&2 || true
+  exit 1
+fi
 
 output() { aws cloudformation describe-stacks --stack-name "$STACK" --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
 URL="$(output ApiUrl)"

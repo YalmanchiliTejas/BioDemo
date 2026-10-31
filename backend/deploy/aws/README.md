@@ -148,7 +148,7 @@ An account without a role can sign in but cannot see any data.
 These are independent deployment concerns:
 
 - **`ModuleNotFoundError: benchmark`:** rebuild the Lambda image. Runtime connector contracts now live in `src/lifesci/connector_contracts.py`, and the image build constructs a platform to catch missing startup dependencies. Do not bundle the evaluation corpus to fix a runtime dependency.
-- **`EMAXCONNSESSION`:** deploy the connection lifecycle fix and the concurrency cap in the SAM template. Each invocation releases its session. Keep the session-pooler URL on port 5432 for this store; its tenant-binding reads depend on session state. Do not increase concurrency beyond database capacity or change only the pooler port. Other applications using the same runtime user also consume pool slots.
+- **`EMAXCONNSESSION`:** deploy the connection lifecycle fix. The optional concurrency cap can be enabled once the AWS account has sufficient quota. Each invocation releases its session. Keep the session-pooler URL on port 5432 for this store; its tenant-binding reads depend on session state. Do not increase concurrency beyond database capacity or change only the pooler port. Other applications using the same runtime user also consume pool slots.
 - **`ERR_NAME_NOT_RESOLVED`:** publish `api.sievance.com CNAME dox69po0s3xpi.cloudfront.net` at the authoritative DNS provider (the target reported by the current `biodemo-api` stack in `us-east-1`). Verify the current stack output before changing DNS. Until the custom hostname resolves, the stack's `FunctionUrl` is an alternative API base URL; rebuilding the frontend is required when changing a `NEXT_PUBLIC_*` value.
 - **Development headers in production:** set all three public frontend values in Vercel: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_LIFESCI_API_URL`. Redeploy/rebuild; these are embedded at build time. Do not put the service-role key in the frontend. Missing auth configuration now fails closed in production.
 
@@ -162,3 +162,27 @@ These are independent deployment concerns:
 6. Verify anonymous `GET /v1/account` returns 401, a valid account without memberships can list its empty account, and `GET /v1/me` requires an active organization membership. Watch Lambda connection counts during concurrent authenticated requests and background tasks.
 
 Existing role assignments in `DEPLOYMENT_TENANT` remain discoverable. New accounts do not inherit them. See [accounts and organizations](../../../docs/architecture/accounts-and-organizations.md) for the authorization model and current site-scope boundary.
+
+### Deployment role concurrency permissions and failed rollback
+
+If updating `Api` fails with `lambda:PutFunctionConcurrency` denied, and rollback fails with `lambda:DeleteFunctionConcurrency` denied:
+
+1. As an AWS administrator, open IAM → Policies → `biodemo-lambda-deploy` → Edit policy → JSON. Apply the current `deploy/aws/deployer-policy.json` and save a new default version. The Lambda function statement includes `lambda:PutFunctionConcurrency` and `lambda:DeleteFunctionConcurrency`, scoped to `biodemo-api`. The stack statement includes `cloudformation:ContinueUpdateRollback`.
+2. In CloudFormation (`us-east-1`), select `biodemo-api` → Stack actions → Continue update rollback. Do not skip the `Api` resource. Wait for `UPDATE_ROLLBACK_COMPLETE`. Alternatively, using an authorized identity:
+
+   ```bash
+   aws cloudformation continue-update-rollback --stack-name biodemo-api --region us-east-1
+   aws cloudformation describe-stacks --stack-name biodemo-api --region us-east-1 --query 'Stacks[0].StackStatus' --output text
+   ```
+
+3. Rerun the deployment workflow. The failed stack must recover before a new update can proceed. There is no need to delete the stack or change the CNAME. The deployment script now checks this state before building and prints resource failure reasons when deployment fails.
+
+The recovery command needs permission on the stack. If the identity running it does not have `cloudformation:ContinueUpdateRollback`, use an administrator or update the scoped deployer policy first.
+
+### Reserved concurrency exceeds account headroom
+
+If `Api` fails with `Specified ReservedConcurrentExecutions ... decreases account's UnreservedConcurrentExecution below its minimum value`, the account cannot currently allocate the requested reservation. The observed account requires at least 10 unreserved executions.
+
+The template and deployment script now default `RESERVED_CONCURRENCY=0`. This **omits** `ReservedConcurrentExecutions` through `AWS::NoValue`; it does not set Lambda concurrency to zero, which would disable invocations. The deploy script explicitly sends the parameter so an earlier value of 5 is replaced. For GitHub Actions, leave the `RESERVED_CONCURRENCY` repository/environment variable unset or set it to `0`. Then deploy the updated code. A stack in `UPDATE_ROLLBACK_COMPLETE` can be updated directly; no further rollback recovery is needed.
+
+Connection cleanup remains enabled. Omitting the cap removes the application-specific concurrency bound: concurrent active requests and other database clients can still exhaust the session pool. Monitor database sessions and throttling under representative load. After obtaining enough Lambda quota, set the reservation to 1–5 with measured database headroom. Do not set the Lambda function's actual reserved concurrency to zero in the AWS console.

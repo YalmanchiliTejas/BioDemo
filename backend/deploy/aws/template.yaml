@@ -68,10 +68,10 @@ Parameters:
     Description: Enable account-owned organizations and stored membership selection.
   ReservedConcurrency:
     Type: Number
-    Default: 5
-    MinValue: 1
+    Default: 0
+    MinValue: 0
     MaxValue: 5
-    Description: Bounds simultaneous session-pool clients; leave capacity for CMO transactions and administration.
+    Description: 0 omits the reservation for small account quotas; 1-5 caps concurrent invocations when account headroom permits.
   ApiDomain:
     Type: String
     Default: ""
@@ -82,6 +82,7 @@ Parameters:
     Description: Issued ACM certificate for ApiDomain, in us-east-1 (CloudFront requires that region).
 
 Conditions:
+  HasReservedConcurrency: !Not [!Equals [!Ref ReservedConcurrency, "0"]]
   HasModal: !Not [!Equals [!Ref ModalProxyToken, ""]]
   HasDomain: !And
     - !Not [!Equals [!Ref ApiDomain, ""]]
@@ -96,7 +97,7 @@ Resources:
       ImageUri: !Ref ImageUri
       Architectures: [arm64]
       MemorySize: !Ref MemorySize
-      ReservedConcurrentExecutions: !Ref ReservedConcurrency
+      ReservedConcurrentExecutions: !If [HasReservedConcurrency, !Ref ReservedConcurrency, !Ref "AWS::NoValue"]
       Timeout: 900
       EphemeralStorage:
         Size: 4096
