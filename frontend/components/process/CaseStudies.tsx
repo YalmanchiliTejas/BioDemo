@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { ArrowDown, ArrowRight, BookOpen, FlaskConical, Layers3, Sparkles } from 'lucide-react';
 import { Button, Card, Pill } from '@/components/ui';
+import { WorkspacePageHeader } from '@/components/shell/WorkspacePageHeader';
 import { useOptionalCompanion } from '@/lib/companion-context';
 import type { Analysis } from '@/components/process/FermentationTransfer';
 
@@ -67,8 +68,8 @@ export default function CaseStudiesPage() {
   const receiver=record?.validation.rows.find(r=>r.receiver_l===200);
   function choose(id:CaseId){setCaseId(id);setWorkspace(null);window.history.replaceState(null,'',`#${id}`);}
   function discuss(){companion?.show({kind:'text',label:study.name+' · case study',page_path:'/case-studies',captured_at:new Date().toISOString(),content:JSON.stringify({question:study.title,classification:study.tag,source:study.url,recorded_result:record??null,notice:'Retrospective screen context includes evaluation answers; do not use for a blinded benchmark.'})});}
-  return <div className="mx-auto max-w-[1200px] pb-12" data-testid="case-study-story">
-    <div className="mb-7 flex items-center justify-between gap-4"><div><p className={eyebrow}>Manufacturing intelligence</p><h1 className="mt-1 text-2xl font-semibold tracking-tight">Case studies</h1></div><span className="hidden text-xs text-text-tertiary sm:block">Evidence → calculation → engineering decision</span></div>
+  return <div className="workspace-page pb-12" data-testid="case-study-story">
+    <WorkspacePageHeader title="Case studies" description="Worked examples that trace published evidence through calculation to an engineering decision." />
     <nav aria-label="Select case study" className="mb-8 grid grid-cols-2 gap-2 lg:grid-cols-5">{CASES.map(c=><button key={c.id} onClick={()=>choose(c.id)} aria-pressed={caseId===c.id} className={`rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-teal ${caseId===c.id?'border-brand-teal bg-brand-teal-light/50':'border-border-hairline bg-surface hover:border-border-strong'}`}><span className="block text-sm font-semibold">{c.name}</span><span className="mt-1 block text-[11px] text-text-secondary">{c.topic}</span></button>)}</nav>
     {caseId==='physics-value'?<PhysicsValueStudy/>:<article key={caseId} className="space-y-8">
       <div className="grid items-center gap-6 lg:grid-cols-[1.3fr_1fr]"><div><Pill tone={fermentation?'brand':'neutral'}>{study.tag}</Pill><h2 className="mt-4 max-w-2xl text-[30px] font-semibold leading-[1.16] [text-wrap:balance] tracking-[-0.035em] sm:text-[38px]">{study.title}</h2><p className="mt-4 max-w-xl text-sm leading-6 text-text-secondary">{study.intro}</p><a className="mt-4 inline-flex items-center gap-2 text-xs font-medium text-brand-teal hover:underline" href={study.url} target="_blank" rel="noreferrer"><BookOpen className="h-3.5 w-3.5"/>{study.source}<ArrowRight className="h-3 w-3"/></a></div>{fermentation?<ScaleSketch pichia={pichia}/>:<div className="rounded-2xl border border-border-hairline bg-surface p-7"><Layers3 className="h-7 w-7 text-brand-teal"/><p className="mt-5 text-xl font-medium">{caseId==='sanofi'?'Evidence can narrow a question. It cannot establish a cause on its own.':'A simulated response is useful only within a valid trajectory.'}</p><p className="mt-3 text-xs leading-5 text-text-secondary">{caseId==='sanofi'?'Observations, missing records and competing explanations remain distinct from approved findings.':'Historical screening and intervention tests answer different questions. Failed runs remain part of the record.'}</p></div>}</div>

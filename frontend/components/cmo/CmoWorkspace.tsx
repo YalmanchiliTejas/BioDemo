@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, CircleAlert, Download, FileText, Loader2, MessageSquare, RotateCcw, ShieldCheck, Upload, X } from 'lucide-react';
+import { WorkspacePageHeader } from '@/components/shell/WorkspacePageHeader';
 import { Button, Callout, Pill, table, type Tone } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import {
@@ -112,13 +113,8 @@ function Start({ catalog, runs, onError }: { catalog: Catalog | null; runs: RunL
   // Demo workspaces (this visitor's or anyone else's) stay out of the shared list.
   const mine = runs.filter(r => !r.superseded_by && !isDemoCmo(r.cmo) && !r.cmo.includes('· demo '));
   return (
-    <div className="space-y-16">
-      <header>
-        <p className={eyebrow}>Deliveries</p>
-        <h1 className="mt-4 max-w-3xl font-display text-[38px] font-light leading-[1.1] tracking-[-0.025em] text-ink sm:text-[46px]">
-          Check a CMO delivery. <span className="text-text-tertiary">Every value links back to its source.</span>
-        </h1>
-      </header>
+    <div className="space-y-10">
+      <WorkspacePageHeader title="Deliveries" description="Check the files a CMO sends you. Every extracted value links back to its source." />
       <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
         <section className="space-y-4">
           <label className="block">
@@ -349,7 +345,7 @@ export function CmoWorkspace() {
     );
   }
   return (
-    <div className="mx-auto max-w-6xl pb-16">
+    <div className="workspace-page pb-16">
       {error && !runId && <Callout tone="critical" className="mb-6" action={<button onClick={() => setError('')}><X className="h-4 w-4" /></button>}>{error}</Callout>}
       {runId ? <Delivery runId={runId} /> : <Start catalog={catalog} runs={runs} onError={setError} />}
     </div>

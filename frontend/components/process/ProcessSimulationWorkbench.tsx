@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { ArrowDownToLine, Play, FlaskConical } from 'lucide-react';
-import { Callout, Card, CardBody, CardHeader, PageHeader, Pill, Stat } from '@/components/ui';
+import { Callout, Card, CardBody, CardHeader, Pill, Stat } from '@/components/ui';
+import { WorkspacePageHeader } from '@/components/shell/WorkspacePageHeader';
 import { ScientificPlot } from '@/components/ScientificPlot';
 import { AnalysisWorkbench } from '@/components/process/AnalysisWorkbench';
 import { authHeaders, authMode, redirectToSignIn, SIGNED_OUT_MESSAGE } from '@/lib/auth';
@@ -97,8 +98,8 @@ export default function ProcessSimulation() {
   const bands = option?.uncertainty?.active_temperature_intervals;
   if (bands) for (const q of [0, 2]) tempSeries.push({ id: q === 0 ? 'Sample P05 · active vials' : 'Sample P95 · active vials', color: '#94a3b8', dataPoints: bands.map(r => ({ elapsedHours: r.time_h, value: r.temperature_c_p05_p50_p95[q] })) });
 
-  return <div className="mx-auto max-w-[1320px] space-y-4">
-    <PageHeader title="Predictive process engineering" frameId="PROCESS-SIMULATION" agent={false} crumbs={[{ label: 'Improve' }, { label: 'Process simulation' }]}
+  return <div className="workspace-page space-y-4">
+    <WorkspacePageHeader title="Process simulation"
       status={<Pill tone="info">Executed physics · unqualified demonstration</Pill>}
       description="Select physical models, generate reproducible analysis pipelines, and review predictions for technology transfer and CDMO operation." />
     <Callout tone="warning" title="Published case, reconstructed demonstration">
