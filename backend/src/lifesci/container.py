@@ -129,8 +129,12 @@ class Platform:
     @classmethod
     def from_env(cls) -> "Platform":
         migrate = os.environ.get("LIFESCI_DB_MIGRATE", "1").strip().lower() not in {"0", "false", "no"}
-        return cls(RecordStore(os.environ.get("LIFESCI_DATABASE_URL", ":memory:"), migrate=migrate),
-                   allow_unqualified=os.environ.get("LIFESCI_ALLOW_UNQUALIFIED_ROUTES") == "1")
+        store = RecordStore(os.environ.get("LIFESCI_DATABASE_URL", ":memory:"), migrate=migrate)
+        try:
+            return cls(store, allow_unqualified=os.environ.get("LIFESCI_ALLOW_UNQUALIFIED_ROUTES") == "1")
+        except BaseException:
+            store.release_connections()
+            raise
 
     def extend_api(self, app: Any, ctx_dep: Any, idempotent: Any) -> None:
         from .suite_api import install_suite_api

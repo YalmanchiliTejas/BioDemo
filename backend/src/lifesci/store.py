@@ -21,6 +21,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from functools import wraps
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Callable, Iterator
@@ -400,8 +401,23 @@ class _Postgres:
 
         if migrate:
             migrate_postgres(url)
-        self.conn = psycopg.connect(url, autocommit=True)
+        self.url = url
+        self._conn = None
         self.lock = threading.RLock()
+
+    @property
+    def conn(self) -> Any:
+        import psycopg
+        with self.lock:
+            if self._conn is None or self._conn.closed:
+                self._conn = psycopg.connect(self.url, autocommit=True, connect_timeout=15)
+            return self._conn
+
+    def close(self) -> None:
+        with self.lock:
+            if self._conn is not None:
+                self._conn.close()
+                self._conn = None
 
     def begin(self) -> None:
         self.conn.execute("BEGIN")
@@ -435,6 +451,15 @@ class _Postgres:
         return int(cursor.fetchone()[0])
 
 
+def _locked_read(method):
+    @wraps(method)
+    def read(self, *args, **kwargs):
+        # Tenant binding and its query must be indivisible on the shared session.
+        with self._db.lock:
+            return method(self, *args, **kwargs)
+    return read
+
+
 class Transaction:
     """Unit of work: reads, versioned writes, audit entries and outbox events commit together."""
 
@@ -450,13 +475,17 @@ class Transaction:
 
     def _bind(self, tenant_id: str) -> None:
         """A write transaction belongs to exactly one tenant; on PostgreSQL this also scopes RLS."""
-        if self.tenant_id == tenant_id:
+        if self.tenant_id == tenant_id and self._writable:
             return
         if self.tenant_id is not None and self._writable:
             raise CrossTenantError(f"transaction bound to {self.tenant_id} cannot touch {tenant_id}")
-        self._db.bind_tenant(tenant_id, self._writable)
+        outer = getattr(self.store._local, "tx", None)
+        if outer is not None and outer.tenant_id is not None and outer.tenant_id != tenant_id:
+            raise CrossTenantError("a transaction cannot switch its tenant through a read handle")
+        self._db.bind_tenant(tenant_id, self._writable or outer is not None)
         self.tenant_id = tenant_id
 
+    @_locked_read
     def get(self, tenant_id: str, kind: str, id: str) -> Record | None:
         self._bind(tenant_id)
         row = self._db.fetchone(
@@ -467,6 +496,7 @@ class Transaction:
             return None
         return Record(tenant_id, kind, id, int(row[0]), json.loads(row[1]), row[2], row[3])
 
+    @_locked_read
     def require(self, tenant_id: str, kind: str, id: str) -> Record:
         self._bind(tenant_id)
         record = self.get(tenant_id, kind, id)
@@ -474,6 +504,7 @@ class Transaction:
             raise NotFoundError(f"{kind}:{id}")
         return record
 
+    @_locked_read
     def list(self, tenant_id: str, kind: str, predicate: Callable[[dict], bool] | None = None,
              limit: int | None = None) -> list[Record]:
         self._bind(tenant_id)
@@ -491,6 +522,7 @@ class Transaction:
                     break
         return out
 
+    @_locked_read
     def find(self, tenant_id: str, kind: str, field: str, value: Any) -> list[Record]:
         """Lookup by a declared field of the current revision (see DEFAULT_INDEXES).
 
@@ -506,6 +538,7 @@ class Transaction:
             (tenant_id, kind, kind, str(value)))
         return [Record(tenant_id, kind, r[0], int(r[1]), json.loads(r[2]), r[3], r[4]) for r in rows]
 
+    @_locked_read
     def revision(self, tenant_id: str, kind: str, id: str, revision: int) -> Record | None:
         self._bind(tenant_id)
         row = self._db.fetchone(
@@ -563,6 +596,7 @@ class Transaction:
         self.events.append(event)
         return event
 
+    @_locked_read
     def audit(self, tenant_id: str, kind: str, id: str, limit: int = 200) -> list[AuditEntry]:
         self._bind(tenant_id)
         rows = self._db.fetchall(
@@ -583,6 +617,7 @@ class Transaction:
             )
         return digest
 
+    @_locked_read
     def get_blob(self, tenant_id: str, digest: str) -> bytes | None:
         self._bind(tenant_id)
         row = self._db.fetchone("SELECT content FROM blobs WHERE tenant_id=? AND digest=?", (tenant_id, digest))
@@ -631,12 +666,14 @@ class Transaction:
                 "INSERT INTO edges (tenant_id, up_kind, up_id, down_kind, down_id, relation, created_at) VALUES (?,?,?,?,?,?,?)",
                 (tenant_id, up[0], up[1], down[0], down[1], relation, iso(utc_now())))
 
+    @_locked_read
     def edges_from(self, tenant_id: str, kind: str, id: str) -> list[tuple[str, str, str]]:
         self._bind(tenant_id)
         return [(r[0], r[1], r[2]) for r in self._db.fetchall(
             "SELECT down_kind, down_id, relation FROM edges WHERE tenant_id=? AND up_kind=? AND up_id=?",
             (tenant_id, kind, id))]
 
+    @_locked_read
     def edges_to(self, tenant_id: str, kind: str, id: str) -> list[tuple[str, str, str]]:
         self._bind(tenant_id)
         return [(r[0], r[1], r[2]) for r in self._db.fetchall(
@@ -690,6 +727,11 @@ class RecordStore:
         for event in tx.events:
             for listener in self._listeners:
                 listener(event)
+
+    def release_connections(self) -> None:
+        """Release PostgreSQL sessions before a serverless instance is frozen."""
+        if self.backend == "postgresql":
+            self._db.close()
 
     def read(self) -> Transaction:
         """Read-only unit of work (no commit); for single lookups outside a transaction."""

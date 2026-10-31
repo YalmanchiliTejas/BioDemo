@@ -60,10 +60,12 @@ class AccessContext:
     partner_org_id: str | None = None
     delegated_from: str | None = None  # service jobs carry a person's limited scope
     authorization_version: int = 0
+    role_scopes: tuple[tuple[str, str | None], ...] | None = None
 
     def with_roles(self, *roles: str) -> "AccessContext":
         return AccessContext(self.tenant_id, self.actor_id, self.actor_kind, frozenset(roles),
-                             self.site_ids, self.partner_org_id, self.delegated_from, self.authorization_version)
+                             self.site_ids, self.partner_org_id, self.delegated_from, self.authorization_version,
+                             tuple((r, s) for r, s in self.role_scopes if r in roles) if self.role_scopes is not None else None)
 
 
 @dataclass(frozen=True)
@@ -133,7 +135,8 @@ class IdentityService:
         if member and member.state.get("active") and not rows and actor_kind == "person":
             actor_kind, partner_org_id = "partner", member.state["partner_org_id"]
         return AccessContext(tenant_id, actor_id, actor_kind, roles, sites, partner_org_id,
-                             authorization_version=version)
+                             authorization_version=version,
+                             role_scopes=tuple((r.state["role"], r.state.get("site_id")) for r in rows))
 
     # --- grants ----------------------------------------------------------------
     def grant(self, tenant_id: str, *, grantee_id: str, resource_kind: str, resource_id: str,
@@ -187,6 +190,10 @@ class IdentityService:
                 policy = DEFAULT_ROLE_POLICY.get(role, {})
                 allowed = policy.get(resource_kind, policy.get("*", frozenset()))
                 if action in allowed:
+                    if ctx.role_scopes is not None and not any(
+                        r == role and (site_id is None or scope is None or site_id == scope) for r, scope in ctx.role_scopes
+                    ):
+                        continue
                     return Decision(True, f"role {role}")
         grantee_ids = [ctx.actor_id] + ([ctx.partner_org_id] if ctx.partner_org_id else [])
         matched = []

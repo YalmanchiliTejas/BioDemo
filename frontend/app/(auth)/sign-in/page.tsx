@@ -4,22 +4,21 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Eye, EyeOff, ShieldCheck, Loader2 } from 'lucide-react';
 import { BrandMark } from '@/components/shell/BrandMark';
-import { authMode, safeNext, sendPasswordReset, signIn, signOut, SIGNED_OUT_MESSAGE, useSession } from '@/lib/auth';
-import { connectorRequest, type Identity } from '@/lib/connectors-api';
+import { authConfigured, authMode, safeNext, sendPasswordReset, signIn, signOut, SIGNED_OUT_MESSAGE, useSession } from '@/lib/auth';
 export default function SignInPage() {
     const router = useRouter();
     const { email: signedIn, loading } = useSession();
-    const [next, setNext] = useState('/onboarding/start/');
+    const [next, setNext] = useState('/cmo/');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [visible, setVisible] = useState(false);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
     const [busy, setBusy] = useState<'sign-in' | 'reset' | null>(null);
-    const configured = authMode() === 'supabase';
+    const configured = authConfigured();
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        setNext(safeNext(params.get('next'), '/onboarding/start/'));
+        setNext(safeNext(params.get('next'), '/cmo/'));
         if (params.get('reason') === 'expired')
             setNotice(SIGNED_OUT_MESSAGE);
     }, []);
@@ -27,8 +26,7 @@ export default function SignInPage() {
         setBusy('sign-in');
         setError('');
         try {
-            await connectorRequest<Identity>('/me');
-            router.replace(next);
+            router.replace(`/account/?next=${encodeURIComponent(next)}`);
         }
         catch (err) {
             setError((err as Error).message);
@@ -83,7 +81,7 @@ export default function SignInPage() {
         <p className="setup-subtitle">Sign in to your workspace to continue.</p>
         {error && <div className="setup-message error" role="alert">{error}</div>}
         {notice && <div className="setup-message" role="status">{notice}</div>}
-        {loading ? <p role="status">Checking your session…</p> : !configured ? <div className="setup-message"><strong>Local development workspace</strong><p>Account sign-in is not configured here. Your administrator must connect Supabase before inviting people.</p><Link className="setup-primary" href="/onboarding/start/">Configure data connections <ArrowRight size={17}/></Link><Link className="setup-text-link" href="/cmo/">Explore the demo workspace</Link></div> : signedIn ? <div className="auth-fields"><p>Signed in as <strong>{signedIn}</strong></p><button className="setup-primary" onClick={proceed} disabled={busy !== null}>Continue to workspace <ArrowRight size={17}/></button><button className="setup-text-link" disabled={busy !== null} onClick={async () => { setBusy('sign-in'); setError(''); try {
+        {loading ? <p role="status">Checking your session…</p> : !configured ? <div className="setup-message"><strong>{authMode() === 'development' ? 'Local development workspace' : 'Sign-in needs configuration'}</strong><p>Account sign-in is not configured here. Your administrator must configure the Supabase project URL and public key, then rebuild the frontend.</p><Link className="setup-primary" href="/onboarding/start/">Configure data connections <ArrowRight size={17}/></Link><Link className="setup-text-link" href="/cmo/">Explore the demo workspace</Link></div> : signedIn ? <div className="auth-fields"><p>Signed in as <strong>{signedIn}</strong></p><button className="setup-primary" onClick={proceed} disabled={busy !== null}>Continue to workspace <ArrowRight size={17}/></button><button className="setup-text-link" disabled={busy !== null} onClick={async () => { setBusy('sign-in'); setError(''); try {
             await signOut();
         }
         catch (err) {
@@ -97,7 +95,7 @@ export default function SignInPage() {
           <button type="button" className="auth-forgot" disabled={busy !== null} onClick={reset}>{busy === 'reset' ? 'Sending link…' : 'Forgot password?'}</button>
           <button type="submit" className="setup-primary" disabled={busy !== null}>{busy === 'sign-in' ? <><Loader2 size={17} className="animate-spin"/> Signing in…</> : <>Sign in <ArrowRight size={17}/></>}</button>
         </form>}
-        <p className="auth-invite">Joining your team? Use the invitation in your email.<br />Need access? Ask your workspace administrator.</p>
+        <p className="auth-invite">New to Sievance? <Link href="/sign-up/" className="text-brand-teal underline">Create an account</Link><br />Joining a team? Ask its administrator to grant access after you register.</p>
       </div><footer className="auth-footer"><ShieldCheck size={15}/> Access follows your organization’s permissions.</footer>
     </main>
   </div>;

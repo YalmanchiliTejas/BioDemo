@@ -61,6 +61,17 @@ Parameters:
     Type: Number
     Default: 3008
     Description: CPU scales with memory; parsing deliveries is CPU-bound.
+  MultiTenant:
+    Type: String
+    Default: "1"
+    AllowedValues: ["0", "1"]
+    Description: Enable account-owned organizations and stored membership selection.
+  ReservedConcurrency:
+    Type: Number
+    Default: 5
+    MinValue: 1
+    MaxValue: 5
+    Description: Bounds simultaneous session-pool clients; leave capacity for CMO transactions and administration.
   ApiDomain:
     Type: String
     Default: ""
@@ -85,6 +96,7 @@ Resources:
       ImageUri: !Ref ImageUri
       Architectures: [arm64]
       MemorySize: !Ref MemorySize
+      ReservedConcurrentExecutions: !Ref ReservedConcurrency
       Timeout: 900
       EphemeralStorage:
         Size: 4096
@@ -95,6 +107,7 @@ Resources:
         InvokeMode: BUFFERED
       Environment:
         Variables:
+          LIFESCI_MULTI_TENANT: !Ref MultiTenant
           LIFESCI_AUTH_MODE: supabase
           LIFESCI_DATABASE_URL: !Ref DatabaseUrl
           LIFESCI_DB_MIGRATE: "0"

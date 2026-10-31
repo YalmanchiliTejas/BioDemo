@@ -220,7 +220,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     origins = os.environ.get("LIFESCI_CORS_ORIGINS", "http://127.0.0.1:5180,http://localhost:5180" if auth_mode == "development_headers" else "")
     if origins:
         app.add_middleware(CORSMiddleware, allow_origins=origins.split(","), allow_methods=["GET", "POST"],
-                           allow_headers=["Authorization", "Content-Type", "X-Tenant-Id", "X-Actor-Id", "Idempotency-Key", "X-CMO-Token"],
+                           allow_headers=["Authorization", "Content-Type", "X-Tenant-Id", "X-Actor-Id", "Idempotency-Key", "X-CMO-Token", "X-Organization-Id"],
                            expose_headers=["X-Package-Complete", "X-Open-Issues", "X-Values-Pending", "X-Page-Width",
                                            "X-Page-Height", "X-Page-Count"])
 
@@ -277,6 +277,9 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
                        expected_revision=None, action="idempotency")
         return response
 
+    from .organization_api import install_organization_api
+    install_organization_api(app, platform, resolver, ctx_dep, os.environ.get("LIFESCI_MULTI_TENANT") == "1")
+
     # --- routes ---------------------------------------------------------------------
     @app.get(f"/{API_VERSION}/health")
     def health() -> dict[str, Any]:
@@ -306,7 +309,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.get(f"/{API_VERSION}/records/{{kind}}")
     def list_records(kind: str, cursor: str | None = None, limit: int = 50,
                      ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
-        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership"):
+        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization", "organization_member", "account_organizations"):
             raise HTTPException(404, "not a public record kind")
         limit = max(1, min(limit, 200))
         tx = platform.store.read()
@@ -331,7 +334,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
 
     @app.get(f"/{API_VERSION}/records/{{kind}}/{{record_id:path}}")
     def get_record(kind: str, record_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
-        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership"):
+        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization", "organization_member", "account_organizations"):
             raise HTTPException(404, "not a public record kind")
         rec = platform.store.read().require(ctx.tenant_id, kind, record_id)
         if kind == "transfer_package" and not any(platform.identity.check(ctx, "read", kind, rec.id, site_id=rec.state[s])

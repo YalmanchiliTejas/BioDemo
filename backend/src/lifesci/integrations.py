@@ -30,8 +30,8 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Protocol, Sequence
 from urllib.error import HTTPError, URLError
 
-from benchmark.integration.connectors import _source_record as source_record_from
-from benchmark.integration.models import AuthorizedAction, PullBatch, SourceRecord
+from .connector_contracts import _source_record as source_record_from
+from .connector_contracts import AuthorizedAction, PullBatch, SourceRecord
 
 from .actions import ActionService, DeliveryUnknown
 from .evidence import EvidenceRef, EvidenceService

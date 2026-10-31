@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Check, LogOut, UserRound } from 'lucide-react';
 import { authMode, signOut, useSession } from '@/lib/auth';
 import { useAppContext } from '@/lib/app-context';
@@ -46,6 +47,7 @@ function Account() {
   };
   return (
     <div className="flex min-w-0 items-center gap-1">
+      <Link href="/settings/organization/" className="hidden sm:inline text-xs text-brand-teal">Organization</Link>
       <span title={`Signed in as ${email}. Recorded on your decisions.`} className="flex h-8 min-w-0 items-center gap-1.5 px-2 text-[13px] text-text-secondary">
         <UserRound className="h-4 w-4 shrink-0" aria-hidden /><span className="max-w-[80px] truncate sm:max-w-[180px]">{email}</span>
       </span>

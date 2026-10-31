@@ -94,7 +94,7 @@ class SupabaseVerifier:
         if app_metadata is not None and not isinstance(app_metadata, dict):
             raise _unauthorized()
         tenant = (app_metadata or {}).get("tenant_id")
-        if tenant is not None and tenant != self.tenant:
+        if os.environ.get("LIFESCI_MULTI_TENANT") != "1" and tenant is not None and tenant != self.tenant:
             raise _unauthorized("Account is not enabled for this deployment")
         return claims
 
@@ -104,7 +104,24 @@ def supabase_resolver(platform: Any, verifier: SupabaseVerifier | None = None) -
 
     def resolve(request: Any) -> Any:
         claims = verifier.verify(request.headers.get("authorization"))
-        return platform.identity.context_for(verifier.tenant, claims["sub"])
+        tenant = verifier.tenant
+        if os.environ.get("LIFESCI_MULTI_TENANT") == "1":
+            from .organizations import OrganizationService
+            service = OrganizationService(platform.store, platform.identity, verifier.tenant)
+            organizations = service.organizations(claims["sub"])
+            requested = request.headers.get("x-organization-id")
+            if requested:
+                if requested not in {o["id"] for o in organizations}:
+                    raise HTTPException(403, "No active membership in this organization")
+                tenant = requested
+            elif len(organizations) == 1:
+                tenant = organizations[0]["id"]
+            else:
+                raise HTTPException(403, "Select an organization or create one to continue")
+        elif request.headers.get("x-organization-id") not in (None, tenant):
+            raise HTTPException(403, "Organization does not match this deployment")
+        return platform.identity.context_for(tenant, claims["sub"])
+    resolve.verifier = verifier
     return resolve
 
 

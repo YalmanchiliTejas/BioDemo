@@ -167,6 +167,11 @@ export function ConnectorOnboarding() {
         }
         await refresh();
     });
+    const finishOnboarding = () => void run('finish', async () => {
+        if (mode === 'supabase' && me?.roles.includes('admin'))
+            await connectorRequest('/organization/onboarding/complete', {});
+        window.location.assign('/cmo/');
+    });
     const o = draft?.options || {};
     return <main className="setup-main">
     <aside className="setup-sidebar"><p className="setup-eyebrow">YOUR WORKSPACE, CONNECTED</p><h1>Start with what<br />you already know.</h1><p>Connect a source. Check the data.<br />Build from there.</p>
@@ -209,10 +214,10 @@ export function ConnectorOnboarding() {
         <label className="setup-poll">Collection schedule<select value={interval} onChange={e => setInterval(Number(e.target.value))}><option value={0}>Manual only</option><option value={60}>Every minute</option><option value={300}>Every 5 minutes</option><option value={900}>Every 15 minutes</option><option value={3600}>Every hour</option></select></label>
         <p className="setup-fine">Starting collection reads source data into this workspace. Recurring sync runs on the server and can be paused below.</p><button className="setup-primary" disabled={!!busy || (draft.transport !== 'mqtt' && (!preview?.ok))} onClick={activate}>{busy === 'activate' ? 'Starting collection…' : 'Run first sync & finish'} <ArrowRight size={17}/></button></>}
         <button className="setup-text-link" disabled={!!busy} onClick={() => { setStage(0); setDraft(null); }}>Keep saved and return to connections</button></>}
-      {stage === 3 && <div className="setup-complete"><span><Check size={28}/></span><h2>Your source is set up.</h2><p>Review collection status below, add another source, or start working with your data.</p><button className="setup-primary" onClick={() => { setStage(0); setDraft(null); setNotice(''); }}><Plus size={17}/> Add another source</button><Link className="setup-text-link" href="/cmo/">Open workspace <ArrowRight size={16}/></Link></div>}
+      {stage === 3 && <div className="setup-complete"><span><Check size={28}/></span><h2>Your source is set up.</h2><p>Review collection status below, add another source, or start working with your data.</p><button className="setup-primary" onClick={() => { setStage(0); setDraft(null); setNotice(''); }}><Plus size={17}/> Add another source</button><button disabled={!!busy} className="setup-text-link" onClick={finishOnboarding}>Open workspace <ArrowRight size={16}/></button></div>}
       {items.length > 0 && <section className="saved-connections"><div><h3>Your connections <span>{items.length}</span></h3><button aria-label="Refresh connections" disabled={!!busy} onClick={() => void run('refresh', refresh)}><RefreshCw size={16}/></button></div>{items.map(c => <article key={c.connector_id}><Database size={20}/><div><strong>{c.connector_id}</strong><p>{c.family} · {c.site_id} · {!c.enabled ? 'Paused' : Number(c.options.poll_seconds) ? `Every ${c.options.poll_seconds}s` : c.transport === 'webhook' ? 'Receives webhooks' : 'Manual'}</p><p>{c.last_sync ? `Last attempt: ${new Date(c.last_sync).toLocaleString()}` : 'No sync attempt recorded'}{c.last_error && <span className="connection-error"> · {c.last_error}</span>}</p></div><div className="connection-actions"><button disabled={!!busy} onClick={() => setVerificationId(c.connector_id)}>Verify data</button><button disabled={!!busy} onClick={() => edit(c)}>Configure</button><button disabled={!!busy} onClick={() => manage(c, 'toggle')}>{c.enabled ? 'Pause' : 'Resume'}</button>{c.transport !== 'webhook' && <button disabled={!!busy || !c.enabled} onClick={() => manage(c, 'sync')}>{busy === `sync:${c.connector_id}` ? 'Syncing…' : 'Sync now'}</button>}</div></article>)}</section>}
       {verificationId && <><button className="setup-text-link" onClick={() => setVerificationId(null)}>Close source verification</button><SourceVerificationPanel key={verificationId} connectorId={verificationId}/></>}
-      <div className="setup-bottom"><Link href="/cmo/">Continue without adding a source <ArrowRight size={15}/></Link><span>You can return here anytime.</span></div>
+      <div className="setup-bottom"><button disabled={!!busy || loading} onClick={finishOnboarding}>Continue without adding a source <ArrowRight size={15}/></button><span>You can return here anytime.</span></div>
       </>}
     </section>
   </main>;

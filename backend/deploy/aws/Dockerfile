@@ -11,6 +11,6 @@ COPY src ${LAMBDA_TASK_ROOT}/src
 COPY benchmarks/cmo_ingestion/demo ${LAMBDA_TASK_ROOT}/benchmarks/cmo_ingestion/demo
 
 # Import once at build time so a missing dependency fails the build, not the first request.
-RUN cd ${LAMBDA_TASK_ROOT} && python -c "import src.lifesci.aws_lambda, src.lifesci.api, src.manufacturing_data.cmo.api"
+RUN cd ${LAMBDA_TASK_ROOT} && python -c "import src.lifesci.aws_lambda, src.lifesci.api, src.manufacturing_data.cmo.api; from src.lifesci.container import Platform; from src.lifesci.store import RecordStore; Platform(RecordStore(), providers={})"
 
 CMD ["src.lifesci.aws_lambda.handler"]

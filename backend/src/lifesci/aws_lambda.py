@@ -63,22 +63,30 @@ def _boot() -> dict[str, Any]:
         from .api import create_app
         from .container import Platform
 
-        app = create_app(Platform.from_env())
+        platform = Platform.from_env()
+        try:
+            app = create_app(platform)
+        except BaseException:
+            platform.store.release_connections()
+            raise
         # No lifespan: the runtime thread would be frozen between requests. The schedule calls runtime_tick.
-        _state.update(app=app, http=Mangum(app, lifespan="off"))
+        _state.update(app=app, platform=platform, http=Mangum(app, lifespan="off"))
     return _state
 
 
 def handler(event: dict[str, Any], context: Any) -> Any:
     state = _boot()
-    tasks = state["app"].state.tasks
-    if tasks.is_task(event):
-        kind = event["biodemo_task"].get("kind")
-        result = tasks.run(event)
-        log.info("task %s finished", kind)
-        try:
-            json.dumps(result)
-        except TypeError:
-            result = None
-        return {"task": kind, "result": result}
-    return state["http"](event, context)
+    try:
+        tasks = state["app"].state.tasks
+        if tasks.is_task(event):
+            kind = event["biodemo_task"].get("kind")
+            result = tasks.run(event)
+            log.info("task %s finished", kind)
+            try:
+                json.dumps(result)
+            except TypeError:
+                result = None
+            return {"task": kind, "result": result}
+        return state["http"](event, context)
+    finally:
+        state["platform"].store.release_connections()

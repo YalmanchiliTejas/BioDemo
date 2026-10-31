@@ -5,22 +5,7 @@ from datetime import datetime
 from typing import Any
 
 
-@dataclass(frozen=True)
-class SourceRecord:
-    source_record_id: str
-    source_system: str
-    occurred_at: datetime
-    payload: dict[str, Any]
-    site_id: str | None = None
-    classification: str = "internal"
-
-
-@dataclass(frozen=True)
-class PullBatch:
-    records: tuple[SourceRecord, ...]
-    next_checkpoint: str | None
-    has_more: bool = False
-
+from src.lifesci.connector_contracts import SourceRecord, PullBatch, AuthorizedAction
 
 @dataclass(frozen=True)
 class ConnectorConfig:
@@ -36,21 +21,6 @@ class ConnectorConfig:
     site_id: str | None = None
     classification: str = "internal"
     headers: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class AuthorizedAction:
-    action_id: str
-    tenant_id: str
-    source_system: str
-    operation: str
-    target_id: str
-    payload: dict[str, Any]
-    requested_by: str
-    approved_by: tuple[str, ...]
-    approved_at: datetime
-    site_id: str | None = None
-    approval_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

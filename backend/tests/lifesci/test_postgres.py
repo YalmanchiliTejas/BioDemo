@@ -283,3 +283,25 @@ def test_cmo_schema_sets_aside_tables_from_the_retired_layout(pg):
                          "AND column_name='tenant_id'").fetchone()[0] == 1
     with psycopg.connect(pg.owner, autocommit=True) as c:
         c.execute("DROP DATABASE retired")
+
+
+def test_organization_provisioning_and_reused_read_handles(pg):
+    from src.lifesci.organizations import OrganizationService
+    store = RecordStore(pg.app, migrate=False)
+    identity = IdentityService(store)
+    organizations = OrganizationService(store, identity)
+    a = organizations.create('org-test-alice', 'Alice organization')
+    b = organizations.create('org-test-bob', 'Bob organization')
+    try:
+        # Reusing a read handle must restore its tenant after another query changed the session.
+        read_a = store.read()
+        assert read_a.get(a['id'], 'organization', a['id'])
+        assert store.read().get(b['id'], 'organization', b['id'])
+        assert read_a.get(a['id'], 'organization', a['id'])
+        assert read_a.get(a['id'], 'organization', b['id']) is None
+        assert [o['id'] for o in organizations.organizations('org-test-alice')] == [a['id']]
+        store.release_connections()
+        assert identity.context_for(a['id'], 'org-test-alice').roles == {'admin'}
+        assert identity.context_for(b['id'], 'org-test-alice').roles == set()
+    finally:
+        store.release_connections()

@@ -7,11 +7,12 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 const DEV_HEADERS = { 'X-Tenant-Id': 'demo-northfield', 'X-Actor-Id': 'priya' };
 
 export type AuthMode = 'supabase' | 'development';
-export const authMode = (): AuthMode => (SUPABASE_URL && SUPABASE_ANON_KEY ? 'supabase' : 'development');
+export const authConfigured = () => Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+export const authMode = (): AuthMode => (authConfigured() || process.env.NODE_ENV === 'production' ? 'supabase' : 'development');
 
 let client: SupabaseClient | null = null;
 export function supabase(): SupabaseClient {
-  if (authMode() !== 'supabase') throw new Error('Sign-in is not configured for this deployment.');
+  if (!authConfigured()) throw new Error('Sign-in is not configured for this deployment.');
   client ??= createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
@@ -23,7 +24,11 @@ export async function authHeaders(): Promise<Record<string, string>> {
   // getSession refreshes an expired access token when a refresh token is available.
   const { data, error } = await supabase().auth.getSession();
   if (error) throw new Error(SIGNED_OUT_MESSAGE);
-  return data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {};
+  if (!data.session) return {};
+  const headers: Record<string, string> = { Authorization: `Bearer ${data.session.access_token}` };
+  const organization = localStorage.getItem(`sievance.organization:${data.session.user.id}`);
+  if (organization) headers['X-Organization-Id'] = organization;
+  return headers;
 }
 
 /** Only same-site paths are accepted as a post-sign-in destination. */
@@ -79,7 +84,7 @@ export async function updatePassword(password: string) {
 
 /** The signed-in user in Supabase mode; `loading` is true until the stored session has been read. */
 export function useSession() {
-  const enabled = authMode() === 'supabase';
+  const enabled = authConfigured();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(enabled);
   useEffect(() => {
@@ -90,5 +95,28 @@ export function useSession() {
     const { data } = auth.onAuthStateChange((_event, session) => { setUser(session?.user ?? null); setLoading(false); });
     return () => { active = false; data.subscription.unsubscribe(); };
   }, [enabled]);
-  return { user, email: user?.email ?? null, loading, mode: enabled ? 'supabase' as const : 'development' as const };
+  return { user, email: user?.email ?? null, loading, mode: authMode() };
+}
+
+
+export async function signUp(email: string, password: string) {
+  const { data, error } = await attempt(() => supabase().auth.signUp({
+    email: email.trim(), password,
+    options: { emailRedirectTo: `${window.location.origin}/account/` },
+  }));
+  const message = plain(error, error?.status === 429 ? 'Too many requests. Wait a few minutes and try again.' : 'Account creation failed. Try again or contact your administrator.');
+  if (message) throw new Error(message);
+  return Boolean(data.session);
+}
+
+export async function selectOrganization(id: string) {
+  const { data, error } = await supabase().auth.getSession();
+  if (error || !data.session) throw new Error(SIGNED_OUT_MESSAGE);
+  localStorage.setItem(`sievance.organization:${data.session.user.id}`, id);
+  // Drop the previous workspace's display preferences when changing organizations.
+  localStorage.removeItem('mos.context.v1');
+}
+
+export function selectedOrganization(userId: string) {
+  return localStorage.getItem(`sievance.organization:${userId}`);
 }

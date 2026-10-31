@@ -109,21 +109,4 @@ class RESTConnector:
             return json.loads(response.read())
 
 
-def _source_record(
-    value: dict[str, Any], *, source_system: str, fallback_id: str,
-    timestamp_field: str = "timestamp", site_id: str | None = None,
-    classification: str = "internal",
-) -> SourceRecord:
-    record_id = str(value.get("source_record_id") or value.get("id") or fallback_id)
-    if not record_id:
-        raise ValueError("source records require a stable id")
-    timestamp = value.get(timestamp_field) or value.get("occurred_at")
-    if timestamp is None:
-        raise ValueError(f"source record {record_id} is missing a timestamp")
-    occurred_at = timestamp if isinstance(timestamp, datetime) else datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
-    if occurred_at.tzinfo is None:
-        raise ValueError("source timestamps must include a timezone")
-    return SourceRecord(
-        record_id, source_system, occurred_at.astimezone(timezone.utc), dict(value),
-        site_id or value.get("site_id"), value.get("classification", classification),
-    )
+from src.lifesci.connector_contracts import _source_record

@@ -207,3 +207,60 @@ def test_cli_grant_list_revoke(monkeypatch, tmp_path, capsys):
     assert json.loads(run("list-roles")) == []
     p = Platform.from_env()
     assert p.identity.context_for(TENANT, target).roles == frozenset()
+
+
+def test_multi_org_signup_isolation_and_rbac(monkeypatch, platform):
+    monkeypatch.setenv('LIFESCI_AUTH_MODE', 'supabase')
+    monkeypatch.setenv('LIFESCI_MULTI_TENANT', '1')
+    monkeypatch.setenv('SUPABASE_URL', URL)
+    monkeypatch.setenv('DEPLOYMENT_TENANT', TENANT)
+    monkeypatch.setattr(supabase_auth, 'PyJWKClient', FakeJWKS)
+    client = TestClient(create_app(platform))
+    alice, bob, outsider = (str(uuid.uuid4()) for _ in range(3))
+    def headers(actor, org=None):
+        h = {'Authorization': f'Bearer {es256(sub=actor)}'}
+        if org: h['X-Organization-Id'] = org
+        return h
+    assert client.get('/v1/account', headers=headers(alice)).json()['organizations'] == []
+    a = client.post('/v1/account/organizations', headers=headers(alice), json={'name': 'Alice company'})
+    assert a.status_code == 201, a.text
+    org_a = a.json()['id']
+    b = client.post('/v1/account/organizations', headers=headers(bob), json={'name': 'Bob company'})
+    org_b = b.json()['id']
+    assert org_a != org_b
+    assert client.post('/v1/account/organizations', headers=headers(alice), json={'name': 'Retry'}).json()['id'] == org_a
+    assert client.get('/v1/me', headers=headers(alice, org_a)).json()['roles'] == ['admin']
+    initial_members = client.get('/v1/organization/members', headers=headers(alice, org_a)).json()['items']
+    assert initial_members[0]['email'] == 'qa@example.com'
+    assert client.get('/v1/me', headers=headers(alice, org_b)).status_code == 403
+    assert client.get('/v1/organization/members', headers=headers(outsider, org_a)).status_code == 403
+    monkeypatch.setattr('src.lifesci.organization_api.lookup_user_id_by_email', lambda email: outsider)
+    grant = {'email': 'new@example.com', 'role': 'operator', 'site_id': 'S1'}
+    assert client.post('/v1/organization/members', headers=headers(alice, org_a), json=grant).status_code == 200
+    listed = client.get('/v1/organization/members', headers=headers(alice, org_a)).json()['items']
+    assert next(m for m in listed if m['actor_id'] == outsider)['email'] == 'new@example.com'
+    me = client.get('/v1/me', headers=headers(outsider, org_a)).json()
+    assert me['roles'] == ['operator'] and me['site_ids'] == ['S1']
+    assert client.get('/v1/organization/members', headers=headers(outsider, org_a)).status_code == 403
+    assert client.post('/v1/organization/members', headers=headers(outsider, org_a), json={**grant, 'role':'admin'}).status_code == 403
+    assert client.post('/v1/organization/members', headers=headers(alice, org_a), json={**grant, 'role':'agent'}).status_code == 400
+    revoke = {'actor_id': outsider, 'role': 'operator', 'site_id': 'S1', 'operation': 'revoke'}
+    assert client.post('/v1/organization/members', headers=headers(alice, org_a), json=revoke).status_code == 200
+    assert client.get('/v1/me', headers=headers(outsider, org_a)).status_code == 403
+    assert client.post('/v1/organization/members', headers=headers(alice, org_a), json={'actor_id': alice, 'role':'admin', 'operation':'revoke'}).status_code == 400
+    assert not client.get('/v1/account', headers=headers(alice)).json()['organizations'][0]['onboarding_complete']
+    assert client.post('/v1/organization/onboarding/complete', headers=headers(alice, org_a)).status_code == 200
+    assert client.get('/v1/account', headers=headers(alice)).json()['organizations'][0]['onboarding_complete']
+    assert client.get('/v1/account', headers={'X-Actor-Id':alice,'X-Tenant-Id':org_a}).status_code == 401
+    # User-controlled profile metadata cannot select an organization or grant a role.
+    forged = {'Authorization': 'Bearer ' + es256(sub=bob, user_metadata={'tenant_id':org_a,'roles':['admin']})}
+    forged['X-Organization-Id'] = org_a
+    assert client.get('/v1/me', headers=forged).status_code == 403
+
+
+def test_roles_do_not_inherit_other_roles_site_scopes(platform):
+    platform.identity.assign_role(TENANT, SUB, 'operator', site_id='S2')
+    ctx = platform.identity.context_for(TENANT, SUB)
+    assert platform.identity.check(ctx, 'approve', 'proposal', site_id='S1')
+    assert not platform.identity.check(ctx, 'approve', 'proposal', site_id='S2')
+    assert platform.identity.check(ctx, 'propose', 'proposal', site_id='S2')

@@ -26,6 +26,8 @@ def platform_client(tmp_path, monkeypatch):
     monkeypatch.setenv('CMO_HOSTED_INFERENCE_APPROVED', 'true')
     p = Platform(RecordStore(), providers={})
     seed(p)
+    # Site-less CMO deliveries require an explicitly organization-wide assignment.
+    p.identity.assign_role(TENANT, 'priya', 'msat')
     # Delivery verification uses the platform identity, like every other route.
     return p, TestClient(create_app(p), headers=HEADERS)
 
@@ -121,3 +123,18 @@ def test_unknown_or_cross_site_dataset_cannot_be_attached(platform_client):
     with pytest.raises(ValueError):
         p.engineering_conversations.enqueue(ctx, thread['id'], {'text': 'Use this', 'expected_revision': thread['revision'],
                                                                  'dataset_ids': ['cmo-verified-delivery:missing']})
+
+
+def test_delivery_rbac_and_site_boundary(platform_client):
+    p, client = platform_client
+    p.identity.assign_role(TENANT, 'site-user', 'qa', site_id='NF1')
+    scoped = {'X-Tenant-Id': TENANT, 'X-Actor-Id': 'site-user'}
+    assert client.get('/api/cmo-ingestion/catalog', headers=scoped).status_code == 403
+    p.identity.assign_role(TENANT, 'operator-global', 'operator')
+    op = {'X-Tenant-Id': TENANT, 'X-Actor-Id': 'operator-global'}
+    assert client.get('/api/cmo-ingestion/catalog', headers=op).status_code == 200
+    assert client.post('/api/cmo-ingestion/runs/unknown/reviews', headers=op, json={}).status_code == 403
+    assert client.get('/api/cmo-ingestion/runs/unknown/export', headers=op).status_code == 403
+    p.identity.assign_role(TENANT, 'org-admin', 'admin')
+    admin = {'X-Tenant-Id': TENANT, 'X-Actor-Id': 'org-admin'}
+    assert client.post('/api/cmo-ingestion/runs/unknown/reviews', headers=admin, json={}).status_code == 403

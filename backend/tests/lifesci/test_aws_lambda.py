@@ -80,7 +80,7 @@ def test_handler_serves_http_and_scheduled_ticks(monkeypatch):
     platform = Platform(RecordStore(), providers={})
     seed(platform)
     app = create_app(platform)
-    monkeypatch.setattr(aws_lambda, '_state', {'app': app, 'http': Mangum(app, lifespan='off')})
+    monkeypatch.setattr(aws_lambda, '_state', {'app': app, 'platform': platform, 'http': Mangum(app, lifespan='off')})
     event = {'version': '2.0', 'routeKey': '$default', 'rawPath': '/v1/me', 'rawQueryString': '',
              'headers': {'x-tenant-id': TENANT, 'x-actor-id': 'priya', 'host': 'example.lambda-url.us-east-1.on.aws'},
              'requestContext': {'http': {'method': 'GET', 'path': '/v1/me', 'protocol': 'HTTP/1.1', 'sourceIp': '1.2.3.4',
@@ -184,3 +184,38 @@ def test_large_files_upload_through_storage(tmp_path, monkeypatch):
     assert f"deliveries/{delivery['id']}/lot.csv" in storage.objects
     forged = begun['upload_id'].split('-')[0] + '-Li4vZXRjL3Bhc3N3ZA'  # "../etc/passwd"
     assert client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/uploads/{forged}/complete").status_code in (400, 404, 410)
+
+
+def test_lambda_always_releases_sessions_even_on_failure(monkeypatch):
+    from types import SimpleNamespace
+    released = []
+    def failing_http(*args):
+        raise RuntimeError('request failed')
+    store = SimpleNamespace(release_connections=lambda: released.append(True))
+    state = {'platform': SimpleNamespace(store=store),
+             'app': SimpleNamespace(state=SimpleNamespace(tasks=SimpleNamespace(is_task=lambda e: False))),
+             'http': failing_http}
+    monkeypatch.setattr(aws_lambda, '_boot', lambda: state)
+    with pytest.raises(RuntimeError, match='request failed'):
+        aws_lambda.handler({}, None)
+    assert released == [True]
+
+
+def test_postgres_sessions_are_lazy_and_released_before_freezing(monkeypatch):
+    import psycopg
+    from types import SimpleNamespace
+    from src.lifesci.store import RecordStore
+    sessions = []
+    def connect(*args, **kwargs):
+        assert not any(not c.closed for c in sessions), 'An idle session leaked across invocations'
+        conn = SimpleNamespace(closed=False)
+        conn.close = lambda: setattr(conn, 'closed', True)
+        sessions.append(conn)
+        return conn
+    monkeypatch.setattr(psycopg, 'connect', connect)
+    store = RecordStore('postgresql://lifesci_app@db/postgres', migrate=False)
+    assert not sessions  # boot does not reserve a scarce pool slot
+    for _ in range(20):
+        assert store._db.conn is store._db.conn
+        store.release_connections()
+    assert len(sessions) == 20 and all(c.closed for c in sessions)

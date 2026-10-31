@@ -39,7 +39,7 @@ MQTT/OPC UA connectors and LiveKit. All of these need long-lived processes.
 1. **Supabase** (already done if you followed `deploy/supabase/README.md`):
    - run `0002` and `0003`;
    - create the private bucket `cmo-evidence`;
-   - under Authentication, turn off public sign-ups and turn on asymmetric
+   - under Authentication, enable email/password sign-ups with email confirmation for self-service organizations (or disable sign-ups for invitation-only deployments), and turn on asymmetric
      JWT signing keys (ES256);
    - set the Site URL to the Vercel address, and add
      `https://<app>.vercel.app/set-password/` to the redirect URLs.
@@ -142,3 +142,23 @@ An account without a role can sign in but cannot see any data.
   Storage. A Storage-only S3 access key would be narrower; that is a follow-up.
 - **Not tested against live accounts.** Nothing here has been run against a
   real AWS, Supabase or Modal account.
+
+## Recovering the October 31 startup and account failures
+
+These are independent deployment concerns:
+
+- **`ModuleNotFoundError: benchmark`:** rebuild the Lambda image. Runtime connector contracts now live in `src/lifesci/connector_contracts.py`, and the image build constructs a platform to catch missing startup dependencies. Do not bundle the evaluation corpus to fix a runtime dependency.
+- **`EMAXCONNSESSION`:** deploy the connection lifecycle fix and the concurrency cap in the SAM template. Each invocation releases its session. Keep the session-pooler URL on port 5432 for this store; its tenant-binding reads depend on session state. Do not increase concurrency beyond database capacity or change only the pooler port. Other applications using the same runtime user also consume pool slots.
+- **`ERR_NAME_NOT_RESOLVED`:** publish `api.sievance.com CNAME dox69po0s3xpi.cloudfront.net` at the authoritative DNS provider (the target reported by the current `biodemo-api` stack in `us-east-1`). Verify the current stack output before changing DNS. Until the custom hostname resolves, the stack's `FunctionUrl` is an alternative API base URL; rebuilding the frontend is required when changing a `NEXT_PUBLIC_*` value.
+- **Development headers in production:** set all three public frontend values in Vercel: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_LIFESCI_API_URL`. Redeploy/rebuild; these are embedded at build time. Do not put the service-role key in the frontend. Missing auth configuration now fails closed in production.
+
+### Enable signup and organizations
+
+1. Deploy the backend and frontend changes together. The SAM template sets `LIFESCI_MULTI_TENANT=1`; set `MultiTenant=0` explicitly for an invitation-only single-tenant deployment. No new SQL schema is needed: organization and discovery records use the existing versioned store and tenant policies.
+2. Enable Supabase email/password registration, require email confirmation, and configure production SMTP. Retain password-strength and abuse/rate limits appropriate to the deployment.
+3. Set the Supabase Site URL to `https://www.sievance.com` and allow `https://www.sievance.com/account/` and `https://www.sievance.com/set-password/` as redirect URLs. Add equivalent URLs for any separately supported frontend origin.
+4. Include the exact frontend origins (for example `https://www.sievance.com,https://sievance.com`) in `CORS_ORIGINS`. The API allows the organization-selection header.
+5. Register a new account, confirm its email, create an organization, finish or skip data-source setup, sign out and sign in again. Then register a second account and grant it access from Organization & access. Verify it cannot select an unrelated organization and that revocation takes effect.
+6. Verify anonymous `GET /v1/account` returns 401, a valid account without memberships can list its empty account, and `GET /v1/me` requires an active organization membership. Watch Lambda connection counts during concurrent authenticated requests and background tasks.
+
+Existing role assignments in `DEPLOYMENT_TENANT` remain discoverable. New accounts do not inherit them. See [accounts and organizations](../../../docs/architecture/accounts-and-organizations.md) for the authorization model and current site-scope boundary.

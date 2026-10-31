@@ -73,7 +73,7 @@ names = {"ImageUri": "IMAGE", "FunctionName": "FUNCTION", "DatabaseUrl": "DATABA
          "ModalProxyToken": "MODAL_PROXY_TOKEN", "LlmModel": "LIFESCI_LLM_MODEL",
          "AllowUnqualifiedRoutes": "LIFESCI_ALLOW_UNQUALIFIED_ROUTES", "SupabaseJwtSecret": "SUPABASE_JWT_SECRET",
          "RuntimeSchedule": "RUNTIME_SCHEDULE", "MemorySize": "MEMORY_SIZE", "ApiDomain": "API_DOMAIN",
-         "CertificateArn": "CERTIFICATE_ARN"}
+         "CertificateArn": "CERTIFICATE_ARN", "MultiTenant": "LIFESCI_MULTI_TENANT"}
 params = {k: os.environ[v] for k, v in names.items() if os.environ.get(v)}
 json.dump({"Parameters": params}, open(sys.argv[1], "w"))  # the form `deploy --parameter-overrides file://` accepts
 PY
@@ -96,6 +96,19 @@ TARGET="$(output DnsTarget)"
 if [[ -n "$TARGET" && "$TARGET" != "None" ]]; then
   echo "DNS: add a CNAME record  ${API_DOMAIN%%.*}  ->  $TARGET  at your domain registrar (once)."
   [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] && echo "DNS: CNAME \`$API_DOMAIN\` → \`$TARGET\`" >> "$GITHUB_STEP_SUMMARY"
+fi
+if [[ -n "$TARGET" && "$TARGET" != "None" ]]; then
+  if ! python3 - "$API_DOMAIN" <<'PYDNS'
+import socket, sys
+try:
+    socket.getaddrinfo(sys.argv[1], 443)
+except OSError:
+    raise SystemExit(1)
+PYDNS
+  then
+    echo "API_DOMAIN does not resolve yet. Configure its CNAME before pointing the frontend at it."
+    echo "Temporary API URL: $(output FunctionUrl)"
+  fi
 fi
 echo "API URL: ${URL%/}"
 [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] && echo "API URL: \`${URL%/}\` (image \`$TAG\`)" >> "$GITHUB_STEP_SUMMARY"

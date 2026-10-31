@@ -18,8 +18,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from benchmark.integration.connectors import _source_record
-from benchmark.integration.models import AuthorizedAction, PullBatch
+from .connector_contracts import _source_record
+from .connector_contracts import AuthorizedAction, PullBatch
 
 from .actions import DeliveryUnknown
 from .ids import content_hash, iso, utc_now

@@ -73,3 +73,7 @@ Browser contract (requires Playwright, a running API and an unavailable model ro
 Regenerate assets using `npm run export-combined-studies` and `npm run export-physics-benchmark`. These project saved analyses into public presentation data without running experiments. Reports and SHA-256 source identifiers are downloadable from the page. Published physical outcomes are explicitly distinguished from agent recommendations and simulated outcomes.
 
 From the repository root, run `PLAYWRIGHT_MODULE=/path/to/playwright node frontend/scripts/check_combined_studies.cjs http://127.0.0.1:5187`. It checks source-number agreement, 21 primary figures, earlier benchmark access/filtering, downloads, other-case navigation and mobile overflow. Build with `npm run build` from `frontend/`; static output is in `dist/`. This updates the local app only.
+
+## Accounts and organization access
+
+`/sign-in/` links to `/sign-up/`. After authentication, `/account/` selects or creates an organization; new administrators continue to `/onboarding/start/`. `/settings/organization/` manages existing registered accounts and organization roles. Production builds require `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_LIFESCI_API_URL`; configure them in the hosting environment before rebuilding. Production never falls back to demo identity headers. See [deployment and signup setup](../backend/deploy/aws/README.md#enable-signup-and-organizations).

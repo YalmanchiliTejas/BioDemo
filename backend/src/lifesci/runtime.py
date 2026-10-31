@@ -92,6 +92,10 @@ class Runtime:
         platform.store.subscribe(self._committed)
 
     def tenants(self) -> tuple[str, ...]:
+        if os.environ.get("LIFESCI_MULTI_TENANT") == "1":
+            from .organizations import DIRECTORY
+            for rec in self.platform.store.read().list(DIRECTORY, "organization_index"):
+                self.track(rec.state["tenant_id"])
         with self._lock:
             return tuple(sorted(self._tenants))
 
@@ -100,6 +104,8 @@ class Runtime:
             self._tenants.add(tenant)
 
     def _committed(self, event: Any) -> None:
+        if event.tenant_id.startswith("__"):
+            return
         self.track(event.tenant_id)
         if event.type.startswith("mission.") or event.type.startswith("identity."):
             return

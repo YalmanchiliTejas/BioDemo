@@ -13,6 +13,7 @@ import time
 import uuid
 import zipfile
 from typing import Literal
+from contextvars import ContextVar
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -134,7 +135,7 @@ def on_lambda():
     return bool(os.getenv('AWS_LAMBDA_FUNCTION_NAME'))
 
 
-def router(repository: Path, tenant_dependency=None, tasks=None):
+def router(repository: Path, tenant_dependency=None, tasks=None, permission_check=None):
     """``tenant_dependency`` resolves the caller's platform identity when mounted in
     the platform API; standalone deployments fall back to the X-Tenant-Id header.
 
@@ -147,14 +148,26 @@ def router(repository: Path, tenant_dependency=None, tasks=None):
     dependency is async so the tenant it binds is inherited by the endpoint."""
     from .settings import load_local_settings
     load_local_settings()
+    request_actor = ContextVar('cmo_request_actor', default=None)
+    def recorded_actor(proposed):
+        return request_actor.get() or proposed
     if tenant_dependency is None:
         async def authorize(x_cmo_token: str | None = Header(default=None),x_tenant_id: str | None = Header(default=None)):
             check_token(x_cmo_token); set_tenant(x_tenant_id)
     else:
-        async def authorize(x_cmo_token: str | None = Header(default=None),ctx=Depends(tenant_dependency)):
+        async def authorize(request: Request, x_cmo_token: str | None = Header(default=None),ctx=Depends(tenant_dependency)):
             check_token(x_cmo_token)
             # A signed-in account is not yet a member: someone must have assigned it a role.
             if not ctx.roles: raise HTTPException(403,'Your account has no role in this workspace yet. Ask an administrator to assign one.')
+            if ctx.site_ids:
+                raise HTTPException(403, 'Delivery records currently have organization-wide scope; site-restricted accounts cannot access this workspace')
+            if permission_check:
+                path = request.url.path
+                action = 'read' if request.method == 'GET' else 'propose'
+                if path.endswith('/export'): action = 'export'
+                if '/reviews' in path or path.endswith('/issues'): action = 'approve'
+                permission_check(ctx, action)
+            request_actor.set(ctx.actor_id)
             set_tenant(ctx.tenant_id)
     api=APIRouter(prefix='/api/cmo-ingestion',dependencies=[Depends(authorize)])
     root=Path(os.getenv('CMO_INGESTION_ROOT',str(repository/'.cache'/'cmo-ingestion')))
@@ -429,27 +442,27 @@ def router(repository: Path, tenant_dependency=None, tasks=None):
 
     @api.post('/runs/{run_id}/templates')
     def confirm(run_id:str,value:TemplateInput):
-        return guard(lambda:service.confirm_template(run_id,value.fingerprint,value.mapping,value.actor,reason_for('template',value.reason),origin=value.origin))
+        return guard(lambda:service.confirm_template(run_id,value.fingerprint,value.mapping,recorded_actor(value.actor),reason_for('template',value.reason),origin=value.origin))
 
     @api.post('/runs/{run_id}/reprocess')
     def reprocess(run_id:str,value:ReprocessInput):
         old=guard(lambda:service.get(run_id))
         if old.get('superseded_by'): raise HTTPException(409,f"Already reprocessed as run {old['superseded_by']}")
         item,path=guard(lambda:find(old.get('package_ref') or old.get('package_id') or ''))
-        service.audit('reprocess_requested',run_id=run_id,actor=value.actor,reason=reason_for('reprocess',value.reason))
+        service.audit('reprocess_requested',run_id=run_id,actor=recorded_actor(value.actor),reason=reason_for('reprocess',value.reason))
         return launch(item,path,old.get('requested_configuration') or old['configuration'],supersedes=run_id,cmo=old['cmo'])
 
     @api.post('/runs/{run_id}/reviews')
     def review(run_id:str,value:ReviewInput):
         reason=reason_for(value.decision,value.reason)
-        result=guard(lambda:service.review(run_id,value.measurement_id,value.decision,value.actor,reason,
+        result=guard(lambda:service.review(run_id,value.measurement_id,value.decision,recorded_actor(value.actor),reason,
                         binding=value.binding,value=value.value,parameter=value.parameter,unit=value.unit,batch=value.batch,time_value=value.time))
         return {'summary':result['summary']}
 
     @api.post('/runs/{run_id}/reviews/bulk')
     def bulk_review(run_id:str,value:BulkReviewInput):
         reason=reason_for(value.decision,value.reason)
-        return guard(lambda:service.review_many(run_id,[i.model_dump() for i in value.items],value.decision,value.actor,reason))
+        return guard(lambda:service.review_many(run_id,[i.model_dump() for i in value.items],value.decision,recorded_actor(value.actor),reason))
 
     @api.post('/runs/{run_id}/issues')
     def disposition(run_id:str,value:DispositionInput):
@@ -457,7 +470,7 @@ def router(repository: Path, tenant_dependency=None, tasks=None):
         issue=next((i for i in run['issues'] if i['id']==value.issue_id),None)
         kind='needs_reason' if issue and issue['rule_code'] in NEEDS_REASON else 'acknowledge'
         reason=reason_for(kind,value.reason)
-        result=guard(lambda:service.resolve_issue(run_id,value.issue_id,value.actor,reason,ignore_in_future=value.ignore_in_future,also=value.also))
+        result=guard(lambda:service.resolve_issue(run_id,value.issue_id,recorded_actor(value.actor),reason,ignore_in_future=value.ignore_in_future,also=value.also))
         return {'summary':result['summary']}
 
     @api.get('/runs/{run_id}/sources/{source_id}')
