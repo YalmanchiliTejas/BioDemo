@@ -32,7 +32,7 @@ export async function authHeaders(): Promise<Record<string, string>> {
 }
 
 /** Only same-site paths are accepted as a post-sign-in destination. */
-export function safeNext(value: string | null | undefined, fallback = '/cmo') {
+export function safeNext(value: string | null | undefined, fallback = '/dashboard/') {
   return value && value.startsWith('/') && !value.startsWith('//') && !/[\\\x00-\x20]/.test(value) ? value : fallback;
 }
 

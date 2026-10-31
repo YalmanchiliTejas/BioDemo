@@ -9,6 +9,7 @@ import { useAgent } from '@/lib/agent/agent-context';
 import { AgentComposerModal } from '../agent/AgentComposerModal';
 import { Companion } from '../agent/Companion';
 import { CompanionProvider, useCompanion } from '@/lib/companion-context';
+import { WorkspaceTutorial } from './WorkspaceTutorial';
 
 export function AppShell({ children }: { children: ReactNode }) {
   return <CompanionProvider><WorkspaceShell>{children}</WorkspaceShell></CompanionProvider>;
@@ -52,6 +53,7 @@ function WorkspaceShell({ children }: { children: ReactNode }) {
       <TopHeader />
       <div className="flex flex-1 min-h-0">
         <main id="main" className={`flex-1 min-w-0 overflow-y-auto px-4 md:px-8 pt-8 ${home ? '' : 'pb-24'}`}>
+          <WorkspaceTutorial />
           {children}
           <Companion home={home} />
         </main>

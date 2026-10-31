@@ -64,6 +64,27 @@ def test_delivery_verification_is_served_by_the_platform_api(platform_client):
     assert client.get(f"/api/cmo-ingestion/runs/{newer['id']}/verified").json()['guarantee']['holds']
 
 
+def test_catalog_without_optional_benchmark_model_registry(platform_client, monkeypatch):
+    """The Lambda image ships src and samples, without benchmarks.common."""
+    import builtins
+    _, client = platform_client
+    original_import = builtins.__import__
+
+    def deployed_import(name, *args, **kwargs):
+        if name.startswith('benchmarks.common'):
+            raise ModuleNotFoundError("No module named 'benchmarks.common'", name='benchmarks.common')
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.delenv('DOCLING_ARTIFACTS_PATH', raising=False)
+    monkeypatch.setattr(builtins, '__import__', deployed_import)
+    response = client.get('/api/cmo-ingestion/catalog')
+    assert response.status_code == 200
+    catalog = response.json()
+    assert catalog['availability']['D'] == []
+    assert any('DOCLING_ARTIFACTS_PATH' in reason for reason in catalog['customer_availability']['decisions'])
+    assert catalog['packages'] == []
+
+
 def test_only_current_verified_deliveries_publish_as_evidence(platform_client):
     p, client = platform_client
     first, newer = _verified_run(client)

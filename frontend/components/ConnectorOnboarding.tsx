@@ -170,7 +170,7 @@ export function ConnectorOnboarding() {
     const finishOnboarding = () => void run('finish', async () => {
         if (mode === 'supabase' && me?.roles.includes('admin'))
             await connectorRequest('/organization/onboarding/complete', {});
-        window.location.assign('/cmo/');
+        window.location.assign('/dashboard/');
     });
     const o = draft?.options || {};
     return <main className="setup-main">

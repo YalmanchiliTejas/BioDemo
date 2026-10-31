@@ -23,7 +23,7 @@ export default function AccountPage() {
       const explicit = new URLSearchParams(window.location.search).get('manage') === '1';
       if (a.organizations.length === 1 && !explicit) {
         await selectOrganization(a.organizations[0].id);
-        const next = safeNext(new URLSearchParams(window.location.search).get('next'), '/cmo/');
+        const next = safeNext(new URLSearchParams(window.location.search).get('next'));
         window.location.assign(organizationDestination(a.organizations[0], next));
       } else setAccount(a);
     }).catch(err=>{ if (active) setError(err.message); });
@@ -31,7 +31,7 @@ export default function AccountPage() {
   }, [userId, loading, attempt]);
   async function enter(org: Organization) {
     setBusy(true); setError('');
-    try { await selectOrganization(org.id); window.location.assign(organizationDestination(org)); }
+    try { await selectOrganization(org.id); window.location.assign(organizationDestination(org, safeNext(new URLSearchParams(window.location.search).get('next')))); }
     catch(err) { setError((err as Error).message); setBusy(false); }
   }
   async function create(e: FormEvent) {

@@ -43,7 +43,7 @@ export default function SetPasswordPage() {
     if (password.length < MIN_LENGTH) { setError(`Use at least ${MIN_LENGTH} characters.`); return; }
     if (password !== confirm) { setError('The two passwords do not match.'); return; }
     setBusy(true);
-    try { await updatePassword(password); setDone(true); setTimeout(() => router.replace(linkType === 'recovery' ? '/cmo/' : '/onboarding/start/'), 1200); }
+    try { await updatePassword(password); setDone(true); setTimeout(() => router.replace(linkType === 'recovery' ? '/dashboard/' : '/onboarding/start/'), 1200); }
     catch (err) { setError((err as Error).message); setBusy(false); }
   };
 

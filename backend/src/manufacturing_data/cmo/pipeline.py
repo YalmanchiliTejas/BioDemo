@@ -201,10 +201,18 @@ class IngestionService:
             if importlib.util.find_spec('docling') is None: reasons.append('Docling is not installed')
             artifacts=os.getenv('DOCLING_ARTIFACTS_PATH')
             if not artifacts or not Path(artifacts).is_dir():
-                from benchmarks.common.artifact_store import descriptor_for, ROOT as backend_root
-                target=artifacts or backend_root/'.cache/cmo-docling-models/docling-project--docling-models'
-                try: remote,_=descriptor_for(target)
-                except OSError: remote=None
+                remote=None
+                # Remote benchmark artifacts are optional in production images.
+                # A missing model registry means this configuration is unavailable,
+                # not that the catalog (including deterministic parsing) must fail.
+                try:
+                    from benchmarks.common.artifact_store import descriptor_for, ROOT as backend_root
+                except ModuleNotFoundError as exc:
+                    if not (exc.name == 'benchmarks' or (exc.name or '').startswith('benchmarks.')): raise
+                else:
+                    target=artifacts or backend_root/'.cache/cmo-docling-models/docling-project--docling-models'
+                    try: remote,_=descriptor_for(target)
+                    except OSError: pass
                 if remote is None: reasons.append('DOCLING_ARTIFACTS_PATH needs local models or a registered DagsHub model artifact')
             try: Provider('mapping',lambda _:None,synthetic=synthetic,approved=approved)
             except (Unavailable,ValueError) as exc: reasons.append(str(exc))

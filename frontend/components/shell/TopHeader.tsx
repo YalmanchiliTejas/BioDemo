@@ -63,8 +63,8 @@ export function TopHeader() {
   return (
     <header className="shrink-0 px-3 pt-3">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 rounded-xl sm:gap-6 border border-border-hairline bg-white/90 px-3 sm:px-5 shadow-[0_8px_30px_rgba(11,30,34,0.05)] backdrop-blur">
-        <BrandMark href="/" />
-        <div className="flex flex-1 justify-center"><PrimaryNav /></div>
+        <BrandMark href="/dashboard/" className="max-sm:!w-7 max-sm:[&_.sievance-wordmark]:hidden" />
+        <div className="flex min-w-0 flex-1 justify-center"><PrimaryNav /></div>
         {authMode() === 'supabase' ? <Account /> : <Person />}
       </div>
     </header>

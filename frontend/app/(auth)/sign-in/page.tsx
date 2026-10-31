@@ -8,7 +8,7 @@ import { authConfigured, authMode, safeNext, sendPasswordReset, signIn, signOut,
 export default function SignInPage() {
     const router = useRouter();
     const { email: signedIn, loading } = useSession();
-    const [next, setNext] = useState('/cmo/');
+    const [next, setNext] = useState('/dashboard/');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [visible, setVisible] = useState(false);
@@ -18,7 +18,7 @@ export default function SignInPage() {
     const configured = authConfigured();
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        setNext(safeNext(params.get('next'), '/cmo/'));
+        setNext(safeNext(params.get('next')));
         if (params.get('reason') === 'expired')
             setNotice(SIGNED_OUT_MESSAGE);
     }, []);
