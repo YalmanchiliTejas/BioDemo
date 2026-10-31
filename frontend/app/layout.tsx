@@ -5,6 +5,7 @@ import { AppProvider } from '@/lib/app-context';
 import { AgentProvider } from '@/lib/agent/agent-context';
 import { Toasts } from '@/components/shell/Toasts';
 import './globals.css';
+import './entry.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
 const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });

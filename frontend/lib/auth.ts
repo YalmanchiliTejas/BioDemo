@@ -21,21 +21,22 @@ export function supabase(): SupabaseClient {
 export async function authHeaders(): Promise<Record<string, string>> {
   if (authMode() !== 'supabase') return { ...DEV_HEADERS };
   // getSession refreshes an expired access token when a refresh token is available.
-  const { data } = await supabase().auth.getSession();
+  const { data, error } = await supabase().auth.getSession();
+  if (error) throw new Error(SIGNED_OUT_MESSAGE);
   return data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {};
 }
 
 /** Only same-site paths are accepted as a post-sign-in destination. */
 export function safeNext(value: string | null | undefined, fallback = '/cmo') {
-  return value && value.startsWith('/') && !value.startsWith('//') ? value : fallback;
+  return value && value.startsWith('/') && !value.startsWith('//') && !/[\\\x00-\x20]/.test(value) ? value : fallback;
 }
 
 /** After a 401 in Supabase mode, send the person to sign in and bring them back afterwards. */
-export function redirectToSignIn() {
+export function redirectToSignIn(reason: 'expired' | 'required' = 'expired') {
   if (authMode() !== 'supabase' || typeof window === 'undefined') return;
   if (window.location.pathname.startsWith('/sign-in')) return;
   const next = `${window.location.pathname}${window.location.search}`;
-  window.location.assign(`/sign-in/?next=${encodeURIComponent(next)}&reason=expired`);
+  window.location.assign(`/sign-in/?next=${encodeURIComponent(next)}&reason=${reason}`);
 }
 export const SIGNED_OUT_MESSAGE = 'Your session has ended. Sign in again to continue.';
 
@@ -58,7 +59,8 @@ export async function signIn(email: string, password: string) {
 
 export async function signOut() {
   if (authMode() !== 'supabase') return;
-  await attempt(() => supabase().auth.signOut());
+  const { error } = await attempt(() => supabase().auth.signOut());
+  if (error) throw new Error('Sign-out failed. Try again.');
 }
 
 export async function sendPasswordReset(email: string) {
@@ -84,7 +86,7 @@ export function useSession() {
     if (!enabled) return;
     const auth = supabase().auth;
     let active = true;
-    void auth.getSession().then(({ data }) => { if (active) { setUser(data.session?.user ?? null); setLoading(false); } });
+    void auth.getSession().then(({ data }) => { if (active) { setUser(data.session?.user ?? null); setLoading(false); } }).catch(() => { if (active) setLoading(false); });
     const { data } = auth.onAuthStateChange((_event, session) => { setUser(session?.user ?? null); setLoading(false); });
     return () => { active = false; data.subscription.unsubscribe(); };
   }, [enabled]);

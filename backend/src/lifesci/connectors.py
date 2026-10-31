@@ -277,7 +277,8 @@ class ConnectorService:
                               "write_operations": sorted(OPERATIONS.get(family, []))}
                              for family, (kind, _) in FAMILIES.items()],
                 "transports": [{"transport": t, "available": t not in {"mqtt", "opcua"} or
-                                installed("paho.mqtt.client" if t == "mqtt" else "asyncua")}
+                                (not os.environ.get("AWS_LAMBDA_FUNCTION_NAME") and
+                                 installed("paho.mqtt.client" if t == "mqtt" else "asyncua"))}
                                for t in TRANSPORTS], "vendor_qualification": "not_performed"}
 
     def configure(self, ctx: Any, config: dict[str, Any]) -> dict[str, Any]:
@@ -352,6 +353,16 @@ class ConnectorService:
                 write_operations=tuple(writes), write_auth=options.get("write_auth_env"),
                 contract_version=content_hash([options, template.to_dict()])[:16],
                 limits=("Vendor qualification not performed",)))
+            # Schedule/pause changes must retain the last attempt and its evidence.
+            # Reset status only when the source or mapping actually changes.
+            if current:
+                source_options = lambda opts: {k: v for k, v in opts.items() if k != "poll_seconds"}
+                if (current.state["transport"] == transport
+                    and source_options(current.state["options"]) == source_options(options)
+                    and current.state["mapping"] == state["mapping"]):
+                    for key in ("last_sync", "last_result", "last_error"):
+                        if key in current.state:
+                            state[key] = current.state[key]
             state["contract_id"] = contract["contract_id"]
             rec = tx.put(ctx.tenant_id, "connector", cid, state,
                          expected_revision=current.revision if current else None, action="configure_connector")

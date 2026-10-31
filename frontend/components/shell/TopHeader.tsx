@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Check, LogOut, UserRound } from 'lucide-react';
 import { authMode, signOut, useSession } from '@/lib/auth';
+import { useAppContext } from '@/lib/app-context';
 import { setReviewer, useReviewer } from '@/lib/reviewer';
 import { BrandMark } from './BrandMark';
 import { PrimaryNav } from './Sidebar';
@@ -31,6 +32,7 @@ function Person() {
 /** Supabase mode: decisions are recorded under the signed-in email, so the name is not editable here. */
 function Account() {
   const { email, loading } = useSession();
+  const { notify } = useAppContext();
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (email) setReviewer(email); }, [email]);
   if (loading) return null;
@@ -39,7 +41,7 @@ function Account() {
   }
   const leave = async () => {
     setBusy(true);
-    try { await signOut(); } catch { /* the local session is cleared regardless */ }
+    try { await signOut(); } catch { notify('Sign-out failed. Please try again.', 'warning'); setBusy(false); return; }
     window.location.assign('/sign-in/');
   };
   return (

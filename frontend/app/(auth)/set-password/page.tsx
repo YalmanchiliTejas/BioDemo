@@ -43,7 +43,7 @@ export default function SetPasswordPage() {
     if (password.length < MIN_LENGTH) { setError(`Use at least ${MIN_LENGTH} characters.`); return; }
     if (password !== confirm) { setError('The two passwords do not match.'); return; }
     setBusy(true);
-    try { await updatePassword(password); setDone(true); setTimeout(() => router.replace('/cmo'), 1200); }
+    try { await updatePassword(password); setDone(true); setTimeout(() => router.replace(linkType === 'recovery' ? '/cmo/' : '/onboarding/start/'), 1200); }
     catch (err) { setError((err as Error).message); setBusy(false); }
   };
 
@@ -85,21 +85,10 @@ export default function SetPasswordPage() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-canvas flex flex-col">
-      <header className="h-14 flex items-center justify-between px-4 md:px-6">
-        <BrandMark href="/" />
-        <Link href="/sign-in/" className="text-[12.5px] text-text-secondary hover:text-text-primary">Sign in</Link>
-      </header>
-      <main className="flex-1 flex items-start md:items-center justify-center px-4 py-8">
-        <div className="w-full max-w-[400px] bg-surface border border-border-hairline rounded-card shadow-sm">
-          <div className="px-6 pt-6 pb-5 border-b border-border-hairline">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">{organization}</p>
-            <h1 className="text-base font-semibold text-text-primary">{heading}</h1>
-          </div>
-          <div className="px-6 py-5">{body}</div>
-        </div>
-      </main>
-    </div>
-  );
+  return <div className="setup-shell">
+    <header className="setup-header"><BrandMark href="/" /><Link href="/sign-in/">Back to sign in</Link></header>
+    <main className="auth-main" style={{ minHeight: 'calc(100dvh - 88px)' }}>
+      <div className="auth-form-wrap"><p className="setup-eyebrow">YOUR SIEVANCE ACCOUNT</p><h1 className="text-3xl tracking-tight mb-4">{heading}</h1><div className="auth-fields">{body}</div></div>
+    </main>
+  </div>;
 }

@@ -154,3 +154,50 @@ def test_writeback_requires_approved_intent_matching_site_and_separate_credentia
     assert requests[-1][1] == "Bearer write-secret"
     assert requests[-1][2]["approval_ids"]
     assert c.post(route, headers=h("exec")).json()["status"] == "blocked"
+
+
+def test_schedule_and_pause_preserve_last_sync_status(env, server):
+    p, client, headers, _ = env
+    url, _ = server
+    cfg = config(base_url=url)
+    assert client.post('/v1/connectors', headers=headers(), json=cfg).status_code == 201
+    assert client.post('/v1/connectors/test-mes/sync', headers=headers()).status_code == 200
+    before = client.get('/v1/connectors', headers=headers()).json()['items'][0]
+    assert before['last_sync'] and before['last_result']
+    for enabled in (False, True):
+        cfg = {**cfg, 'enabled': enabled, 'options': {**cfg['options'], 'poll_seconds': 300}}
+        response = client.post('/v1/connectors', headers=headers(), json=cfg)
+        assert response.status_code == 201
+        after = response.json()
+        assert after['last_sync'] == before['last_sync']
+        assert after['last_result'] == before['last_result']
+        assert after['last_error'] == before['last_error']
+    cfg['options']['events_path'] = '/different'
+    changed = client.post('/v1/connectors', headers=headers(), json=cfg).json()
+    assert changed['last_sync'] is None
+
+
+def test_runtime_polls_configured_source_and_honors_pause(env, server):
+    p, client, headers, _ = env
+    url, requests = server
+    cfg = config(base_url=url, poll_seconds=60)
+    assert client.post('/v1/connectors', headers=headers(), json=cfg).status_code == 201
+    p.runtime.tick()
+    state = client.get('/v1/connectors', headers=headers()).json()['items'][0]
+    assert state['last_result']['ingested'] == 1
+    assert state['last_sync']
+    count = len(requests)
+    p.runtime.tick()
+    assert len(requests) == count  # interval has not elapsed
+    assert client.post('/v1/connectors', headers=headers(), json={**cfg, 'enabled': False}).status_code == 201
+    p.runtime.tick()
+    assert len(requests) == count
+
+
+def test_catalog_does_not_offer_persistent_transports_on_lambda(env, monkeypatch):
+    _, client, headers, _ = env
+    monkeypatch.setenv('AWS_LAMBDA_FUNCTION_NAME', 'test-api')
+    catalog = client.get('/v1/connectors/catalog', headers=headers()).json()
+    available = {item['transport']: item['available'] for item in catalog['transports']}
+    assert available['rest'] is True
+    assert available['mqtt'] is False and available['opcua'] is False

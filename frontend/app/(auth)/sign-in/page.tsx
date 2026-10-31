@@ -1,215 +1,104 @@
 'use client';
-
 import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Fingerprint, KeyRound, Loader2, PlayCircle, ShieldAlert } from 'lucide-react';
-import { Button, Callout, Pill } from '@/components/ui';
+import { ArrowRight, Eye, EyeOff, ShieldCheck, Loader2 } from 'lucide-react';
 import { BrandMark } from '@/components/shell/BrandMark';
-import { ROLE_LABELS, ROLE_PEOPLE, useAppContext, type UserRole } from '@/lib/app-context';
-import { cn } from '@/lib/cn';
-import { authMode, safeNext, sendPasswordReset, signIn, SIGNED_OUT_MESSAGE, useSession } from '@/lib/auth';
-
-const CAMPAIGNS = [
-  { id: 'CMP-26-10', label: 'CMP-26-10 · AB-mAb-014 fed-batch (3 batches, yield decline)' },
-  { id: 'CMP-26-08', label: 'CMP-26-08 · AB-mAb-014 (historical, no open events)' },
-];
-
-const DEMO_ROLES: UserRole[] = ['MSAT_LEAD', 'QA_REVIEWER', 'CLEANROOM_SUPERVISOR', 'OPERATOR'];
-
+import { authMode, safeNext, sendPasswordReset, signIn, signOut, SIGNED_OUT_MESSAGE, useSession } from '@/lib/auth';
+import { connectorRequest, type Identity } from '@/lib/connectors-api';
 export default function SignInPage() {
-  return authMode() === 'supabase' ? <PasswordSignIn /> : <DemoSignIn />;
-}
-
-// The deployment's own name; the demo sign-in below keeps the sample customer.
-const WORKSPACE_NAME = process.env.NEXT_PUBLIC_WORKSPACE_NAME || 'Sievance';
-
-const fieldClass = 'mt-1 w-full h-10 px-3 rounded-control border border-border-strong bg-surface text-[14px] text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-teal';
-const labelClass = 'block text-[11px] font-semibold uppercase tracking-wide text-text-tertiary';
-
-/** Invite-only email and password sign-in. Accounts are created by an administrator, so there is no sign-up. */
-function PasswordSignIn() {
-  const router = useRouter();
-  const { email: signedIn } = useSession();
-  const [next, setNext] = useState('/cmo');
-  const [notice, setNotice] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState<'sign-in' | 'reset' | null>(null);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setNext(safeNext(params.get('next')));
-    if (params.get('reason') === 'expired') setNotice(SIGNED_OUT_MESSAGE);
-  }, []);
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(''); setNotice('');
-    if (!email.trim() || !password) { setError('Enter your email and password.'); return; }
-    setBusy('sign-in');
-    try { await signIn(email, password); router.replace(next); }
-    catch (err) { setError((err as Error).message); setBusy(null); }
-  };
-
-  const reset = async () => {
-    setError(''); setNotice('');
-    if (!email.trim()) { setError('Enter your email above, then choose “Forgot password?” again.'); return; }
-    setBusy('reset');
-    try { await sendPasswordReset(email); setNotice(`If ${email.trim()} has an account, a link to set a new password is on its way. Check your inbox.`); }
-    catch (err) { setError((err as Error).message); }
-    finally { setBusy(null); }
-  };
-
-  return (
-    <div className="min-h-screen bg-canvas flex flex-col">
-      <header className="h-14 flex items-center justify-between px-4 md:px-6">
-        <BrandMark href="/" />
-        <Link href="/" className="text-[12.5px] text-text-secondary hover:text-text-primary">Product overview</Link>
-      </header>
-      <main className="flex-1 flex items-start md:items-center justify-center px-4 py-8">
-        <div className="w-full max-w-[400px]">
-          <div className="bg-surface border border-border-hairline rounded-card shadow-sm">
-            <div className="px-6 pt-6 pb-5 border-b border-border-hairline">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Sign in</p>
-              <h1 className="text-base font-semibold text-text-primary">{WORKSPACE_NAME}</h1>
-              <p className="mt-2 text-[12.5px] text-text-secondary">Use the email address your administrator invited. Access is by invitation only.</p>
-            </div>
-            {signedIn ? (
-              <div className="px-6 py-5 space-y-3">
-                <p className="text-[13px] text-text-secondary">You are signed in as <span className="font-medium text-text-primary">{signedIn}</span>.</p>
-                <Button variant="primary" size="lg" className="w-full" onClick={() => router.replace(next)}>Continue <ArrowRight className="h-4 w-4" aria-hidden /></Button>
-              </div>
-            ) : (
-              <form className="px-6 py-5 space-y-4" onSubmit={submit} noValidate>
-                {notice && <Callout tone="info">{notice}</Callout>}
-                {error && <Callout tone="critical">{error}</Callout>}
-                <label className="block">
-                  <span className={labelClass}>Email</span>
-                  <input type="email" autoComplete="username" autoFocus value={email} onChange={e => setEmail(e.target.value)} className={fieldClass} />
-                </label>
-                <label className="block">
-                  <span className={labelClass}>Password</span>
-                  <input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className={fieldClass} />
-                </label>
-                <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy !== null}>
-                  {busy === 'sign-in' ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Signing in…</> : 'Sign in'}
-                </Button>
-                <button type="button" onClick={reset} disabled={busy !== null} className="block w-full text-center text-[12.5px] text-text-secondary hover:text-text-primary disabled:opacity-50">
-                  {busy === 'reset' ? 'Sending reset email…' : 'Forgot password?'}
-                </button>
-              </form>
-            )}
-          </div>
-          <p className="mt-3 text-center text-[11px] text-text-muted">No account? Ask your administrator for an invitation.</p>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function DemoSignIn() {
-  const router = useRouter();
-  const { userRole, setRole, organization, notify } = useAppContext();
-  const [campaign, setCampaign] = useState('CMP-26-10');
-  const [launching, setLaunching] = useState(false);
-
-  const launch = () => {
-    setLaunching(true);
-    if (campaign !== 'CMP-26-10') notify('Only CMP-26-10 is loaded in this demo; opening it instead.', 'info');
-    router.push('/cmo');
-  };
-
-  return (
-    <div className="min-h-screen bg-canvas flex flex-col">
-      <header className="h-14 flex items-center justify-between px-4 md:px-6">
-        <BrandMark href="/" />
-        <Link href="/" className="text-[12.5px] text-text-secondary hover:text-text-primary">Product overview</Link>
-      </header>
-
-      <main className="flex-1 flex items-start md:items-center justify-center px-4 py-8">
-        <div className="w-full max-w-[440px]">
-          <div className="bg-surface border border-border-hairline rounded-card shadow-sm">
-            <div className="px-6 pt-6 pb-5 border-b border-border-hairline">
-              <div className="flex items-center gap-3">
-                <span className="h-10 w-10 rounded-card bg-slate-900 text-white flex items-center justify-center text-sm font-semibold tracking-tight" aria-hidden>AB</span>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Workspace</p>
-                  <h1 className="text-base font-semibold text-text-primary">{organization}</h1>
-                </div>
-                <Pill tone="muted" className="ml-auto">Mesa Site</Pill>
-              </div>
-              <p className="mt-3 text-[12.5px] text-text-secondary">Sign in with your organization’s identity provider. Access is scoped by your existing site and role assignments.</p>
-            </div>
-
-            <div className="px-6 py-5 space-y-3">
-              <Link
-                href="/onboarding/start"
-                className="w-full inline-flex items-center justify-center gap-2 h-10 px-4 rounded-control bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-teal focus-visible:ring-offset-1"
-              >
-                <KeyRound className="h-4 w-4" aria-hidden /> Sign in with Enterprise SSO
-              </Link>
-              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-text-tertiary">
-                <span>Okta · SAML 2.0</span>
-                <span aria-hidden>·</span>
-                <span className="inline-flex items-center gap-1"><Fingerprint className="h-3 w-3" aria-hidden />FIDO2 WebAuthn</span>
-                <span aria-hidden>·</span>
-                <span>Simulated in demo</span>
-              </div>
-            </div>
-
-            <div className="mx-6 mb-6 rounded-card border border-cyan-200 bg-brand-teal-light/60 p-4">
-              <div className="flex items-center gap-2">
-                <PlayCircle className="h-4 w-4 text-brand-teal" aria-hidden />
-                <h2 className="text-[13px] font-semibold text-text-primary">Launch Demo Sandbox</h2>
-              </div>
-              <p className="mt-1 text-[12px] text-text-secondary">Explore a synthetic campaign with real-looking records. No account needed.</p>
-
-              <label htmlFor="campaign" className="mt-3 block text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">Demo campaign</label>
-              <select
-                id="campaign"
-                value={campaign}
-                onChange={(e) => setCampaign(e.target.value)}
-                className="mt-1 w-full h-8 px-2 rounded-control border border-border-strong bg-surface text-[13px] text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-teal"
-              >
-                {CAMPAIGNS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-
-              <fieldset className="mt-3">
-                <legend className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">View as</legend>
-                <div className="mt-1 grid grid-cols-2 gap-1.5">
-                  {DEMO_ROLES.map((r) => (
-                    <label
-                      key={r}
-                      className={cn(
-                        'flex flex-col gap-0 px-2.5 py-1.5 rounded-control border cursor-pointer text-[12.5px] focus-within:ring-2 focus-within:ring-brand-teal',
-                        userRole === r ? 'border-brand-teal bg-surface' : 'border-border-hairline bg-surface/60 hover:bg-surface',
-                      )}
-                    >
-                      <input type="radio" name="role" value={r} checked={userRole === r} onChange={() => setRole(r)} className="sr-only" />
-                      <span className="font-medium text-text-primary">{ROLE_LABELS[r]}</span>
-                      <span className="text-[11px] text-text-tertiary">{ROLE_PEOPLE[r]}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-
-              <Button variant="primary" size="lg" className="mt-4 w-full" onClick={launch} disabled={launching}>
-                {launching ? 'Opening sandbox…' : 'Launch Demo Sandbox'} <ArrowRight className="h-4 w-4" aria-hidden />
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-start gap-2 rounded-card border border-amber-200 bg-status-warning-bg px-3 py-2.5 text-[12px] text-amber-800" role="note">
-            <ShieldAlert className="h-4 w-4 mt-px shrink-0" aria-hidden />
-            <p>
-              <span className="font-semibold">Demo environment; does not write to production PLCs.</span> All records are synthetic. No connection is made to MES, DCS/PLC, LIMS, QMS or ERP systems, and no signature here has regulatory effect.
-            </p>
-          </div>
-          <p className="mt-3 text-center text-[11px] text-text-muted">Session activity in the sandbox is kept in this browser only.</p>
-        </div>
-      </main>
-    </div>
-  );
+    const router = useRouter();
+    const { email: signedIn, loading } = useSession();
+    const [next, setNext] = useState('/onboarding/start/');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [visible, setVisible] = useState(false);
+    const [error, setError] = useState('');
+    const [notice, setNotice] = useState('');
+    const [busy, setBusy] = useState<'sign-in' | 'reset' | null>(null);
+    const configured = authMode() === 'supabase';
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        setNext(safeNext(params.get('next'), '/onboarding/start/'));
+        if (params.get('reason') === 'expired')
+            setNotice(SIGNED_OUT_MESSAGE);
+    }, []);
+    const proceed = async () => {
+        setBusy('sign-in');
+        setError('');
+        try {
+            await connectorRequest<Identity>('/me');
+            router.replace(next);
+        }
+        catch (err) {
+            setError((err as Error).message);
+            setBusy(null);
+        }
+    };
+    const submit = async (event: FormEvent) => {
+        event.preventDefault();
+        setError('');
+        setNotice('');
+        setBusy('sign-in');
+        try {
+            await signIn(email, password);
+            await proceed();
+        }
+        catch (err) {
+            setError((err as Error).message);
+            setBusy(null);
+        }
+    };
+    const reset = async () => {
+        if (!email.trim()) {
+            setError('Enter your email address, then select Forgot password.');
+            return;
+        }
+        setBusy('reset');
+        setError('');
+        setNotice('');
+        try {
+            await sendPasswordReset(email);
+            setNotice('If this address has an account, a password reset link is on its way. Check your inbox.');
+        }
+        catch (err) {
+            setError((err as Error).message);
+        }
+        finally {
+            setBusy(null);
+        }
+    };
+    return <div className="auth-shell">
+    <section className="auth-story">
+      <BrandMark href="/"/>
+      <div className="auth-story-copy"><p className="setup-eyebrow">CONNECTED KNOWLEDGE. CLEARER DECISIONS.</p>
+        <h1>Your data.<br /> A clearer<br /><span>way forward.</span></h1>
+        <p>Bring your manufacturing knowledge together. Trace every finding to its source. Take the next step with confidence.</p>
+      </div>
+      <div className="auth-story-foot"><ShieldCheck size={20}/><span>Your systems stay the source of truth.<br />You stay in control of access.</span></div>
+      <div className="brand-ribbon" aria-hidden="true"/>
+    </section>
+    <main className="auth-main"><Link href="/" className="auth-overview">Product overview ↗</Link>
+      <div className="auth-form-wrap"><p className="setup-eyebrow">WELCOME TO SIEVANCE</p><h2>Good to have you here.</h2>
+        <p className="setup-subtitle">Sign in to your workspace to continue.</p>
+        {error && <div className="setup-message error" role="alert">{error}</div>}
+        {notice && <div className="setup-message" role="status">{notice}</div>}
+        {loading ? <p role="status">Checking your session…</p> : !configured ? <div className="setup-message"><strong>Local development workspace</strong><p>Account sign-in is not configured here. Your administrator must connect Supabase before inviting people.</p><Link className="setup-primary" href="/onboarding/start/">Configure data connections <ArrowRight size={17}/></Link><Link className="setup-text-link" href="/cmo/">Explore the demo workspace</Link></div> : signedIn ? <div className="auth-fields"><p>Signed in as <strong>{signedIn}</strong></p><button className="setup-primary" onClick={proceed} disabled={busy !== null}>Continue to workspace <ArrowRight size={17}/></button><button className="setup-text-link" disabled={busy !== null} onClick={async () => { setBusy('sign-in'); setError(''); try {
+            await signOut();
+        }
+        catch (err) {
+            setError((err as Error).message);
+        }
+        finally {
+            setBusy(null);
+        } }}>Use a different account</button></div> : <form onSubmit={submit} className="auth-fields">
+          <label>Work email<input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com"/></label>
+          <label>Password<div className="password-field"><input type={visible ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password"/><button type="button" aria-label={visible ? 'Hide password' : 'Show password'} aria-pressed={visible} onClick={() => setVisible(v => !v)}>{visible ? <EyeOff size={18}/> : <Eye size={18}/>}</button></div></label>
+          <button type="button" className="auth-forgot" disabled={busy !== null} onClick={reset}>{busy === 'reset' ? 'Sending link…' : 'Forgot password?'}</button>
+          <button type="submit" className="setup-primary" disabled={busy !== null}>{busy === 'sign-in' ? <><Loader2 size={17} className="animate-spin"/> Signing in…</> : <>Sign in <ArrowRight size={17}/></>}</button>
+        </form>}
+        <p className="auth-invite">Joining your team? Use the invitation in your email.<br />Need access? Ask your workspace administrator.</p>
+      </div><footer className="auth-footer"><ShieldCheck size={15}/> Access follows your organization’s permissions.</footer>
+    </main>
+  </div>;
 }
