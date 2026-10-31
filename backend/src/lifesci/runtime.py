@@ -91,6 +91,10 @@ class Runtime:
         self._thread: threading.Thread | None = None
         platform.store.subscribe(self._committed)
 
+    def tenants(self) -> tuple[str, ...]:
+        with self._lock:
+            return tuple(sorted(self._tenants))
+
     def track(self, tenant: str) -> None:
         with self._lock:
             self._tenants.add(tenant)

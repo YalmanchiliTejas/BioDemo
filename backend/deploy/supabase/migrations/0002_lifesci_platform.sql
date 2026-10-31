@@ -93,7 +93,7 @@ CREATE TRIGGER revisions_append_only BEFORE UPDATE OR DELETE ON aggregate_revisi
   FOR EACH ROW EXECUTE FUNCTION lifesci_no_mutation();
 
 -- 4. Runtime role (non-owner, no BYPASSRLS) -------------------------------------
-DO $$ DECLARE pw text := 'Password1234567890'; BEGIN
+DO $$ DECLARE pw text := 'REPLACE_WITH_APP_PASSWORD'; BEGIN
   IF pw = 'REPLACE' || '_WITH_APP_PASSWORD' THEN RAISE EXCEPTION 'edit the script: set the lifesci_app password first'; END IF;
   IF length(pw) < 16 THEN RAISE EXCEPTION 'app password must be at least 16 characters'; END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'lifesci_app') THEN

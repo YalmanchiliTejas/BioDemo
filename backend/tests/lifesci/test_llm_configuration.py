@@ -109,3 +109,19 @@ def test_configured_provider_is_used_for_a_real_gateway_execution_contract(monke
     trace = done['turns'][0]['gateway_runs'][0]
     assert trace['route']['provider'] == 'openai' and trace['route']['unqualified']
     assert trace['requires_human_review']
+
+
+def test_modal_provider_configuration_defaults_to_zero_price_and_hashes_endpoint():
+    def profile(**extra):
+        reg = default_registry()
+        bindings = configure_engineering_llms(reg, {'LIFESCI_LLM_PROVIDER': 'modal', 'LIFESCI_LLM_MODEL': 'zai-org/GLM-5.3',
+                                                    'MODAL_BASE_URL': 'https://a--b.modal.direct/v1', **extra})
+        assert set(bindings) == {'investigation_planning', 'comparison_explanation'}
+        assert not reg.qualifications
+        return reg.profiles['engineering-planner']
+    first = profile()
+    assert (first.provider, first.model) == ('modal', 'zai-org/GLM-5.3')
+    assert (first.input_per_mtok, first.output_per_mtok, first.cached_input_per_mtok) == (0, 0, 0)
+    assert first.price_source == 'self_hosted_compute_cost_not_priced'
+    assert profile(MODAL_BASE_URL='https://other--b.modal.direct/v1').version != first.version
+    assert profile(MODAL_PROXY_TOKEN='wk-a.ws-secret').version == first.version

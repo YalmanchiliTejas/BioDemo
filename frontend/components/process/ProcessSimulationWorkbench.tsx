@@ -5,6 +5,7 @@ import { ArrowDownToLine, Play, FlaskConical } from 'lucide-react';
 import { Callout, Card, CardBody, CardHeader, PageHeader, Pill, Stat } from '@/components/ui';
 import { ScientificPlot } from '@/components/ScientificPlot';
 import { AnalysisWorkbench } from '@/components/process/AnalysisWorkbench';
+import { authHeaders, authMode, redirectToSignIn, SIGNED_OUT_MESSAGE } from '@/lib/auth';
 
 type Row = { time_h: number; interface_temperature_c: number; remaining_ice_kg_per_vial: number; sublimation_kg_h: number; capacity_margin_kg_h: number; critical_margin_c: number };
 type Config = { equipment: { equipment_id: string; site_id: string; revision: string; vapor_capacity_kg_h: number; condenser_capacity_kg: number; shelf_area_m2: number; missing_parameters: string[] }; product: { critical_temperature_c: number }; load_vials: number; schedule: { time_h: number; shelf_temperature_c: number; chamber_pressure_pa: number }[] };
@@ -21,9 +22,10 @@ const buttonStyle = 'inline-flex items-center gap-2 rounded bg-teal-700 px-4 py-
 
 async function request<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${API}${path}`, { method: body ? 'POST' : 'GET',
-    headers: { 'Content-Type': 'application/json', 'X-Tenant-Id': 'demo-northfield', 'X-Actor-Id': 'priya',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()),
       ...(body ? { 'Idempotency-Key': crypto.randomUUID() } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}) });
+  if (response.status === 401 && authMode() === 'supabase') { redirectToSignIn(); throw new Error(SIGNED_OUT_MESSAGE); }
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail ?? `API request failed (${response.status})`);
   return data;

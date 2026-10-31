@@ -1,0 +1,81 @@
+# Test and deploy the platform API to AWS Lambda.
+# Setup (once): backend/deploy/aws/README.md, "Deploy from GitHub Actions".
+name: Deploy API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - backend/src/**
+      - backend/benchmarks/cmo_ingestion/demo/**
+      - backend/deploy/aws/**
+      - backend/tests/**
+      - .github/workflows/deploy-api.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false   # never interrupt a CloudFormation update halfway
+
+jobs:
+  test:
+    name: Test (Lambda dependencies, Python 3.13)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/deploy/aws/requirements.txt
+      - name: Install exactly what the Lambda image installs (plus test tools)
+        run: pip install -r deploy/aws/requirements.txt pytest reportlab
+      - name: Tests covering the API, CMO verification, auth, the model gateway and Lambda hosting
+        run: >
+          python -m pytest -q -p no:cacheprovider
+          tests/lifesci/test_aws_lambda.py tests/lifesci/test_cmo_platform.py tests/lifesci/test_supabase_auth.py
+          tests/lifesci/test_gateway.py tests/lifesci/test_llm_configuration.py tests/lifesci/test_normalized_schema.py
+          tests/lifesci/test_engineering_conversation.py tests/test_cmo_ingestion.py tests/test_cmo_zero_silent.py
+          tests/test_cmo_legacy_import.py
+      - name: Template lint
+        run: pip install cfn-lint && cfn-lint deploy/aws/template.yaml deploy/aws/github-oidc.yaml
+
+  deploy:
+    name: Build and deploy
+    needs: test
+    runs-on: ubuntu-24.04-arm     # native arm64 build for an arm64 Lambda
+    environment: production       # the AWS role trusts only this environment
+    permissions:
+      contents: read
+      id-token: write             # short-lived AWS credentials via OIDC; no stored keys
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: crazy-max/ghaction-github-runtime@v3   # exposes the cache token so buildx can use type=gha
+      - name: Deploy
+        run: backend/deploy/aws/deploy.sh
+        env:
+          BUILD_CACHE: gha
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          DEPLOYMENT_TENANT: ${{ vars.DEPLOYMENT_TENANT }}
+          CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
+          MODAL_BASE_URL: ${{ vars.MODAL_BASE_URL }}
+          LIFESCI_LLM_MODEL: ${{ vars.LIFESCI_LLM_MODEL }}
+          LIFESCI_ALLOW_UNQUALIFIED_ROUTES: ${{ vars.LIFESCI_ALLOW_UNQUALIFIED_ROUTES }}
+          API_DOMAIN: ${{ vars.API_DOMAIN }}
+          CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MODAL_PROXY_TOKEN: ${{ secrets.MODAL_PROXY_TOKEN }}
+          SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}

@@ -84,7 +84,7 @@ def test_only_current_verified_deliveries_publish_as_evidence(platform_client):
     assert client.post('/v1/cmo-datasets', json={'run_id': newer['id']}, headers=anonymous).status_code in (401, 403)
     assert client.get(f"/api/cmo-ingestion/runs/{newer['id']}", headers=anonymous).status_code == 401
     other = {'X-Tenant-Id': 'other-customer', 'X-Actor-Id': 'priya'}
-    assert client.get(f"/api/cmo-ingestion/runs/{newer['id']}", headers=other).status_code == 404
+    assert client.get(f"/api/cmo-ingestion/runs/{newer['id']}", headers=other).status_code in (403, 404)
     assert client.post('/v1/cmo-datasets', json={'run_id': newer['id']}, headers=other).status_code in (403, 404)
 
 

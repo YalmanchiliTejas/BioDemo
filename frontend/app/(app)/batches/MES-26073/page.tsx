@@ -47,7 +47,7 @@ const DOCS = [
   { id: 'SOP-UP-014 Rev 7', type: 'Standard operating procedure', sys: 'Documentum', state: 'Effective', cite: 'sop-up-014' },
   { id: 'Q-DEV-031', type: 'Deviation · Major Tier 2', sys: 'Veeva Vault QMS', state: 'Open', cite: 'qms-q-dev-031', href: '/quality/Q-DEV-031' },
   { id: 'WO-8819', type: 'Work order', sys: 'Maximo CMMS', state: 'Closed', cite: 'cmms-wo-8819', href: '/equipment/PM-204' },
-  { id: 'DOC-UP01-03', type: 'Investigation summary (draft)', sys: 'Manufacturing OS', state: 'Draft · unsigned', href: '/documents/DOC-UP01-03' },
+  { id: 'DOC-UP01-03', type: 'Investigation summary (draft)', sys: 'Sievance', state: 'Draft · unsigned', href: '/documents/DOC-UP01-03' },
 ];
 
 const ACTIVITY = [

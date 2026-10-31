@@ -16,7 +16,7 @@ export const CITATIONS_AGENT: Record<string, Citation> = {
   },
   'ag-param-map': {
     id: 'ag-param-map',
-    sourceSystem: 'Manufacturing OS (derived)',
+    sourceSystem: 'Sievance (derived)',
     documentName: 'TT-006 parameter map · RCP-AB014-V4 → BR-D-2000',
     sectionOrClause: 'Mapping summary',
     rawExcerpt:
@@ -28,7 +28,7 @@ export const CITATIONS_AGENT: Record<string, Citation> = {
   },
   'ag-calc-imc': {
     id: 'ag-calc-imc',
-    sourceSystem: 'Manufacturing OS (derived)',
+    sourceSystem: 'Sievance (derived)',
     documentName: 'Candidate FIC-2201 tuning · IMC rules',
     sectionOrClause: 'Derivation',
     rawExcerpt:
@@ -51,7 +51,7 @@ export const CITATIONS_AGENT: Record<string, Citation> = {
   },
   'ag-calc-schedule': {
     id: 'ag-calc-schedule',
-    sourceSystem: 'Manufacturing OS (derived)',
+    sourceSystem: 'Sievance (derived)',
     documentName: 'Suite 3B schedule solve · 26 Oct',
     sectionOrClause: 'Constraint solver output',
     rawExcerpt:
@@ -63,7 +63,7 @@ export const CITATIONS_AGENT: Record<string, Citation> = {
   },
   'ag-calc-compensation': {
     id: 'ag-calc-compensation',
-    sourceSystem: 'Manufacturing OS (derived)',
+    sourceSystem: 'Sievance (derived)',
     documentName: 'Modelled feed compensation · MES-26073',
     sectionOrClause: 'T+240–280h',
     rawExcerpt:

@@ -10,5 +10,5 @@ exhaustion pauses with progress rather than lowering controls.
 from .registry import ModelProfile, TaskPolicy, ModelRegistry, default_registry  # noqa: F401
 from .router import Router, RouteDecision, RoutingError  # noqa: F401
 from .budget import BudgetLedger, BudgetExceeded  # noqa: F401
-from .providers import Provider, ProviderError, FakeProvider, AnthropicProvider, OpenAIProvider  # noqa: F401
+from .providers import Provider, ProviderError, FakeProvider, AnthropicProvider, OpenAIProvider, ModalProvider  # noqa: F401
 from .gateway import ModelGateway, TaskRequest, TaskResult  # noqa: F401

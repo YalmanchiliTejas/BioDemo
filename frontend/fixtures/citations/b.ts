@@ -135,7 +135,7 @@ export const CITATIONS_B: Record<string, Citation> = {
   },
   'b-calc-feed-pressure': {
     id: 'b-calc-feed-pressure',
-    sourceSystem: 'Manufacturing OS (derived)',
+    sourceSystem: 'Sievance (derived)',
     documentName: 'AN-104 derived dataset · feed loss vs head pressure',
     sectionOrClause: 'Hourly means T+200–280h · MES-26071/72/73',
     rawExcerpt:

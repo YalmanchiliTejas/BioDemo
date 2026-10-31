@@ -6,6 +6,9 @@
   python -m src.lifesci supabase-sql      # regenerate deploy/supabase/migrations from the schema
   python -m src.lifesci cmo-import-legacy SOURCE [--tenant demo-cdmo]
   python -m src.lifesci worker            # Temporal mission worker (needs TEMPORAL_ADDRESS)
+  python -m src.lifesci grant-role (--email E | --user-id UUID) --role ROLE [--site S] [--tenant T] [--by A] [--reason R]
+  python -m src.lifesci revoke-role (--email E | --user-id UUID) --role ROLE [--site S] [--tenant T] [--by A] [--reason R]
+  python -m src.lifesci list-roles [--tenant T] [--all]
 
 Configuration is read from ``backend/.env.local`` (git-ignored) when present. Set
 ``LIFESCI_ENV_FILE`` to use another file. Real environment variables take
@@ -76,6 +79,48 @@ def _migrate(args: argparse.Namespace) -> None:
         print(f"Runtime connection verified as {who!r}; unbound sessions see no tenant rows.")
 
 
+def _roles(args: argparse.Namespace, platform) -> None:  # noqa: ANN001
+    import uuid
+
+    from .identity import DEFAULT_ROLE_POLICY
+
+    tenant = args.tenant or os.environ.get("DEPLOYMENT_TENANT", "").strip()
+    if not tenant:
+        raise SystemExit("set DEPLOYMENT_TENANT or pass --tenant")
+    print(f"Tenant {tenant!r} in the {platform.store.backend} store", file=sys.stderr)
+    if args.cmd == "list-roles":
+        rows = sorted(platform.store.read().list(tenant, "role_assignment"), key=lambda r: r.id)
+        items = [r.state for r in rows if args.all or not r.state.get("revoked_at")]
+        print(json.dumps(items, indent=2))
+        return
+    if args.role not in DEFAULT_ROLE_POLICY:
+        raise SystemExit(f"unknown role {args.role!r}; choose one of: {', '.join(sorted(DEFAULT_ROLE_POLICY))}")
+    if args.email:
+        from .supabase_auth import lookup_user_id_by_email
+        try:
+            user_id = lookup_user_id_by_email(args.email)
+        except (LookupError, RuntimeError, ValueError, OSError) as exc:
+            raise SystemExit(str(exc)) from exc
+    else:
+        try:
+            user_id = str(uuid.UUID(args.user_id))
+        except ValueError as exc:
+            raise SystemExit(f"--user-id must be the Supabase user UUID; got {args.user_id!r}") from exc
+    by = args.by or os.environ.get("USER") or "operator-cli"
+    who = f"{args.email} ({user_id})" if args.email else user_id
+    scope = f"site {args.site}" if args.site else "all sites"
+    if args.cmd == "grant-role":
+        state = platform.identity.assign_role(tenant, user_id, args.role, site_id=args.site, by=by, reason=args.reason)
+        print(f"Assigned {args.role!r} for {scope} to {who} in tenant {tenant!r} (since {state['assigned_at']})")
+        return
+    from .store import NotFoundError
+    try:
+        platform.identity.revoke_role(tenant, user_id, args.role, site_id=args.site, by=by, reason=args.reason)
+    except NotFoundError as exc:
+        raise SystemExit(f"{who} has no {args.role!r} assignment for {scope} in tenant {tenant!r}") from exc
+    print(f"Revoked {args.role!r} for {scope} from {who} in tenant {tenant!r}")
+
+
 def main() -> None:
     _load_env()
     parser = argparse.ArgumentParser(prog="python -m src.lifesci")
@@ -95,6 +140,19 @@ def main() -> None:
                             help="copy CMO records from the pre-normalization cmo.sqlite file or PostgreSQL tables")
     legacy.add_argument("source", help="path to the old cmo.sqlite, or a postgresql:// URL holding the old cmo_* tables")
     legacy.add_argument("--tenant", default=None, help="customer for records without a case tenant (default: CMO_DEFAULT_TENANT or demo-cdmo)")
+    for name, verb in (("grant-role", "assign"), ("revoke-role", "revoke")):
+        cmd = sub.add_parser(name, help=f"{verb} a stored role for a Supabase user (roles never come from tokens)")
+        who = cmd.add_mutually_exclusive_group(required=True)
+        who.add_argument("--email", help="look up the Supabase user id (needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)")
+        who.add_argument("--user-id", help="Supabase user UUID (the token's sub)")
+        cmd.add_argument("--role", required=True)
+        cmd.add_argument("--site", default=None, help="limit the role to one site (default: tenant-wide)")
+        cmd.add_argument("--tenant", default=None, help="default: DEPLOYMENT_TENANT")
+        cmd.add_argument("--by", default=None, help="operator recorded in the audit trail (default: $USER)")
+        cmd.add_argument("--reason", default=None)
+    list_roles = sub.add_parser("list-roles", help="list active stored role assignments")
+    list_roles.add_argument("--tenant", default=None, help="default: DEPLOYMENT_TENANT")
+    list_roles.add_argument("--all", action="store_true", help="include revoked assignments")
     args = parser.parse_args()
 
     if args.cmd == "db-migrate":
@@ -117,6 +175,9 @@ def main() -> None:
     from .devseed import seed
 
     platform = Platform.from_env()
+    if args.cmd in ("grant-role", "revoke-role", "list-roles"):
+        _roles(args, platform)
+        return
     if args.cmd == "seed-suite":
         from .suite_seed import seed_suite
         print(json.dumps(seed_suite(platform), indent=2))

@@ -496,7 +496,7 @@ export function Footer() {
           <div className="relative mx-6 h-full"><div className="mx-auto flex h-full max-w-6xl flex-col justify-between py-14">
             <div className="flex flex-wrap items-start justify-between gap-10">
               <div>
-                <p className="font-display text-[34px] font-light tracking-[-0.02em] text-white sm:text-[44px]">Manufacturing OS</p>
+                <p className="font-display text-[34px] font-light tracking-[-0.02em] text-white sm:text-[44px]">Sievance</p>
                 <p className="mt-2 max-w-sm text-[14px] text-white/60">The AI operating system for pharmaceutical manufacturing.</p>
               </div>
               <nav className="grid grid-cols-2 gap-x-14 gap-y-2.5 text-[14px] text-white/70" aria-label="Footer">

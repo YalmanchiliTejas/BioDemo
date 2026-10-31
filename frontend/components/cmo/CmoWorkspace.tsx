@@ -5,11 +5,12 @@ import { ArrowLeft, ArrowRight, CheckCircle2, CircleAlert, Download, FileText, L
 import { Button, Callout, Pill, table, type Tone } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import {
-  decisionCount, download, getJson, getToken, kindLabel, postJson, setToken, uploadFile,
+  decisionCount, download, getJson, getToken, kindLabel, postJson, setToken, setUploadConfig, uploadFile,
   type Catalog, type CatalogItem, type Measurement, type Parameter, type Run, type RunListing,
 } from '@/lib/cmo-api';
 import { DEMO_STEPS, demoCmo, isDemoCmo, resetDemo } from '@/lib/cmo-demo';
 import { setReviewer, useReviewer } from '@/lib/reviewer';
+import { authMode } from '@/lib/auth';
 import { useOptionalCompanion } from '@/lib/companion-context';
 import { processRequest } from '@/lib/process-api';
 import { DataView } from './DataView';
@@ -325,8 +326,8 @@ export function CmoWorkspace() {
   const loadHome = useCallback(async () => {
     try {
       const [c, r] = await Promise.all([getJson<Catalog>('/catalog'), getJson<{ runs: RunListing[] }>('/runs')]);
-      setCatalog(c); setRuns(r.runs); setError(''); setNeedsToken(false);
-    } catch (e) { if ((e as { status?: number }).status === 401) setNeedsToken(true); else setError((e as Error).message); }
+      setCatalog(c); setUploadConfig(c.upload); setRuns(r.runs); setError(''); setNeedsToken(false);
+    } catch (e) { if ((e as { status?: number }).status === 401 && authMode() !== 'supabase') setNeedsToken(true); else setError((e as Error).message); }
   }, []);
 
   useEffect(() => {

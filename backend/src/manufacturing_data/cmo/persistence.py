@@ -404,6 +404,21 @@ class Repository:
     def runs(self, cmo=None):
         return self._load(cmo=cmo)
 
+    def run_header(self, run_id):
+        """Header fields of one run, or None, without loading its rows."""
+        columns = ('id', 'cmo', 'status', 'started_at', 'superseded_by', 'package_id', 'delivery_name', 'disclosure',
+                   'hosted_basis')
+        with self.transaction() as tx:
+            row = tx.fetchone(f"SELECT {', '.join(columns)} FROM cmo_runs WHERE tenant_id=? AND id=?", (tx.tenant, run_id))
+        return dict(zip(columns, row)) if row else None
+
+    def claim_queued(self, run_id):
+        """Move a queued run to running exactly once; False if another worker already took it."""
+        with self.transaction() as tx:
+            cur = tx.execute("UPDATE cmo_runs SET status='running' WHERE tenant_id=? AND id=? AND status='queued'",
+                             (tx.tenant, run_id))
+            return cur.rowcount == 1
+
     def run_headers(self, cmo=None):
         with self.transaction() as tx:
             rows = tx.fetchall('SELECT id, cmo, status, started_at, superseded_by FROM cmo_runs WHERE tenant_id=? '

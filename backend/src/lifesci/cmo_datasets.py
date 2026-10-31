@@ -145,7 +145,7 @@ def install_cmo_api(p, app: FastAPI, ctx_dep) -> None:
         log.warning("CMO delivery verification unavailable: %s", exc)
         return
     repository = Path(os.environ.get("CMO_REPOSITORY_ROOT", Path(__file__).resolve().parents[2]))
-    cmo = cmo_router(repository, tenant_dependency=ctx_dep)
+    cmo = cmo_router(repository, tenant_dependency=ctx_dep, tasks=app.state.tasks)
     app.include_router(cmo)
 
     @app.post("/v1/cmo-datasets", status_code=201)

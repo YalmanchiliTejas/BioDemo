@@ -1,0 +1,185 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  BioDemo platform API on AWS Lambda. One function serves the function URL,
+  runs its own background tasks (asynchronous self-invocation) and the
+  runtime schedule. Data lives in Supabase (PostgreSQL, Storage, Auth); the
+  assistant model runs on Modal. Deploy with deploy/aws/deploy.sh (AWS CLI
+  and Docker; no SAM CLI needed).
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: ECR image (pushed by deploy.sh).
+  FunctionName:
+    Type: String
+    Default: biodemo-api
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+    Description: Runtime connection as lifesci_app (Supabase session pooler, sslmode=require).
+  SupabaseUrl:
+    Type: String
+  SupabaseServiceRoleKey:
+    Type: String
+    NoEcho: true
+    Description: Used only for the private Storage bucket (original files).
+  DeploymentTenant:
+    Type: String
+  CorsOrigins:
+    Type: String
+    Description: Comma-separated frontend origins, e.g. https://biodemo.vercel.app
+  StorageBucket:
+    Type: String
+    Default: cmo-evidence
+  ModalBaseUrl:
+    Type: String
+    Default: ""
+  ModalProxyToken:
+    Type: String
+    NoEcho: true
+    Default: ""
+  LlmModel:
+    Type: String
+    Default: zai-org/GLM-5.3
+  AllowUnqualifiedRoutes:
+    Type: String
+    Default: "1"
+    AllowedValues: ["0", "1"]
+    Description: >
+      1 lets the assistant use the Modal model before a recorded evaluation
+      qualifies it; every such answer is flagged for human review.
+  SupabaseJwtSecret:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Only for Supabase projects still on the legacy shared JWT secret.
+  RuntimeSchedule:
+    Type: String
+    Default: rate(1 minute)
+  MemorySize:
+    Type: Number
+    Default: 3008
+    Description: CPU scales with memory; parsing deliveries is CPU-bound.
+  ApiDomain:
+    Type: String
+    Default: ""
+    Description: Custom API hostname, e.g. api.sievance.com (needs CertificateArn).
+  CertificateArn:
+    Type: String
+    Default: ""
+    Description: Issued ACM certificate for ApiDomain, in us-east-1 (CloudFront requires that region).
+
+Conditions:
+  HasModal: !Not [!Equals [!Ref ModalProxyToken, ""]]
+  HasDomain: !And
+    - !Not [!Equals [!Ref ApiDomain, ""]]
+    - !Not [!Equals [!Ref CertificateArn, ""]]
+
+Resources:
+  Api:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Ref FunctionName
+      PackageType: Image
+      ImageUri: !Ref ImageUri
+      Architectures: [arm64]
+      MemorySize: !Ref MemorySize
+      Timeout: 900
+      EphemeralStorage:
+        Size: 4096
+      LoggingConfig:
+        LogGroup: !Ref Logs
+      FunctionUrlConfig:
+        AuthType: NONE          # public URL; every request is authenticated by the app (Supabase Auth)
+        InvokeMode: BUFFERED
+      Environment:
+        Variables:
+          LIFESCI_AUTH_MODE: supabase
+          LIFESCI_DATABASE_URL: !Ref DatabaseUrl
+          LIFESCI_DB_MIGRATE: "0"
+          DEPLOYMENT_TENANT: !Ref DeploymentTenant
+          CMO_DEFAULT_TENANT: !Ref DeploymentTenant
+          LIFESCI_CORS_ORIGINS: !Ref CorsOrigins
+          SUPABASE_URL: !Ref SupabaseUrl
+          SUPABASE_SERVICE_ROLE_KEY: !Ref SupabaseServiceRoleKey
+          SUPABASE_JWT_SECRET: !Ref SupabaseJwtSecret
+          CMO_STORAGE_BUCKET: !Ref StorageBucket
+          LIFESCI_LLM_PROVIDER: !If [HasModal, modal, !Ref AWS::NoValue]
+          LIFESCI_LLM_MODEL: !If [HasModal, !Ref LlmModel, !Ref AWS::NoValue]
+          MODAL_BASE_URL: !Ref ModalBaseUrl
+          MODAL_PROXY_TOKEN: !Ref ModalProxyToken
+          LIFESCI_ALLOW_UNQUALIFIED_ROUTES: !Ref AllowUnqualifiedRoutes
+      Policies:
+        - Statement:
+            - Sid: RunOwnBackgroundTasks
+              Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}
+      Events:
+        Runtime:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref RuntimeSchedule
+            Input: '{"biodemo_task": {"kind": "runtime_tick", "payload": {}}}'
+
+  # Background tasks are idempotent but not worth retrying blindly: a failed run
+  # is recorded as failed and the user starts it again.
+  TaskDelivery:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref Api
+      Qualifier: $LATEST
+      MaximumRetryAttempts: 0
+      MaximumEventAgeInSeconds: 3600
+
+  Logs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${FunctionName}
+      RetentionInDays: 30
+
+  # api.<domain> in front of the function URL. Nothing is cached (every
+  # response is per-user); the viewer's Host header is not forwarded because
+  # the function URL only answers to its own hostname.
+  ApiCdn:
+    Type: AWS::CloudFront::Distribution
+    Condition: HasDomain
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${ApiDomain} -> ${FunctionName} function URL"
+        Aliases: [!Ref ApiDomain]
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: lambda
+            DomainName: !Select [2, !Split ["/", !GetAtt ApiUrl.FunctionUrl]]
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+              OriginReadTimeout: 60
+        DefaultCacheBehavior:
+          TargetOriginId: lambda
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad          # Managed-CachingDisabled
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac  # Managed-AllViewerExceptHostHeader
+
+Outputs:
+  ApiUrl:
+    Description: Set NEXT_PUBLIC_LIFESCI_API_URL in Vercel to this value (without the trailing slash).
+    Value: !If [HasDomain, !Sub "https://${ApiDomain}", !GetAtt ApiUrl.FunctionUrl]
+  FunctionUrl:
+    Description: Direct function URL (also reachable; the app authenticates every request).
+    Value: !GetAtt ApiUrl.FunctionUrl
+  DnsTarget:
+    Condition: HasDomain
+    Description: Point a CNAME for ApiDomain at this hostname at your DNS provider.
+    Value: !GetAtt ApiCdn.DomainName

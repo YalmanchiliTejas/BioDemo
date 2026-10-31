@@ -120,7 +120,7 @@ export default function DocumentPage() {
     const lines = [
       '# CONTROLLED DRAFT — NOT AN APPROVED RECORD',
       '',
-      '> Demo export from Manufacturing OS. Synthetic data. This file is not a controlled document and has not been reviewed or approved.',
+      '> Demo export from Sievance. Synthetic data. This file is not a controlled document and has not been reviewed or approved.',
       '> Approved investigation reports are issued from Documentum / Veeva QMS, not from this tool.',
       '',
       '## DOC-UP01-03 v0.3 · Investigation summary · Q-DEV-031',

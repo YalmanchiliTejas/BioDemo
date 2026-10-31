@@ -187,3 +187,90 @@ def test_illustrative_cost_model_matches_doc(env):
     p = {x.profile_id: x for x in env.reg.profiles.values()}
     mixed = 80 * p["openai-luna"].cost(2000, 500) + 18 * p["openai-sol"].cost(2000, 500) + 2 * p["openai-astra"].cost(2000, 500)
     assert round(mixed, 3) == 0.288 and round(100 * p["openai-astra"].cost(2000, 500), 2) == 4.50
+
+
+# --- Modal (OpenAI-compatible Chat Completions) adapter ------------------------------------
+
+MODAL_TOKEN = "wk-test.ws-secret"
+
+
+class _Response:
+    def __init__(self, body, status=200):
+        self._body, self.status_code, self.text = body, status, json.dumps(body)
+
+    def json(self):
+        return self._body
+
+
+@pytest.fixture
+def modal_http(monkeypatch):
+    import httpx
+    calls = []
+
+    def respond(body, status=200):
+        def post(url, json=None, headers=None, timeout=None):
+            calls.append({"url": url, "json": json, "headers": headers, "timeout": timeout})
+            return _Response(body, status)
+        monkeypatch.setattr(httpx, "post", post)
+        return calls
+    return respond
+
+
+def modal_provider(**env):
+    from src.lifesci.gateway import ModalProvider
+    return ModalProvider(environ={"MODAL_PROXY_TOKEN": f"Bearer {MODAL_TOKEN}",
+                                  "MODAL_BASE_URL": "https://ws--app.modal.direct/v1/", **env})
+
+
+def test_modal_request_shape_and_parsing(modal_http):
+    calls = modal_http({"id": "req-1", "choices": [{"message": {
+        "content": "answer", "reasoning_content": "hidden chain"}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 12, "completion_tokens": 34}})
+    c = modal_provider().complete(model="zai-org/GLM-5.3", system="sys", prompt="hi",
+                                  max_output_tokens=2000, timeout_s=60)
+    call = calls[0]
+    assert call["url"] == "https://ws--app.modal.direct/v1/chat/completions"
+    assert call["headers"]["Authorization"] == f"Bearer {MODAL_TOKEN}"
+    assert call["json"]["model"] == "zai-org/GLM-5.3"
+    assert call["json"]["messages"] == [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}]
+    assert call["json"]["max_tokens"] == 16000 and call["timeout"] == 300
+    assert (c.text, c.input_tokens, c.output_tokens, c.provider_request_id) == ("answer", 12, 34, "req-1")
+
+
+def test_modal_limits_are_configurable(modal_http):
+    calls = modal_http({"choices": [{"message": {"content": "x"}}], "usage": {}})
+    modal_provider(MODAL_TIMEOUT_SECONDS="900", MODAL_MIN_MAX_TOKENS="100").complete(
+        model="m", system="s", prompt="p", max_output_tokens=2000, timeout_s=60)
+    assert calls[0]["json"]["max_tokens"] == 2000 and calls[0]["timeout"] == 900
+
+
+def test_modal_null_content_is_an_error_not_reasoning(modal_http):
+    modal_http({"choices": [{"message": {"content": None, "reasoning_content": "thinking..."},
+                             "finish_reason": "length"}], "usage": {"prompt_tokens": 1, "completion_tokens": 9}})
+    with pytest.raises(ProviderError, match="budget exhausted") as exc:
+        modal_provider().complete(model="m", system="s", prompt="p", max_output_tokens=10, timeout_s=1)
+    assert not exc.value.retryable
+
+
+@pytest.mark.parametrize("env, kind", [
+    ({"MODAL_BASE_URL": ""}, "unavailable"),
+    ({"MODAL_BASE_URL": "https://user:pw@host/v1"}, "unavailable"),
+    ({"MODAL_PROXY_TOKEN": ""}, "auth"),
+    ({"MODAL_PROXY_TOKEN": "not-a-modal-token"}, "auth"),
+])
+def test_modal_unavailable_without_valid_configuration(modal_http, env, kind):
+    calls = modal_http({})
+    with pytest.raises(ProviderError) as exc:
+        modal_provider(**env).complete(model="m", system="s", prompt="p", max_output_tokens=10, timeout_s=1)
+    assert exc.value.kind == kind and not calls
+
+
+def test_modal_accepts_biodemo_env_names_and_registers_only_when_complete(monkeypatch):
+    from src.lifesci.container import Platform
+    for key in ("MODAL_PROXY_TOKEN", "MODAL_BASE_URL", "BIODEMO_MODAL_PROXY_TOKEN", "BIODEMO_MODAL_BASE_URL"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("BIODEMO_MODAL_PROXY_TOKEN", MODAL_TOKEN)
+    assert "modal" not in Platform._env_providers()
+    monkeypatch.setenv("BIODEMO_MODAL_BASE_URL", "https://ws--app.modal.direct/v1")
+    provider = Platform._env_providers()["modal"]
+    assert provider._key == MODAL_TOKEN and provider._base == "https://ws--app.modal.direct/v1"

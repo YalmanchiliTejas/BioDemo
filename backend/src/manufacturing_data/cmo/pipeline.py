@@ -212,6 +212,26 @@ class IngestionService:
             except (Unavailable,ValueError) as exc: reasons.append(str(exc))
         return reasons
 
+    @staticmethod
+    def _new_run(run_id,cmo,configuration,requested,*,status,synthetic,approved,package_ref,notes):
+        return {'id':run_id,'cmo':cmo,'configuration':configuration,'requested_configuration':requested,
+                'configuration_notes':notes,'package_ref':package_ref,
+                'hosted_inference':{'approved':bool(approved),'synthetic':bool(synthetic),
+                                    'basis':'synthetic data' if synthetic else ('deployment approval CMO_HOSTED_INFERENCE_APPROVED' if approved else 'not approved; local parsing only')},
+                'started_at':utc(),'status':status,'synthetic':synthetic,'stages':[],
+                'layouts':[],'measurements':[],'issues':[],'documents':[],'model_usage':[],'extraction_reviews':[],
+                'human_minutes':None,'human_time_status':'not_measured','reviews':[],'elements':[]}
+
+    def queue(self,run_id,cmo,configuration,*,synthetic=False,approved=False,package_ref=None,details=None):
+        """Record a run before any worker starts, so its status is readable from every process."""
+        if not cmo.strip(): raise ValueError('CMO name is required')
+        if configuration not in CONFIGURATIONS: raise ValueError('Unknown extraction configuration')
+        run=self._new_run(run_id,cmo,configuration,configuration,status='queued',synthetic=synthetic,approved=approved,
+                          package_ref=package_ref,notes=[])
+        run.update(details or {})
+        self.save(run)
+        return run
+
     def run(self,package,cmo,configuration='preview',*,synthetic=False,approved=False,run_id=None,on_stage=None,project_context=None,package_ref=None):
         # Inference weights must be provisioned locally. Parsing a customer file
         # must never trigger telemetry or a model-weight download.
@@ -224,14 +244,15 @@ class IngestionService:
         started=time.monotonic()
         requested=configuration
         configuration,resolution_notes=self.resolve_configuration(configuration,synthetic=synthetic,approved=approved)
-        run={'id':run_id or uuid.uuid4().hex,'cmo':cmo,'configuration':configuration,'requested_configuration':requested,
-             'configuration_notes':resolution_notes,'package_ref':package_ref,
-             'hosted_inference':{'approved':bool(approved),'synthetic':bool(synthetic),
-                                 'basis':'synthetic data' if synthetic else ('deployment approval CMO_HOSTED_INFERENCE_APPROVED' if approved else 'not approved; local parsing only')},
-             'started_at':utc(),'status':'running','synthetic':synthetic,'stages':[],
-             'layouts':[],'measurements':[],'issues':[],'documents':[],'model_usage':[],'extraction_reviews':[],
-             'human_minutes':None,'human_time_status':'not_measured','reviews':[],'elements':[]}
+        run=self._new_run(run_id or uuid.uuid4().hex,cmo,configuration,requested,status='running',synthetic=synthetic,
+                          approved=approved,package_ref=package_ref,notes=resolution_notes)
         run.update({k:v for k,v in (project_context or {}).items() if k in {'project_tenant','project_id','case_id'}})
+        queued=self.repo.run_header(run['id']) if run_id else None
+        if queued:
+            # Continue the record created when the run was queued (see queue()).
+            if queued['status'] not in {'queued','running'}: raise ValueError(f"Run {run['id']} was already processed")
+            run['started_at']=queued['started_at']
+            run.update({k:queued[k] for k in ('package_id','delivery_name','disclosure') if queued[k] is not None})
         store=ManufacturingStore(self.root/'stores'/run['id'])
         run['store']=str(store.root)
         def stage(name,state='running'):

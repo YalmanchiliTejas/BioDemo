@@ -223,7 +223,13 @@ def test_api_persistence_and_idempotent_send(env):
     body = {'text': 'Help analyze a physical process problem', 'expected_revision': thread['revision']}
     url = f"/v1/process-model/conversations/{thread['id']}"
     assert client.post(f'{url}/messages', headers=headers, json=body).status_code == 200
-    final = client.get(url, headers=headers).json()
+    # The turn runs after the response (a thread here, an asynchronous invocation on Lambda); poll like the UI.
+    import time
+    for _ in range(200):
+        final = client.get(url, headers=headers).json()
+        if final['turns'][0]['status'] not in ('queued', 'running'):
+            break
+        time.sleep(.02)
     assert final['turns'][0]['status'] == 'agent_unavailable'
     client.post(f'{url}/messages', headers=headers, json=body)
     assert len(client.get(url, headers=headers).json()['turns']) == 1

@@ -90,7 +90,8 @@ class IdentityService:
 
     # --- roles -----------------------------------------------------------------
     def assign_role(self, tenant_id: str, actor_id: str, role: str, *, site_id: str | None = None,
-                    actor_kind: ActorKind = "person", by: str = "system") -> dict[str, Any]:
+                    actor_kind: ActorKind = "person", by: str = "system",
+                    reason: str | None = None) -> dict[str, Any]:
         if role not in DEFAULT_ROLE_POLICY:
             raise ValueError(f"unknown role {role}")
         if actor_kind == "agent" and role != "agent":
@@ -103,7 +104,7 @@ class IdentityService:
             if current is not None and not current.state.get("revoked_at"):
                 return current.state  # already active: idempotent
             tx.put(tenant_id, "role_assignment", rid, state,
-                   expected_revision=current.revision if current else None, action="assign_role",
+                   expected_revision=current.revision if current else None, action="assign_role", reason=reason,
                    event_type="identity.role_assigned",
                    event_payload={"actor_id": actor_id, "role": role, "site_id": site_id})
         return state

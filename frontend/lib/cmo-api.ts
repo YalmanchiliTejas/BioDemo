@@ -1,5 +1,6 @@
 /** Client for the CMO delivery API (backend/src/manufacturing_data/cmo/api.py), served by the platform API. */
 import { PROCESS_API } from './process-api';
+import { authHeaders, authMode, redirectToSignIn, SIGNED_OUT_MESSAGE } from './auth';
 
 export type SourceRef = { path: string; sheet?: string | null; cell?: string | null; row?: number | null; column?: string | null; page?: number | null; region?: number[] | null; span?: string | null };
 export type Measurement = {
@@ -42,8 +43,9 @@ export type Run = {
 };
 export type RunListing = Pick<Run, 'id' | 'cmo' | 'status' | 'started_at' | 'completed_at' | 'package_id' | 'delivery_name' | 'superseded_by' | 'runtime_seconds'> & { summary?: Summary; documents: number };
 export type CatalogItem = { id: string; kind: 'sample' | 'upload' | 'delivery'; cmo: string; name?: string; dataset?: string; condition?: string; synthetic: boolean; disclosure?: string; files: Array<{ path: string; size?: number; sha256?: string }> };
+export type UploadConfig = { mode: 'direct' | 'storage'; max_bytes?: number };
 export type Catalog = { packages: CatalogItem[]; hosted_inference_approved: boolean; storage: { records: string; originals: string }; cmos: string[];
-  customer_availability: Record<string, string[]> };
+  customer_availability: Record<string, string[]>; upload?: UploadConfig };
 export type Parameter = { id: string; unit: string; aliases: string[]; range: [number, number] };
 
 const TOKEN_KEY = 'cmo.apiToken';
@@ -69,8 +71,8 @@ export async function cmoFetch(path: string, init: RequestInit = {}): Promise<Re
   try {
     response = await fetch(`${apiBase()}/api/cmo-ingestion${path}`, {
       ...init,
-      // Same development identity as process-api.ts: CMO records are scoped to the platform tenant.
-      headers: { 'X-Tenant-Id': 'demo-northfield', 'X-Actor-Id': 'priya', ...(init.body && typeof init.body === 'string' ? { 'Content-Type': 'application/json' } : {}), ...(token ? { 'X-CMO-Token': token } : {}), ...init.headers },
+      // Same identity as process-api.ts: CMO records are scoped to the platform tenant.
+      headers: { ...(await authHeaders()), ...(init.body && typeof init.body === 'string' ? { 'Content-Type': 'application/json' } : {}), ...(token ? { 'X-CMO-Token': token } : {}), ...init.headers },
     });
   } catch {
     throw new ApiError('Cannot reach the CMO data service. Check your connection, or ask the administrator whether the service is running.', 0);
@@ -78,7 +80,8 @@ export async function cmoFetch(path: string, init: RequestInit = {}): Promise<Re
   if (!response.ok) {
     let message = `${response.status} ${response.statusText}`;
     try { const body = await response.json(); message = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail ?? body); } catch { /* keep status text */ }
-    if (response.status === 401) message = 'This workspace needs an access token. Enter it under Connection.';
+    if (response.status === 401 && authMode() === 'supabase') { redirectToSignIn(); message = SIGNED_OUT_MESSAGE; }
+    else if (response.status === 401) message = 'This workspace needs an access token. Enter it under Connection.';
     throw new ApiError(message, response.status);
   }
   return response;
@@ -87,8 +90,26 @@ export async function cmoFetch(path: string, init: RequestInit = {}): Promise<Re
 export const getJson = async <T,>(path: string) => (await cmoFetch(path)).json() as Promise<T>;
 export const postJson = async <T,>(path: string, body: unknown) => (await cmoFetch(path, { method: 'POST', body: JSON.stringify(body) })).json() as Promise<T>;
 
-export async function uploadFile(deliveryId: string, file: File) {
-  return (await cmoFetch(`/deliveries/${deliveryId}/files?filename=${encodeURIComponent(file.name)}`, { method: 'POST', body: file, headers: { 'Content-Type': 'application/octet-stream' } })).json() as Promise<CatalogItem>;
+let uploadConfig: UploadConfig = { mode: 'direct' };
+/** Called wherever the catalog is loaded; the server decides whether files go through the API or straight to storage. */
+export const setUploadConfig = (config?: UploadConfig) => { uploadConfig = config ?? { mode: 'direct' }; };
+
+const sizeLabel = (bytes: number) => bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`;
+
+export async function uploadFile(deliveryId: string, file: File, config: UploadConfig = uploadConfig) {
+  if (config.max_bytes && file.size > config.max_bytes) {
+    throw new ApiError(`${file.name} is ${sizeLabel(file.size)}, larger than the ${sizeLabel(config.max_bytes)} limit for one file. Split it or ask your administrator to raise the limit.`, 413);
+  }
+  if (config.mode !== 'storage') {
+    return (await cmoFetch(`/deliveries/${deliveryId}/files?filename=${encodeURIComponent(file.name)}`, { method: 'POST', body: file, headers: { 'Content-Type': 'application/octet-stream' } })).json() as Promise<CatalogItem>;
+  }
+  // Large files go straight to storage with a pre-signed URL, then the API is told the upload is complete.
+  const target = await postJson<{ upload_id: string; url: string; method: string; headers: Record<string, string> }>(`/deliveries/${deliveryId}/uploads`, { filename: file.name, size: file.size });
+  let stored: Response;
+  try { stored = await fetch(target.url, { method: target.method || 'PUT', headers: target.headers ?? {}, body: file }); }
+  catch { throw new ApiError('The file could not be uploaded to storage. Check your connection and try again.', 0); }
+  if (!stored.ok) throw new ApiError('The file could not be uploaded to storage. Try again.', stored.status);
+  return postJson<CatalogItem>(`/deliveries/${deliveryId}/uploads/${encodeURIComponent(target.upload_id)}/complete`, {});
 }
 
 export async function download(path: string, filename: string) {

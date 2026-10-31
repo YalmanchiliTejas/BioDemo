@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'sw
 const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: { default: 'Manufacturing OS · Verified CMO data', template: '%s · Manufacturing OS' },
+  title: { default: 'Sievance · Verified CMO data', template: '%s · Sievance' },
   description: 'Turn the files your CMOs send into one verified dataset. Every value links to its source; nothing is accepted or dropped without a record.',
 };
 

@@ -64,7 +64,7 @@ export type SourceSystem =
   | 'Veeva Vault QMS'
   | 'SAP ERP'
   /** Values computed by this application from other sources; never a system of record. */
-  | 'Manufacturing OS (derived)';
+  | 'Sievance (derived)';
 
 export interface Citation {
   id: string;

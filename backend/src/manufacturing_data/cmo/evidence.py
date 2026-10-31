@@ -30,6 +30,10 @@ class LocalEvidence:
 
     def get(self, key, destination): raise FileNotFoundError(f'Original {key} is not in the local cache and no durable store is configured')
 
+    def signed_upload(self, key): raise RuntimeError('Direct-to-storage uploads need Supabase Storage')
+
+    def delete(self, key): return None
+
 
 class SupabaseEvidence:
     backend='supabase'
@@ -49,6 +53,23 @@ class SupabaseEvidence:
         if response.status_code in {200,201}: return key
         if response.status_code in {400,409} and 'exist' in response.text.lower(): return key
         raise RuntimeError(f'Supabase Storage write failed ({response.status_code}): {response.text[:200]}')
+
+    def signed_upload(self, key):
+        """A single-use URL the browser can PUT one file to without other credentials (valid two hours)."""
+        response=self.client.post(f'{self.base}/object/upload/sign/{quote(self.bucket)}/{quote(key)}',json={})
+        if response.status_code not in {200,201}:
+            raise RuntimeError(f'Supabase Storage could not sign an upload ({response.status_code}): {response.text[:200]}')
+        path=response.json().get('url','')
+        if 'token=' not in path: raise RuntimeError('Supabase Storage returned no upload token')
+        return {'url':self.base+path,'method':'PUT',
+                'headers':{'Content-Type':'application/octet-stream','x-upsert':'false'}}
+
+    def delete(self, key):
+        # Removes a transport copy only; content-addressed originals are never deleted here.
+        if not key.startswith('uploads/'): raise ValueError('Only pending uploads can be deleted')
+        response=self.client.request('DELETE',f'{self.base}/object/{quote(self.bucket)}',json={'prefixes':[key]})
+        if response.status_code not in {200,204,404}:
+            raise RuntimeError(f'Supabase Storage delete failed ({response.status_code})')
 
     def get(self, key, destination):
         response=self.client.get(self._object(key))

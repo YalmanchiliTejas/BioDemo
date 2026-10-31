@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Fingerprint, KeyRound, PlayCircle, ShieldAlert } from 'lucide-react';
-import { Button, Pill } from '@/components/ui';
+import { ArrowRight, Fingerprint, KeyRound, Loader2, PlayCircle, ShieldAlert } from 'lucide-react';
+import { Button, Callout, Pill } from '@/components/ui';
 import { BrandMark } from '@/components/shell/BrandMark';
 import { ROLE_LABELS, ROLE_PEOPLE, useAppContext, type UserRole } from '@/lib/app-context';
 import { cn } from '@/lib/cn';
+import { authMode, safeNext, sendPasswordReset, signIn, SIGNED_OUT_MESSAGE, useSession } from '@/lib/auth';
 
 const CAMPAIGNS = [
   { id: 'CMP-26-10', label: 'CMP-26-10 · AB-mAb-014 fed-batch (3 batches, yield decline)' },
@@ -17,6 +18,98 @@ const CAMPAIGNS = [
 const DEMO_ROLES: UserRole[] = ['MSAT_LEAD', 'QA_REVIEWER', 'CLEANROOM_SUPERVISOR', 'OPERATOR'];
 
 export default function SignInPage() {
+  return authMode() === 'supabase' ? <PasswordSignIn /> : <DemoSignIn />;
+}
+
+// The deployment's own name; the demo sign-in below keeps the sample customer.
+const WORKSPACE_NAME = process.env.NEXT_PUBLIC_WORKSPACE_NAME || 'Sievance';
+
+const fieldClass = 'mt-1 w-full h-10 px-3 rounded-control border border-border-strong bg-surface text-[14px] text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-teal';
+const labelClass = 'block text-[11px] font-semibold uppercase tracking-wide text-text-tertiary';
+
+/** Invite-only email and password sign-in. Accounts are created by an administrator, so there is no sign-up. */
+function PasswordSignIn() {
+  const router = useRouter();
+  const { email: signedIn } = useSession();
+  const [next, setNext] = useState('/cmo');
+  const [notice, setNotice] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState<'sign-in' | 'reset' | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setNext(safeNext(params.get('next')));
+    if (params.get('reason') === 'expired') setNotice(SIGNED_OUT_MESSAGE);
+  }, []);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(''); setNotice('');
+    if (!email.trim() || !password) { setError('Enter your email and password.'); return; }
+    setBusy('sign-in');
+    try { await signIn(email, password); router.replace(next); }
+    catch (err) { setError((err as Error).message); setBusy(null); }
+  };
+
+  const reset = async () => {
+    setError(''); setNotice('');
+    if (!email.trim()) { setError('Enter your email above, then choose “Forgot password?” again.'); return; }
+    setBusy('reset');
+    try { await sendPasswordReset(email); setNotice(`If ${email.trim()} has an account, a link to set a new password is on its way. Check your inbox.`); }
+    catch (err) { setError((err as Error).message); }
+    finally { setBusy(null); }
+  };
+
+  return (
+    <div className="min-h-screen bg-canvas flex flex-col">
+      <header className="h-14 flex items-center justify-between px-4 md:px-6">
+        <BrandMark href="/" />
+        <Link href="/" className="text-[12.5px] text-text-secondary hover:text-text-primary">Product overview</Link>
+      </header>
+      <main className="flex-1 flex items-start md:items-center justify-center px-4 py-8">
+        <div className="w-full max-w-[400px]">
+          <div className="bg-surface border border-border-hairline rounded-card shadow-sm">
+            <div className="px-6 pt-6 pb-5 border-b border-border-hairline">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Sign in</p>
+              <h1 className="text-base font-semibold text-text-primary">{WORKSPACE_NAME}</h1>
+              <p className="mt-2 text-[12.5px] text-text-secondary">Use the email address your administrator invited. Access is by invitation only.</p>
+            </div>
+            {signedIn ? (
+              <div className="px-6 py-5 space-y-3">
+                <p className="text-[13px] text-text-secondary">You are signed in as <span className="font-medium text-text-primary">{signedIn}</span>.</p>
+                <Button variant="primary" size="lg" className="w-full" onClick={() => router.replace(next)}>Continue <ArrowRight className="h-4 w-4" aria-hidden /></Button>
+              </div>
+            ) : (
+              <form className="px-6 py-5 space-y-4" onSubmit={submit} noValidate>
+                {notice && <Callout tone="info">{notice}</Callout>}
+                {error && <Callout tone="critical">{error}</Callout>}
+                <label className="block">
+                  <span className={labelClass}>Email</span>
+                  <input type="email" autoComplete="username" autoFocus value={email} onChange={e => setEmail(e.target.value)} className={fieldClass} />
+                </label>
+                <label className="block">
+                  <span className={labelClass}>Password</span>
+                  <input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className={fieldClass} />
+                </label>
+                <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy !== null}>
+                  {busy === 'sign-in' ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Signing in…</> : 'Sign in'}
+                </Button>
+                <button type="button" onClick={reset} disabled={busy !== null} className="block w-full text-center text-[12.5px] text-text-secondary hover:text-text-primary disabled:opacity-50">
+                  {busy === 'reset' ? 'Sending reset email…' : 'Forgot password?'}
+                </button>
+              </form>
+            )}
+          </div>
+          <p className="mt-3 text-center text-[11px] text-text-muted">No account? Ask your administrator for an invitation.</p>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function DemoSignIn() {
   const router = useRouter();
   const { userRole, setRole, organization, notify } = useAppContext();
   const [campaign, setCampaign] = useState('CMP-26-10');

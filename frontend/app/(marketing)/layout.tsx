@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './landing.css';
 
 export const metadata: Metadata = {
-  title: { absolute: 'Manufacturing OS · The AI operating system for pharmaceutical manufacturing' },
+  title: { absolute: 'Sievance · The AI operating system for pharmaceutical manufacturing' },
   description: 'Connect plant systems read-only, investigate deviations with the evidence in view, and forecast process outcomes with physics-based models. Every proposed change waits for a named person to sign.',
 };
 

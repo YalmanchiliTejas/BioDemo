@@ -3,10 +3,14 @@ by the adapter only; generated content and tools never see them (LS-081)."""
 
 from __future__ import annotations
 
+import math
 import os
+import re
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
+from urllib.parse import urlparse
 
 
 class ProviderError(Exception):
@@ -133,3 +137,83 @@ class OpenAIProvider(_HTTPProvider):
         cached = int((usage.get("input_tokens_details") or {}).get("cached_tokens", 0))
         return Completion(text, int(usage.get("input_tokens", 0)), int(usage.get("output_tokens", 0)), cached,
                           data.get("id"), None, (time.perf_counter() - start) * 1000)
+
+
+_MODAL_TOKEN = re.compile(r"^wk-[^.\s]+\.ws-\S+$")
+
+
+def modal_settings(environ: Mapping[str, str] | None = None) -> tuple[str | None, str | None]:
+    """Token and base URL for the Modal proxy, matching prime_runtime/provider_config.mjs."""
+    env = os.environ if environ is None else environ
+    token = (env.get("BIODEMO_MODAL_PROXY_TOKEN", "").strip() or env.get("MODAL_PROXY_TOKEN", "").strip())
+    token = re.sub(r"^Bearer\s+", "", token, flags=re.IGNORECASE) or None
+    base = (env.get("MODAL_BASE_URL", "").strip() or env.get("BIODEMO_MODAL_BASE_URL", "").strip()) or None
+    return token, base
+
+
+class ModalProvider(_HTTPProvider):
+    """OpenAI-compatible Chat Completions on a Modal-hosted deployment.
+
+    The base URL is deployment-specific and includes /v1; there is no default.
+    Reasoning text is never returned as the answer.
+    """
+    name = "modal"
+    env_key = "MODAL_PROXY_TOKEN"
+
+    def __init__(self, api_key: str | None = None, base_url: str | None = None,
+                 timeout_s: float | None = None, environ: Mapping[str, str] | None = None) -> None:
+        env = os.environ if environ is None else environ
+        token, base = modal_settings(env)
+        self._key = re.sub(r"^Bearer\s+", "", api_key.strip(), flags=re.IGNORECASE) if api_key else token
+        self._base = (base_url or base or "").strip().rstrip("/")
+        if timeout_s is None:
+            try:
+                timeout_s = float(env.get("MODAL_TIMEOUT_SECONDS", "300"))
+            except ValueError:
+                timeout_s = 300.0
+        self._timeout = timeout_s if math.isfinite(timeout_s) and timeout_s > 0 else 300.0
+        try:
+            floor = int(env.get("MODAL_MIN_MAX_TOKENS", "16000"))
+        except ValueError:
+            floor = 16_000
+        self._min_max_tokens = max(floor, 1)
+
+    def _check_configuration(self) -> None:
+        if not self._base:
+            raise ProviderError("modal base URL not configured (set MODAL_BASE_URL to the deployment's /v1 URL)",
+                                retryable=False, kind="unavailable")
+        parsed = urlparse(self._base)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc or parsed.username or parsed.password:
+            raise ProviderError("MODAL_BASE_URL must be an HTTP(S) URL without embedded credentials",
+                                retryable=False, kind="unavailable")
+        if not self._key:
+            raise ProviderError("modal credentials not configured (MODAL_PROXY_TOKEN or BIODEMO_MODAL_PROXY_TOKEN)",
+                                retryable=False, kind="auth")
+        if not _MODAL_TOKEN.match(self._key):
+            raise ProviderError("modal proxy token has the wrong format; expected wk-<id>.ws-<secret>",
+                                retryable=False, kind="auth")
+
+    def complete(self, *, model: str, system: str, prompt: str, max_output_tokens: int,
+                 timeout_s: float) -> Completion:
+        self._check_configuration()
+        start = time.perf_counter()
+        # Reasoning models are slow and spend output tokens before answering, so the
+        # configured timeout and token budget are floors over the task policy defaults.
+        data = self._post("/chat/completions", {
+            "model": model, "max_tokens": max(max_output_tokens, self._min_max_tokens),
+            # This endpoint rejects the 'developer' role.
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+        }, {"Authorization": f"Bearer {self._key}"}, max(timeout_s, self._timeout))
+        choices = data.get("choices") or []
+        choice = choices[0] if choices else {}
+        content = (choice.get("message") or {}).get("content")
+        if not isinstance(content, str) or not content.strip():
+            reason = choice.get("finish_reason")
+            hint = " (output token budget exhausted, likely by reasoning)" if reason == "length" else ""
+            raise ProviderError(f"modal returned no answer content{hint}; finish_reason={reason}",
+                                retryable=False, kind="error")
+        usage = data.get("usage") or {}
+        cached = int((usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0) or 0)
+        return Completion(content, int(usage.get("prompt_tokens", 0) or 0),
+                          int(usage.get("completion_tokens", 0) or 0), cached, data.get("id"), None,
+                          (time.perf_counter() - start) * 1000)

@@ -1,8 +1,8 @@
 """Versioned HTTP API for the life-sciences platform (LS-042).
 
 - ``/v1`` prefix; additive changes only within a version.
-- Identity: production uses verified OIDC claims (reusing ``cloud_backend.auth.Verifier``);
-  the development resolver reads tenant/actor headers but NEVER trusts role headers:
+- Identity (``LIFESCI_AUTH_MODE``): ``supabase`` verifies Supabase Auth access tokens,
+  ``oidc`` reuses ``cloud_backend.auth.Verifier``; the ``development`` resolver reads tenant/actor headers but NEVER trusts role headers:
   roles always come from stored, revocable assignments.
 - Commands accept ``Idempotency-Key``; the same key with a different body is 409.
 - Cursor pagination on list endpoints; cursor-based event replay for reconnecting clients.
@@ -155,11 +155,41 @@ def oidc_resolver(platform: Platform) -> IdentityResolver:
     return resolve
 
 
+AUTH_MODES = {"supabase": "supabase", "oidc": "oidc", "development": "development_headers"}
+
+
+def configured_auth_mode() -> str:
+    """LIFESCI_AUTH_MODE, defaulting to oidc when OIDC_ISSUER is set and development otherwise."""
+    mode = os.environ.get("LIFESCI_AUTH_MODE", "").strip().lower() or (
+        "oidc" if os.environ.get("OIDC_ISSUER") else "development")
+    if mode not in AUTH_MODES:
+        raise RuntimeError(f"LIFESCI_AUTH_MODE must be one of {', '.join(AUTH_MODES)}; got {mode!r}")
+    return AUTH_MODES[mode]
+
+
+def runtime_tick(platform: Platform) -> dict[str, int]:
+    """One pass of the background runtime, for hosts without a long-lived process (a schedule on Lambda)."""
+    from . import data_worker
+
+    platform.runtime.tick()
+    tenants = list(platform.runtime.tenants())
+    return {"tenants": len(tenants), "data_flows_finished": data_worker.tick(platform, tenants)}
+
+
 def create_app(platform: Platform | None = None, resolver: IdentityResolver | None = None) -> Any:
+    auth_mode = configured_auth_mode()
+    if resolver is None and auth_mode == "development_headers" and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        raise RuntimeError("Development header authentication cannot run on AWS Lambda; "
+                           "set LIFESCI_AUTH_MODE=supabase (or oidc) and its settings")
     platform = platform or Platform.from_env()
-    auth_mode = "oidc" if (resolver is None and os.environ.get("OIDC_ISSUER")) else "development_headers"
     if resolver is None:
-        resolver = oidc_resolver(platform) if os.environ.get("OIDC_ISSUER") else dev_header_resolver(platform)
+        if auth_mode == "supabase":
+            from .supabase_auth import supabase_resolver
+            resolver = supabase_resolver(platform)
+        elif auth_mode == "oidc":
+            resolver = oidc_resolver(platform)
+        else:
+            resolver = dev_header_resolver(platform)
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         platform.runtime.start()
@@ -168,8 +198,12 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
         finally:
             platform.runtime.close()
 
-    app = FastAPI(lifespan=lifespan, title="BioDemo life-sciences platform", version="1.0", docs_url=None if os.environ.get(
-        "OIDC_ISSUER") else "/v1/docs", openapi_url="/v1/openapi.json")
+    app = FastAPI(lifespan=lifespan, title="Sievance API", version="1.0", docs_url=None if auth_mode != "development_headers" else "/v1/docs",
+                  openapi_url="/v1/openapi.json")
+    # Work that outlives a request: a thread here, an asynchronous invocation on Lambda (see tasks.py).
+    from .tasks import TaskRunner
+    app.state.tasks = TaskRunner()
+    app.state.tasks.register("runtime_tick", lambda payload: runtime_tick(platform))
     # The statically exported Next workspace can connect to the existing API.
     # Production cross-origin access must be configured explicitly.
     from fastapi.middleware.cors import CORSMiddleware

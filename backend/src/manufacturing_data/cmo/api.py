@@ -1,12 +1,13 @@
 """CMO delivery API mounted in the existing application; no arbitrary server paths."""
 from __future__ import annotations
 
-import contextvars
+import base64
 import csv
 import hashlib
 import io
 import json
 import os
+import re
 import threading
 import time
 import uuid
@@ -20,12 +21,13 @@ from pydantic import BaseModel, Field
 
 from . import quality
 from .evidence import restore
-from .persistence import set_tenant, tenant_scope
+from .persistence import current_tenant, set_tenant, tenant_scope
 from .pipeline import CONFIGURATIONS, IngestionService, digest, hosted_inference_approved, utc
 from .schema import VOCAB
 
 ALLOWED_FILES={'.pdf','.csv','.xlsx','.xlsm','.tsv','.txt','.log','.docx','.json','.png','.jpg','.jpeg','.tif','.tiff'}
 DELIVERY_LIMIT=256*1024*1024
+FILE_LIMIT=64*1024*1024
 
 
 class RunInput(BaseModel):
@@ -62,6 +64,11 @@ class TemplateInput(BaseModel):
     actor: str = Field(min_length=1)
     reason: str = ''
     origin: Literal['human','study_protocol'] = 'human'
+
+
+class UploadInput(BaseModel):
+    filename: str = Field(min_length=1,max_length=255)
+    size: int = Field(ge=0)
 
 
 class ReviewInput(BaseModel):
@@ -123,9 +130,17 @@ def check_token(supplied):
         raise HTTPException(401,'CMO API token required')
 
 
-def router(repository: Path, tenant_dependency=None):
+def on_lambda():
+    return bool(os.getenv('AWS_LAMBDA_FUNCTION_NAME'))
+
+
+def router(repository: Path, tenant_dependency=None, tasks=None):
     """``tenant_dependency`` resolves the caller's platform identity when mounted in
     the platform API; standalone deployments fall back to the X-Tenant-Id header.
+
+    ``tasks`` runs work after the response (``src.lifesci.tasks.TaskRunner``): a
+    thread on a long-lived server, an asynchronous invocation on AWS Lambda.
+    Run progress is always read from the database, never from process memory.
 
     Every record query is scoped to the bound tenant (row-level security on
     PostgreSQL), so another customer's runs are simply not found. The
@@ -137,22 +152,43 @@ def router(repository: Path, tenant_dependency=None):
             check_token(x_cmo_token); set_tenant(x_tenant_id)
     else:
         async def authorize(x_cmo_token: str | None = Header(default=None),ctx=Depends(tenant_dependency)):
-            check_token(x_cmo_token); set_tenant(ctx.tenant_id)
+            check_token(x_cmo_token)
+            # A signed-in account is not yet a member: someone must have assigned it a role.
+            if not ctx.roles: raise HTTPException(403,'Your account has no role in this workspace yet. Ask an administrator to assign one.')
+            set_tenant(ctx.tenant_id)
     api=APIRouter(prefix='/api/cmo-ingestion',dependencies=[Depends(authorize)])
     root=Path(os.getenv('CMO_INGESTION_ROOT',str(repository/'.cache'/'cmo-ingestion')))
     packages=Path(os.getenv('CMO_PACKAGES_ROOT',str(repository/'benchmarks'/'cmo_ingestion'/'generated')))
     demo=Path(os.getenv('CMO_DEMO_ROOT',str(repository/'benchmarks'/'cmo_ingestion'/'demo')))
     service=IngestionService(root)
-    jobs={}; activity={}; lock=threading.RLock()
+    activity={}; lock=threading.RLock()
+    if tasks is None:
+        from ...lifesci.tasks import TaskRunner
+        tasks=TaskRunner()
+    # A run still queued or running after this long has lost its worker (Lambda
+    # stops a task at 15 minutes). Unset on a long-lived server, where a restart
+    # is what interrupts work.
+    run_timeout=float(os.getenv('CMO_RUN_TIMEOUT_SECONDS') or (960 if on_lambda() else 0))
 
-    # Worker threads do not survive a restart; say so instead of showing a
-    # run that is "running" forever.
-    for tenant in service.repo.tenants():
-        with tenant_scope(tenant):
-            for stale in service.repo.run_headers():
-                if stale['status'] in {'queued','running'}:
-                    service.repo.update_run(stale['id'],status='interrupted',
-                        error='The service restarted during processing. Start the run again; no partial results were accepted.')
+    if not on_lambda():
+        # Worker threads do not survive a restart; say so instead of showing a
+        # run that is "running" forever. On Lambda other instances may still be
+        # working, so staleness is judged by age instead (see interrupt_if_stale).
+        for tenant in service.repo.tenants():
+            with tenant_scope(tenant):
+                for stale in service.repo.run_headers():
+                    if stale['status'] in {'queued','running'}:
+                        service.repo.update_run(stale['id'],status='interrupted',
+                            error='The service restarted during processing. Start the run again; no partial results were accepted.')
+
+    def interrupt_if_stale(header):
+        if not run_timeout or header['status'] not in {'queued','running'}: return header
+        from datetime import datetime,timezone
+        age=(datetime.now(timezone.utc)-datetime.fromisoformat(header['started_at'])).total_seconds()
+        if age<=run_timeout: return header
+        error='Processing stopped before it finished (time limit reached). Start the run again; no partial results were accepted.'
+        service.repo.update_run(header['id'],status='interrupted',error=error)
+        return {**header,'status':'interrupted','error':error}
 
     def guard(function):
         try: return function()
@@ -203,29 +239,41 @@ def router(repository: Path, tenant_dependency=None):
             run['guarantee']=quality.guarantee({**run,'elements':elements})
         return run
 
+    def approved_for(item):
+        # Public datasets may use hosted extraction; customer files need the deployment approval.
+        return bool(item.get('public_data')) or (bool(hosted_inference_approved()) and not item.get('synthetic'))
+
     def launch(item,path,configuration,*,supersedes=None,cmo=None):
         if configuration not in CONFIGURATIONS: raise HTTPException(400,'Unknown configuration')
         run_id=uuid.uuid4().hex
-        with lock: jobs[run_id]={'id':run_id,'status':'queued','stages':[]}
-        # Public datasets may use hosted extraction; customer files need the deployment approval.
-        approved=bool(item.get('public_data')) or (bool(hosted_inference_approved()) and not item.get('synthetic'))
-        def worker():
-            def stage(event):
-                with lock: jobs[run_id]['stages'].append(event); jobs[run_id]['status']='running'
+        service.queue(run_id,cmo or item['cmo'],configuration,synthetic=item.get('synthetic',False),approved=approved_for(item),
+                      package_ref=item['id'],details={'disclosure':item.get('disclosure'),'delivery_name':item.get('name')})
+        tasks.submit('cmo_run',{'tenant':current_tenant(),'run_id':run_id,'package_id':item['id'],'configuration':configuration,
+                                'cmo':cmo,'supersedes':supersedes})
+        return {'id':run_id,'status':'queued'}
+
+    def run_job(payload):
+        """Task handler: process one queued run. Safe to receive twice (only the first claim proceeds)."""
+        with tenant_scope(payload['tenant']):
+            run_id=payload['run_id']
+            if not service.repo.claim_queued(run_id): return None
             try:
-                result=service.run(path,cmo or item['cmo'],configuration,synthetic=item.get('synthetic',False),approved=approved,
-                                   run_id=run_id,on_stage=stage,package_ref=item['id'])
+                item,path=find(payload['package_id'])
+                result=service.run(path,payload['cmo'] or item['cmo'],payload['configuration'],synthetic=item.get('synthetic',False),
+                                   approved=approved_for(item),run_id=run_id,package_ref=item['id'])
                 result.update(package_id=item['id'],disclosure=item.get('disclosure'),delivery_name=item.get('name'))
                 if item.get('public_data') and result.get('hosted_inference'):
                     result['hosted_inference']['basis']='public dataset (CC BY 4.0); hosted extraction permitted'
                 service.save(result)
-                if supersedes and result['status']=='complete': result=service.carry_over(supersedes,result)
-                with lock: jobs[run_id]={'id':run_id,'status':result['status'],'stages':result['stages']}
+                if payload['supersedes'] and result['status']=='complete': result=service.carry_over(payload['supersedes'],result)
+                return result['status']
             except Exception as exc:
-                with lock: jobs[run_id].update(status='failed',error=f'{type(exc).__name__}: {exc}')
-        context=contextvars.copy_context()
-        threading.Thread(target=context.run,args=(worker,),daemon=True,name='cmo-ingestion-'+run_id[:8]).start()
-        return {'id':run_id,'status':'queued'}
+                header=service.repo.run_header(run_id)
+                if header and header['status'] in {'queued','running'}:
+                    service.repo.update_run(run_id,status='failed',error=f'{type(exc).__name__}: {exc}')
+                raise
+
+    tasks.register('cmo_run',run_job)
 
     @api.get('/catalog')
     def list_packages():
@@ -236,7 +284,14 @@ def router(repository: Path, tenant_dependency=None):
                 'hosted_inference_approved':approved,
                 'storage':{'records':service.repo.backend,'originals':service.evidence.backend},
                 'cmos':sorted({r['cmo'] for r in service.repo.run_headers()}|{i['cmo'] for i in catalog() if i.get('kind')=='delivery'}),
+                'upload':{'mode':upload_mode(),'max_bytes':FILE_LIMIT},
                 'deployment':'Set CMO_API_TOKEN before exposing beyond loopback.'}
+
+    def upload_mode():
+        # Browsers send files straight to private storage when it is configured;
+        # AWS Lambda accepts at most 6 MB per request.
+        if os.getenv('CMO_UPLOAD_MODE','').strip()=='direct' or service.evidence.backend!='supabase': return 'direct'
+        return 'storage'
 
     @api.get('/vocabulary')
     def vocabulary():
@@ -252,15 +307,16 @@ def router(repository: Path, tenant_dependency=None):
         service.repo.save_delivery(item); service.audit('delivery_created',delivery=item)
         return item
 
-    @api.post('/deliveries/{delivery_id}/files')
-    async def add_file(delivery_id:str,request:Request,filename:str):
+    def delivery(delivery_id):
         item=next((i for i in service.repo.deliveries() if i['id']==delivery_id),None)
         if not item: raise HTTPException(404,'Unknown delivery')
+        return item
+
+    def store_files(delivery_id,filename,data):
+        """Validate, unpack, hash and durably store one uploaded file or ZIP, then append it to the delivery."""
+        delivery(delivery_id)
         folder=guard(lambda:delivery_folder(delivery_id))
-        data=bytearray()
-        async for chunk in request.stream():
-            data.extend(chunk)
-            if len(data)>64*1024*1024: raise HTTPException(413,'Per-file upload limit is 64 MiB')
+        if len(data)>FILE_LIMIT: raise HTTPException(413,'Per-file upload limit is 64 MiB')
         def unpack():
             name=Path(filename).name
             if Path(name).suffix.lower()!='.zip':
@@ -277,7 +333,7 @@ def router(repository: Path, tenant_dependency=None):
         try: entries=unpack()
         except (ValueError,zipfile.BadZipFile) as exc: raise HTTPException(400,str(exc)) from exc
         with lock:
-            item=next(i for i in service.repo.deliveries() if i['id']==delivery_id)
+            item=delivery(delivery_id)
             existing={f['path'] for f in item['files']}
             if sum(f['size'] for f in item['files'])+sum(len(b) for _,b in entries)>DELIVERY_LIMIT:
                 raise HTTPException(413,'Delivery exceeds 256 MiB')
@@ -293,6 +349,51 @@ def router(repository: Path, tenant_dependency=None):
             item['files']=[*item['files'],*added]
             service.repo.save_delivery(item)
         service.audit('delivery_files_added',delivery_id=delivery_id,files=added)
+        return item
+
+    @api.post('/deliveries/{delivery_id}/files')
+    async def add_file(delivery_id:str,request:Request,filename:str):
+        delivery(delivery_id)
+        data=bytearray()
+        async for chunk in request.stream():
+            data.extend(chunk)
+            if len(data)>FILE_LIMIT: raise HTTPException(413,'Per-file upload limit is 64 MiB')
+        return store_files(delivery_id,filename,bytes(data))
+
+    # Large files go browser -> private storage -> backend. The pending object is
+    # only a transport copy: it is validated and hashed like a direct upload,
+    # stored under the delivery's normal key, then deleted.
+    def pending_key(delivery_id,upload_id):
+        if not re.fullmatch(r'[0-9a-f]{32}-[A-Za-z0-9_-]{1,400}',upload_id): raise HTTPException(400,'Invalid upload ID')
+        delivery_folder(delivery_id)
+        return f'uploads/{current_tenant()}/{delivery_id}/{upload_id}'
+
+    def upload_filename(upload_id):
+        encoded=upload_id.split('-',1)[1]
+        try: return base64.urlsafe_b64decode(encoded+'='*(-len(encoded)%4)).decode()
+        except (ValueError,UnicodeDecodeError) as exc: raise HTTPException(400,'Invalid upload ID') from exc
+
+    @api.post('/deliveries/{delivery_id}/uploads')
+    def begin_upload(delivery_id:str,value:UploadInput):
+        delivery(delivery_id)
+        if upload_mode()!='storage': raise HTTPException(409,'Upload directly to /files; no private storage is configured')
+        if value.size>FILE_LIMIT: raise HTTPException(413,'Per-file upload limit is 64 MiB')
+        name=Path(value.filename).name
+        if Path(name).suffix.lower()!='.zip': guard(lambda:safe_member(name))
+        upload_id=uuid.uuid4().hex+'-'+base64.urlsafe_b64encode(name.encode()).decode().rstrip('=')
+        signed=service.evidence.signed_upload(pending_key(delivery_id,upload_id))
+        return {'upload_id':upload_id,**signed}
+
+    @api.post('/deliveries/{delivery_id}/uploads/{upload_id}/complete')
+    def complete_upload(delivery_id:str,upload_id:str):
+        key=pending_key(delivery_id,upload_id)
+        local=root/'pending'/uuid.uuid4().hex
+        try:
+            guard(lambda:service.evidence.get(key,local))
+            if local.stat().st_size>FILE_LIMIT: raise HTTPException(413,'Per-file upload limit is 64 MiB')
+            item=store_files(delivery_id,upload_filename(upload_id),local.read_bytes())
+        finally: local.unlink(missing_ok=True)
+        service.evidence.delete(key)
         return item
 
     @api.post('/runs')
@@ -313,10 +414,12 @@ def router(repository: Path, tenant_dependency=None):
 
     @api.get('/runs/{run_id}')
     def get_run(run_id:str):
-        with lock: job=jobs.get(run_id)
-        if job and job['status'] in {'queued','running'}: return job
-        if job and job['status']=='failed' and 'error' in job: return job
-        run=guard(lambda:service.get(run_id))
+        header=service.repo.run_header(run_id)
+        if header is None: raise HTTPException(404,'Unknown run')
+        interrupt_if_stale(header)
+        run=guard(lambda:service.get(run_id))  # one read decides the view; the run may finish meanwhile
+        if run['status'] in {'queued','running'}:
+            return {'id':run_id,'status':run['status'],'stages':run['stages']}
         result=public(run)
         if result.get('guarantee') is not None:
             result['guarantee']['checks'].append({'id':'audit_chain','label':'The append-only audit chain verifies end to end',
@@ -435,6 +538,7 @@ def router(repository: Path, tenant_dependency=None):
 
     @api.post('/upload')
     async def upload(request:Request,dataset:str='sanofi'):
+        if on_lambda(): raise HTTPException(400,'Sample ZIP uploads need a long-lived server. Create a delivery and add the files instead.')
         if dataset not in {'sanofi','indpensim'}: raise HTTPException(400,'Unknown dataset')
         data=bytearray()
         async for chunk in request.stream():

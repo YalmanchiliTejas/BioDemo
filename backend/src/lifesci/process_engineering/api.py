@@ -41,9 +41,21 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
     def assess(result_id: str, ctx=Depends(ctx_dep), key: str | None = Header(None, alias="Idempotency-Key")):
         return idempotent(ctx, key, f"physical-agent-assessment:{result_id}", {}, lambda: service.interpret(ctx, result_id))
 
-    from fastapi import BackgroundTasks
     from .conversation_schemas import ConversationIn, MessageIn
     conversations = p.engineering_conversations
+    tasks = app.state.tasks
+
+    def turn_task(payload):
+        # Rebuilt from stored role assignments, so revoked access also stops queued work.
+        ctx = p.identity.context_for(payload['tenant'], payload['actor'], actor_kind=payload['actor_kind'],
+                                     partner_org_id=payload.get('partner_org_id'))
+        return conversations.run_turn(ctx, payload['thread_id'], payload['turn_id'])
+
+    tasks.register('engineering_turn', turn_task)
+
+    def queue_turn(ctx, thread_id, turn_id):
+        tasks.submit('engineering_turn', {'tenant': ctx.tenant_id, 'actor': ctx.actor_id, 'actor_kind': ctx.actor_kind,
+                                          'partner_org_id': ctx.partner_org_id, 'thread_id': thread_id, 'turn_id': turn_id})
 
     @app.get('/v1/process-model/conversations')
     def list_conversations(ctx=Depends(ctx_dep)):
@@ -62,18 +74,18 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
         return conversations.get(ctx, thread_id)
 
     @app.post('/v1/process-model/conversations/{thread_id}/messages')
-    def send_message(thread_id: str, body: MessageIn, background: BackgroundTasks, ctx=Depends(ctx_dep), key: str | None = Header(None, alias='Idempotency-Key')):
+    def send_message(thread_id: str, body: MessageIn, ctx=Depends(ctx_dep), key: str | None = Header(None, alias='Idempotency-Key')):
         thread = idempotent(ctx, key, f'engineering-message:{thread_id}', body.model_dump(), lambda: conversations.enqueue(ctx, thread_id, body))
         current = conversations.get(ctx, thread_id)
         if current['turn_ids'][-1] == thread['turn_ids'][-1] and current['turns'][-1]['status'] == 'queued':
-            background.add_task(conversations.run_turn, ctx, thread_id, thread['turn_ids'][-1])
+            queue_turn(ctx, thread_id, thread['turn_ids'][-1])
         return thread
 
     @app.post('/v1/process-model/conversations/{thread_id}/retry')
-    def retry_turn(thread_id: str, background: BackgroundTasks, ctx=Depends(ctx_dep)):
+    def retry_turn(thread_id: str, ctx=Depends(ctx_dep)):
         thread = conversations.queue_retry(ctx, thread_id)
         if thread['turns'][-1]['status'] == 'queued':
-            background.add_task(conversations.run_turn, ctx, thread_id, thread['turn_ids'][-1])
+            queue_turn(ctx, thread_id, thread['turn_ids'][-1])
         return thread
 
     @app.get('/v1/process-model/comparisons/{comparison_id}')

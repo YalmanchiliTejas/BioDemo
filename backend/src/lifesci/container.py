@@ -15,7 +15,8 @@ from typing import Any, Callable
 from .actions import ActionService
 from .assurance import AssuranceService
 from .evidence import EvidenceService
-from .gateway import AnthropicProvider, ModelGateway, OpenAIProvider, Router, default_registry
+from .gateway import AnthropicProvider, ModalProvider, ModelGateway, OpenAIProvider, Router, default_registry
+from .gateway.providers import modal_settings
 from .identity import IdentityService
 from .missions import MissionService
 from .ownership import OwnershipRegistry
@@ -121,6 +122,8 @@ class Platform:
             out["anthropic"] = AnthropicProvider()
         if os.environ.get("OPENAI_API_KEY"):
             out["openai"] = OpenAIProvider()
+        if all(modal_settings()):
+            out["modal"] = ModalProvider()
         return out
 
     @classmethod
