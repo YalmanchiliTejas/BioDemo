@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowUp, FlaskConical, MessageSquare, Plus, RotateCcw, ChevronDown, Workflow, Check, Circle, Loader2, Paperclip, X, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import { processRequest } from '@/lib/process-api';
@@ -9,6 +9,7 @@ import { usePathname } from 'next/navigation';
 import { SCREENS } from '@/lib/routes';
 import { AnalysisArtifact, type ArtifactRef } from './AnalysisArtifact';
 import { BioprocessArtifact } from './BioprocessArtifact';
+import { projectThread } from '@/lib/work-results';
 
 type Step = { node_id: string; title: string; task_kind: string; depends_on: string[]; status: string; issues: string[] };
 type Turn = { display_context?: DisplayContext | null; id: string; user_text: string; status: string; reply: string | null; questions: string[]; system_message?: string; issues: string[]; artifacts: ArtifactRef[]; steps?: Step[]; elapsed_seconds?: number; basis_status?: string; gateway_runs: { route?: { unqualified?: boolean } | null; [key: string]: unknown }[] };
@@ -48,6 +49,7 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
   const composer = useRef<HTMLTextAreaElement>(null);
   const last = thread?.turns.at(-1);
   const busy = sending || active(last);
+  const structuredWork = useMemo(() => new Set(thread ? projectThread(thread).map(r => r.id) : []), [thread]);
 
   function adopt(data: Thread) {
     current.current = data.id; setThread(data);
@@ -179,7 +181,10 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
           <div className="flex gap-3 sm:gap-4"><div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border-hairline text-brand-teal"><FlaskConical size={14} /></div><div className="min-w-0 flex-1">
             {['stale', 'quarantined'].includes(turn.basis_status ?? '') && <p role="status" className="mb-3 rounded-control bg-status-warning-bg px-4 py-3 text-sm text-text-secondary">Contributing evidence changed or was withdrawn. Rebuild this analysis before using its findings.</p>}
             {turn.gateway_runs.some(r => r.route?.unqualified) && <p className="mb-2 text-xs text-status-warning">Development LLM run · route unqualified · review required</p>}
-            {turn.reply && <p className="whitespace-pre-wrap text-sm leading-7 text-text-primary">{turn.reply}</p>}
+            {structuredWork.has(turn.id) ? <>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border-hairline bg-surface p-4"><div><p className="text-sm font-medium">{turn.status === 'blocked' ? 'Saved work needs attention' : 'Your work is ready to inspect'}</p><p className="mt-1 text-xs text-text-tertiary">Chart, source table, checks and next review step.</p></div><Link href={`/workspaces/#${encodeURIComponent(turn.id)}`} className="inline-flex items-center gap-1.5 rounded-control bg-brand-teal px-3 py-2 text-xs font-medium text-white">Open workspace<ArrowUpRight size={14} /></Link></div>
+              {turn.reply && <details className="mt-3 text-xs text-text-secondary"><summary className="cursor-pointer">Read the assistant’s explanation</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-7">{turn.reply}</p></details>}
+            </> : turn.reply && <p className="whitespace-pre-wrap text-sm leading-7 text-text-primary">{turn.reply}</p>}
             {!!turn.questions.length && <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6">{turn.questions.map(q => <li key={q}>{q}</li>)}</ul>}
             {active(turn) && <div><p role="status" className="mt-3 flex items-center gap-2 text-sm text-brand-teal"><Loader2 size={15} className="motion-safe:animate-spin" />{turn.steps?.length ? 'Running the assembled workflow…' : 'Reviewing context and assembling the analysis…'}</p><details className="mt-2 text-xs text-text-tertiary"><summary className="cursor-pointer">Work interrupted?</summary><p className="mt-2">Your work is saved. A running worker keeps its lease for up to five minutes; after it expires you can resume from the last completed step.</p><button type="button" disabled={sending} className={action} onClick={() => void retry()}><RotateCcw size={13} />Resume saved work</button></details></div>}
             {!!turn.steps?.length && <details className="my-4 rounded-card border border-border-hairline bg-surface p-4" open={active(turn)}><summary className="flex cursor-pointer items-center gap-2 text-xs font-medium text-text-secondary"><Workflow size={15} />{turn.steps.length} workflow steps · {turn.status.replaceAll('_', ' ')}<ChevronDown size={12} className="ml-auto" /></summary><ol className="mt-4 space-y-3">{turn.steps.map(step => <li className="flex gap-3 text-xs" key={step.node_id}>{step.status === 'completed' ? <Check size={14} className="shrink-0 text-status-success" /> : <Circle size={14} className={`shrink-0 ${step.status === 'blocked' ? 'text-status-critical' : 'text-text-muted'}`} />}<div><p className="font-medium">{step.title} <span className="ml-2 font-normal text-text-tertiary">{step.status}</span></p><p className="mt-1 text-text-tertiary">{step.task_kind.replaceAll('_', ' ')}{step.depends_on.length ? ` · after ${step.depends_on.join(', ')}` : ''}</p>{step.issues.map(issue => <p key={issue} className="mt-1 text-status-critical">{issue}</p>)}</div></li>)}</ol></details>}

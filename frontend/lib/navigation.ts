@@ -1,4 +1,4 @@
-import { BookOpen, Building2, Database, FlaskConical, LayoutDashboard, MessageSquare, PackageCheck, UserRound, type LucideIcon } from 'lucide-react';
+import { BookOpen, Building2, Database, FlaskConical, FolderKanban, LayoutDashboard, MessageSquare, PackageCheck, UserRound, type LucideIcon } from 'lucide-react';
 
 /** One entry per destination; the sidebar, page breadcrumbs and quick find all read from this list. */
 export type NavItem = { label: string; href: string; icon: LucideIcon; description: string; guide?: string; keywords?: string };
@@ -8,6 +8,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     id: 'work', label: 'Work', items: [
       { label: 'Overview', href: '/dashboard', icon: LayoutDashboard, guide: 'dashboard', description: 'Status, recent deliveries and what needs attention', keywords: 'dashboard home status' },
+      { label: 'Workspaces', href: '/workspaces', icon: FolderKanban, description: 'Saved results, charts, source records and review steps', keywords: 'results investigation deviation schedule data tables actions' },
       { label: 'Deliveries', href: '/cmo', icon: PackageCheck, guide: 'deliveries', description: 'Check CMO files against their original sources', keywords: 'cmo cdmo upload verify batch coa export' },
       { label: 'Assistant', href: '/home', icon: MessageSquare, guide: 'assistant', description: 'Ask a question with the evidence you choose', keywords: 'chat ask companion question' },
     ],
