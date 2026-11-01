@@ -127,7 +127,7 @@ def produce_comparison(runs, effort, baseline='manual', target='full_rlm'):
     pairs=defaultdict(dict); issues=[]; paired=[]
     for run in candidates:
         case=run['case']
-        key=(case['case_id'],case['package_sha256'],case['task_spec_sha256'],case['condition'],case.get('seed'))
+        key=(case['case_id'],case['package_sha256'],case['task_spec_sha256'],case['condition'],case.get('seed'),run.get('pair_id'))
         if run['mode'] in pairs[key]:issues.append('Repeated assignments require explicit independent pairing; no cherry-picked fastest run.')
         pairs[key][run['mode']]=run
     for pair in pairs.values():

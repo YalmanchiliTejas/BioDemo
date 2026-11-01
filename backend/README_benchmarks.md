@@ -1,5 +1,10 @@
 # Manufacturing OS Benchmark — Evaluation Specification
 
+The executable controlled-trial and baseline-comparison workflow is documented in
+[`docs/pilot_benchmark.md`](docs/pilot_benchmark.md). It schedules the existing case
+runner with frozen paired repeats, manual observations and blinded review; it does
+not imply that the proposed evaluation below has already passed.
+
 > **Implementation brief for the coding agent**  
 > **Status:** Proposed evaluation design. No accuracy, quality, time-savings, or competitor results are claimed by this document.  
 > **Scope:** Upgrade the existing CHO and Fresenius benchmarks and evaluation harness. **Do not redesign or replace the Manufacturing OS agent, RLM, data layer, or existing datasets.**

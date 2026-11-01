@@ -11,6 +11,7 @@ LIMS, QMS, CMMS or ERP systems.
 cd frontend
 npm install
 npm run dev      # http://127.0.0.1:5180
+npm run dev:local  # same, signing in with local test accounts instead of Supabase
 npm run build    # static export to dist/ (served by backend/deploy/cmo-ingestion nginx)
 npm run lint     # tsc --noEmit
 ```
@@ -77,3 +78,23 @@ From the repository root, run `PLAYWRIGHT_MODULE=/path/to/playwright node fronte
 ## Accounts and organization access
 
 `/sign-in/` links to `/sign-up/`. After authentication, `/account/` selects or creates an organization; new administrators continue to `/onboarding/start/`. `/settings/organization/` manages existing registered accounts and organization roles. Production builds require `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_LIFESCI_API_URL`; configure them in the hosting environment before rebuilding. Production never falls back to demo identity headers. See [deployment and signup setup](../backend/deploy/aws/README.md#enable-signup-and-organizations).
+
+### Local test sign-in
+
+For local testing without Supabase, run the API in development auth mode and the frontend with `dev:local`:
+
+```sh
+cd backend && ../.venv/bin/python -m src.lifesci serve      # LIFESCI_AUTH_MODE unset or "development"
+cd frontend && npm run dev:local                            # http://127.0.0.1:5180/sign-in/
+```
+
+Sign in with any of these synthetic accounts and the shared password `sievance-local` (override with `LIFESCI_DEV_PASSWORD` on the API):
+
+| Email | Role | Scope |
+|---|---|---|
+| `admin@sievance.local` | Administrator | Organization-wide |
+| `qa@sievance.local` | QA reviewer | Organization-wide |
+| `msat@sievance.local` | MSAT engineer | Organization-wide |
+| `operator@sievance.local` | Operator | Site NF1 only |
+
+They belong to the synthetic organization *Northfield Biologics (synthetic)* (`demo-northfield`) and are created on first sign-in as ordinary stored role assignments, so permissions, revocation and team management behave as they do for real members. The sign-in endpoint exists only when the API runs with development headers, which already refuses to start on AWS Lambda; production builds ignore `NEXT_PUBLIC_LOCAL_LOGIN` and always use Supabase. Without Supabase configured, `npm run dev` uses local test sign-in too.

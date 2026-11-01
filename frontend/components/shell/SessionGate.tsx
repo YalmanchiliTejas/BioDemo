@@ -1,16 +1,17 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { authConfigured, redirectToSignIn, selectedOrganization, selectOrganization, useSession } from '@/lib/auth';
+import { redirectToSignIn, selectedOrganization, selectOrganization, signInAvailable, useSession } from '@/lib/auth';
 import { getAccount, organizationDestination } from '@/lib/organizations-api';
 
+/** Supabase accounts and local test accounts follow the same path: signed in, a member, an organization selected. */
 export function SessionGate({ children }: { children: React.ReactNode }) {
-  const { user, loading, mode } = useSession();
+  const { user, loading } = useSession();
   const userId = user?.id;
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   useEffect(()=>{
-    if (mode !== 'supabase' || loading || !authConfigured()) return;
+    if (loading || !signInAvailable()) return;
     if (!userId) { redirectToSignIn('required'); return; }
     let active = true;
     setReady(false);
@@ -25,9 +26,8 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
       if (active) setReady(true);
     }).catch(err=>{ if(active) setError(err.message); });
     return ()=>{ active=false; };
-  }, [userId, loading, mode, attempt]);
-  if (mode === 'development') return <>{children}</>;
-  if (!authConfigured()) return <div role="alert" className="p-10">Sign-in is not configured for this deployment. Configure the Supabase project URL and public key, then rebuild the frontend.</div>;
+  }, [userId, loading, attempt]);
+  if (!signInAvailable()) return <div role="alert" className="p-10">Sign-in is not configured for this deployment. Configure the Supabase project URL and public key, then rebuild the frontend.</div>;
   if (error) return <div role="alert" className="p-10">{error}<button className="ml-3 underline" onClick={()=>{setError('');setAttempt(i=>i+1);}}>Try again</button></div>;
   if (loading || !user || !ready) return <div className="p-10" role="status">Checking your workspace access…</div>;
   return <>{children}</>;

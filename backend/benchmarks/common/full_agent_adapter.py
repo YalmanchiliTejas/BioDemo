@@ -56,6 +56,7 @@ class FullManufacturingOS:
                 harness.additional_tools={'fermentation_transfer':fermentation_transfer}
             harness.trace_sink=sink
             harness.evaluation_mode=True
+            harness.response_mode=cfg.get('task_response_mode','investigation')
             harness.rlm_max_depth=cfg.get('rlm_max_depth')
             harness.max_tool_calls=cfg.get('budgets',{}).get('tool_calls',48)
             harness.execution_policy=cfg.get('execution_policy',{'mode':'fixed_v1'})

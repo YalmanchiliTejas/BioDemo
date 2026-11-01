@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { configureProjectProvider, validateModalAuthentication } from "./provider_config.mjs";
 import { runInvestigation } from "./investigation_lifecycle.mjs";
+import { runTaskResponse } from "./task_response.mjs";
 import { COMPACTION_RESERVE_TOKENS, compactionWindow } from "./compaction_policy.mjs";
 
 const input = JSON.parse(readFileSync(0, "utf8"));
@@ -124,8 +125,12 @@ try {
     }
   });
   try {
-    const bridge = JSON.parse(readFileSync(process.env.BIODEMO_PRIME_BRIDGE_CONFIG, 'utf8'));
-    await runInvestigation(session, {
+    if (input.response_mode === 'task_answer') {
+      const response = await runTaskResponse(session, {prompt:input.prompt, timeoutSeconds:input.timeout_seconds});
+      console.log(JSON.stringify({type:'task_answer', response}));
+    } else {
+      const bridge = JSON.parse(readFileSync(process.env.BIODEMO_PRIME_BRIDGE_CONFIG, 'utf8'));
+      await runInvestigation(session, {
       prompt:input.prompt, timeoutSeconds:input.timeout_seconds,
       finalizationReserveSeconds:input.finalization_reserve_seconds,
       specialistWrapupSeconds:input.specialist_wrapup_seconds ?? 0,
@@ -140,6 +145,7 @@ try {
         return response.json();
       },
     });
+    }
     console.log(JSON.stringify({ type: "session", id: session.sessionId, file: session.sessionFile }));
     error = fatalProviderError ?? session.agent.state.errorMessage;
   } finally {

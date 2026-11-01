@@ -20,19 +20,28 @@ class MemberIn(BaseModel):
     operation: Literal['grant', 'revoke'] = 'grant'
 
 
-def install_organization_api(app, platform, resolver, ctx_dep, multi_tenant):
+class DevSessionIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=1, max_length=200)
+
+
+def install_organization_api(app, platform, resolver, ctx_dep, multi_tenant, development=False):
     import os
     service = OrganizationService(platform.store, platform.identity, os.environ.get('DEPLOYMENT_TENANT', ''))
     verifier = getattr(resolver, 'verifier', None)
-    if verifier is None:
-        return  # no account provisioning through development headers or an unrelated IdP
-
-    def account_actor(request: Request):
-        claims = verifier.verify(request.headers.get('authorization'))
-        if not claims.get('email') or claims.get('is_anonymous') is True:
-            raise HTTPException(403, 'A verified account is required')
-        request.state.account_email = claims['email']
-        return claims['sub']
+    if verifier is None and not development:
+        return  # no account provisioning through an unrelated IdP
+    lookup = None  # Supabase lookup, resolved per request
+    if development:
+        account_actor, lookup = _install_local_accounts(app, platform, service)
+    else:
+        def account_actor(request: Request):
+            claims = verifier.verify(request.headers.get('authorization'))
+            if not claims.get('email') or claims.get('is_anonymous') is True:
+                raise HTTPException(403, 'A verified account is required')
+            request.state.account_email = claims['email']
+            return claims['sub']
 
     @app.get('/v1/account')
     def account(actor=Depends(account_actor)):
@@ -55,7 +64,7 @@ def install_organization_api(app, platform, resolver, ctx_dep, multi_tenant):
             if not body.email or body.actor_id:
                 raise HTTPException(400, 'Grant access using the existing account email')
             try:
-                actor = lookup_user_id_by_email(body.email)
+                actor = (lookup or lookup_user_id_by_email)(body.email)
             except LookupError:
                 raise HTTPException(400, 'This person must create an account before access can be granted')
         else:
@@ -69,3 +78,35 @@ def install_organization_api(app, platform, resolver, ctx_dep, multi_tenant):
     def complete(ctx=Depends(ctx_dep)):
         service.complete_onboarding(ctx)
         return {'status': 'complete'}
+
+
+def _install_local_accounts(app, platform, service):
+    """Development-header mode: sign in with a local test account instead of Supabase."""
+    from . import devaccounts
+
+    @app.get('/v1/dev/accounts')
+    def local_accounts():
+        return {'accounts': devaccounts.listing(), 'password_env': 'LIFESCI_DEV_PASSWORD',
+                'default_password': devaccounts.password() == devaccounts.DEFAULT_PASSWORD}
+
+    @app.post('/v1/dev/session')
+    def local_session(body: DevSessionIn):
+        account = devaccounts.authenticate(body.email, body.password)
+        if account is None:
+            raise HTTPException(401, 'Email or password is incorrect.')
+        devaccounts.ensure_seeded(platform, service)
+        return devaccounts.session(account)
+
+    def account_actor(request: Request):
+        actor = request.headers.get('x-actor-id')
+        if not actor or not request.headers.get('x-tenant-id'):
+            raise HTTPException(401, 'Sign in with a local test account')
+        return actor
+
+    def lookup(email: str) -> str:
+        account = devaccounts.by_email(email)
+        if account is None:
+            raise LookupError(email)
+        return account.actor_id
+
+    return account_actor, lookup

@@ -38,6 +38,7 @@ class PrimeManufacturingHarness:
         self.execution_policy = {'mode':'adaptive_v1','soft_tool_calls':48}
         self.timeout_seconds = 900
         self.evaluation_mode = False
+        self.response_mode = 'investigation'
         # History is summarized above this size; "off" keeps the model's full window.
         target = os.getenv("BIODEMO_COMPACTION_TARGET_TOKENS", str(DEFAULT_COMPACTION_TARGET_TOKENS))
         self.compaction_target_tokens = None if target.strip().lower() == "off" else int(target)
@@ -66,6 +67,8 @@ class PrimeManufacturingHarness:
 
     def run(self, *, incident_id: str, problem: str, new_evidence_ids: list[str],
             as_of: str) -> dict[str, Any]:
+        if self.response_mode not in {'investigation', 'task_answer'} or (self.response_mode=='task_answer' and not self.evaluation_mode):
+            raise ValueError('Task response mode is explicit evaluation instrumentation, not investigation approval')
         if not incident_id or any(char not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-" for char in incident_id):
             raise ValueError("invalid incident id")
         lock_dir = self.runtime_root / "locks"
@@ -93,7 +96,7 @@ class PrimeManufacturingHarness:
             for path in (workdir, session_dir, log_dir):
                 path.mkdir(parents=True, exist_ok=True, mode=0o700)
             bridge.time_budget_seconds=self.timeout_seconds
-            bridge.finalization_reserve_seconds=finalization_reserve(self.timeout_seconds)
+            bridge.finalization_reserve_seconds=0 if self.response_mode=='task_answer' else finalization_reserve(self.timeout_seconds)
             bridge.require_claim_ledger=self.evaluation_mode
             bridge.checkpoint_path=workdir/'investigation-checkpoint.json'
             bridge._checkpoint()
@@ -133,7 +136,22 @@ class PrimeManufacturingHarness:
                 "finalization_reserve_seconds":bridge.finalization_reserve_seconds,
                 "specialist_wrapup_seconds":bridge.specialist_wrapup_seconds,
                 "compaction_target_tokens":self.compaction_target_tokens,
+                "response_mode":self.response_mode,
             }
+            if self.response_mode=='task_answer':
+                request['system_prompt']=(
+                    'You are the Manufacturing OS task agent. Solve the requested bounded task using the scoped '
+                    'manufacturing_os tools and persistent Python kernel. Use only visible source evidence; '
+                    'preserve uncertainty and human approval for manufacturing operations. Native child agents '
+                    'are available when useful. This evaluation asks for a structured task answer, not a QA '
+                    'investigation package. Do not build or submit an investigation report for this task. '
+                    'Return only JSON with task_answer (the requested object) and evidence_ids (supporting '
+                    'observation IDs retrieved through the tools). Do not read backend implementation code, '
+                    'evaluation references or credential files. Distinguish hypotheses from verified causes.')
+                request['prompt']=(f'Objective: {problem}\nInitialize the existing tool client once in the kernel: '
+                    f'import sys; sys.path.insert(0, {str(self.skill_path.parent/"src")!r}); import manufacturing_os as mo. '
+                    'Read mo.context() and scoped source records with mo.evidence_packet or other tools. '
+                    'Then compute the task answer and return the requested JSON in your final assistant message.')
             environment = os.environ.copy()
             environment.pop("BIODEMO_MANUFACTURING_STORE", None)
             environment.pop("BIODEMO_MANUFACTURING_SCOPE", None)
@@ -166,6 +184,7 @@ class PrimeManufacturingHarness:
             error_path.write_text(process.stderr, encoding="utf-8")
             error_path.chmod(0o600)
             session_id = session_file = None
+            task_response = None
             usage = {"model_calls": 0, "input_tokens": 0, "output_tokens": 0,
                      "cached_input_tokens": 0, "inference_cost_usd": None,
                      "total_cost_usd":None, "cost_status":"unknown_provider_or_child_telemetry",
@@ -179,6 +198,8 @@ class PrimeManufacturingHarness:
                     session_id, session_file = str(event["id"]), event.get("file")
                     if event.get("model"):
                         usage["model_id"] = event["model"]
+                if event.get('type')=='task_answer':
+                    task_response=event.get('response')
                 if event.get("type") == "message_end" and event.get("message", {}).get("role") == "assistant":
                     tokens = event["message"].get("usage")
                     if isinstance(tokens, dict):
@@ -198,6 +219,13 @@ class PrimeManufacturingHarness:
             if process.returncode != 0:
                 raise RuntimeError(f"Prime SDK host exited with code {process.returncode}; "
                                    f"stdout: {log_path} stderr: {error_path} tools: {tools_path}")
+            if self.response_mode=='task_answer':
+                if not isinstance(task_response,dict) or not isinstance(task_response.get('task_answer'),dict):
+                    raise RuntimeError('Agent returned no structured task answer')
+                bridge.result={'report_status':'task_answer_returned','investigation_status':'not_requested',
+                    'source_verification_status':'task_adapter_checks_required','scientific_validation_status':'not_assessed',
+                    'response_mode':'native_task_answer','evidence_ids':task_response.get('evidence_ids',[]),
+                    'observed_facts':[{'task_answer':task_response['task_answer']}], 'rollout_metrics':{}}
             if bridge.result is None:
                 raise RuntimeError("Prime Agent finished without submitting a validated investigation report")
             if not session_id or not session_file or not Path(session_file).is_file():

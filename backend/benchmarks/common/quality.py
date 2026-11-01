@@ -4,6 +4,42 @@ from __future__ import annotations
 from .trace import instant
 
 
+def validate_policy_approval(policy, *, require_approved=False):
+    """Validate supplied domain approval without granting approval ourselves."""
+    import math
+    if not require_approved and policy.get('status') != 'approved':
+        return
+    scale = policy.get('score_scale', [])
+    if (policy.get('status') != 'approved' or not policy.get('reviewed_by') or
+            len(scale) != 2 or any(type(v) not in (int, float) or not math.isfinite(v) for v in scale) or
+            scale[0] >= scale[1] or not policy.get('dimensions') or not policy.get('integrity_gates')):
+        raise ValueError('Quality policy needs independent approval, score scale, dimensions and integrity gates')
+    threshold = policy.get('minimum_quality_score')
+    margin = policy.get('noninferiority_margin')
+    if (type(threshold) not in (int, float) or not math.isfinite(threshold) or not scale[0] <= threshold <= scale[1] or
+            type(margin) not in (int, float) or not math.isfinite(margin) or not 0 <= margin <= scale[1] - scale[0]):
+        raise ValueError('Quality threshold and noninferiority margin must be predeclared and finite')
+
+
+def pending_source_reviews(run):
+    """Evaluation-side visual checks bound to original source versions and evidence IDs."""
+    report = run.get('output', {}).get('analysis') or {}
+    allowed = {f['path']: f['sha256'] for f in run['case'].get('allowlist', [])}
+    pending = {}
+    for item in report.get('verification', {}).get('pending_source_reviews', []):
+        ref = item.get('source_ref') or {}
+        identifier = item.get('observation_id')
+        if identifier:
+            pending[identifier] = {'evidence_id': identifier, 'source': ref.get('path'),
+                                   'sha256': allowed.get(ref.get('path')), 'source_ref': ref}
+    for check in run.get('objective_scores', {}).get('evidence', {}).get('citation_checks', []):
+        identifier = check.get('evidence_id')
+        if check.get('verification_status') == 'human_review_pending' and identifier:
+            pending.setdefault(identifier, {'evidence_id': identifier, 'source': check.get('source'),
+                                           'sha256': allowed.get(check.get('source')), 'source_ref': {}})
+    return list(pending.values())
+
+
 def score_review(run, policy, review=None):
     review=review or {}; objective=run.get('objective_scores',{}); report=run.get('output',{}).get('analysis') or {}
     if not run.get('attempted'):
@@ -54,8 +90,24 @@ def score_review(run, policy, review=None):
     citation_checks=objective.get('evidence',{}).get('citation_checks',[])
     if any(not check['pass'] and check.get('verification_status')!='human_review_pending' for check in citation_checks):
         failures.append('Unverifiable source citation.')
-    if any(check.get('verification_status')=='human_review_pending' for check in citation_checks) or report.get('source_verification_status')=='human_review_pending':
-        reasons.append('Source verification awaits human review; unchecked citations are not certified.')
+    pending = pending_source_reviews(run)
+    if pending or report.get('source_verification_status')=='human_review_pending':
+        receipts = review.get('source_reviews') or []
+        if not pending:
+            reasons.append('Source verification is pending without an explicit source-review inventory.')
+        for request in pending:
+            matches = [r for r in receipts if r.get('evidence_id') == request['evidence_id']]
+            if len(matches) != 1:
+                reasons.append('Source verification awaits exactly one human receipt: ' + request['evidence_id'])
+                continue
+            receipt = matches[0]
+            if receipt.get('value_matches') is False:
+                failures.append('Human source check failed: ' + request['evidence_id'])
+            elif (receipt.get('value_matches') is not True or not request['sha256'] or
+                  any(receipt.get(k) != request[k] for k in ('source', 'sha256')) or
+                  receipt.get('reviewer_id') not in [p.get('reviewer_id') for p in people] or
+                  not receipt.get('evidence_ref')):
+                reasons.append('Source-review receipt lacks a matching version, reviewer or evidence: ' + request['evidence_id'])
     for gate in policy['integrity_gates']:
         result=(review.get('integrity_gates') or {}).get(gate)
         if result is False: failures.append('Integrity gate failed: '+gate)

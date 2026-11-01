@@ -178,11 +178,11 @@ export function ConnectorOnboarding({ embedded = false }: { embedded?: boolean }
     <aside className="setup-sidebar"><p className="setup-eyebrow">LET’S GET YOU STARTED</p><h1>Make room for<br />your data.</h1><p>Connect the tools you use.<br />Keep working the way you work.</p>
       <ol className="setup-steps">{['Choose a source', 'Configure access', 'Test & start collection', 'Ready to work'].map((label, i) => <li key={label} aria-current={stage === i ? 'step' : undefined} className={i <= stage ? 'active' : ''}><span>{stage > i ? <Check size={14}/> : i + 1}</span>{label}</li>)}</ol>
       <div className="setup-assurance"><ShieldCheck size={21}/><strong>Read access. Clear boundaries.</strong><p>Source records stay in your existing systems. Connections created here cannot write back.</p></div>
-      {me && <p className="setup-identity">Workspace: {me.tenant_id}<br />{mode === 'development' ? 'Development identity' : me.actor_id}</p>}
+      {me && <p className="setup-identity">Workspace: {me.tenant_id}<br />{mode === 'development' ? `Local test account · ${me.actor_id}` : me.actor_id}</p>}
     </aside>
     <section className="setup-content" aria-busy={!!busy || loading}>
       <div className="setup-content-top"><span>{embedded ? 'DATA CONNECTIONS' : 'WELCOME TO YOUR WORKSPACE'}</span><span>Step {stage + 1} of 4</span></div>
-      {mode === 'development' && <div className="setup-message">Development mode: using the local API identity. Configure Supabase before onboarding real users.</div>}
+      {mode === 'development' && <div className="setup-message">Local test account: a synthetic organization on your development API. Configure Supabase before onboarding real users.</div>}
       {error && <div className="setup-message error" role="alert">{error} {!catalog && <button className="setup-text-link" onClick={load}>Try again</button>}</div>}
       {notice && <div className="setup-message" role="status">{notice}</div>}
       {loading ? <p role="status" className="setup-loading"><Loader2 className="animate-spin" size={20}/> Loading your workspace and available connections…</p> : <>

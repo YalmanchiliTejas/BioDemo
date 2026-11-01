@@ -11,6 +11,8 @@ from pathlib import Path
 import tempfile
 import time
 import urllib.request
+import subprocess
+import shutil
 
 from src.manufacturing_data import ManufacturingStore, ManufacturingTools, ingest_package
 from src.manufacturing_data.session import ManufacturingSession
@@ -135,17 +137,36 @@ def run_automated(request, *, single_pass=False):
                'total_cost_usd':None,'cost_status':'compute_cost_unmeasured','usage_scope':'all_model_calls; local_compute_cost_unmeasured'}
         if single_pass:
             key=os.environ.get('OPENAI_API_KEY')
-            if not key:raise RuntimeError('Single-pass baseline requires OPENAI_API_KEY; no model call executed.')
             model=cfg.get('model','gpt-6-luna')
+            if '/' not in model and not key:raise RuntimeError('Single-pass baseline requires OPENAI_API_KEY or a provider/model from the installed Prime registry; no model call executed.')
             model_packet,aliases=alias_packet(packet)
             (artifacts/'identifier-aliases.json').write_text(json.dumps(aliases,indent=2)+'\n')
             body={'model':model,'input':[{'role':'system','content':PROMPT},{'role':'user','content':json.dumps(model_packet,default=str,separators=(',',':'))}],
                   'text':{'format':{'type':'json_object'}}}
             call_started=time.time()
-            http=urllib.request.Request('https://api.openai.com/v1/responses',data=json.dumps(body).encode(),
-                headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'})
-            with urllib.request.urlopen(http,timeout=max(1,min(600,cfg.get('budgets',{}).get('wall_clock_seconds',900)-(time.monotonic()-started)-30))) as response:
-                result=json.load(response)
+            timeout=max(1,min(600,cfg.get('budgets',{}).get('wall_clock_seconds',900)-(time.monotonic()-started)-30))
+            if '/' in model:
+                from src.paths import DEFAULT_PRIME_BUNDLE
+                node=shutil.which('node')
+                if not node:raise RuntimeError('Installed Prime single-pass baseline requires Node')
+                process=subprocess.run([node,str(Path(__file__).with_name('single_pass.mjs'))],
+                    input=json.dumps({'bundle_root':os.environ.get('PRIME_AGENT_BUNDLE_ROOT',str(DEFAULT_PRIME_BUNDLE)),
+                                      'model':model,'system_prompt':PROMPT,'prompt':json.dumps(model_packet,default=str,separators=(',',':')),
+                                      'max_output_tokens':16384,'timeout_ms':int(timeout*1000)}),
+                    capture_output=True,text=True,timeout=timeout+5)
+                if process.returncode:raise RuntimeError('Installed provider single-pass request failed; no successful response. Check provider configuration and balance.')
+                raw=json.loads(process.stdout)
+                usage.update(raw['usage'])
+                (artifacts/'single-pass-sdk-response.json').write_text(json.dumps(raw,indent=2)+'\n')
+                (artifacts/'provider-usage.json').write_text(json.dumps(usage,indent=2)+'\n')
+                if raw['stop_reason']!='stop':raise RuntimeError('Single-pass response did not finish: '+raw['stop_reason'])
+                result={'model':raw['model'],'usage':raw['usage'],
+                        'output':[{'content':[{'type':'output_text','text':raw['text']}]}]}
+            else:
+                http=urllib.request.Request('https://api.openai.com/v1/responses',data=json.dumps(body).encode(),
+                    headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'})
+                with urllib.request.urlopen(http,timeout=timeout) as response:
+                    result=json.load(response)
             (artifacts/'single-pass-response.json').write_text(json.dumps(result,indent=2)+'\n')
             text=''.join(p.get('text','') for item in result.get('output',[]) for p in item.get('content',[]) if p.get('type')=='output_text')
             report=translate_identifiers(json.loads(text),aliases)

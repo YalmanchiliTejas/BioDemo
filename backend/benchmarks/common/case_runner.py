@@ -109,6 +109,9 @@ def _run_case(manifest_path, mode, *, output_root=None, isolated=True, operator_
                             os.utime(destination, (available, available))
                     worker_trace=Path(temp)/'trace.jsonl'
                     configuration={'mode':mode,'case_id':case['case_id'],'run_id':run_id,'trace_path':str(worker_trace),
+                                   'prime_model':case.get('model_configuration',{}).get('prime_model'),
+                                   'task_response_mode':case.get('task_response_mode','investigation'),
+                                   'model':case.get('model_configuration',{}).get('baseline_model','gpt-6-luna'),
                                    'investigation_baselines':True,
                                    'budgets':case['budgets'],'execution_policy':case.get('execution_policy',{'mode':'fixed_v1'}),'access_scope':case['access_scope'],'tenant':case['tenant'],
                                    'operational_triage_policy':operational_triage_policy,
@@ -186,11 +189,13 @@ def _run_case(manifest_path, mode, *, output_root=None, isolated=True, operator_
 
 def blinded_packet(run):
     """Standardize the review view without changing the original output."""
+    from .quality import pending_source_reviews
     output=run['output'];report=output.get('analysis') or {}
     return {'packet_id':uuid.uuid4().hex,
             'objective':run['case']['objective'],'as_of':run['case'].get('as_of'),
             'source_version':run['case'].get('source_version'),
             'required_deliverables':run['case']['required_deliverables'],
+            'source_review_requests':pending_source_reviews(run),
             'report':{'assessment':report.get('assessment'),'findings':report.get('findings',report.get('resolved_questions',[])),
                       'observed_facts':report.get('observed_facts',[]),
                       'claims':report.get('claims',[]),'calculated_metrics':report.get('calculated_metrics',[]),
@@ -208,12 +213,15 @@ def blinded_packet(run):
 
 
 def review_template(run):
+    from .quality import pending_source_reviews
     return {'run_id':run['run_id'],'output_sha256':run.get('output_sha256'),
             'policy_sha256':run['case']['quality_policy_sha256'], 'reviewers':[
                 {'reviewer_id':None,'independent_of_operator':False,'blind_to_method':False,'evidence_ref':None,
                  'scores':{d:None for d in run['quality_policy']['dimensions']}}],
             'deliverables':{d:None for d in run['case']['required_deliverables']},
             'objective_checks_pass':None,'integrity_gates':{g:None for g in run['quality_policy']['integrity_gates']},
+            'source_reviews':[{**{k:r[k] for k in ('evidence_id','source','sha256')},
+                               'value_matches':None,'reviewer_id':None,'evidence_ref':None} for r in pending_source_reviews(run)],
             'adjudication':None}
 
 
@@ -232,9 +240,14 @@ def evaluate_run(run_path, review_path=None):
     if run.get('output_sha256'):
         with asset_path(path.parent/'output.json') as output:
             if digest(output)!=run['output_sha256']:
-                run['audit']['pass']=False;run['audit']['failures'].append('Output changed after execution.')
-    review=json.loads(Path(review_path).read_text()) if review_path else None
+                run['audit']['pass']=False;run['audit'].setdefault('failures',[]).append('Output changed after execution.')
+            elif json.loads(output.read_text())!=run.get('output'):
+                run['audit']['pass']=False;run['audit'].setdefault('failures',[]).append('Embedded output differs from the frozen execution output.')
+    saved_review=path.parent/'review.json'
+    review=json.loads(Path(review_path).read_text()) if review_path else json.loads(saved_review.read_text()) if saved_review.exists() else None
     run['qualification']=score_review(run,run['quality_policy'],review)
+    if review_path:
+        save(saved_review,review)
     if local_record.get('remote_payload'):
         run.pop('output',None)
         run.update(remote_payload=local_record['remote_payload'],remote_payload_sha256=local_record['remote_payload_sha256'])

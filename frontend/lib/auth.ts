@@ -1,14 +1,43 @@
 import { useEffect, useState } from 'react';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 
-/** Sign-in and API identity. Supabase Auth when configured at build time, otherwise the local development identity. */
+/**
+ * Sign-in and API identity. Supabase Auth when configured at build time; otherwise, and whenever
+ * NEXT_PUBLIC_LOCAL_LOGIN=1 under `next dev`, local test accounts checked by the development API.
+ * Production builds always use Supabase.
+ */
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-const DEV_HEADERS = { 'X-Tenant-Id': 'demo-northfield', 'X-Actor-Id': 'priya' };
+const LOCAL_LOGIN = process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_LOCAL_LOGIN === '1';
+const API = process.env.NEXT_PUBLIC_LIFESCI_API_URL ?? 'http://127.0.0.1:8100';
+const LOCAL_SESSION = 'sievance.local-session.v1';
+const LOCAL_SESSION_EVENT = 'sievance:local-session';
 
 export type AuthMode = 'supabase' | 'development';
 export const authConfigured = () => Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
-export const authMode = (): AuthMode => (authConfigured() || process.env.NODE_ENV === 'production' ? 'supabase' : 'development');
+export const authMode = (): AuthMode => (process.env.NODE_ENV === 'production' || (authConfigured() && !LOCAL_LOGIN) ? 'supabase' : 'development');
+/** True when this mode can sign anyone in: Supabase is configured, or local test accounts are in use. */
+export const signInAvailable = () => authMode() === 'development' || authConfigured();
+
+type LocalSession = { tenant_id: string; actor_id: string; email: string; name: string };
+function localSession(): LocalSession | null {
+  if (typeof window === 'undefined') return null;
+  try { return JSON.parse(localStorage.getItem(LOCAL_SESSION) ?? 'null'); } catch { return null; }
+}
+function setLocalSession(value: LocalSession | null) {
+  if (value) localStorage.setItem(LOCAL_SESSION, JSON.stringify(value)); else localStorage.removeItem(LOCAL_SESSION);
+  window.dispatchEvent(new Event(LOCAL_SESSION_EVENT));
+}
+const localUser = (session: LocalSession) => ({
+  id: session.actor_id, email: session.email, user_metadata: { full_name: session.name },
+  app_metadata: {}, aud: 'local', created_at: '',
+}) as unknown as User;
+
+export type LocalAccount = { email: string; name: string; role: string; site_id: string | null };
+/** Local test accounts offered by the development API, for the sign-in hint. Never includes the password. */
+export async function localAccounts(): Promise<{ accounts: LocalAccount[]; password_env: string; default_password: boolean } | null> {
+  try { const response = await fetch(`${API}/v1/dev/accounts`); return response.ok ? await response.json() : null; } catch { return null; }
+}
 
 let client: SupabaseClient | null = null;
 export function supabase(): SupabaseClient {
@@ -20,7 +49,10 @@ export function supabase(): SupabaseClient {
 }
 
 export async function authHeaders(): Promise<Record<string, string>> {
-  if (authMode() !== 'supabase') return { ...DEV_HEADERS };
+  if (authMode() !== 'supabase') {
+    const session = localSession();
+    return session ? { 'X-Tenant-Id': session.tenant_id, 'X-Actor-Id': session.actor_id } : {};
+  }
   // getSession refreshes an expired access token when a refresh token is available.
   const { data, error } = await supabase().auth.getSession();
   if (error) throw new Error(SIGNED_OUT_MESSAGE);
@@ -38,7 +70,7 @@ export function safeNext(value: string | null | undefined, fallback = '/dashboar
 
 /** After a 401 in Supabase mode, send the person to sign in and bring them back afterwards. */
 export function redirectToSignIn(reason: 'expired' | 'required' = 'expired') {
-  if (authMode() !== 'supabase' || typeof window === 'undefined') return;
+  if (typeof window === 'undefined') return;
   if (window.location.pathname.startsWith('/sign-in')) return;
   const next = `${window.location.pathname}${window.location.search}`;
   window.location.assign(`/sign-in/?next=${encodeURIComponent(next)}&reason=${reason}`);
@@ -57,18 +89,29 @@ async function attempt<T>(run: () => Promise<T>): Promise<T> {
 }
 
 export async function signIn(email: string, password: string) {
+  if (authMode() === 'development') {
+    let response: Response;
+    try { response = await fetch(`${API}/v1/dev/session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim(), password }) }); }
+    catch { throw new Error('Cannot reach the local API. Start the backend, then try again.'); }
+    if (response.status === 401) throw new Error('Email or password is incorrect.');
+    if (response.status === 404) throw new Error('The API is not running in development mode, so local test accounts are unavailable.');
+    if (!response.ok) throw new Error('Sign-in failed. Try again.');
+    setLocalSession(await response.json());
+    return;
+  }
   const { error } = await attempt(() => supabase().auth.signInWithPassword({ email: email.trim(), password }));
   const message = plain(error, error?.status === 400 ? 'Email or password is incorrect.' : 'Sign-in failed. Try again, or contact your administrator.');
   if (message) throw new Error(message);
 }
 
 export async function signOut() {
-  if (authMode() !== 'supabase') return;
+  if (authMode() !== 'supabase') { setLocalSession(null); return; }
   const { error } = await attempt(() => supabase().auth.signOut());
   if (error) throw new Error('Sign-out failed. Try again.');
 }
 
 export async function sendPasswordReset(email: string) {
+  if (authMode() !== 'supabase') throw new Error('Local test accounts share one password, set by LIFESCI_DEV_PASSWORD on the API.');
   const { error } = await attempt(() => supabase().auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/set-password/` }));
   const message = plain(error, error?.status === 429 ? 'Too many reset requests. Wait a few minutes, then try again.' : 'The reset email could not be sent. Try again, or contact your administrator.');
   if (message) throw new Error(message);
@@ -93,9 +136,18 @@ export async function updateDisplayName(name: string) {
 
 /** The signed-in user in Supabase mode; `loading` is true until the stored session has been read. */
 export function useSession() {
-  const enabled = authConfigured();
+  const enabled = authMode() === 'supabase' && authConfigured();
+  const local = authMode() === 'development';
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(enabled);
+  const [loading, setLoading] = useState(enabled || local);
+  useEffect(() => {
+    if (!local) return;
+    const read = () => { const session = localSession(); setUser(session ? localUser(session) : null); setLoading(false); };
+    read();
+    window.addEventListener(LOCAL_SESSION_EVENT, read);
+    window.addEventListener('storage', read);
+    return () => { window.removeEventListener(LOCAL_SESSION_EVENT, read); window.removeEventListener('storage', read); };
+  }, [local]);
   useEffect(() => {
     if (!enabled) return;
     const auth = supabase().auth;
@@ -119,9 +171,13 @@ export async function signUp(email: string, password: string) {
 }
 
 export async function selectOrganization(id: string) {
-  const { data, error } = await supabase().auth.getSession();
-  if (error || !data.session) throw new Error(SIGNED_OUT_MESSAGE);
-  localStorage.setItem(`sievance.organization:${data.session.user.id}`, id);
+  let userId = localSession()?.actor_id;
+  if (authMode() === 'supabase') {
+    const { data, error } = await supabase().auth.getSession();
+    userId = error ? undefined : data.session?.user.id;
+  }
+  if (!userId) throw new Error(SIGNED_OUT_MESSAGE);
+  localStorage.setItem(`sievance.organization:${userId}`, id);
   // Drop the previous workspace's display preferences when changing organizations.
   localStorage.removeItem('mos.context.v1');
 }

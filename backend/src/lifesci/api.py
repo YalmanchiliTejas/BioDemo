@@ -278,7 +278,8 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
         return response
 
     from .organization_api import install_organization_api
-    install_organization_api(app, platform, resolver, ctx_dep, os.environ.get("LIFESCI_MULTI_TENANT") == "1")
+    install_organization_api(app, platform, resolver, ctx_dep, os.environ.get("LIFESCI_MULTI_TENANT") == "1",
+                             development=auth_mode == "development_headers")
 
     # --- routes ---------------------------------------------------------------------
     @app.get(f"/{API_VERSION}/health")
