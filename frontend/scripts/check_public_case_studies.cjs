@@ -29,7 +29,7 @@ try {
   run('wait','--fn','!!document.querySelector("[data-testid=decision-study]")');
   run('snapshot','-i');
   const initial = evaluate(`({heading:document.querySelector('h1')?.textContent,figures:document.querySelectorAll('[data-testid=decision-study] figure').length,workspace:!!document.querySelector('#workspace-navigation'),archiveOpen:document.querySelector('#earlier-studies').open})`);
-  assert.equal(initial.heading,'Case studies');assert.equal(initial.figures,6);assert.equal(initial.workspace,false);assert.equal(initial.archiveOpen,false);
+  assert.equal(initial.heading,'Case studies');assert.equal(initial.figures,5);assert.equal(initial.workspace,false);assert.equal(initial.archiveOpen,false);
   const downloads = evaluate(`(async()=>{const files=['summary.pdf','report.md','analysis.json','summary.json','decisions.csv','methodology.md'];return Promise.all(files.map(async file=>{const r=await fetch('/case-study-results/decision-followup/'+file);return {file,status:r.status,type:r.headers.get('content-type')}}))})()`);
   assert(downloads.every(r=>r.status===200&&!r.type?.includes('text/html')));
   // Check the actual served bytes; the browser CLI's JSON bridge rounds a few

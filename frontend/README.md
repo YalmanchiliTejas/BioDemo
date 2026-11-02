@@ -71,7 +71,7 @@ Browser contract (requires Playwright, a running API and an unavailable model ro
 
 `/case-studies/` is public and linked directly from the landing navigation and its results preview. It is absent from workspace navigation and quick find. `/studies/` preserves older links to the same public page.
 
-The default view shows the completed November 1 GLM-5.3 decision evaluation through six chart panels: constrained decisions, violations, selected actions, inventory, the remaining failure and earlier real CHO prediction errors. It includes an inventory toggle, a filterable table of all 24 decisions and downloadable evidence. The model-only comparison and negative real-data findings remain visible. Methods and older studies expand on demand; older study deep links still work.
+The default view shows the completed November 1 GLM-5.3 decision evaluation through five chart panels: constrained decisions, violations, selected actions, inventory and the remaining failure. It includes an inventory toggle, a filterable table of all 24 decisions and downloadable evidence. The model-only comparison and simulation limitations remain visible. The separate earlier CHO comparison is omitted from the featured presentation; its source records and archived study remain intact. Methods and older studies expand on demand; older study deep links still work.
 
 Run `python3 frontend/scripts/export_decision_followup.py` from the repository root to regenerate the static snapshot and downloads from completed local results. This verifies the saved study's integrity, copies its PDF/report and exports actual action counts; it does not run inference. The public page needs no backend connection. The trade-off is explicit re-exporting when the source results change.
 
