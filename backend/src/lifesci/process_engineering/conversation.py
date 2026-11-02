@@ -18,6 +18,7 @@ from ..store import ConflictError, LeaseError
 from .conversation_schemas import (BioForecast, ChatDecision, ChatPipelineSpec, ChoForecast, Compare, ConversationIn,
     DemoCase, DemoInputs, MessageIn, PlanId, ResultId, Variant, WorkspaceSearch, WorkspaceRead, WorkspaceProposal)
 from .workspace import KINDS, WorkspaceTools
+from .demo_answers import DemoAnswers
 from .schemas import AdapterProposalIn
 
 VERSION = 'engineering-conversation-3'
@@ -38,7 +39,7 @@ OPERATIONS = {
     'workspace_propose_action': WorkspaceProposal,
 }
 COMPUTED = ('physical_analysis_result', 'physical_analysis_comparison', 'physical_analysis_interpretation',
-            'bioprocess_forecast', 'bioprocess_cho_forecast', 'assistant_workspace_result')
+            'bioprocess_forecast', 'bioprocess_cho_forecast', 'assistant_workspace_result', 'assistant_demo_deviations')
 # ID fields consume direct scientific records, never request-shaped wrappers.
 CONTEXT_OUTPUTS = ('physical_demo_context', 'physical_context_variant')
 ID_BINDINGS = {
@@ -71,6 +72,7 @@ class EngineeringConversationService:
         self.p = platform
         self.analysis = platform.process_models.analysis
         self.workspace = WorkspaceTools(platform)
+        self.demo_answers = DemoAnswers(self)
         digest = hashlib.sha256(b''.join(Path(__file__).with_name(name).read_bytes() for name in
             ('conversation.py', 'conversation_schemas.py', 'workspace.py'))).hexdigest()
         for name in OPERATIONS:
@@ -139,6 +141,13 @@ class EngineeringConversationService:
                         turn['basis_status'] = 'quarantined'
                     except (ValueError, KeyError):
                         turn['basis_status'] = 'stale'
+            if turn.get('answer_basis'):
+                try:
+                    self.p.identity.validate_refs(ctx, turn['answer_basis'])
+                except PermissionError:
+                    turn['basis_status'] = 'quarantined'
+                except (ValueError, KeyError):
+                    turn['basis_status'] = 'stale'
             if turn.get('basis_status') == 'quarantined':
                 turn['reply'], turn['questions'] = None, []
                 turn['artifacts'] = []
@@ -439,6 +448,11 @@ class EngineeringConversationService:
         try:
             checkpoint(status='running', issues=[])
             turn = self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', turn_id).state
+            if not turn['gateway_runs'] and not turn['flow_run_id']:
+                demo = self.demo_answers.answer(ctx, thread, turn)
+                if demo is not None:
+                    checkpoint(**demo)
+                    return self.get(ctx, thread_id)
             if not turn['flow_run_id']:
                 admitted = turn.get('planning_calls_admitted', 0)
                 if admitted >= 3:
