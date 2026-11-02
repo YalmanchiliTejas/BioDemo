@@ -273,12 +273,11 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
             try:
                 item,path=find(payload['package_id'])
                 result=service.run(path,payload['cmo'] or item['cmo'],payload['configuration'],synthetic=item.get('synthetic',False),
-                                   approved=approved_for(item),run_id=run_id,package_ref=item['id'])
+                                   approved=approved_for(item),run_id=run_id,package_ref=item['id'],supersedes=payload['supersedes'])
                 result.update(package_id=item['id'],disclosure=item.get('disclosure'),delivery_name=item.get('name'))
                 if item.get('public_data') and result.get('hosted_inference'):
                     result['hosted_inference']['basis']='public dataset (CC BY 4.0); hosted extraction permitted'
                 service.save(result)
-                if payload['supersedes'] and result['status']=='complete': result=service.carry_over(payload['supersedes'],result)
                 return result['status']
             except Exception as exc:
                 header=service.repo.run_header(run_id)

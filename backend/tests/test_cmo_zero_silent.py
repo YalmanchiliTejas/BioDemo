@@ -4,9 +4,11 @@ setup/review work that does not repeat. Small independent fixtures; no network."
 from __future__ import annotations
 
 import csv
+from copy import deepcopy
 import io
 import json
 import time
+import threading
 import zipfile
 
 import httpx
@@ -48,6 +50,91 @@ def confirm_all(service, run, **extra):
 
 @pytest.fixture
 def service(tmp_path): return IngestionService(tmp_path/'store')
+
+
+def test_reprocess_never_persists_complete_before_carry_over(tmp_path, monkeypatch):
+    """Observe every completion save, so the CI polling race is deterministic."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from src.lifesci.tasks import TaskRunner
+    from src.manufacturing_data.cmo.api import router
+
+    class ObservedTasks(TaskRunner):
+        def __init__(self):
+            super().__init__()
+            self.done = threading.Event()
+        def submit(self, kind, payload):
+            self.done.clear()
+            super().submit(kind, payload)
+        def _run_logged(self, kind, payload):
+            try:
+                super()._run_logged(kind, payload)
+            finally:
+                self.done.set()
+
+    for name in ('OPENAI_API_KEY', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_AUTH_TOKEN', 'SUPABASE_URL', 'CMO_DATABASE_URL'):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv('CMO_INGESTION_ROOT', str(tmp_path/'runtime'))
+    monkeypatch.setenv('CMO_PACKAGES_ROOT', str(tmp_path/'none'))
+    monkeypatch.setenv('CMO_API_TOKEN', 't')
+    tasks = ObservedTasks()
+    api = router(tmp_path, tasks=tasks)
+    app = FastAPI(); app.include_router(api)
+    client = TestClient(app); client.headers['X-CMO-Token'] = 't'
+    delivery = client.post('/api/cmo-ingestion/deliveries', json={'cmo': 'Acme', 'name': 'October'}).json()
+    body = io.StringIO()
+    csv.writer(body).writerows([['Lot', 'Elapsed time (h)', 'pH', 'Temperature (°C)'], ['L-1', 0, 7, 37], ['L-1', 1, 7.1, 37.1]])
+    assert client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/files",
+        params={'filename': 'process.csv'}, content=body.getvalue().encode()).status_code == 200
+    first = client.post('/api/cmo-ingestion/runs', json={'package_id': delivery['id']}).json()['id']
+    assert tasks.done.wait(10), 'Initial ingestion did not finish'
+    initial = client.get('/api/cmo-ingestion/runs/'+first).json()
+    assert initial['status'] == 'complete'
+    layout = initial['layouts'][0]
+    assert client.post(f'/api/cmo-ingestion/runs/{first}/templates',
+        json={'fingerprint': layout['fingerprint'], 'mapping': layout['mapping'], 'actor': 'Parker'}).status_code == 200
+    completed_snapshots = []
+    save = api.ingestion_service.save
+    def observe(run):
+        if run['id'] != first and run['status'] == 'complete':
+            completed_snapshots.append(deepcopy(run))
+        return save(run)
+    monkeypatch.setattr(api.ingestion_service, 'save', observe)
+    newer = client.post(f'/api/cmo-ingestion/runs/{first}/reprocess', json={'actor': 'Parker'}).json()['id']
+    assert tasks.done.wait(10), 'Reprocessing did not finish'
+    assert completed_snapshots
+    # Waiting longer in the original test would hide this invalid intermediate state.
+    assert all('carried_over' in run for run in completed_snapshots), 'A complete run was published before carry-over'
+    result = client.get('/api/cmo-ingestion/runs/'+newer).json()
+    assert result['status'] == 'complete' and result['carried_over'] == {'from_run': first, 'reviews': 0, 'skipped': []}
+    assert result['summary']['verified_package'] and result['summary']['auto_accepted'] == 4
+    assert client.get('/api/cmo-ingestion/runs/'+first).json()['superseded_by'] == newer
+
+
+def test_reprocess_finalization_rolls_back_reviews_and_supersession(service, tmp_path, monkeypatch):
+    raw=tmp_path/'delivery'
+    write_csv(raw/'process.csv',['batch_id','elapsed_h','pH [pH]'],[['B-1',0,7],['B-1',1,7.1]])
+    first=service.run(raw,'acme','D')
+    measurement=first['measurements'][0]
+    service.review(first['id'],measurement['id'],'reject','qa','Probe failed calibration',binding=digest(measurement))
+    confirm_all(service,first)
+    carry=service._carry_over
+    def fail_after_carry(old_id,run):
+        carry(old_id,run)
+        raise RuntimeError('Injected finalization failure')
+    monkeypatch.setattr(service,'_carry_over',fail_after_carry)
+    failed=service.run(raw,'acme','D',supersedes=first['id'])
+    assert failed['status']=='failed' and 'Injected finalization failure' in failed['error']
+    assert not service.get(first['id']).get('superseded_by')
+    persisted=service.get(failed['id'])
+    assert not persisted.get('carried_over') and not persisted.get('reviews') and not persisted.get('completed_at')
+    assert service.verify_audit()
+    monkeypatch.setattr(service,'_carry_over',carry)
+    completed=service.run(raw,'acme','D',supersedes=first['id'])
+    assert completed['status']=='complete' and completed['carried_over']['reviews']==1
+    assert completed['summary']['rejected']==1 and completed['summary']['auto_accepted']==1
+    assert completed['reviews'][0]['actor']=='qa' and service.verify_audit()
+    assert service.get(first['id'])['superseded_by']==completed['id']
 
 
 def test_real_world_headers_units_and_identifiers():

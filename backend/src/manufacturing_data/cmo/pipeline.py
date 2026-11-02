@@ -241,7 +241,7 @@ class IngestionService:
         self.save(run)
         return run
 
-    def run(self,package,cmo,configuration='preview',*,synthetic=False,approved=False,run_id=None,on_stage=None,project_context=None,package_ref=None):
+    def run(self,package,cmo,configuration='preview',*,synthetic=False,approved=False,run_id=None,on_stage=None,project_context=None,package_ref=None,supersedes=None):
         # Inference weights must be provisioned locally. Parsing a customer file
         # must never trigger telemetry or a model-weight download.
         os.environ.setdefault('HF_HUB_OFFLINE','1')
@@ -283,6 +283,7 @@ class IngestionService:
         if unavailable:
             run.update(status='unavailable',unavailable_reasons=unavailable,runtime_seconds=time.monotonic()-started)
             self.save(run); return run
+        finalizing=False
         try:
             stage('Ingest')
             # Reuses the original parser, immutable source storage, native sheet readers and OCR.
@@ -529,11 +530,21 @@ class IngestionService:
             run['coverage']=quality.account(run['elements'],run['issues'])
             stage('Review','pending' if any(m['status']=='needs_review' for m in run['measurements']) or run['issues'] else 'complete')
             stage('Store/Export','complete')
-            run.update(status='complete',runtime_seconds=time.monotonic()-started,completed_at=utc())
-            self.summarize(run); self.save(run)
-            self.audit('run_completed',run_id=run['id'],configuration=configuration,summary=run['summary'])
+            # A terminal status is a promise that all reprocessing decisions and
+            # the old/new linkage are available, even to a fast polling client.
+            finalizing=True
+            with self._lock, self.repo.transaction():
+                if supersedes:
+                    self._carry_over(supersedes,run)
+                run.update(status='complete',runtime_seconds=time.monotonic()-started,completed_at=utc())
+                self.summarize(run); self.save(run)
+                self.audit('run_completed',run_id=run['id'],configuration=configuration,summary=run['summary'])
             return run
         except Exception as exc:
+            if finalizing:
+                # The transaction rolled back. Do not re-save in-memory review
+                # receipts or linkage whose audit records were rolled back too.
+                run=self.get(run['id'])
             run.update(status='failed',error=f'{type(exc).__name__}: {exc}',runtime_seconds=time.monotonic()-started)
             self.save(run); self.audit('run_failed',run_id=run['id'],error=run['error'])
             return run
@@ -644,37 +655,40 @@ class IngestionService:
     def carry_over(self,old_id,new_run):
         """Re-apply prior human decisions to a reprocessed run when the decision
         concerns the same source element, raw text and parameter."""
-        carried=[]; skipped=[]
         with self._lock, self.repo.transaction():
-            old=self.get(old_id)
-            run=self.get(new_run['id'])
-            for receipt in old.get('reviews',[]):
-                before=receipt['before']
-                # A human rejection or correction outranks automatic acceptance;
-                # an earlier acceptance adds nothing to an auto-accepted value.
-                eligible={'needs_review'} if receipt['decision']=='accept' else {'needs_review','auto_accepted'}
-                target=next((m for m in run['measurements'] if m['status'] in eligible and m['evidence_id']==before['evidence_id']
-                             and m['parameter']==before['parameter'] and m['value_raw']==before['value_raw']),None)
-                if not target: continue
-                after=receipt['after']
-                try:
-                    self._apply_review(run,target,receipt['decision'],receipt['actor'],f"Carried forward from run {old_id[:8]}: {receipt['reason']}",
-                        carried_from={'run_id':old_id,'at':receipt['at']},
-                        **({'value':after['value_raw'] if after['value'] is None else str(after['value']),'parameter':after['parameter'],'unit':after['unit'],
-                            'batch':after['batch'],'time_value':after['time']} if receipt['decision']=='correct' else {}))
-                    carried.append(target['id'])
-                except ValueError as exc: skipped.append({'measurement_id':target['id'],'error':str(exc)})
-            resolved={i['id']:i for i in old.get('issues',[]) if i['status']=='resolved'}
-            for item in run['issues']:
-                prior=resolved.get(item['id'])
-                if item['status']=='open' and prior:
-                    item.update(status='resolved',actor=prior['actor'],reason=f"Carried forward from run {old_id[:8]}: {prior['reason']}",at=utc(),carried_from=old_id)
-                    self.audit('issue_disposition',run_id=run['id'],issue=item)
-            run['carried_over']={'from_run':old_id,'reviews':len(carried),'skipped':skipped}
-            self.summarize(run); self.save(run)
-            old['superseded_by']=run['id']; self.save(old)
-            self.audit('run_superseded',run_id=old_id,superseded_by=run['id'],carried_reviews=len(carried))
-            return run
+            return self._carry_over(old_id,self.get(new_run['id']))
+
+    def _carry_over(self,old_id,run):
+        """Apply to an in-memory result inside the caller's lock/transaction."""
+        carried=[]; skipped=[]
+        old=self.get(old_id)
+        for receipt in old.get('reviews',[]):
+            before=receipt['before']
+            # A human rejection or correction outranks automatic acceptance;
+            # an earlier acceptance adds nothing to an auto-accepted value.
+            eligible={'needs_review'} if receipt['decision']=='accept' else {'needs_review','auto_accepted'}
+            target=next((m for m in run['measurements'] if m['status'] in eligible and m['evidence_id']==before['evidence_id']
+                         and m['parameter']==before['parameter'] and m['value_raw']==before['value_raw']),None)
+            if not target: continue
+            after=receipt['after']
+            try:
+                self._apply_review(run,target,receipt['decision'],receipt['actor'],f"Carried forward from run {old_id[:8]}: {receipt['reason']}",
+                    carried_from={'run_id':old_id,'at':receipt['at']},
+                    **({'value':after['value_raw'] if after['value'] is None else str(after['value']),'parameter':after['parameter'],'unit':after['unit'],
+                        'batch':after['batch'],'time_value':after['time']} if receipt['decision']=='correct' else {}))
+                carried.append(target['id'])
+            except ValueError as exc: skipped.append({'measurement_id':target['id'],'error':str(exc)})
+        resolved={i['id']:i for i in old.get('issues',[]) if i['status']=='resolved'}
+        for item in run['issues']:
+            prior=resolved.get(item['id'])
+            if item['status']=='open' and prior:
+                item.update(status='resolved',actor=prior['actor'],reason=f"Carried forward from run {old_id[:8]}: {prior['reason']}",at=utc(),carried_from=old_id)
+                self.audit('issue_disposition',run_id=run['id'],issue=item)
+        run['carried_over']={'from_run':old_id,'reviews':len(carried),'skipped':skipped}
+        self.summarize(run); self.save(run)
+        old['superseded_by']=run['id']; self.save(old)
+        self.audit('run_superseded',run_id=old_id,superseded_by=run['id'],carried_reviews=len(carried))
+        return run
 
     def original(self,run_id,source_id,*,run=None):
         run=run or self.get(run_id); doc=next((d for d in run['documents'] if d['source_id']==source_id),None)
