@@ -10,10 +10,12 @@ import { SCREENS } from '@/lib/routes';
 import { AnalysisArtifact, type ArtifactRef } from './AnalysisArtifact';
 import { BioprocessArtifact } from './BioprocessArtifact';
 import { projectThread } from '@/lib/work-results';
+import { WorkspaceArtifact } from './WorkspaceArtifact';
+import { AssistantResponsibility, type Responsibility } from './AssistantResponsibility';
 
 type Step = { node_id: string; title: string; task_kind: string; depends_on: string[]; status: string; issues: string[] };
-type Turn = { display_context?: DisplayContext | null; id: string; user_text: string; status: string; reply: string | null; questions: string[]; system_message?: string; issues: string[]; artifacts: ArtifactRef[]; steps?: Step[]; elapsed_seconds?: number; basis_status?: string; gateway_runs: { route?: { unqualified?: boolean } | null; [key: string]: unknown }[] };
-type Thread = { id: string; revision: number; title: string; turns: Turn[]; turn_ids: string[]; demo_enabled: boolean; source_ids: string[]; dataset_ids?: string[] };
+type Turn = { origin?: string; responsibility_objective?: string; display_context?: DisplayContext | null; id: string; user_text: string; status: string; reply: string | null; questions: string[]; system_message?: string; issues: string[]; artifacts: ArtifactRef[]; steps?: Step[]; elapsed_seconds?: number; basis_status?: string; gateway_runs: { route?: { unqualified?: boolean } | null; [key: string]: unknown }[] };
+type Thread = { id: string; revision: number; title: string; turns: Turn[]; turn_ids: string[]; demo_enabled: boolean; source_ids: string[]; dataset_ids?: string[]; responsibility?: Responsibility | null; mission_status?: string };
 type PublishedDataset = { id: string; cmo: string; delivery_name: string | null; measurements: number; batches: string[] };
 const datasetLabel = (d: PublishedDataset) => d.delivery_name ?? d.cmo;
 type Recent = { id: string; title: string };
@@ -73,16 +75,16 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    if (!thread || !active(last)) return;
+    if (!thread || (!active(last) && (!thread.responsibility?.enabled || thread.mission_status !== 'active'))) return;
     const id = thread.id;
     let mounted = true;
     const timer = window.setInterval(() => {
       processRequest<Thread>(`/v1/process-model/conversations/${id}`)
         .then(data => { if (mounted && current.current === id) setThread(data); })
         .catch(e => { if (mounted) setError(String(e)); });
-    }, 1000);
+    }, active(last) ? 1000 : 5000);
     return () => { mounted = false; window.clearInterval(timer); };
-  }, [thread?.id, last?.status]);
+  }, [thread?.id, last?.status, thread?.responsibility?.enabled, thread?.mission_status]);
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: 'auto', block: 'nearest' });
   }, [thread?.turns.length, last?.status]);
@@ -144,6 +146,13 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
     } catch (e) { setError(String(e)); }
     finally { setSending(false); }
   }
+  async function stop() {
+    if (!thread) return;
+    try {
+      const data = await processRequest<Thread>(`/v1/process-model/conversations/${thread.id}/stop`, {});
+      if (current.current === data.id) adopt(data);
+    } catch (e) { setError(String(e)); }
+  }
   function newConversation() {
     current.current = null; setThread(null); setDraft(''); setAttachment(''); setDemoConsent(false); setError('');
     try { localStorage.removeItem(storageKey); } catch { /* Storage is optional. */ }
@@ -167,6 +176,7 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
         <button type="button" onClick={newConversation} className={action} aria-label="New conversation"><Plus size={16} /><span className={compact ? 'sr-only' : 'hidden sm:inline'}>New</span></button>
       </div>
     </header>
+    {thread && <AssistantResponsibility key={thread.id} thread={thread} onChange={adopt} />}
 
     <div className="flex-1 pb-6">
       {!thread?.turns.length && <section className={`mx-auto max-w-2xl ${compact ? 'pb-5 pt-8' : 'pb-8 pt-16 sm:pt-24'}`}>
@@ -177,7 +187,7 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
 
       <div role="log" aria-label="Engineering conversation" aria-live="polite" aria-relevant="additions text" className={thread?.turns.length ? 'space-y-8 py-6' : ''}>
         {thread?.turns.map((turn, index) => <article key={turn.id} data-testid="conversation-turn">
-          <div className="mb-6 flex justify-end"><div className="min-w-0 max-w-[90%] rounded-2xl rounded-br-sm bg-surface-secondary px-5 py-4 text-sm leading-6 text-text-primary"><span className="sr-only">You: </span><p className="whitespace-pre-wrap">{turn.user_text}</p>{turn.display_context && <details className="mt-3 border-t border-border-hairline pt-2 text-xs"><summary className="cursor-pointer">{turn.display_context.kind === 'chart' ? 'Chart' : 'Text'} from {turn.display_context.label}</summary><p className="mt-2 text-text-tertiary">Screen snapshot · {turn.display_context.page_path} · {turn.display_context.captured_at}</p><pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words font-sans">{turn.display_context.content}</pre></details>}</div></div>
+          <div className="mb-6 flex justify-end"><div className="min-w-0 max-w-[90%] rounded-2xl rounded-br-sm bg-surface-secondary px-5 py-4 text-sm leading-6 text-text-primary"><span className="sr-only">{turn.origin === 'background' ? 'Background follow-up: ' : 'You: '}</span><p className="whitespace-pre-wrap">{turn.origin === 'background' ? `Background follow-up · ${turn.responsibility_objective}` : turn.user_text}</p>{turn.display_context && <details className="mt-3 border-t border-border-hairline pt-2 text-xs"><summary className="cursor-pointer">{turn.display_context.kind === 'chart' ? 'Chart' : 'Text'} from {turn.display_context.label}</summary><p className="mt-2 text-text-tertiary">Screen snapshot · {turn.display_context.page_path} · {turn.display_context.captured_at}</p><pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words font-sans">{turn.display_context.content}</pre></details>}</div></div>
           <div className="flex gap-3 sm:gap-4"><div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border-hairline text-brand-teal"><FlaskConical size={14} /></div><div className="min-w-0 flex-1">
             {['stale', 'quarantined'].includes(turn.basis_status ?? '') && <p role="status" className="mb-3 rounded-control bg-status-warning-bg px-4 py-3 text-sm text-text-secondary">Contributing evidence changed or was withdrawn. Rebuild this analysis before using its findings.</p>}
             {turn.gateway_runs.some(r => r.route?.unqualified) && <p className="mb-2 text-xs text-status-warning">Development LLM run · route unqualified · review required</p>}
@@ -186,10 +196,10 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
               {turn.reply && <details className="mt-3 text-xs text-text-secondary"><summary className="cursor-pointer">Read the assistant’s explanation</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-7">{turn.reply}</p></details>}
             </> : turn.reply && <p className="whitespace-pre-wrap text-sm leading-7 text-text-primary">{turn.reply}</p>}
             {!!turn.questions.length && <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6">{turn.questions.map(q => <li key={q}>{q}</li>)}</ul>}
-            {active(turn) && <div><p role="status" className="mt-3 flex items-center gap-2 text-sm text-brand-teal"><Loader2 size={15} className="motion-safe:animate-spin" />{turn.steps?.length ? 'Running the assembled workflow…' : 'Reviewing context and assembling the analysis…'}</p><details className="mt-2 text-xs text-text-tertiary"><summary className="cursor-pointer">Work interrupted?</summary><p className="mt-2">Your work is saved. A running worker keeps its lease for up to five minutes; after it expires you can resume from the last completed step.</p><button type="button" disabled={sending} className={action} onClick={() => void retry()}><RotateCcw size={13} />Resume saved work</button></details></div>}
+            {active(turn) && <div><p role="status" className="mt-3 flex items-center gap-2 text-sm text-brand-teal"><Loader2 size={15} className="motion-safe:animate-spin" />{turn.steps?.length ? 'Running the assembled workflow…' : 'Reviewing context and assembling the analysis…'}</p><button type="button" onClick={() => void stop()} className={action}>Stop work</button><details className="mt-2 text-xs text-text-tertiary"><summary className="cursor-pointer">Work interrupted?</summary><p className="mt-2">Your work is saved. A running worker keeps its lease for up to five minutes; after it expires you can resume from the last completed step.</p><button type="button" disabled={sending} className={action} onClick={() => void retry()}><RotateCcw size={13} />Resume saved work</button></details></div>}
             {!!turn.steps?.length && <details className="my-4 rounded-card border border-border-hairline bg-surface p-4" open={active(turn)}><summary className="flex cursor-pointer items-center gap-2 text-xs font-medium text-text-secondary"><Workflow size={15} />{turn.steps.length} workflow steps · {turn.status.replaceAll('_', ' ')}<ChevronDown size={12} className="ml-auto" /></summary><ol className="mt-4 space-y-3">{turn.steps.map(step => <li className="flex gap-3 text-xs" key={step.node_id}>{step.status === 'completed' ? <Check size={14} className="shrink-0 text-status-success" /> : <Circle size={14} className={`shrink-0 ${step.status === 'blocked' ? 'text-status-critical' : 'text-text-muted'}`} />}<div><p className="font-medium">{step.title} <span className="ml-2 font-normal text-text-tertiary">{step.status}</span></p><p className="mt-1 text-text-tertiary">{step.task_kind.replaceAll('_', ' ')}{step.depends_on.length ? ` · after ${step.depends_on.join(', ')}` : ''}</p>{step.issues.map(issue => <p key={issue} className="mt-1 text-status-critical">{issue}</p>)}</div></li>)}</ol></details>}
             {turn.system_message && <div className={`mt-3 rounded-control border-l-2 px-4 py-3 text-sm leading-6 ${turn.status === 'agent_unavailable' || turn.status === 'blocked' ? 'border-status-warning bg-status-warning-bg' : 'border-brand-teal bg-brand-teal-light'}`}><p>{turn.system_message}</p>{index === (thread?.turns.length ?? 0)-1 && ['agent_unavailable', 'blocked'].includes(turn.status) && <button type="button" disabled={busy} onClick={() => void retry()} className={`${action} mt-2 border border-border-strong`}><RotateCcw size={13} />Retry this request</button>}</div>}
-            {turn.artifacts.map(artifact => { const View = artifact.kind.startsWith('bioprocess_') ? BioprocessArtifact : AnalysisArtifact; return ['physical_analysis_plan', 'physical_analysis_context', 'bioprocess_case'].includes(artifact.kind) ? <details className="my-3 text-xs" key={artifact.id}><summary className="cursor-pointer text-text-secondary">{artifact.title}</summary><View threadId={thread.id} artifact={artifact} /></details> : <View key={artifact.id} threadId={thread.id} artifact={artifact} />; })}
+            {turn.artifacts.map(artifact => { const View = artifact.kind === 'assistant_workspace_result' ? WorkspaceArtifact : artifact.kind.startsWith('bioprocess_') ? BioprocessArtifact : AnalysisArtifact; return ['physical_analysis_plan', 'physical_analysis_context', 'bioprocess_case'].includes(artifact.kind) ? <details className="my-3 text-xs" key={artifact.id}><summary className="cursor-pointer text-text-secondary">{artifact.title}</summary><View threadId={thread.id} artifact={artifact} /></details> : <View key={artifact.id} threadId={thread.id} artifact={artifact} />; })}
             {!!turn.gateway_runs.length && <details className="mt-3 text-xs text-text-tertiary"><summary className="cursor-pointer">Execution record{turn.elapsed_seconds != null ? ` · ${turn.elapsed_seconds.toFixed(1)} s` : ''}</summary><pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-all bg-surface-secondary p-3">{JSON.stringify({ gateway_runs: turn.gateway_runs, issues: turn.issues, artifacts: turn.artifacts }, null, 2)}</pre></details>}
           </div></div>
         </article>)}

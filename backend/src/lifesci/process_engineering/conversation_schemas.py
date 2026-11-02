@@ -11,7 +11,8 @@ class ChatPipelineSpec(PipelineSpec):
 Operator = Literal['physical_demo_context', 'physical_context_variant', 'physical_pipeline_prepare',
     'physical_pipeline_execute', 'physical_results_compare', 'physical_results_assess',
     'physical_analysis_review', 'physical_model_adapter_propose',
-    'bioprocess_demo_case', 'bioprocess_forecast', 'cho_dataset_forecast']
+    'bioprocess_demo_case', 'bioprocess_forecast', 'cho_dataset_forecast',
+    'workspace_search', 'workspace_read', 'workspace_propose_action']
 
 class ConversationIn(StrictModel):
     site_id: str = Field(default='NF1', min_length=1, max_length=100)
@@ -44,11 +45,14 @@ class ChatDecision(StrictModel):
     reply: str = Field(min_length=1, max_length=4000)
     questions: list[str] = Field(default_factory=list, max_length=4)
     workflow: list[WorkflowNode] = Field(default_factory=list, max_length=10)
+    continue_after_workflow: bool = False
 
     @model_validator(mode='after')
     def clarify_or_execute(self):
         if self.questions and self.workflow:
             raise ValueError('ask for missing information before running a workflow')
+        if self.continue_after_workflow and not self.workflow:
+            raise ValueError('continuation requires tool work')
         if sum(n.task_kind == 'physical_pipeline_execute' for n in self.workflow) > 3:
             raise ValueError('at most three numerical analyses per conversational turn')
         if sum(n.task_kind in ('bioprocess_forecast', 'cho_dataset_forecast') for n in self.workflow) > 3:
@@ -56,6 +60,48 @@ class ChatDecision(StrictModel):
         if sum(n.task_kind == 'physical_results_assess' for n in self.workflow) > 1:
             raise ValueError('at most one agent interpretation per conversational turn')
         return self
+
+WorkspaceKind = Literal['case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
+    'proposal', 'physical_analysis_context', 'process_simulation', 'engineering_chat_turn']
+
+class WorkspaceSearch(StrictModel):
+    kinds: list[WorkspaceKind] = Field(default_factory=list, max_length=10)
+    query: str = Field(default='', max_length=200)
+    limit: int = Field(default=20, ge=1, le=50)
+
+class WorkspaceRead(StrictModel):
+    kind: WorkspaceKind
+    record_id: str = Field(min_length=1, max_length=300)
+    revision: int = Field(ge=1)
+    offset: int = Field(default=0, ge=0, le=1000000)
+    max_chars: int = Field(default=24000, ge=1000, le=24000)
+
+class SourceRef(StrictModel):
+    kind: WorkspaceKind
+    id: str = Field(min_length=1, max_length=300)
+    revision: int = Field(ge=1)
+    site_id: str | None = None
+
+class WorkspaceProposal(StrictModel):
+    target_system: str = Field(min_length=1, max_length=100)
+    operation: Literal['request_retest', 'place_hold', 'create_work_order', 'reschedule_batch', 'submit_deviation']
+    target_id: str = Field(min_length=1, max_length=300)
+    payload: dict[str, Any] = Field(default_factory=dict)
+    basis: list[SourceRef] = Field(min_length=1, max_length=10)
+    rationale: str = Field(min_length=10, max_length=2000)
+    expected_result: str = Field(min_length=10, max_length=1000)
+    follow_up_measure: str = Field(min_length=5, max_length=1000)
+    constraints: list[str] = Field(default_factory=list, max_length=10)
+
+class WatchIn(StrictModel):
+    enabled: bool
+    expected_revision: int = Field(ge=1)
+    objective: str = Field(default='', max_length=2000)
+    kinds: list[Literal['case', 'evidence', 'batch', 'sample']] = Field(default_factory=lambda: ['case'])
+    max_runs: int = Field(default=3, ge=1, le=10)
+    every_minutes: int | None = Field(default=None, ge=15, le=10080)
+    # Count limits bound inference admissions, not unknown Modal monetary billing.
+    acknowledge_inference: bool = False
 
 class DemoInputs(StrictModel):
     audience: Literal['technology_transfer', 'cdmo_operation'] = 'technology_transfer'

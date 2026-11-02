@@ -1,0 +1,628 @@
+{
+  "case_ids": [],
+  "created_at": "2026-11-02T17:58:04.981727+00:00",
+  "dataset_ids": [],
+  "demo_enabled": false,
+  "id": "engchat_01M6EPJHXN36CDZVGT36P0WKX2",
+  "mission_id": "msn_01M6EPJHXN7N4FHPWD7GX0F77J",
+  "owner_id": "priya",
+  "responsibility": {
+    "billing": "Provider monetary billing is unknown; this is a run-count limit, not a dollar cap.",
+    "enabled": true,
+    "every_minutes": null,
+    "kinds": [
+      "case"
+    ],
+    "max_runs": 1,
+    "objective": "Inspect newly opened synthetic deviation cases and summarize the documented observation and remaining uncertainty. No drafts or external actions.",
+    "runs_admitted": 1,
+    "thread_id": "engchat_01M6EPJHXN36CDZVGT36P0WKX2",
+    "updated_at": "2026-11-02T17:59:30.936283+00:00"
+  },
+  "site_id": "NF1",
+  "source_ids": [],
+  "title": "Which is the latest deviation and why did it happen? Search the workspace, inspect the new",
+  "turn_ids": [
+    "engturn_01M6EPJHXNKMRCRMRGXRRNA495",
+    "engturn_01M6EPN5W1W8VX0CA91MXAF8RM"
+  ],
+  "revision": 4,
+  "turns": [
+    {
+      "artifacts": [
+        {
+          "id": "assi_01M6EPKDYW7CCQBWD046AS3CA3",
+          "kind": "assistant_workspace_result",
+          "title": "case · SYNTHETIC-DEV-NEW",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M6EPKDYY03VSYTGX6MW11F3P",
+          "kind": "assistant_workspace_result",
+          "title": "Workspace search",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M6EPMQP0BY1G7TFE7820JMVD",
+          "kind": "assistant_workspace_result",
+          "title": "evidence · SYNTHETIC-MES:pressure-alarm",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M6EPMQP32VSF0HAXQY2TY4F8",
+          "kind": "assistant_workspace_result",
+          "title": "evidence · MES:F-2408-feed-log",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M6EPMQP6NR6W2D7EBMYGCJ5B",
+          "kind": "assistant_workspace_result",
+          "title": "evidence · LIMS:F-2408-titer",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M6EPMQPATM58E6BAZJJ005P2",
+          "kind": "assistant_workspace_result",
+          "title": "evidence · HIST:BR-04-pH-2026-10-20",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M6EPMQPD59E1SCR9Y9SX32JE",
+          "kind": "assistant_workspace_result",
+          "title": "Workspace search",
+          "status": "current"
+        }
+      ],
+      "continue_after_workflow": false,
+      "conversation_id": "engchat_01M6EPJHXN36CDZVGT36P0WKX2",
+      "created_at": "2026-11-02T17:58:04.982015+00:00",
+      "display_context": null,
+      "elapsed_seconds": 14.493,
+      "flow_run_id": null,
+      "flow_run_ids": [
+        "flowrun_01M6EPKDYSG7R1AR6807TMAYY2",
+        "flowrun_01M6EPMQNREYTRRQ57Z2DD8ZZF"
+      ],
+      "gateway_runs": [
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 0,
+              "cost_usd": 0.0,
+              "input_tokens": 8587,
+              "latency_ms": 28648.861334018875,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 6916,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "a43ef3ee76df4fa885f452c5f598b649",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "continue_after_workflow": true,
+            "questions": [],
+            "reply": "By case-opened time — the ordering basis, which is not the deviation occurrence time — the latest case is SYNTHETIC-DEV-NEW, opened 2026-11-02T17:58:04.980741Z, about 0.4 ms after SYNTHETIC-DEV-OLD, with no ties or undated records in the index. The \"SYNTHETIC\" naming suggests these may be development examples rather than formal plant deviations, which I will verify from the records. I will now read SYNTHETIC-DEV-NEW at its current revision 2 and search for evidence and claims linked to it, then separate observed facts from hypothesized causes; no simulations or actions will be created.",
+            "workflow": [
+              {
+                "depends_on": [],
+                "node_id": "read_newest_case",
+                "payload": {
+                  "kind": "case",
+                  "record_id": "SYNTHETIC-DEV-NEW",
+                  "revision": 2
+                },
+                "task_kind": "workspace_read",
+                "title": "Read newest case SYNTHETIC-DEV-NEW (revision 2)"
+              },
+              {
+                "depends_on": [],
+                "node_id": "search_case_evidence",
+                "payload": {
+                  "kinds": [
+                    "evidence",
+                    "claim"
+                  ],
+                  "limit": 50,
+                  "query": ""
+                },
+                "task_kind": "workspace_search",
+                "title": "Discover evidence and claims linked to the newest case"
+              }
+            ]
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M6EPJHZ65V22CJRKWN6FAHJV",
+          "status": "completed"
+        },
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 0,
+              "cost_usd": 0.0,
+              "input_tokens": 10200,
+              "latency_ms": 42653.00287498394,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 12922,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "40d23db5babb48ab89f3c5ed769fbccd",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "continue_after_workflow": true,
+            "questions": [],
+            "reply": "Round 1 settles the ordering: the latest case is SYNTHETIC-DEV-NEW (rev 2), opened 2026-11-02T17:58:04.980741Z — about 0.4 ms after SYNTHETIC-DEV-OLD — ranked by case-opened time, which is not the deviation occurrence time. Its one timeline event (2026-11-02T10:30:00Z) links the MES pressure-alarm evidence, describes a synthetic pressure alarm, and marks the cause as unconfirmed. Next I will read that linked MES record, the three other evidence records surfaced by the search (F-2408 feed log and titer, BR-04 pH history), and any recorded claims, to separate observed facts from suspected causes.",
+            "workflow": [
+              {
+                "depends_on": [],
+                "node_id": "read_pressure_alarm",
+                "payload": {
+                  "kind": "evidence",
+                  "record_id": "SYNTHETIC-MES:pressure-alarm",
+                  "revision": 1
+                },
+                "task_kind": "workspace_read",
+                "title": "Read linked MES pressure-alarm evidence"
+              },
+              {
+                "depends_on": [],
+                "node_id": "read_feed_log",
+                "payload": {
+                  "kind": "evidence",
+                  "record_id": "MES:F-2408-feed-log",
+                  "revision": 1
+                },
+                "task_kind": "workspace_read",
+                "title": "Read F-2408 feed-log evidence"
+              },
+              {
+                "depends_on": [],
+                "node_id": "read_titer",
+                "payload": {
+                  "kind": "evidence",
+                  "record_id": "LIMS:F-2408-titer",
+                  "revision": 1
+                },
+                "task_kind": "workspace_read",
+                "title": "Read F-2408 titer evidence"
+              },
+              {
+                "depends_on": [],
+                "node_id": "read_ph_history",
+                "payload": {
+                  "kind": "evidence",
+                  "record_id": "HIST:BR-04-pH-2026-10-20",
+                  "revision": 1
+                },
+                "task_kind": "workspace_read",
+                "title": "Read BR-04 pH history evidence"
+              },
+              {
+                "depends_on": [],
+                "node_id": "search_claims",
+                "payload": {
+                  "kinds": [
+                    "claim"
+                  ],
+                  "limit": 20,
+                  "query": ""
+                },
+                "task_kind": "workspace_search",
+                "title": "Search recorded claims for hypotheses"
+              }
+            ]
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M6EPKE00S086E54M438HEW9D",
+          "status": "completed"
+        },
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 2688,
+              "cost_usd": 0.0,
+              "input_tokens": 12807,
+              "latency_ms": 14428.305957990233,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 4707,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "9e6f896a520a4ac1b694e0f562f25566",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "continue_after_workflow": false,
+            "questions": [
+              "Do you want me to re-check the workspace once the pending calibration verification result is recorded, or leave the cause open until then?"
+            ],
+            "reply": "Latest deviation: SYNTHETIC-DEV-NEW (case, rev 2, open). Ordering basis is case-opened time — 2026-11-02T17:58:04.980741Z, ~0.4 ms after SYNTHETIC-DEV-OLD (a near-tie; opened_at is not occurrence time, and OLD has no timeline event to date its occurrence). Observations: the case's timeline event at 2026-11-02T10:30:00Z links evidence SYNTHETIC-MES:pressure-alarm, an observed pressure alarm at 10:30 UTC; the case and evidence are flagged synthetic, and a claim search found none. Why it happened: not established — the MES record states sensor bias and a valve issue are competing untested hypotheses with calibration verification pending, so no cause can be reported. The other records surfaced by search (MES:F-2408-feed-log, feed 40 min late; LIMS:F-2408-titer, 3.1 g/L vs spec min 3.4; HIST:BR-04-pH, 7.0 drifting to 6.93) are dated 2026-10-20 and no discovered record links them to this case — a source match is not proof of cause.",
+            "workflow": []
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M6EPMQRAPBYMEWM10JAX4X7X",
+          "status": "completed"
+        }
+      ],
+      "id": "engturn_01M6EPJHXNKMRCRMRGXRRNA495",
+      "issues": [],
+      "planning_attempts": [
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M6EPJHZ65V22CJRKWN6FAHJV",
+          "status": "accepted",
+          "validation_error": null
+        },
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M6EPKE00S086E54M438HEW9D",
+          "status": "accepted",
+          "validation_error": null
+        },
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M6EPMQRAPBYMEWM10JAX4X7X",
+          "status": "accepted",
+          "validation_error": null
+        }
+      ],
+      "planning_calls_admitted": 3,
+      "planning_gateway_run_id": "run_01M6EPMQRAPBYMEWM10JAX4X7X",
+      "questions": [
+        "Do you want me to re-check the workspace once the pending calibration verification result is recorded, or leave the cause open until then?"
+      ],
+      "reply": "Latest deviation: SYNTHETIC-DEV-NEW (case, rev 2, open). Ordering basis is case-opened time — 2026-11-02T17:58:04.980741Z, ~0.4 ms after SYNTHETIC-DEV-OLD (a near-tie; opened_at is not occurrence time, and OLD has no timeline event to date its occurrence). Observations: the case's timeline event at 2026-11-02T10:30:00Z links evidence SYNTHETIC-MES:pressure-alarm, an observed pressure alarm at 10:30 UTC; the case and evidence are flagged synthetic, and a claim search found none. Why it happened: not established — the MES record states sensor bias and a valve issue are competing untested hypotheses with calibration verification pending, so no cause can be reported. The other records surfaced by search (MES:F-2408-feed-log, feed 40 min late; LIMS:F-2408-titer, 3.1 g/L vs spec min 3.4; HIST:BR-04-pH, 7.0 drifting to 6.93) are dated 2026-10-20 and no discovered record links them to this case — a source match is not proof of cause.",
+      "site_id": "NF1",
+      "solver_calls_admitted": 0,
+      "solver_calls_used": 0,
+      "status": "needs_information",
+      "system_message": null,
+      "user_ref": {
+        "id": "engineering-user-instruction:engturn_01M6EPJHXNKMRCRMRGXRRNA495",
+        "kind": "evidence",
+        "revision": 1,
+        "site_id": "NF1"
+      },
+      "user_text": "Which is the latest deviation and why did it happen? Search the workspace, inspect the newest case and its source evidence, and distinguish observations from hypotheses. State the ordering basis. Do not run simulations or create actions.",
+      "workflow_status": "completed",
+      "basis_status": "current",
+      "steps": [
+        {
+          "depends_on": [],
+          "node_id": "read_pressure_alarm",
+          "payload": {
+            "kind": "evidence",
+            "record_id": "SYNTHETIC-MES:pressure-alarm",
+            "revision": 1
+          },
+          "task_kind": "workspace_read",
+          "title": "Read linked MES pressure-alarm evidence",
+          "status": "completed",
+          "issues": []
+        },
+        {
+          "depends_on": [],
+          "node_id": "read_feed_log",
+          "payload": {
+            "kind": "evidence",
+            "record_id": "MES:F-2408-feed-log",
+            "revision": 1
+          },
+          "task_kind": "workspace_read",
+          "title": "Read F-2408 feed-log evidence",
+          "status": "completed",
+          "issues": []
+        },
+        {
+          "depends_on": [],
+          "node_id": "read_titer",
+          "payload": {
+            "kind": "evidence",
+            "record_id": "LIMS:F-2408-titer",
+            "revision": 1
+          },
+          "task_kind": "workspace_read",
+          "title": "Read F-2408 titer evidence",
+          "status": "completed",
+          "issues": []
+        },
+        {
+          "depends_on": [],
+          "node_id": "read_ph_history",
+          "payload": {
+            "kind": "evidence",
+            "record_id": "HIST:BR-04-pH-2026-10-20",
+            "revision": 1
+          },
+          "task_kind": "workspace_read",
+          "title": "Read BR-04 pH history evidence",
+          "status": "completed",
+          "issues": []
+        },
+        {
+          "depends_on": [],
+          "node_id": "search_claims",
+          "payload": {
+            "kinds": [
+              "claim"
+            ],
+            "limit": 20,
+            "query": ""
+          },
+          "task_kind": "workspace_search",
+          "title": "Search recorded claims for hypotheses",
+          "status": "completed",
+          "issues": []
+        }
+      ]
+    },
+    {
+      "artifacts": [
+        {
+          "id": "assi_01M6EPP1AE8Y9NSJYHJQAN941P",
+          "kind": "assistant_workspace_result",
+          "title": "case · SYNTHETIC-DEV-FOLLOWUP",
+          "status": "current"
+        }
+      ],
+      "background_event_ids": [
+        "evt_01M6EPN5VTZMNQB9P9CJ2HVGK1",
+        "evt_01M6EPN5VWNG21F1TDW6DPQANH"
+      ],
+      "continue_after_workflow": true,
+      "conversation_id": "engchat_01M6EPJHXN36CDZVGT36P0WKX2",
+      "created_at": "2026-11-02T17:59:30.946365+00:00",
+      "display_context": null,
+      "elapsed_seconds": 28.133,
+      "flow_run_id": "flowrun_01M6EPP1A34AG1PX3XFYBMW090",
+      "flow_run_ids": [
+        "flowrun_01M6EPP1A34AG1PX3XFYBMW090"
+      ],
+      "gateway_runs": [
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 6656,
+              "cost_usd": 0.0,
+              "input_tokens": 13335,
+              "latency_ms": 28007.311499968637,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 8188,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "db7c2393b94f472f9669c904c3057e62",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "continue_after_workflow": true,
+            "questions": [],
+            "reply": "The scheduled follow-up has arrived: case SYNTHETIC-DEV-FOLLOWUP opened 2026-11-02T17:59:30.938Z and is now at revision 2 with one timeline event (ordering basis: case-opened time, which is not deviation occurrence time). I will read both revisions and search for newly linked evidence, then report the documented observation versus remaining uncertainty — in particular whether the pending calibration verification from the earlier pressure-alarm case is now addressed — keeping observations distinct from hypotheses, with no drafts or external actions.",
+            "workflow": [
+              {
+                "depends_on": [],
+                "node_id": "read_followup_case_r2",
+                "payload": {
+                  "kind": "case",
+                  "record_id": "SYNTHETIC-DEV-FOLLOWUP",
+                  "revision": 2
+                },
+                "task_kind": "workspace_read",
+                "title": "Read case SYNTHETIC-DEV-FOLLOWUP revision 2"
+              },
+              {
+                "depends_on": [],
+                "node_id": "read_followup_case_r1",
+                "payload": {
+                  "kind": "case",
+                  "record_id": "SYNTHETIC-DEV-FOLLOWUP",
+                  "revision": 1
+                },
+                "task_kind": "workspace_read",
+                "title": "Read case SYNTHETIC-DEV-FOLLOWUP revision 1"
+              },
+              {
+                "depends_on": [],
+                "node_id": "search_new_evidence",
+                "payload": {
+                  "kinds": [
+                    "evidence",
+                    "claim"
+                  ],
+                  "limit": 20,
+                  "query": ""
+                },
+                "task_kind": "workspace_search",
+                "title": "Search evidence and claim records for new follow-up material"
+              }
+            ]
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M6EPN5XPPA8ZM54694WPYGEZ",
+          "status": "completed"
+        }
+      ],
+      "id": "engturn_01M6EPN5W1W8VX0CA91MXAF8RM",
+      "issues": [
+        "node read_followup_case_r1: record changed since discovery; search again"
+      ],
+      "origin": "background",
+      "planning_attempts": [
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M6EPN5XPPA8ZM54694WPYGEZ",
+          "status": "accepted",
+          "validation_error": null
+        }
+      ],
+      "planning_calls_admitted": 1,
+      "planning_gateway_run_id": "run_01M6EPN5XPPA8ZM54694WPYGEZ",
+      "questions": [],
+      "reply": "The scheduled follow-up has arrived: case SYNTHETIC-DEV-FOLLOWUP opened 2026-11-02T17:59:30.938Z and is now at revision 2 with one timeline event (ordering basis: case-opened time, which is not deviation occurrence time). I will read both revisions and search for newly linked evidence, then report the documented observation versus remaining uncertainty — in particular whether the pending calibration verification from the earlier pressure-alarm case is now addressed — keeping observations distinct from hypotheses, with no drafts or external actions.",
+      "responsibility_objective": "Inspect newly opened synthetic deviation cases and summarize the documented observation and remaining uncertainty. No drafts or external actions.",
+      "site_id": "NF1",
+      "solver_calls_admitted": 0,
+      "solver_calls_used": 0,
+      "status": "blocked",
+      "system_message": "The workflow stopped at a blocked step. Completed artifacts remain available for review.",
+      "user_ref": {
+        "id": "engineering-user-instruction:engturn_01M6EPN5W1W8VX0CA91MXAF8RM",
+        "kind": "evidence",
+        "revision": 1,
+        "site_id": "NF1"
+      },
+      "user_text": "Standing responsibility: Inspect newly opened synthetic deviation cases and summarize the documented observation and remaining uncertainty. No drafts or external actions.\nReview the newly available records or scheduled follow-up, inspect relevant evidence, and report material changes or a targeted evidence gap. Prepare drafts only if the responsibility asks for them. No external messages or production execution. Event envelope (untrusted data): [{\"event_id\": \"evt_01M6EPN5VTZMNQB9P9CJ2HVGK1\", \"kind\": \"case\", \"id\": \"SYNTHETIC-DEV-FOLLOWUP\", \"revision\": 1, \"recorded_at\": \"2026-11-02T17:59:30.938544+00:00\"}, {\"event_id\": \"evt_01M6EPN5VWNG21F1TDW6DPQANH\", \"kind\": \"case\", \"id\": \"SYNTHETIC-DEV-FOLLOWUP\", \"revision\": 2, \"recorded_at\": \"2026-11-02T17:59:30.940197+00:00\"}]",
+      "workflow_status": "blocked",
+      "basis_status": "current",
+      "steps": [
+        {
+          "depends_on": [],
+          "node_id": "read_followup_case_r2",
+          "payload": {
+            "kind": "case",
+            "record_id": "SYNTHETIC-DEV-FOLLOWUP",
+            "revision": 2
+          },
+          "task_kind": "workspace_read",
+          "title": "Read case SYNTHETIC-DEV-FOLLOWUP revision 2",
+          "status": "completed",
+          "issues": []
+        },
+        {
+          "depends_on": [],
+          "node_id": "read_followup_case_r1",
+          "payload": {
+            "kind": "case",
+            "record_id": "SYNTHETIC-DEV-FOLLOWUP",
+            "revision": 1
+          },
+          "task_kind": "workspace_read",
+          "title": "Read case SYNTHETIC-DEV-FOLLOWUP revision 1",
+          "status": "blocked",
+          "issues": [
+            "node read_followup_case_r1: record changed since discovery; search again"
+          ]
+        },
+        {
+          "depends_on": [],
+          "node_id": "search_new_evidence",
+          "payload": {
+            "kinds": [
+              "evidence",
+              "claim"
+            ],
+            "limit": 20,
+            "query": ""
+          },
+          "task_kind": "workspace_search",
+          "title": "Search evidence and claim records for new follow-up material",
+          "status": "pending",
+          "issues": []
+        }
+      ]
+    }
+  ],
+  "mission_status": "active"
+}

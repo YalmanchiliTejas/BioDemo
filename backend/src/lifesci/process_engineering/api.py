@@ -41,7 +41,7 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
     def assess(result_id: str, ctx=Depends(ctx_dep), key: str | None = Header(None, alias="Idempotency-Key")):
         return idempotent(ctx, key, f"physical-agent-assessment:{result_id}", {}, lambda: service.interpret(ctx, result_id))
 
-    from .conversation_schemas import ConversationIn, MessageIn
+    from .conversation_schemas import ConversationIn, MessageIn, WatchIn
     conversations = p.engineering_conversations
     tasks = app.state.tasks
 
@@ -72,6 +72,14 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
     @app.get('/v1/process-model/conversations/{thread_id}')
     def get_conversation(thread_id: str, ctx=Depends(ctx_dep)):
         return conversations.get(ctx, thread_id)
+
+    @app.post('/v1/process-model/conversations/{thread_id}/responsibility')
+    def configure_responsibility(thread_id: str, body: WatchIn, ctx=Depends(ctx_dep)):
+        return p.assistant_responsibilities.configure(ctx, thread_id, body)
+
+    @app.post('/v1/process-model/conversations/{thread_id}/stop')
+    def stop_assistant_work(thread_id: str, ctx=Depends(ctx_dep)):
+        return conversations.stop(ctx, thread_id)
 
     @app.post('/v1/process-model/conversations/{thread_id}/messages')
     def send_message(thread_id: str, body: MessageIn, ctx=Depends(ctx_dep), key: str | None = Header(None, alias='Idempotency-Key')):

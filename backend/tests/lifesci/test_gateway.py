@@ -35,6 +35,16 @@ def summary(text="ok", refs=()):
     return json.dumps({"summary": text, "source_refs": list(refs)})
 
 
+def test_provider_request_cap_includes_validation_repairs(env):
+    qualify(env.reg, 'investigation_planning', 'anthropic-opus')
+    model = env.reg.profiles['anthropic-opus'].model
+    env.fake.scripts[model] = ['not JSON'] * 5
+    result = env.gw.run(TaskRequest('investigation_planning', env.ctx, prompt='Inspect scoped evidence',
+        use_cache=False, max_provider_calls=1))
+    assert result.status == 'blocked' and len(result.attempts) == 1
+    assert 'Provider request allowance exhausted' in result.issues
+
+
 def test_LS055_unqualified_routes_refused_and_unknown_tasks_not_cheap(env):
     with pytest.raises(RoutingError, match="no qualified"):
         env.gw.router.route("short_summary")

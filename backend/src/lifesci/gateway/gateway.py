@@ -43,6 +43,7 @@ class TaskRequest:
     output_validator: Callable[[dict[str, Any]], None] | None = None
     output_validation_version: str = ""
     max_validation_repairs: int | None = None
+    max_provider_calls: int | None = None
 
 
 @dataclass
@@ -131,6 +132,10 @@ class ModelGateway:
         prompt = req.prompt
         index = 0
         while index < len(chain):
+            remaining_calls = None if req.max_provider_calls is None else req.max_provider_calls - len(attempts)
+            if remaining_calls is not None and remaining_calls <= 0:
+                return self._finish(req, run_id, started, 'blocked', None, route, attempts, total_cost,
+                                    [*issues, 'Provider request allowance exhausted'])
             profile = chain[index]
             estimate = profile.cost(self._estimate_tokens(req.system + prompt), max_out)
             scopes = self._scopes(req)
@@ -140,7 +145,8 @@ class ModelGateway:
                 issues.append(str(exc))
                 return self._finish(req, run_id, started, "budget_exhausted", None, route, attempts, total_cost,
                                     issues)
-            completion, attempt_log = self._call_with_retries(profile, req.system, prompt, max_out, req.timeout_s)
+            completion, attempt_log = self._call_with_retries(profile, req.system, prompt, max_out, req.timeout_s,
+                                                             max_attempts=remaining_calls)
             attempts.extend(attempt_log)
             actual = profile.cost(completion.input_tokens, completion.output_tokens,
                                   completion.cached_tokens) if completion else 0.0
@@ -200,13 +206,13 @@ class ModelGateway:
 
     # --- provider calls -------------------------------------------------------------------
     def _call_with_retries(self, profile: ModelProfile, system: str, prompt: str, max_out: int,
-                           timeout_s: float) -> tuple[Completion | None, list[dict[str, Any]]]:
+                           timeout_s: float, *, max_attempts: int | None = None) -> tuple[Completion | None, list[dict[str, Any]]]:
         provider = self.providers.get(profile.provider)
         log: list[dict[str, Any]] = []
         if provider is None:
             log.append({"profile_id": profile.profile_id, "ok": False, "error": "provider not configured"})
             return None, log
-        for attempt in range(self.max_retries + 1):
+        for attempt in range(min(self.max_retries + 1, max_attempts) if max_attempts is not None else self.max_retries + 1):
             t0 = time.perf_counter()
             try:
                 c = provider.complete(model=profile.model, system=system, prompt=prompt,

@@ -164,7 +164,7 @@ class MissionService:
                 if o["status"] == "open" and o.get("due_at") and o["due_at"] <= now_s]
 
     def complete_obligation(self, ctx: AccessContext, mission_id: str, obligation_id: str, *,
-                            artifact_ref: dict[str, Any]) -> dict[str, Any]:
+                            artifact_ref: dict[str, Any], coalesce_missed: bool = False) -> dict[str, Any]:
         def change(s: dict[str, Any]) -> dict[str, Any]:
             obs = []
             for o in s["obligations"]:
@@ -173,7 +173,11 @@ class MissionService:
                          "completions": [*o["completions"], {"at": iso(utc_now()), "artifact": artifact_ref}]}
                     if o.get("every_minutes"):
                         base = parse_iso(o.get("due_at")) or utc_now()
-                        o["due_at"] = iso(base + timedelta(minutes=o["every_minutes"]))
+                        interval = timedelta(minutes=o['every_minutes'])
+                        next_due = base + interval
+                        if coalesce_missed and next_due <= utc_now():
+                            next_due += interval * (int((utc_now() - next_due) / interval) + 1)
+                        o["due_at"] = iso(next_due)
                     else:
                         o["status"] = "done"
                 obs.append(o)

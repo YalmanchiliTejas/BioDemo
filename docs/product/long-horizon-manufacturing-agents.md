@@ -2,6 +2,10 @@
 
 Status: revised architecture proposal, 2026-10-23. The user requested persistent context, long-running tasks, current-information updates, and proactive suggestions to improve yield and batch correctness. This expands the prior deviation-focused architecture. Details below are recommendations, not recorded user acceptance or implemented behavior.
 
+2026-11-02 clarification: the user explicitly requested a proactive assistant with OpenAI Dots as a confirmed behavior reference. The [proactive assistant architecture contract](proactive-assistant-architecture.md) records that requirement, current integration gaps, and acceptance criteria. The specific infrastructure options below remain proposals rather than implemented or validated capabilities.
+
+Local implementation: [workspace discovery and proactive mission follow-up](../research/proactive-assistant-implementation-20261102.md) now extend the existing Python gateway/flow path. That record distinguishes contract tests, real GLM checks on synthetic records, and remaining production/Prime integration work.
+
 Follow-on: the user's request to re-engineer the full life-sciences offering is developed in the [platform engineering plan](life-sciences-platform/README.md). That package contains the current detailed stack recommendation, decisions and capability checklist; this document retains the long-horizon rationale.
 
 Governing source: [Main_Culture_andETHOS.md](../../Main_Culture_andETHOS.md). Preserve the [confirmed deviation requirements](deviation-workflow-discovery.md) within this broader direction. Current research: [long-horizon reading guide](../research/long-horizon-agent-reading.md).

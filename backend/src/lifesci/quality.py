@@ -110,7 +110,8 @@ class CaseService:
         with self.store.transaction(ctx.actor_id) as tx:
             rec = tx.require(ctx.tenant_id, "case", case_id)
             self.identity.require(ctx, "propose", "case", case_id, site_id=rec.state["site_id"], tx=tx)
-            out = tx.put(ctx.tenant_id, "case", case_id, change(rec.state), expected_revision=rec.revision, action=action)
+            out = tx.put(ctx.tenant_id, "case", case_id, change(rec.state), expected_revision=rec.revision, action=action,
+                         event_type='case.updated', event_payload={'case_id': case_id, 'site_id': rec.state['site_id']})
         return {**out.state, "revision": out.revision}
 
 

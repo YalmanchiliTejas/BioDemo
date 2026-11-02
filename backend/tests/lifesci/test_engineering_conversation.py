@@ -46,6 +46,241 @@ def send(p, ctx, thread, text, **extras):
     queued = p.engineering_conversations.enqueue(ctx, thread['id'], {'text': text, 'expected_revision': thread['revision'], **extras})
     return p.engineering_conversations.run_turn(ctx, thread['id'], queued['turn_ids'][-1])
 
+
+def test_workspace_investigation_reads_latest_without_attachment_then_answers(env, monkeypatch):
+    p, ctx = env
+    older = p.cases.open(ctx, 'DEV-Z-OLD', 'priya', 'quinn', 'NF1')
+    latest = p.cases.open(ctx, 'DEV-A-NEW', 'priya', 'quinn', 'NF1')
+    p.cases.add_timeline_event(ctx, latest['case_id'], '2026-11-01T11:00:00Z',
+        'Assay outside limits. Cause unresolved; calibration check is pending.')
+    revision = p.cases.get(ctx, latest['case_id'])['revision']
+    seen = []
+    original = p.gateway.run
+    def capture(req):
+        seen.append(json.loads(req.prompt))
+        return original(req)
+    monkeypatch.setattr(p.gateway, 'run', capture)
+    fake_planner(p, [
+        {'reply': 'I will inspect the newest opened case.', 'workflow': [
+            node('inspect', 'workspace_read', {'kind': 'case', 'record_id': latest['case_id'], 'revision': revision})]},
+        {'reply': 'DEV-A-NEW is the newest opened case. The assay was outside limits; the cause is unresolved and a calibration check is pending.'}])
+    result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'What is the latest deviation and why did it happen?')
+    turn = result['turns'][-1]
+    assert turn['status'] == 'completed' and len(turn['gateway_runs']) == 2
+    assert turn['reply'].startswith('DEV-A-NEW') and not result['source_ids']
+    assert seen[0]['workspace_index']['records'][0]['id'] == latest['case_id']
+    artifacts = seen[1]['conversation'][-1]['computed_artifacts']
+    assert artifacts[0]['record']['data']['timeline'][0]['description'].startswith('Assay outside')
+    assert artifacts[0]['record']['revision'] == revision
+    assert not p.store.read().list(TENANT, 'action_intent')
+
+
+def test_workspace_search_private_threads_and_stale_revision_boundaries(env):
+    p, ctx = env
+    p.identity.assign_role(TENANT, 'other', 'msat', site_id='NF1')
+    other = p.identity.context_for(TENANT, 'other')
+    secret = p.engineering_conversations.create(other, {})
+    secret = p.engineering_conversations.enqueue(other, secret['id'], {'text': 'PRIVATE-SENTINEL', 'expected_revision': secret['revision']})
+    p.cases.open(ctx, 'visible', 'priya', 'quinn', 'NF1')
+    thread = p.engineering_conversations.create(ctx, {})
+    tools = p.engineering_conversations.workspace
+    found = tools.search(ctx, thread)
+    assert 'PRIVATE-SENTINEL' not in json.dumps(found)
+    with pytest.raises(PermissionError):
+        tools.read(ctx, thread, kind='engineering_chat_turn', record_id=secret['turn_ids'][-1], revision=1)
+    with pytest.raises(ValueError, match='changed'):
+        tools.read(ctx, thread, kind='case', record_id='visible', revision=99)
+    # Even a valid-looking explicit id cannot bypass site or tenant boundaries.
+    with p.store.transaction('fixture') as tx:
+        tx.put(TENANT, 'case', 'other-site', {'site_id': 'NF2', 'opened_at': '2026-11-02T12:00:00Z'}, expected_revision=None, action='fixture')
+    with pytest.raises(PermissionError):
+        tools.read(ctx, thread, kind='case', record_id='other-site', revision=1)
+    with pytest.raises(ValueError, match='unsupported'):
+        tools.read(ctx, thread, kind='role_assignment', record_id='any', revision=1)
+
+
+def test_workspace_reasoning_is_bounded_across_retry(env):
+    p, ctx = env
+    fake = fake_planner(p, [{'reply': 'Searching records.', 'workflow': [node('search', 'workspace_search', {'kinds': ['case']})]}] * 4)
+    result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Investigate the available cases')
+    turn = result['turns'][-1]
+    assert turn['status'] == 'blocked' and turn['planning_calls_admitted'] == 3
+    assert len(turn['flow_run_ids']) == 3 and len(turn['gateway_runs']) == 3
+    queued = p.engineering_conversations.queue_retry(ctx, result['id'])
+    retried = p.engineering_conversations.run_turn(ctx, result['id'], queued['turn_ids'][-1])
+    assert retried['turns'][-1]['planning_calls_admitted'] == 3
+    assert len(retried['turns'][-1]['gateway_runs']) == 3
+
+
+def test_workspace_draft_requires_inspected_basis_and_never_dispatches(env):
+    p, ctx = env
+    p.cases.open(ctx, 'DEV-DRAFT', 'priya', 'quinn', 'NF1')
+    proposal = {'target_system': 'LIMS', 'operation': 'request_retest', 'target_id': 'SAMPLE-1',
+        'payload': {'reason': 'Investigate assay result'},
+        'basis': [{'kind': 'case', 'id': 'DEV-DRAFT', 'revision': 1, 'site_id': 'NF1'}],
+        'rationale': 'A repeat measurement may distinguish an assay problem.',
+        'expected_result': 'A reviewed measurement with source provenance.', 'follow_up_measure': 'Review the repeat result before deciding.'}
+    fake_planner(p, [
+        {'reply': 'Preparing a draft.', 'workflow': [node('draft', 'workspace_propose_action', proposal)]},
+        {'reply': 'Inspecting the case.', 'workflow': [node('read', 'workspace_read', {'kind': 'case', 'record_id': 'DEV-DRAFT', 'revision': 1})]},
+        {'reply': 'Preparing a draft for review.', 'workflow': [node('draft', 'workspace_propose_action', proposal)]}])
+    denied = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Draft a retest request')
+    assert denied['turns'][-1]['status'] == 'blocked'
+    assert not p.store.read().list(TENANT, 'proposal')
+    allowed = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Inspect the case and draft a retest request')
+    assert allowed['turns'][-1]['status'] == 'completed'
+    props = p.store.read().list(TENANT, 'proposal')
+    assert len(props) == 1 and props[0].state['status'] == 'proposed'
+    assert props[0].state['execution_status'] == 'not_started'
+    assert not p.store.read().list(TENANT, 'action_intent')
+
+
+def test_responsibility_event_runs_once_and_restarts_without_duplicate_model_work(env):
+    from src.lifesci.runtime import run_coordinator
+    from src.lifesci.roles import agent_context_for
+    from src.lifesci.ids import iso, utc_now
+    p, ctx = env
+    thread = p.engineering_conversations.create(ctx, {})
+    thread = p.assistant_responsibilities.configure(ctx, thread['id'], {'enabled': True,
+        'objective': 'Review newly opened deviations and report missing evidence.',
+        'expected_revision': thread['revision'], 'acknowledge_inference': True, 'max_runs': 1})
+    fake_planner(p, [{'reply': 'The new case has no timeline evidence yet. Its cause remains unknown.'}])
+    p.cases.open(ctx, 'NEW-EVENT', 'priya', 'quinn', 'NF1')
+    p.missions.deliver_events(TENANT)
+    delegated = agent_context_for(ctx, p.identity)
+    act = p.missions.activate(delegated, thread['mission_id'], 'test-worker')
+    assert act.pending_event_ids
+    run_coordinator(p, delegated, act, ['events'], iso(utc_now()))
+    p.missions.release(act)
+    result = p.engineering_conversations.get(ctx, thread['id'])
+    assert len(result['turns']) == 1 and result['turns'][0]['origin'] == 'background'
+    assert result['turns'][0]['status'] == 'completed'
+    assert result['responsibility']['runs_admitted'] == 1
+    assert not p.missions.get(ctx, thread['mission_id'])['pending_event_ids']
+    # Simulate redelivery after a process restart: durable event-turn association wins.
+    with p.store.transaction('test') as tx:
+        mission = tx.require(TENANT, 'mission', thread['mission_id'])
+        tx.put(TENANT, 'mission', mission.id, {**mission.state, 'pending_event_ids': list(act.pending_event_ids)}, expected_revision=mission.revision, action='redeliver')
+    act2 = p.missions.activate(delegated, thread['mission_id'], 'replacement-worker')
+    run_coordinator(p, delegated, act2, ['events'], iso(utc_now()))
+    p.missions.release(act2)
+    repeated = p.engineering_conversations.get(ctx, thread['id'])
+    assert len(repeated['turns']) == 1 and repeated['responsibility']['runs_admitted'] == 1
+    # A genuinely new event exceeds the finite allowance; keep it pending and pause.
+    p.cases.open(ctx, 'AFTER-LIMIT', 'priya', 'quinn', 'NF1')
+    p.runtime.tick()
+    mission = p.missions.get(ctx, thread['mission_id'])
+    assert mission['status'] == 'paused_budget' and mission['pending_event_ids']
+
+
+def test_responsibility_pause_and_revoked_owner_stop_background_work(env):
+    p, ctx = env
+    thread = p.engineering_conversations.create(ctx, {})
+    request = {'enabled': True, 'objective': 'Review new deviations', 'expected_revision': thread['revision'], 'acknowledge_inference': True}
+    with pytest.raises(ValueError, match='acknowledge'):
+        p.assistant_responsibilities.configure(ctx, thread['id'], {**request, 'acknowledge_inference': False})
+    thread = p.assistant_responsibilities.configure(ctx, thread['id'], request)
+    paused = p.assistant_responsibilities.configure(ctx, thread['id'], {'enabled': False, 'expected_revision': thread['revision']})
+    p.cases.open(ctx, 'AFTER-PAUSE', 'priya', 'quinn', 'NF1')
+    p.runtime.tick()
+    assert not p.engineering_conversations.get(ctx, thread['id'])['turn_ids']
+    resumed = p.assistant_responsibilities.configure(ctx, thread['id'], {**request, 'expected_revision': paused['revision']})
+    p.cases.open(ctx, 'AFTER-REVOKE', 'priya', 'quinn', 'NF1')
+    p.identity.revoke_role(TENANT, 'priya', 'msat', site_id='NF1')
+    p.runtime.tick()
+    saved = p.store.read().require(TENANT, 'engineering_conversation', thread['id'])
+    assert not saved.state['turn_ids']
+
+
+def test_scheduled_responsibility_coalesces_missed_intervals_and_waits_without_inference(env):
+    from src.lifesci.ids import parse_iso, utc_now
+    p, ctx = env
+    thread = p.engineering_conversations.create(ctx, {})
+    thread = p.assistant_responsibilities.configure(ctx, thread['id'], {'enabled': True,
+        'objective': 'Review open deviations hourly', 'expected_revision': thread['revision'],
+        'every_minutes': 60, 'acknowledge_inference': True, 'max_runs': 2})
+    p.runtime.tick()
+    assert not p.engineering_conversations.get(ctx, thread['id'])['turn_ids']
+    with p.store.transaction('fixture') as tx:
+        mission = tx.require(TENANT, 'mission', thread['mission_id'])
+        obligations = [{**o, 'due_at': '2026-10-01T12:00:00Z'} for o in mission.state['obligations']]
+        tx.put(TENANT, 'mission', mission.id, {**mission.state, 'obligations': obligations},
+            expected_revision=mission.revision, action='fixture_overdue')
+    fake_planner(p, [{'reply': 'No new case evidence is available in the scoped workspace.'}])
+    p.runtime.tick()
+    result = p.engineering_conversations.get(ctx, thread['id'])
+    assert len(result['turns']) == 1 and result['turns'][0]['origin'] == 'background'
+    assert result['turns'][0]['status'] == 'completed'
+    ob = p.missions.get(ctx, thread['mission_id'])['obligations'][0]
+    assert parse_iso(ob['due_at']) > utc_now()
+    p.runtime.tick()
+    assert len(p.engineering_conversations.get(ctx, thread['id'])['turns']) == 1
+
+
+def test_stop_during_model_call_does_not_commit_plan_or_execute_tools(env, monkeypatch):
+    p, ctx = env
+    thread = p.engineering_conversations.create(ctx, {})
+    fake_planner(p, [{'reply': 'Searching the workspace.', 'workflow': [node('search', 'workspace_search', {'kinds': ['case']})]}])
+    run = p.gateway.run
+    def owner_stops(req):
+        output = run(req)
+        p.engineering_conversations.stop(ctx, thread['id'])
+        return output
+    monkeypatch.setattr(p.gateway, 'run', owner_stops)
+    result = send(p, ctx, thread, 'Investigate current deviations')
+    assert result['turns'][-1]['status'] == 'cancelled'
+    assert not result['turns'][-1]['artifacts']
+    assert not p.store.read().list(TENANT, 'data_flow_run')
+
+
+def test_stale_workspace_read_is_observed_and_replanned_with_current_revision(env):
+    p, ctx = env
+    p.cases.open(ctx, 'STALE-READ', 'priya', 'quinn', 'NF1')
+    fake_planner(p, [
+        {'reply': 'Inspecting a case.', 'workflow': [node('read', 'workspace_read', {'kind': 'case', 'record_id': 'STALE-READ', 'revision': 99})]},
+        {'reply': 'Using its current revision.', 'workflow': [node('read', 'workspace_read', {'kind': 'case', 'record_id': 'STALE-READ', 'revision': 1})]},
+        {'reply': 'The case has no timeline evidence yet; cause is unknown.'}])
+    result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Inspect the latest case')
+    turn = result['turns'][-1]
+    assert turn['status'] == 'completed' and turn['planning_calls_admitted'] == 3
+    assert len(turn['artifacts']) == 1 and not turn['issues']
+    assert p.store.read().require(TENANT, 'data_flow_run', turn['flow_run_ids'][0]).state['status'] == 'blocked'
+
+
+def test_event_batch_limit_retains_records_not_in_the_agent_envelope(env):
+    p, ctx = env
+    thread = p.engineering_conversations.create(ctx, {})
+    p.assistant_responsibilities.configure(ctx, thread['id'], {'enabled': True,
+        'expected_revision': thread['revision'], 'objective': 'Review new cases', 'acknowledge_inference': True})
+    fake_planner(p, [{'reply': 'The cases require timeline evidence.'}] * 2)
+    for i in range(7):
+        p.cases.open(ctx, f'EVENT-{i}', 'priya', 'quinn', 'NF1')
+    p.runtime.tick()
+    first = p.engineering_conversations.get(ctx, thread['id'])
+    assert len(first['turns'][0]['background_event_ids']) == 5
+    assert len(p.missions.get(ctx, thread['mission_id'])['pending_event_ids']) == 2
+    p.runtime.tick()
+    assert len(p.engineering_conversations.get(ctx, thread['id'])['turns']) == 2
+    assert not p.missions.get(ctx, thread['mission_id'])['pending_event_ids']
+
+
+def test_mission_corrections_are_included_in_followup_reasoning(env, monkeypatch):
+    p, ctx = env
+    thread = p.engineering_conversations.create(ctx, {})
+    p.missions.record_correction(ctx, thread['mission_id'], text='Valve failure has been ruled out.',
+        source_ref=None, claim_ref=None, rejects_hypothesis='Valve failure')
+    seen = []
+    original = p.gateway.run
+    def capture(req):
+        seen.append(json.loads(req.prompt))
+        return original(req)
+    monkeypatch.setattr(p.gateway, 'run', capture)
+    fake_planner(p, [{'reply': 'I will preserve your correction as a user assertion while looking for supporting evidence.'}])
+    send(p, ctx, thread, 'Continue the investigation')
+    memory = seen[0]['mission_context']
+    assert memory['corrections'][0]['text'] == 'Valve failure has been ruled out.'
+    assert memory['rejected_hypotheses'][0]['hypothesis'] == 'Valve failure'
+
 def test_live_route_unavailable_saves_message_without_invented_workflow(env):
     p, ctx = env
     result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Help investigate a freeze-drying temperature drift')

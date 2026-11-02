@@ -106,6 +106,8 @@ class Platform:
         self.bioprocess = BioprocessService(self)
         from .process_engineering.conversation import EngineeringConversationService
         self.engineering_conversations = EngineeringConversationService(self)
+        from .process_engineering.responsibilities import AssistantResponsibilities
+        self.assistant_responsibilities = AssistantResponsibilities(self)
         from .fermentation.service import FermentationService
         self.fermentation = FermentationService(self)
         from .collab import RemoteSessionService

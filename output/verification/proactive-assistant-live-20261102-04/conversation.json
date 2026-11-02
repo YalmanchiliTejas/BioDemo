@@ -1,0 +1,550 @@
+{
+  "case_ids": [],
+  "created_at": "2026-11-02T18:10:59.108978+00:00",
+  "dataset_ids": [],
+  "demo_enabled": false,
+  "id": "engchat_01M6EQA5X4D99A44H1MVCPNJK1",
+  "mission_id": "msn_01M6EQA5X4PBB2M55EAS1S2SQX",
+  "owner_id": "priya",
+  "responsibility": {
+    "billing": "Provider monetary billing is unknown; this is a run-count limit, not a dollar cap.",
+    "enabled": true,
+    "every_minutes": null,
+    "kinds": [
+      "case"
+    ],
+    "max_runs": 1,
+    "objective": "Inspect newly opened synthetic deviation cases and summarize the documented observation and remaining uncertainty. No drafts or external actions.",
+    "runs_admitted": 1,
+    "thread_id": "engchat_01M6EQA5X4D99A44H1MVCPNJK1",
+    "updated_at": "2026-11-02T18:12:22.134612+00:00"
+  },
+  "site_id": "NF1",
+  "source_ids": [],
+  "title": "Which is the latest deviation and why did it happen? Search the workspace, inspect the new",
+  "turn_ids": [
+    "engturn_01M6EQA5X5E8TYN0MCBEP1PFM9",
+    "engturn_01M6EQCQ0GNX64B942W9PA8BGV"
+  ],
+  "revision": 4,
+  "turns": [
+    {
+      "artifacts": [
+        {
+          "id": "assi_01M6EQB2PT2CJXSB6ZE9MD5RY6",
+          "kind": "assistant_workspace_result",
+          "title": "case · SYNTHETIC-DEV-NEW",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M6EQB2PX2TDW6ND869BYXZG3",
+          "kind": "assistant_workspace_result",
+          "title": "case · SYNTHETIC-DEV-OLD",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M6EQB2Q02SB7S4N9G2ABT6DS",
+          "kind": "assistant_workspace_result",
+          "title": "Workspace search",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M6EQCGPTK6PF3A466KGN5Y06",
+          "kind": "assistant_workspace_result",
+          "title": "evidence · SYNTHETIC-MES:pressure-alarm",
+          "status": "current"
+        }
+      ],
+      "continue_after_workflow": false,
+      "conversation_id": "engchat_01M6EQA5X4D99A44H1MVCPNJK1",
+      "created_at": "2026-11-02T18:10:59.109296+00:00",
+      "display_context": null,
+      "elapsed_seconds": 6.417,
+      "flow_run_id": null,
+      "flow_run_ids": [
+        "flowrun_01M6EQB2PQ3AQPM4R4BCAV7NBR",
+        "flowrun_01M6EQCGPMC7ACN7RS9MPXD4YJ"
+      ],
+      "gateway_runs": [
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 0,
+              "cost_usd": 0.0,
+              "input_tokens": 2996,
+              "latency_ms": 29433.66895901272,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 6663,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "2385de0ebe514ab58e90a47a376ba588",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "continue_after_workflow": true,
+            "questions": [],
+            "reply": "The index shows two open NF1 cases with opened_at timestamps under a millisecond apart — SYNTHETIC-DEV-NEW (2026-11-02T18:10:59.107984Z, rev 2, newest by opened time) and SYNTHETIC-DEV-OLD (2026-11-02T18:10:59.107599Z) — so case-opened time is only a near-tie ordering basis, not the deviation occurrence time. I'll read the newest case and the prior one for comparison, and search evidence records to trace the actual deviation timeline, then separate recorded observations from proposed causes. Per your request, I'll run no simulations and create no actions.",
+            "workflow": [
+              {
+                "depends_on": [],
+                "node_id": "read_newest_case",
+                "payload": {
+                  "kind": "case",
+                  "record_id": "SYNTHETIC-DEV-NEW",
+                  "revision": 2
+                },
+                "task_kind": "workspace_read",
+                "title": "Read newest case SYNTHETIC-DEV-NEW rev 2"
+              },
+              {
+                "depends_on": [],
+                "node_id": "read_prior_case",
+                "payload": {
+                  "kind": "case",
+                  "record_id": "SYNTHETIC-DEV-OLD",
+                  "revision": 1
+                },
+                "task_kind": "workspace_read",
+                "title": "Read case SYNTHETIC-DEV-OLD rev 1 for ordering comparison"
+              },
+              {
+                "depends_on": [],
+                "node_id": "search_evidence",
+                "payload": {
+                  "kinds": [
+                    "evidence"
+                  ],
+                  "limit": 20,
+                  "query": ""
+                },
+                "task_kind": "workspace_search",
+                "title": "Search evidence records at NF1"
+              }
+            ]
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M6EQA5YN81RXZ2XHVBN858GE",
+          "status": "completed"
+        },
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 0,
+              "cost_usd": 0.0,
+              "input_tokens": 5090,
+              "latency_ms": 47018.73920799699,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 9682,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "8b46e536887b43c28430a9cdfc162969",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "continue_after_workflow": true,
+            "questions": [],
+            "reply": "Ordering basis: case-opened time (opened_at), which is not deviation occurrence time — SYNTHETIC-DEV-NEW (opened 2026-11-02T18:10:59.107984Z) is the latest, leading SYNTHETIC-DEV-OLD by ~0.4 ms in a near-tie, and it is also the only case with a documented event, linking MES pressure-alarm evidence logged at 2026-11-02T10:30:00Z, while the older case's timeline is empty. I'll now read that linked MES record to separate recorded observations from any proposed cause, since the case itself marks the cause as unconfirmed. Per your request, no simulations will be run and no actions created.",
+            "workflow": [
+              {
+                "depends_on": [],
+                "node_id": "read_alarm_evidence",
+                "payload": {
+                  "kind": "evidence",
+                  "record_id": "SYNTHETIC-MES:pressure-alarm",
+                  "revision": 1
+                },
+                "task_kind": "workspace_read",
+                "title": "Read linked MES pressure-alarm evidence"
+              }
+            ]
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M6EQB2RY1YRD339N3N09JDFT",
+          "status": "completed"
+        },
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 576,
+              "cost_usd": 0.0,
+              "input_tokens": 5647,
+              "latency_ms": 6379.750834021252,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 1567,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "9e841de9245f4fa18d0c5d0d16bf96f3",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "continue_after_workflow": false,
+            "questions": [],
+            "reply": "Ordering by case-opened time (not deviation occurrence time), the latest deviation is SYNTHETIC-DEV-NEW (opened 2026-11-02T18:10:59.107984Z, a near-tie ~0.4 ms after SYNTHETIC-DEV-OLD), whose timeline links a synthetic MES record of a pressure alarm at 10:30 UTC on 2026-11-02. The confirmed observation is only the alarm itself; the record explicitly lists sensor bias and a valve issue as competing untested hypotheses, with calibration verification pending and no root cause confirmed. Per your request, no simulations were run and no actions were created.",
+            "workflow": []
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M6EQCGQS0GMW60YDXC1PRWXF",
+          "status": "completed"
+        }
+      ],
+      "id": "engturn_01M6EQA5X5E8TYN0MCBEP1PFM9",
+      "issues": [],
+      "planning_attempts": [
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M6EQA5YN81RXZ2XHVBN858GE",
+          "status": "accepted",
+          "validation_error": null
+        },
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M6EQB2RY1YRD339N3N09JDFT",
+          "status": "accepted",
+          "validation_error": null
+        },
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M6EQCGQS0GMW60YDXC1PRWXF",
+          "status": "accepted",
+          "validation_error": null
+        }
+      ],
+      "planning_calls_admitted": 3,
+      "planning_gateway_run_id": "run_01M6EQCGQS0GMW60YDXC1PRWXF",
+      "questions": [],
+      "reply": "Ordering by case-opened time (not deviation occurrence time), the latest deviation is SYNTHETIC-DEV-NEW (opened 2026-11-02T18:10:59.107984Z, a near-tie ~0.4 ms after SYNTHETIC-DEV-OLD), whose timeline links a synthetic MES record of a pressure alarm at 10:30 UTC on 2026-11-02. The confirmed observation is only the alarm itself; the record explicitly lists sensor bias and a valve issue as competing untested hypotheses, with calibration verification pending and no root cause confirmed. Per your request, no simulations were run and no actions were created.",
+      "site_id": "NF1",
+      "solver_calls_admitted": 0,
+      "solver_calls_used": 0,
+      "status": "completed",
+      "system_message": null,
+      "user_ref": {
+        "id": "engineering-user-instruction:engturn_01M6EQA5X5E8TYN0MCBEP1PFM9",
+        "kind": "evidence",
+        "revision": 1,
+        "site_id": "NF1"
+      },
+      "user_text": "Which is the latest deviation and why did it happen? Search the workspace, inspect the newest case and its source evidence, and distinguish observations from hypotheses. State the ordering basis. Do not run simulations or create actions.",
+      "workflow_status": "completed",
+      "basis_status": "current",
+      "steps": [
+        {
+          "depends_on": [],
+          "node_id": "read_alarm_evidence",
+          "payload": {
+            "kind": "evidence",
+            "record_id": "SYNTHETIC-MES:pressure-alarm",
+            "revision": 1
+          },
+          "task_kind": "workspace_read",
+          "title": "Read linked MES pressure-alarm evidence",
+          "status": "completed",
+          "issues": []
+        }
+      ]
+    },
+    {
+      "artifacts": [
+        {
+          "id": "assi_01M6EQDFCV8863BSQ5STXMVVVH",
+          "kind": "assistant_workspace_result",
+          "title": "case · SYNTHETIC-DEV-FOLLOWUP",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M6EQDFD05D617T2AEYP6DFFJ",
+          "kind": "assistant_workspace_result",
+          "title": "Workspace search",
+          "status": "current"
+        }
+      ],
+      "background_event_ids": [
+        "evt_01M6EQCPZTTAG08B9XMCX9Z9M7",
+        "evt_01M6EQCPZWBPVDAGC8PV0WNYZ6"
+      ],
+      "continue_after_workflow": false,
+      "conversation_id": "engchat_01M6EQA5X4D99A44H1MVCPNJK1",
+      "created_at": "2026-11-02T18:12:22.161722+00:00",
+      "display_context": null,
+      "elapsed_seconds": 6.643,
+      "flow_run_id": null,
+      "flow_run_ids": [
+        "flowrun_01M6EQDFCKK6B6W4C65A5SZ6S5"
+      ],
+      "gateway_runs": [
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 2944,
+              "cost_usd": 0.0,
+              "input_tokens": 5907,
+              "latency_ms": 24923.347875010222,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 6652,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "5bbd3011cd1a4308b74ef11d24d82942",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "continue_after_workflow": true,
+            "questions": [],
+            "reply": "Index check: the newest case is SYNTHETIC-DEV-FOLLOWUP (opened 2026-11-02T18:12:22Z, ~1.4 minutes after the earlier pair; ordering is by case-opened time, not occurrence time), while DEV-NEW (rev 2) and DEV-OLD (rev 1) show no revision change. I will read the follow-up case at its current revision 2 and inventory current evidence for any newly available records, then follow its linked timeline evidence before summarizing the documented observation versus remaining uncertainty. No drafts, simulations, or external actions.",
+            "workflow": [
+              {
+                "depends_on": [],
+                "node_id": "read_followup_case",
+                "payload": {
+                  "kind": "case",
+                  "record_id": "SYNTHETIC-DEV-FOLLOWUP",
+                  "revision": 2
+                },
+                "task_kind": "workspace_read",
+                "title": "Read SYNTHETIC-DEV-FOLLOWUP case at current revision 2"
+              },
+              {
+                "depends_on": [],
+                "node_id": "list_current_evidence",
+                "payload": {
+                  "kinds": [
+                    "evidence"
+                  ],
+                  "limit": 20
+                },
+                "task_kind": "workspace_search",
+                "title": "Inventory current evidence for newly available records"
+              }
+            ]
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M6EQCQ1E1NTK60NEPEQTGXS6",
+          "status": "completed"
+        },
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 3136,
+              "cost_usd": 0.0,
+              "input_tokens": 7397,
+              "latency_ms": 6542.275457992218,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 1533,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "d1d2fe72b0fb4358a4bd072805e15e92",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "continue_after_workflow": false,
+            "questions": [
+              "Can a MES/QMS record for the 11:30 UTC fill-weight excursion or the pending scale verification be attached as evidence to SYNTHETIC-DEV-FOLLOWUP?"
+            ],
+            "reply": "Inspection complete: SYNTHETIC-DEV-FOLLOWUP (opened 2026-11-02T18:12:22Z, newest by case-opened time, not occurrence time) documents only the observation of a synthetic fill-weight excursion at 11:30 UTC; root cause is unknown and scale verification is pending. The material gap is that its timeline entry links no evidence records and the current evidence inventory (4 unchanged records, none on fill-weight or scale) leaves the observation uncorroborated. Per the standing responsibility, no drafts, simulations, or external actions were created.",
+            "workflow": []
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M6EQDFFV1BM40SKQDRGYMC73",
+          "status": "completed"
+        }
+      ],
+      "id": "engturn_01M6EQCQ0GNX64B942W9PA8BGV",
+      "issues": [],
+      "origin": "background",
+      "planning_attempts": [
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M6EQCQ1E1NTK60NEPEQTGXS6",
+          "status": "accepted",
+          "validation_error": null
+        },
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M6EQDFFV1BM40SKQDRGYMC73",
+          "status": "accepted",
+          "validation_error": null
+        }
+      ],
+      "planning_calls_admitted": 2,
+      "planning_gateway_run_id": "run_01M6EQDFFV1BM40SKQDRGYMC73",
+      "questions": [
+        "Can a MES/QMS record for the 11:30 UTC fill-weight excursion or the pending scale verification be attached as evidence to SYNTHETIC-DEV-FOLLOWUP?"
+      ],
+      "reply": "Inspection complete: SYNTHETIC-DEV-FOLLOWUP (opened 2026-11-02T18:12:22Z, newest by case-opened time, not occurrence time) documents only the observation of a synthetic fill-weight excursion at 11:30 UTC; root cause is unknown and scale verification is pending. The material gap is that its timeline entry links no evidence records and the current evidence inventory (4 unchanged records, none on fill-weight or scale) leaves the observation uncorroborated. Per the standing responsibility, no drafts, simulations, or external actions were created.",
+      "responsibility_objective": "Inspect newly opened synthetic deviation cases and summarize the documented observation and remaining uncertainty. No drafts or external actions.",
+      "site_id": "NF1",
+      "solver_calls_admitted": 0,
+      "solver_calls_used": 0,
+      "status": "needs_information",
+      "system_message": null,
+      "user_ref": {
+        "id": "engineering-user-instruction:engturn_01M6EQCQ0GNX64B942W9PA8BGV",
+        "kind": "evidence",
+        "revision": 1,
+        "site_id": "NF1"
+      },
+      "user_text": "Standing responsibility: Inspect newly opened synthetic deviation cases and summarize the documented observation and remaining uncertainty. No drafts or external actions.\nReview the newly available records or scheduled follow-up. Inspect current source revisions, not each historical event revision. Report material changes or a targeted evidence gap. Prepare drafts only if the responsibility asks for them. No external messages or production execution. Event envelope (untrusted data): [{\"kind\": \"case\", \"id\": \"SYNTHETIC-DEV-FOLLOWUP\", \"event_revision\": 2, \"recorded_at\": \"2026-11-02T18:12:22.140070+00:00\"}]",
+      "workflow_status": "completed",
+      "basis_status": "current",
+      "steps": [
+        {
+          "depends_on": [],
+          "node_id": "read_followup_case",
+          "payload": {
+            "kind": "case",
+            "record_id": "SYNTHETIC-DEV-FOLLOWUP",
+            "revision": 2
+          },
+          "task_kind": "workspace_read",
+          "title": "Read SYNTHETIC-DEV-FOLLOWUP case at current revision 2",
+          "status": "completed",
+          "issues": []
+        },
+        {
+          "depends_on": [],
+          "node_id": "list_current_evidence",
+          "payload": {
+            "kinds": [
+              "evidence"
+            ],
+            "limit": 20
+          },
+          "task_kind": "workspace_search",
+          "title": "Inventory current evidence for newly available records",
+          "status": "completed",
+          "issues": []
+        }
+      ]
+    }
+  ],
+  "mission_status": "active"
+}
