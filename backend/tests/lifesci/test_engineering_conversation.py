@@ -47,6 +47,25 @@ def send(p, ctx, thread, text, **extras):
     return p.engineering_conversations.run_turn(ctx, thread['id'], queued['turn_ids'][-1])
 
 
+def test_empty_case_index_does_not_hide_existing_saved_assay_reviews(env):
+    p, ctx = env
+    previous = p.engineering_conversations.create(ctx, {})
+    previous = p.engineering_conversations.enqueue(ctx, previous['id'], {'expected_revision': previous['revision'],
+        'text': 'Synthetic deviations-15\nassays.csv\nresult_id,Result (mg/L)\nassay-A,1\nassay-B,9'})
+    p.engineering_conversations._update_turn(ctx, previous['turn_ids'][-1], status='completed',
+        reply='{"deviation_result_ids":["assay-A","assay-B"]}')
+    current = p.engineering_conversations.create(ctx, {})
+    current = p.engineering_conversations.enqueue(ctx, current['id'], {'expected_revision': current['revision'],
+        'text': 'What are some of the recent deviations that we have seen?'})
+    prompt = p.engineering_conversations._prompt(ctx, current, [])
+    assert prompt['workspace_index']['matching_count'] == 0
+    assert prompt['workspace_index']['searched_kinds'] == ['case']
+    saved = prompt['saved_work_index']
+    assert saved['matching_count'] == 1
+    assert saved['records'][0]['id'] == previous['turn_ids'][-1]
+    assert saved['records'][0]['classification'] == 'saved_conversation_not_verified_finding'
+
+
 def test_workspace_investigation_reads_latest_without_attachment_then_answers(env, monkeypatch):
     p, ctx = env
     older = p.cases.open(ctx, 'DEV-Z-OLD', 'priya', 'quinn', 'NF1')

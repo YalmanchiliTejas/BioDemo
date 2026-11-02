@@ -81,6 +81,8 @@ class WorkspaceTools:
                 out.append(self._summary(rec, ref))
         out.sort(key=lambda r: (r['time'] or '', r['id']), reverse=True)
         return {'records': out[:limit], 'matching_count': len(out), 'truncated': len(out) > limit,
+            'searched_kinds': list(kinds), 'query': query,
+            'coverage': 'Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.',
             'ordering': 'Descending source timestamp, then id for stable ties; case time is opened_at, NOT deviation occurrence time. Undated records sort last.',
             'scope': {'site_id': thread['site_id'], 'authorized_records_only': True},
             'warning': 'Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval.'}
