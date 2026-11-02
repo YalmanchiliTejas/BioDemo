@@ -15,11 +15,13 @@ ACTIONS={'keep':(1.,1.),'reduce_feed':(.8,1.),'increase_air':(1.,1.15),'combined
 FIELDS=('P','S','DO2','V','T')
 
 
-def simulate(paths,*,seed,factors,disturbance_h=48.,transfer_multiplier=1.,action='keep',decision_h=56.,hours=96.,solver='native',rtol=1e-7,kinetics_reference='realization'):
+def simulate(paths,*,seed,factors,disturbance_h=48.,transfer_multiplier=1.,action='keep',decision_h=56.,hours=96.,solver='native',rtol=1e-7,kinetics_reference='realization',transfer_drift_per_h=0.):
     if action not in ACTIONS:raise ValueError('Action outside frozen menu')
     if not 0<=disturbance_h<=decision_h<hours<=96:raise ValueError('Invalid clocks or unqualified horizon')
     if set(factors)!={'kla_factor','growth_factor','production_factor'}:raise ValueError('Explicit complete kinetics required')
     if any(not math.isfinite(v) or v<=0 for v in [*factors.values(),transfer_multiplier]):raise ValueError('Finite positive factors required')
+    if not math.isfinite(transfer_drift_per_h) or not -.01<=transfer_drift_per_h<=0:
+        raise ValueError('Transfer drift outside declared synthetic range')
     module=pen_module(Path(paths['pensim']),Path(paths['native']))
     env=module.PenSimEnv(pen_recipe(),fast=True);env.random_seed_ref=seed;env.ctrl_flags.Raman_spec=0;env.ctrl_flags.Dis=0
     _,state=env.reset()
@@ -33,7 +35,11 @@ def simulate(paths,*,seed,factors,disturbance_h=48.,transfer_multiplier=1.,actio
         with preserve_oxygen(module,audit,True) as restore:
             for k in range(1,int(round(hours/.2))+1):
                 t=k*.2
-                if t>disturbance_h and not changed:env.param_list[2]*=transfer_multiplier;changed=True
+                if t>disturbance_h:
+                    if not changed:env.param_list[2]*=transfer_multiplier;changed=True
+                    # Optional evaluator stress: continued transfer deterioration.
+                    # The receiving predictor keeps its unchanged step-only model.
+                    env.param_list[2]*=math.exp(transfer_drift_per_h*.2)
                 if action=='stop' and t>decision_h:stopped=True;break
                 commands=env.recipe_combo.get_values_dict_at(t)
                 if t>decision_h:

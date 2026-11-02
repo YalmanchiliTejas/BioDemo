@@ -12,7 +12,7 @@ import { cn } from '@/lib/cn';
 const NAV = [
   { href: '#platform', label: 'Platform' },
   { href: '#physics', label: 'Physics models' },
-  { href: '#case-studies', label: 'Case studies' },
+  { href: '/case-studies/', label: 'Case studies' },
   { href: '#how', label: 'How it works' },
 ];
 

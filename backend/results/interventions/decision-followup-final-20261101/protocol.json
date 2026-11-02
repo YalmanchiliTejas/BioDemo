@@ -1,0 +1,132 @@
+{
+  "version": "decision-followup-20261101-v1",
+  "frozen_utc": "2026-11-02T02:12:39.231097+00:00",
+  "model": "modal/zai-org/GLM-5.3",
+  "hypothesis": "Adding this imperfect source-calibrated model to the same agent improves constrained simulated decisions.",
+  "independent_scenarios": 24,
+  "repeats": 1,
+  "planned_agent_sessions": 48,
+  "seed_range": [
+    51001,
+    51024
+  ],
+  "sampling_seed": 20261102,
+  "cost_pilot": "Prior48-scenario freeze was stopped on observed cost before comparative analysis; its attempts remain separate and are not pooled. Final count24 and new seed sequence chosen for budget, not efficacy.",
+  "strata": [
+    "normal",
+    "moderate_loss",
+    "severe_loss"
+  ],
+  "transfer_multiplier_ranges": {
+    "normal": [
+      1.0,
+      1.0
+    ],
+    "moderate_loss": [
+      0.5,
+      0.6
+    ],
+    "severe_loss": [
+      0.4,
+      0.5
+    ]
+  },
+  "receiving_factor_ranges": {
+    "kla_factor": [
+      0.8,
+      1.2
+    ],
+    "growth_factor": [
+      0.9,
+      1.1
+    ],
+    "production_factor": [
+      0.9,
+      1.1
+    ]
+  },
+  "mismatch": "Odd case indices use continued transfer decay exp(-0.004/h) after onset; even use step-only. Prediction model is unchanged step-only; no future decay flag is shown.",
+  "decision_h": 52.0,
+  "horizon_h": 96.0,
+  "onsets_h": [
+    46.0,
+    48.0,
+    50.0
+  ],
+  "actions": {
+    "keep": [
+      1.0,
+      1.0
+    ],
+    "reduce_feed": [
+      0.8,
+      1.0
+    ],
+    "increase_air": [
+      1.0,
+      1.15
+    ],
+    "combined": [
+      0.8,
+      1.15
+    ],
+    "strong_feed_reduction": [
+      0.6,
+      1.15
+    ],
+    "stop": null
+  },
+  "source_sha256": "ee9f1066d9128f0d60afb1152a122eaf1f6ab19ba4632e8e2fae585bbc36df55",
+  "paths": {
+    "pensim": "/private/tmp/sievance-pensim-20261101",
+    "smpl": "/private/tmp/biodemo-smpl-source",
+    "native": "/private/tmp/biodemo-audited-native"
+  },
+  "system_prompt": "Investigate this simulated receiving fermentation and recommend one reviewable intervention. Use only the public observations and tools. Source and receiving processes differ; hidden parameters/states and future outcomes are unavailable. All routine assays carry sample and availability clocks. You may request one extra assay; the process runs KEEP while waiting. Compare bounded interventions when useful. Avoid oxygen-constraint violations and retain product mass; concentration alone is insufficient. A stop produces zero counted production. Normal cases may need no intervention. A physics tool, if available, is an imperfect source-calibrated prediction, not truth. Explain evidence, alternatives, uncertainty and your chosen action. Submit once via submit_decision; its predictions object must be empty because this task evaluates interventions separately from forecasting. No action is approved or executed on physical equipment.\nDecision priorities, in this order:\n1. The post-decision DO >= 2 mg/L limit is a HARD constraint at every remaining simulated time. Product mass never compensates for violating it.\n2. Do not select an operating plan that available evidence predicts violates that limit. In particular, a centrally predicted infeasible plan is NOT justified by one favorable member of an uncalibrated sensitivity set. Those members are not probabilities.\n3. If no operating plan can be justified as meeting the constraint, submit stop and explain the evidence gap or infeasibility. Stop is an available decision, not a tool failure. Prefer a supported feasible operating plan over an unnecessary stop. Stable normal observations do not by themselves require a stop.\n4. Among supported feasible plans, retain product mass. Inspect alternatives using available tools; account for forecast error and model mismatch. No guarantee of physical safety is established.\nObservation lists use lossless tables: columns define each row; missing values are null. For columns present in dictionaries, a row entry is an integer index into that column's dictionary. All original observations and assay availability times are preserved. The model tool, if available, decodes the same tables. Decode indices before numerical analysis.\n",
+  "wall_seconds": 180,
+  "max_model_calls": 8,
+  "max_output_tokens": 4096,
+  "workers": 2,
+  "representation": "Lossless column tables; identical A/B evidence; no observations removed.",
+  "primary": "Paired rate of correct constrained decisions: feasible operation if any menu plan feasible; stop otherwise. Failed submissions count incorrect.",
+  "secondary": [
+    "violating operation rate",
+    "correct stop rate",
+    "unnecessary stop rate",
+    "product mass alongside feasibility",
+    "constraint-feasible product mass (zero for violations or stops)",
+    "model-only comparison on identical public evidence",
+    "completion and wall time"
+  ],
+  "analysis": "Average repetitions per scenario. Paired bootstrap 20000 draws over scenarios; unadjusted descriptive95% intervals. No case replacement or sample extension. Report all prespecified strata and both mismatch groups.",
+  "success_rule": "Primary benefit supported within this simulator only if lower paired95% bound >0 and no increase in violating-operation rate. Otherwise inconclusive/negative. No empirical manufacturing claim.",
+  "scope": "Exploratory new synthetic decision cases after development diagnosis; shared equation family; selected uncertainty ranges are assumptions. Not independent physical validation or end-to-end product evaluation.",
+  "code_sha256": {
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/physical_quality.py": "6b866219ee95a36b45a7bd05a6fe6558a33fe021b48738bbce0d68a4f1ff420b",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/physical_replay.py": "a78bf4fecf7780d833eda615678c474031ca9970c52becf05a616d9d6988b785",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/plot.py": "60a73ca915356fc146bb9b57e3b5c7f313847cda3af81c3c2e5e792db5f24ed8",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/development_demo.py": "05b08a26cef934d55c000b481a2321c636f4af45114b5c593813ce87ed255581",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/followup_report.py": "2ba6bbb53e82e4a49bdfa97bccc34cdb51ed0a3ec7ff7998c4d76abb00fc3273",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/smpl_model.py": "62a5df9758546ad1aa2f2afcf99f276ff1156b37e890c7882dce49b07f0f40c6",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/session.py": "30afadd0f422ffdbe28b69ad2da597c510ebd8fde84d51345792b0dae702a872",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/prospective.py": "0c68c5fc9496235bbfca8cb020518f988eeb17202c60a168cd53de2303af3a61",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/__init__.py": "945c9fb8228752019531ca424df7f64a5f64c13cf15387b817719509e280dc1b",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/recoverability.py": "81ba30b14a9dc27ab9701ac37e46a8d4136bf5aaa01fb71f6d0baceb84346a65",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/physical_data.py": "e6e71b8e10b588bd5827b1ce612553440720a0b900c1cbec58eee6d6876010ab",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/model.py": "058e135887eeceffb3d7e08da6ae975f450b5d82ee4cc775e029cf20fa2fe39e",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/run_agents.py": "8a64390d2c7ed3799c196214906403c600867d18251c3cffdb0f88f8874b1e85",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/followup.py": "165cb875cf8f0ae78081f312bd9f56740a4954accf4ba3b4ff1a83c89d1263d6",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/pensim.py": "ca09ea45520c3344b0eb1ffd6181eee6d92026c92caf7f8e2c281adf376530d2",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/qualification.py": "7704c8c01232dddc4015d54f68b0f86e3c8c361df91695c02797db3a7722bcf4",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/smpl_observations.py": "838780186b9450a7be3a6b73968c13e623453c2a4eca4bbbb665e3c1b339b497",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/followup_diagnosis.py": "c805a46fd37e92df1eeef25fbaffb1d7701c32daeb2f6f161dde8f7ff9212c22",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/report.py": "f340bf088e7116fce5d5f62de55fae4ade75c0d3f4be8472b0794d703ee35fe3",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/interventions/sdk_intervention.mjs": "e85b65f4e3449431727b2048e770f66c623d359c023f6504aa8396bc47201f8f",
+    "/Users/tejas/Desktop/BioDemo/backend/scripts/run_bounded_agent_benchmark.py": "fe993eb28142016be94478c36b921f20996ac13c0769a10b6434c41e7c95e0b2",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/external_simulators/upstream.py": "7bb7c4830ccb68277db8aee130d553b514c2329bc7e3303c58489bf4f23a5da1",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/external_simulators/oxygen.py": "e03594554be3a140043ccb75caf597f5c3c8a02b813f8075e45d68eff8db612e",
+    "/Users/tejas/Desktop/BioDemo/backend/benchmarks/external_simulators/run_agents.py": "3cc674081d25621fd873b165958ae428f2521bca5285fb6d89e3210770c44b58",
+    "/private/tmp/sievance-pensim-20261101/pensimpy/ode/indpensim_ode_py.py": "696fb78dec5e5bb25ef08e8fac867e46c6f20ec98fe6df35d6491a78ec0a8bcf",
+    "/private/tmp/sievance-pensim-20261101/pensimpy/peni_env_setup.py": "82d60af94f39605724f02ed60142c6a42e7ac609beead2db636231888a74ab5b"
+  }
+}

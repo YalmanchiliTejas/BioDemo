@@ -118,6 +118,7 @@ const unsubscribe = session.subscribe(event => {
   if (event.type === 'message_end' && event.message?.role === 'assistant') {
     usage.push(event.message.usage ?? null);
     emit({ type: 'model_usage', usage: event.message.usage ?? null,
+      model: event.message.model ?? null, provider: event.message.provider ?? null,
       stop_reason: event.message.stopReason,
       content_types: (event.message.content ?? []).map(block => block.type) });
   }

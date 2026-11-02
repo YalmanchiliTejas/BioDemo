@@ -1,0 +1,188 @@
+{
+  "status": "completed",
+  "arm": "A",
+  "model": "modal/zai-org/GLM-5.3",
+  "submission": {
+    "action_id": "strong_feed_reduction",
+    "evidence": [
+      "Receiving DO online sensor: 11.42 mg/L at t=239 h vs 2.14 mg/L at t=240 h \u2014 abrupt step collapse",
+      "Receiving DO declining below the 2.0 mg/L hard limit from t\u2248249 h through t=259 h (1.93, 1.81, 1.59, 1.47 mg/L), ~-0.07 mg/L/h",
+      "Delayed product assays: P rising 0.0 (t=179) -> 0.95 (t=199) -> 2.76 g/L (t=239); product accumulating, so stop forfeits mass",
+      "No analogous DO collapse in source-1/2/3, indicating a receiving-specific oxygen-transfer/demand fault and making source-based forecasts unreliable",
+      "Allowed action bounds: strong_feed_reduction = [0.6 feed, 1.15 air] is the maximal bounded demand-cut plus supply-increase combination"
+    ],
+    "predictions": {},
+    "rationale": "The receiving fermenter's online DO sensor shows an abrupt collapse at t=240 h from ~11.4 mg/L to ~2.1 mg/L, followed by a steady decline to 1.47 mg/L by t=259 h \u2014 it has already breached the 2.0 mg/L hard limit and the central trend predicts continued violation under KEEP. Product assays show active production (2.76 g/L at t=239, available t=259), so a stop would forfeit substantial product mass, while KEEP is predicted to violate the hard oxygen constraint. Among the bounded interventions, strong_feed_reduction (feed to 60%, air to 115%) provides the largest reduction in oxygen demand combined with increased oxygen transfer, giving the widest margin for the process to recover above 2 mg/L; the gentler options (reduce_feed, increase_air, combined) leave less margin against a deficit that has already driven DO below the limit. No extra assay was requested because its 4 h turnaround would allow further KEEP-operation below the hard limit.",
+    "uncertainty": "The receiving process differs from the calibrated source processes; hidden parameters (oxygen uptake kinetics, transfer-fault magnitude) are unavailable and no physics tool is provided, so the recovery magnitude under a 60% feed / 115% air regime is a projection, not a guarantee. If the underlying fault is more severe than the observed drift implies, even strong_feed_reduction may fail to restore DO >= 2 mg/L, in which case a stop would become the correct decision. Sensor noise is present but the collapse from 11.4 to ~2 mg/L over one sample interval and the persistent decline are far outside noise."
+  },
+  "evaluation": {
+    "proposal": {
+      "action_id": "strong_feed_reduction",
+      "decision_time_h": 52.0,
+      "rationale": "The receiving fermenter's online DO sensor shows an abrupt collapse at t=240 h from ~11.4 mg/L to ~2.1 mg/L, followed by a steady decline to 1.47 mg/L by t=259 h \u2014 it has already breached the 2.0 mg/L hard limit and the central trend predicts continued violation under KEEP. Product assays show active production (2.76 g/L at t=239, available t=259), so a stop would forfeit substantial product mass, while KEEP is predicted to violate the hard oxygen constraint. Among the bounded interventions, strong_feed_reduction (feed to 60%, air to 115%) provides the largest reduction in oxygen demand combined with increased oxygen transfer, giving the widest margin for the process to recover above 2 mg/L; the gentler options (reduce_feed, increase_air, combined) leave less margin against a deficit that has already driven DO below the limit. No extra assay was requested because its 4 h turnaround would allow further KEEP-operation below the hard limit.",
+      "uncertainty": "The receiving process differs from the calibrated source processes; hidden parameters (oxygen uptake kinetics, transfer-fault magnitude) are unavailable and no physics tool is provided, so the recovery magnitude under a 60% feed / 115% air regime is a projection, not a guarantee. If the underlying fault is more severe than the observed drift implies, even strong_feed_reduction may fail to restore DO >= 2 mg/L, in which case a stop would become the correct decision. Sensor noise is present but the collapse from 11.4 to ~2 mg/L over one sample interval and the persistent decline are far outside noise.",
+      "evidence": [
+        "Receiving DO online sensor: 11.42 mg/L at t=239 h vs 2.14 mg/L at t=240 h \u2014 abrupt step collapse",
+        "Receiving DO declining below the 2.0 mg/L hard limit from t\u2248249 h through t=259 h (1.93, 1.81, 1.59, 1.47 mg/L), ~-0.07 mg/L/h",
+        "Delayed product assays: P rising 0.0 (t=179) -> 0.95 (t=199) -> 2.76 g/L (t=239); product accumulating, so stop forfeits mass",
+        "No analogous DO collapse in source-1/2/3, indicating a receiving-specific oxygen-transfer/demand fault and making source-based forecasts unreliable",
+        "Allowed action bounds: strong_feed_reduction = [0.6 feed, 1.15 air] is the maximal bounded demand-cut plus supply-increase combination"
+      ],
+      "approval_status": "not_approved_for_manufacturing",
+      "execution": "virtual_replay_only"
+    },
+    "outcome": {
+      "action_id": "strong_feed_reduction",
+      "stopped": false,
+      "product_mass_kg": 157.69375907920988,
+      "terminal_concentration_g_l": 2.026763175430855,
+      "terminal_volume_l": 77805.71553244592,
+      "pre_decision": {
+        "below_limit_h": 2.2,
+        "oxygen_deficit_mg_h_l": 0.2549678400769973,
+        "minimum_do_mg_l": 1.6540169079433797
+      },
+      "post_decision": {
+        "below_limit_h": 9.200000000000001,
+        "oxygen_deficit_mg_h_l": 5.59112571274345,
+        "minimum_do_mg_l": 1.0566718597968725
+      },
+      "whole_process": {
+        "below_limit_h": 11.4,
+        "oxygen_deficit_mg_h_l": 5.846093552820448,
+        "minimum_do_mg_l": 1.0566718597968725
+      },
+      "post_decision_feasible": false,
+      "stop_avoided_further_operation": false,
+      "measured_product_quality": null,
+      "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+      "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+    },
+    "measurement_requests": 0,
+    "assumed_measurement_work_minutes": 0.0,
+    "physical_decision_delay_h": 0.0,
+    "events": [
+      {
+        "kind": "recommendation",
+        "proposal": {
+          "action_id": "strong_feed_reduction",
+          "decision_time_h": 52.0,
+          "rationale": "The receiving fermenter's online DO sensor shows an abrupt collapse at t=240 h from ~11.4 mg/L to ~2.1 mg/L, followed by a steady decline to 1.47 mg/L by t=259 h \u2014 it has already breached the 2.0 mg/L hard limit and the central trend predicts continued violation under KEEP. Product assays show active production (2.76 g/L at t=239, available t=259), so a stop would forfeit substantial product mass, while KEEP is predicted to violate the hard oxygen constraint. Among the bounded interventions, strong_feed_reduction (feed to 60%, air to 115%) provides the largest reduction in oxygen demand combined with increased oxygen transfer, giving the widest margin for the process to recover above 2 mg/L; the gentler options (reduce_feed, increase_air, combined) leave less margin against a deficit that has already driven DO below the limit. No extra assay was requested because its 4 h turnaround would allow further KEEP-operation below the hard limit.",
+          "uncertainty": "The receiving process differs from the calibrated source processes; hidden parameters (oxygen uptake kinetics, transfer-fault magnitude) are unavailable and no physics tool is provided, so the recovery magnitude under a 60% feed / 115% air regime is a projection, not a guarantee. If the underlying fault is more severe than the observed drift implies, even strong_feed_reduction may fail to restore DO >= 2 mg/L, in which case a stop would become the correct decision. Sensor noise is present but the collapse from 11.4 to ~2 mg/L over one sample interval and the persistent decline are far outside noise.",
+          "evidence": [
+            "Receiving DO online sensor: 11.42 mg/L at t=239 h vs 2.14 mg/L at t=240 h \u2014 abrupt step collapse",
+            "Receiving DO declining below the 2.0 mg/L hard limit from t\u2248249 h through t=259 h (1.93, 1.81, 1.59, 1.47 mg/L), ~-0.07 mg/L/h",
+            "Delayed product assays: P rising 0.0 (t=179) -> 0.95 (t=199) -> 2.76 g/L (t=239); product accumulating, so stop forfeits mass",
+            "No analogous DO collapse in source-1/2/3, indicating a receiving-specific oxygen-transfer/demand fault and making source-based forecasts unreliable",
+            "Allowed action bounds: strong_feed_reduction = [0.6 feed, 1.15 air] is the maximal bounded demand-cut plus supply-increase combination"
+          ],
+          "approval_status": "not_approved_for_manufacturing",
+          "execution": "virtual_replay_only"
+        }
+      },
+      {
+        "kind": "simulated_outcome",
+        "outcome": {
+          "action_id": "strong_feed_reduction",
+          "stopped": false,
+          "product_mass_kg": 157.69375907920988,
+          "terminal_concentration_g_l": 2.026763175430855,
+          "terminal_volume_l": 77805.71553244592,
+          "pre_decision": {
+            "below_limit_h": 2.2,
+            "oxygen_deficit_mg_h_l": 0.2549678400769973,
+            "minimum_do_mg_l": 1.6540169079433797
+          },
+          "post_decision": {
+            "below_limit_h": 9.200000000000001,
+            "oxygen_deficit_mg_h_l": 5.59112571274345,
+            "minimum_do_mg_l": 1.0566718597968725
+          },
+          "whole_process": {
+            "below_limit_h": 11.4,
+            "oxygen_deficit_mg_h_l": 5.846093552820448,
+            "minimum_do_mg_l": 1.0566718597968725
+          },
+          "post_decision_feasible": false,
+          "stop_avoided_further_operation": false,
+          "measured_product_quality": null,
+          "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+          "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+        }
+      }
+    ],
+    "observed_human_time_saved": null
+  },
+  "wall_seconds": 13.039645750017371,
+  "model_calls": 2,
+  "usage": [
+    {
+      "input": 64825,
+      "output": 1502,
+      "cacheRead": 960,
+      "cacheWrite": 0,
+      "totalTokens": 67287,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    },
+    {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 0,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    }
+  ],
+  "tools": [
+    {
+      "name": "submit_decision",
+      "arguments": {
+        "action_id": "strong_feed_reduction",
+        "evidence": [
+          "Receiving DO online sensor: 11.42 mg/L at t=239 h vs 2.14 mg/L at t=240 h \u2014 abrupt step collapse",
+          "Receiving DO declining below the 2.0 mg/L hard limit from t\u2248249 h through t=259 h (1.93, 1.81, 1.59, 1.47 mg/L), ~-0.07 mg/L/h",
+          "Delayed product assays: P rising 0.0 (t=179) -> 0.95 (t=199) -> 2.76 g/L (t=239); product accumulating, so stop forfeits mass",
+          "No analogous DO collapse in source-1/2/3, indicating a receiving-specific oxygen-transfer/demand fault and making source-based forecasts unreliable",
+          "Allowed action bounds: strong_feed_reduction = [0.6 feed, 1.15 air] is the maximal bounded demand-cut plus supply-increase combination"
+        ],
+        "predictions": {},
+        "rationale": "The receiving fermenter's online DO sensor shows an abrupt collapse at t=240 h from ~11.4 mg/L to ~2.1 mg/L, followed by a steady decline to 1.47 mg/L by t=259 h \u2014 it has already breached the 2.0 mg/L hard limit and the central trend predicts continued violation under KEEP. Product assays show active production (2.76 g/L at t=239, available t=259), so a stop would forfeit substantial product mass, while KEEP is predicted to violate the hard oxygen constraint. Among the bounded interventions, strong_feed_reduction (feed to 60%, air to 115%) provides the largest reduction in oxygen demand combined with increased oxygen transfer, giving the widest margin for the process to recover above 2 mg/L; the gentler options (reduce_feed, increase_air, combined) leave less margin against a deficit that has already driven DO below the limit. No extra assay was requested because its 4 h turnaround would allow further KEEP-operation below the hard limit.",
+        "uncertainty": "The receiving process differs from the calibrated source processes; hidden parameters (oxygen uptake kinetics, transfer-fault magnitude) are unavailable and no physics tool is provided, so the recovery magnitude under a 60% feed / 115% air regime is a projection, not a guarantee. If the underlying fault is more severe than the observed drift implies, even strong_feed_reduction may fail to restore DO >= 2 mg/L, in which case a stop would become the correct decision. Sensor noise is present but the collapse from 11.4 to ~2 mg/L over one sample interval and the persistent decline are far outside noise."
+      },
+      "result": {
+        "accepted": true,
+        "decision_frozen": true
+      },
+      "wall_seconds": 0.16860979096964002
+    }
+  ],
+  "error": null,
+  "capability_audit": {
+    "type": "capability_audit",
+    "active_tools": [
+      "python_analysis",
+      "request_measurement",
+      "submit_decision"
+    ],
+    "native_kernel": false,
+    "children": false,
+    "external_retrieval": false,
+    "cwd_memory_loaded": false,
+    "model": "modal/zai-org/GLM-5.3",
+    "shared_tool_schema_sha256": "bef6c5f94bbfb0b78063a8384f18ded77219ada49d9017ed23bb625453b93706"
+  },
+  "provider_billing": "unknown",
+  "real_equipment_actions": false
+}

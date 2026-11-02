@@ -1,4 +1,4 @@
-import { BookOpen, Building2, Database, FlaskConical, FolderKanban, LayoutDashboard, MessageSquare, PackageCheck, UserRound, type LucideIcon } from 'lucide-react';
+import { Building2, Database, FlaskConical, FolderKanban, LayoutDashboard, MessageSquare, PackageCheck, UserRound, type LucideIcon } from 'lucide-react';
 
 /** One entry per destination; the sidebar, page breadcrumbs and quick find all read from this list. */
 export type NavItem = { label: string; href: string; icon: LucideIcon; description: string; guide?: string; keywords?: string };
@@ -16,7 +16,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     id: 'explore', label: 'Explore', items: [
       { label: 'Simulation', href: '/process-simulation', icon: FlaskConical, guide: 'simulation', description: 'Compare process scenarios and predicted outcomes', keywords: 'freeze drying lyophilization transfer physics' },
-      { label: 'Case studies', href: '/case-studies', icon: BookOpen, description: 'Worked examples with published evidence', keywords: 'benchmark sulfolobus pichia indpensim sanofi' },
     ],
   },
   {

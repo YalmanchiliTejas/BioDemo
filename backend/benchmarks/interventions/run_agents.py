@@ -12,13 +12,13 @@ from benchmarks.external_simulators.run_agents import numerical
 SYSTEM='''Investigate this simulated receiving fermentation and recommend one reviewable intervention. Use only the public observations and tools. Source and receiving processes differ; hidden parameters/states and future outcomes are unavailable. All routine assays carry sample and availability clocks. You may request one extra assay; the process runs KEEP while waiting. Compare bounded interventions when useful. Avoid oxygen-constraint violations and retain product mass; concentration alone is insufficient. A stop produces zero counted production. Normal cases may need no intervention. A physics tool, if available, is an imperfect source-calibrated prediction, not truth. Explain evidence, alternatives, uncertainty and your chosen action. Submit once via submit_decision; its predictions object must be empty because this task evaluates interventions separately from forecasting. No action is approved or executed on physical equipment.'''
 
 
-def attempt(session,arm,model,output,*,wall_seconds=180):
+def attempt(session,arm,model,output,*,wall_seconds=180,system_prompt=None,max_model_calls=10,max_output_tokens=8192):
     output=output.resolve();output.mkdir(parents=True,exist_ok=True)
     if (output/'run.json').exists():raise ValueError('Never overwrite an attempt')
     packet=session.public_packet();(output/'packet.json').write_text(json.dumps(packet,indent=2)+'\n')
     request={'type':'initialize','bundle_root':str(DEFAULT_PRIME_BUNDLE),'cwd':str(output),'model':model,
-        'task':'intervention','arm':arm,'system_prompt':SYSTEM,'prompt':json.dumps(packet),
-        'timeout_seconds':wall_seconds,'max_model_calls':10,'max_output_tokens':8192,
+        'task':'intervention','arm':arm,'system_prompt':system_prompt or SYSTEM,'prompt':json.dumps(packet),
+        'timeout_seconds':wall_seconds,'max_model_calls':max_model_calls,'max_output_tokens':max_output_tokens,
         'public_schema':{'actions':list(packet['allowed_actions']),'forecast_fields':[],'measurements':['extra_product_assay']},'preflight':False}
     proc=subprocess.Popen([shutil.which('node'),str(Path(__file__).with_name('sdk_intervention.mjs').resolve())],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1,start_new_session=True)
     events=queue.Queue();logs=[];errors=[];submitted=None;receipt=None;finished={};history=[];started=time.monotonic()

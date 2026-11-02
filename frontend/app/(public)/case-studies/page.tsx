@@ -3,8 +3,8 @@ import Link from 'next/link';
 import CaseStudies from '@/components/process/CaseStudies';
 
 export const metadata: Metadata = {
-  title: 'Manufacturing workflow benchmarks and case studies',
-  description: 'Inspect Sievance workflow precision, recall, local latency, investigation attempts, source evidence and retained failures. Public access; no account required.',
+  title: { absolute: 'Case studies | Sievance' },
+  description: 'See the measured GLM-5.3 decision comparison, real-data findings and published manufacturing examples through charts, case records and reproducible evidence. No account required.',
 };
 
 export default function PublicCaseStudies() {
@@ -16,7 +16,7 @@ export default function PublicCaseStudies() {
         <div className="flex items-center gap-5 text-sm"><Link href="/" className="hidden text-text-secondary hover:underline sm:inline">Product</Link><Link href="/sign-in/" className="whitespace-nowrap rounded-lg bg-brand-teal px-4 py-2 font-medium text-white">Open workspace</Link></div>
       </nav>
     </header>
-    <main id="case-study-content" className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 sm:py-12"><CaseStudies/></main>
+    <main id="case-study-content" className="mx-auto max-w-[1200px] px-5 py-8 sm:px-8 sm:py-10"><CaseStudies/></main>
     <footer className="border-t border-border-hairline px-5 py-6 text-center text-xs leading-5 text-text-secondary">Published evidence, simulated outcomes and live product runs are labeled separately. No production changes are authorized by these examples.</footer>
   </div>;
 }

@@ -1,0 +1,315 @@
+{
+  "status": "completed",
+  "arm": "B",
+  "model": "modal/zai-org/GLM-5.3",
+  "submission": {
+    "action_id": "keep",
+    "evidence": [
+      "Receiving online DO sensor at t=51.8h (available 52.0h): 12.15 mg/L, far above the 2 mg/L hard limit",
+      "Receiving delayed assay P at t=239h (available 259h): 3.25 g/L, consistent with normal trajectory",
+      "physical_forward_model(keep): post-decision minimum DO 9.28 mg/L, 0 hours below limit, product mass 576.3 kg",
+      "Sensitivity set for keep: all 5 members feasible, minimum DO range 8.11-10.20 mg/L",
+      "Source batch references (source-1/2/3) show DO troughs of ~7.4-8.8 mg/L late in run, still well above 2 mg/L"
+    ],
+    "predictions": {},
+    "rationale": "KEEP is supported. The receiving fermentation at the decision time (52h) shows healthy online DO around 12 mg/L, well above the 2 mg/L hard constraint, and a normal product trajectory (3.25 g/L at the most recent delayed assay, t=239h source-clock). The source-calibrated forward model for KEEP predicts no violation post-decision: minimum DO 9.28 mg/L (all 5 sensitivity members feasible, range 8.11-10.20), zero hours below limit, and product mass ~576 kg retained. Alternative actions (reduce_feed, strong_feed_reduction, increase_air, combined) would reduce product mass or alter air without any constraint benefit, and a stop would forfeit all counted production. No evidence predicts a constraint violation under KEEP.",
+    "uncertainty": "The forward model is a nominal source-calibrated prediction, not truth; the hidden receiving realization may differ (model mismatch). However, the constraint margin is large: predicted minimum DO (~8.1-10.2 mg/L across the sensitivity set) is roughly 4-5x the 2 mg/L limit, and current measured DO is ~12 mg/L, so even substantial forecast error is unlikely to cause a violation. The sensitivity set is not a probability distribution; feasibility robustness rather than likelihood is what supports KEEP."
+  },
+  "evaluation": {
+    "proposal": {
+      "action_id": "keep",
+      "decision_time_h": 52.0,
+      "rationale": "KEEP is supported. The receiving fermentation at the decision time (52h) shows healthy online DO around 12 mg/L, well above the 2 mg/L hard constraint, and a normal product trajectory (3.25 g/L at the most recent delayed assay, t=239h source-clock). The source-calibrated forward model for KEEP predicts no violation post-decision: minimum DO 9.28 mg/L (all 5 sensitivity members feasible, range 8.11-10.20), zero hours below limit, and product mass ~576 kg retained. Alternative actions (reduce_feed, strong_feed_reduction, increase_air, combined) would reduce product mass or alter air without any constraint benefit, and a stop would forfeit all counted production. No evidence predicts a constraint violation under KEEP.",
+      "uncertainty": "The forward model is a nominal source-calibrated prediction, not truth; the hidden receiving realization may differ (model mismatch). However, the constraint margin is large: predicted minimum DO (~8.1-10.2 mg/L across the sensitivity set) is roughly 4-5x the 2 mg/L limit, and current measured DO is ~12 mg/L, so even substantial forecast error is unlikely to cause a violation. The sensitivity set is not a probability distribution; feasibility robustness rather than likelihood is what supports KEEP.",
+      "evidence": [
+        "Receiving online DO sensor at t=51.8h (available 52.0h): 12.15 mg/L, far above the 2 mg/L hard limit",
+        "Receiving delayed assay P at t=239h (available 259h): 3.25 g/L, consistent with normal trajectory",
+        "physical_forward_model(keep): post-decision minimum DO 9.28 mg/L, 0 hours below limit, product mass 576.3 kg",
+        "Sensitivity set for keep: all 5 members feasible, minimum DO range 8.11-10.20 mg/L",
+        "Source batch references (source-1/2/3) show DO troughs of ~7.4-8.8 mg/L late in run, still well above 2 mg/L"
+      ],
+      "approval_status": "not_approved_for_manufacturing",
+      "execution": "virtual_replay_only"
+    },
+    "outcome": {
+      "action_id": "keep",
+      "stopped": false,
+      "product_mass_kg": 633.9155403333447,
+      "terminal_concentration_g_l": 7.598762276237613,
+      "terminal_volume_l": 83423.52573861757,
+      "pre_decision": {
+        "below_limit_h": 0.0,
+        "oxygen_deficit_mg_h_l": 0.0,
+        "minimum_do_mg_l": 9.485513610381192
+      },
+      "post_decision": {
+        "below_limit_h": 0.0,
+        "oxygen_deficit_mg_h_l": 0.0,
+        "minimum_do_mg_l": 8.840237786505531
+      },
+      "whole_process": {
+        "below_limit_h": 0.0,
+        "oxygen_deficit_mg_h_l": 0.0,
+        "minimum_do_mg_l": 8.840237786505531
+      },
+      "post_decision_feasible": true,
+      "stop_avoided_further_operation": false,
+      "measured_product_quality": null,
+      "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+      "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+    },
+    "measurement_requests": 0,
+    "assumed_measurement_work_minutes": 0.0,
+    "physical_decision_delay_h": 0.0,
+    "events": [
+      {
+        "kind": "model_prediction",
+        "action_id": "keep",
+        "time_h": 52.0,
+        "result": {
+          "classification": "model_prediction_not_observation",
+          "model_update": {
+            "time_h": 52.0,
+            "estimated_change_h": 44.0,
+            "estimated_transfer_multiplier": 1.1536885299666904,
+            "cost": 11.02568820168466,
+            "latest_observation_h": 52.0
+          },
+          "outcome_prediction": {
+            "action_id": "keep",
+            "stopped": false,
+            "product_mass_kg": 576.2805916683336,
+            "terminal_concentration_g_l": 6.8769265153525865,
+            "terminal_volume_l": 83799.14928301181,
+            "pre_decision": {
+              "below_limit_h": 0.0,
+              "oxygen_deficit_mg_h_l": 0.0,
+              "minimum_do_mg_l": 8.533067635858181
+            },
+            "post_decision": {
+              "below_limit_h": 0.0,
+              "oxygen_deficit_mg_h_l": 0.0,
+              "minimum_do_mg_l": 9.281702093672429
+            },
+            "whole_process": {
+              "below_limit_h": 0.0,
+              "oxygen_deficit_mg_h_l": 0.0,
+              "minimum_do_mg_l": 8.533067635858181
+            },
+            "post_decision_feasible": true,
+            "stop_avoided_further_operation": false,
+            "measured_product_quality": null,
+            "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+            "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+          },
+          "sensitivity": {
+            "members": 5,
+            "feasible_members": 5,
+            "product_mass_kg_range": [
+              576.2800472747275,
+              582.784796779358
+            ],
+            "minimum_do_mg_l_range": [
+              8.109525013882454,
+              10.202663408553274
+            ],
+            "interpretation": "Finite assumed parameter sensitivity, not probability of feasibility or calibrated uncertainty coverage."
+          }
+        }
+      },
+      {
+        "kind": "recommendation",
+        "proposal": {
+          "action_id": "keep",
+          "decision_time_h": 52.0,
+          "rationale": "KEEP is supported. The receiving fermentation at the decision time (52h) shows healthy online DO around 12 mg/L, well above the 2 mg/L hard constraint, and a normal product trajectory (3.25 g/L at the most recent delayed assay, t=239h source-clock). The source-calibrated forward model for KEEP predicts no violation post-decision: minimum DO 9.28 mg/L (all 5 sensitivity members feasible, range 8.11-10.20), zero hours below limit, and product mass ~576 kg retained. Alternative actions (reduce_feed, strong_feed_reduction, increase_air, combined) would reduce product mass or alter air without any constraint benefit, and a stop would forfeit all counted production. No evidence predicts a constraint violation under KEEP.",
+          "uncertainty": "The forward model is a nominal source-calibrated prediction, not truth; the hidden receiving realization may differ (model mismatch). However, the constraint margin is large: predicted minimum DO (~8.1-10.2 mg/L across the sensitivity set) is roughly 4-5x the 2 mg/L limit, and current measured DO is ~12 mg/L, so even substantial forecast error is unlikely to cause a violation. The sensitivity set is not a probability distribution; feasibility robustness rather than likelihood is what supports KEEP.",
+          "evidence": [
+            "Receiving online DO sensor at t=51.8h (available 52.0h): 12.15 mg/L, far above the 2 mg/L hard limit",
+            "Receiving delayed assay P at t=239h (available 259h): 3.25 g/L, consistent with normal trajectory",
+            "physical_forward_model(keep): post-decision minimum DO 9.28 mg/L, 0 hours below limit, product mass 576.3 kg",
+            "Sensitivity set for keep: all 5 members feasible, minimum DO range 8.11-10.20 mg/L",
+            "Source batch references (source-1/2/3) show DO troughs of ~7.4-8.8 mg/L late in run, still well above 2 mg/L"
+          ],
+          "approval_status": "not_approved_for_manufacturing",
+          "execution": "virtual_replay_only"
+        }
+      },
+      {
+        "kind": "simulated_outcome",
+        "outcome": {
+          "action_id": "keep",
+          "stopped": false,
+          "product_mass_kg": 633.9155403333447,
+          "terminal_concentration_g_l": 7.598762276237613,
+          "terminal_volume_l": 83423.52573861757,
+          "pre_decision": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 9.485513610381192
+          },
+          "post_decision": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 8.840237786505531
+          },
+          "whole_process": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 8.840237786505531
+          },
+          "post_decision_feasible": true,
+          "stop_avoided_further_operation": false,
+          "measured_product_quality": null,
+          "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+          "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+        }
+      }
+    ],
+    "observed_human_time_saved": null
+  },
+  "wall_seconds": 15.237332916003652,
+  "model_calls": 3,
+  "usage": [
+    {
+      "input": 64841,
+      "output": 214,
+      "cacheRead": 1088,
+      "cacheWrite": 0,
+      "totalTokens": 66143,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    },
+    {
+      "input": 438,
+      "output": 645,
+      "cacheRead": 66112,
+      "cacheWrite": 0,
+      "totalTokens": 67195,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    },
+    {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 0,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    }
+  ],
+  "tools": [
+    {
+      "name": "physical_forward_model",
+      "arguments": {
+        "action_id": "keep"
+      },
+      "result": {
+        "classification": "model_prediction_not_observation",
+        "model_update": {
+          "time_h": 52.0,
+          "estimated_change_h": 44.0,
+          "estimated_transfer_multiplier": 1.1536885299666904,
+          "cost": 11.02568820168466,
+          "latest_observation_h": 52.0
+        },
+        "outcome_prediction": {
+          "action_id": "keep",
+          "stopped": false,
+          "product_mass_kg": 576.2805916683336,
+          "terminal_concentration_g_l": 6.8769265153525865,
+          "terminal_volume_l": 83799.14928301181,
+          "pre_decision": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 8.533067635858181
+          },
+          "post_decision": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 9.281702093672429
+          },
+          "whole_process": {
+            "below_limit_h": 0.0,
+            "oxygen_deficit_mg_h_l": 0.0,
+            "minimum_do_mg_l": 8.533067635858181
+          },
+          "post_decision_feasible": true,
+          "stop_avoided_further_operation": false,
+          "measured_product_quality": null,
+          "constraint_classification": "Assumed simulated oxygen operating limit, not measured product quality.",
+          "mass_definition": "Terminal product inventory P[g/L]*V[L]/1000. No harvest occurs before96h; stopped batches count zero produced/released product."
+        },
+        "sensitivity": {
+          "members": 5,
+          "feasible_members": 5,
+          "product_mass_kg_range": [
+            576.2800472747275,
+            582.784796779358
+          ],
+          "minimum_do_mg_l_range": [
+            8.109525013882454,
+            10.202663408553274
+          ],
+          "interpretation": "Finite assumed parameter sensitivity, not probability of feasibility or calibrated uncertainty coverage."
+        }
+      },
+      "wall_seconds": 6.3786469580372795
+    },
+    {
+      "name": "submit_decision",
+      "arguments": {
+        "action_id": "keep",
+        "evidence": [
+          "Receiving online DO sensor at t=51.8h (available 52.0h): 12.15 mg/L, far above the 2 mg/L hard limit",
+          "Receiving delayed assay P at t=239h (available 259h): 3.25 g/L, consistent with normal trajectory",
+          "physical_forward_model(keep): post-decision minimum DO 9.28 mg/L, 0 hours below limit, product mass 576.3 kg",
+          "Sensitivity set for keep: all 5 members feasible, minimum DO range 8.11-10.20 mg/L",
+          "Source batch references (source-1/2/3) show DO troughs of ~7.4-8.8 mg/L late in run, still well above 2 mg/L"
+        ],
+        "predictions": {},
+        "rationale": "KEEP is supported. The receiving fermentation at the decision time (52h) shows healthy online DO around 12 mg/L, well above the 2 mg/L hard constraint, and a normal product trajectory (3.25 g/L at the most recent delayed assay, t=239h source-clock). The source-calibrated forward model for KEEP predicts no violation post-decision: minimum DO 9.28 mg/L (all 5 sensitivity members feasible, range 8.11-10.20), zero hours below limit, and product mass ~576 kg retained. Alternative actions (reduce_feed, strong_feed_reduction, increase_air, combined) would reduce product mass or alter air without any constraint benefit, and a stop would forfeit all counted production. No evidence predicts a constraint violation under KEEP.",
+        "uncertainty": "The forward model is a nominal source-calibrated prediction, not truth; the hidden receiving realization may differ (model mismatch). However, the constraint margin is large: predicted minimum DO (~8.1-10.2 mg/L across the sensitivity set) is roughly 4-5x the 2 mg/L limit, and current measured DO is ~12 mg/L, so even substantial forecast error is unlikely to cause a violation. The sensitivity set is not a probability distribution; feasibility robustness rather than likelihood is what supports KEEP."
+      },
+      "result": {
+        "accepted": true,
+        "decision_frozen": true
+      },
+      "wall_seconds": 0.14285450003808364
+    }
+  ],
+  "error": null,
+  "capability_audit": {
+    "type": "capability_audit",
+    "active_tools": [
+      "physical_forward_model",
+      "python_analysis",
+      "request_measurement",
+      "submit_decision"
+    ],
+    "native_kernel": false,
+    "children": false,
+    "external_retrieval": false,
+    "cwd_memory_loaded": false,
+    "model": "modal/zai-org/GLM-5.3",
+    "shared_tool_schema_sha256": "bef6c5f94bbfb0b78063a8384f18ded77219ada49d9017ed23bb625453b93706"
+  },
+  "provider_billing": "unknown",
+  "real_equipment_actions": false
+}

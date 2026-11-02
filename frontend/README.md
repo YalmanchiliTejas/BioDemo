@@ -69,11 +69,15 @@ Browser contract (requires Playwright, a running API and an unavailable model ro
 
 ## Agents + physics case study
 
-`/case-studies/` opens the combined study: 21 chart panels covering the latest imperfect-model PenSim interventions, the earlier matching-model upper-bound comparison, published oxygen-correction summaries and real CHO prediction errors. The introduction explains the shared A/B setup; the reading guide distinguishes constraints, production, independent scenarios and uncertainty. Negative results and pending evaluations stay visible. Expand the earlier benchmark for its original 16 figures, filters, exact values and historical pilot.
+`/case-studies/` is public and linked directly from the landing navigation and its results preview. It is absent from workspace navigation and quick find. `/studies/` preserves older links to the same public page.
+
+The default view shows the completed November 1 GLM-5.3 decision evaluation through six chart panels: constrained decisions, violations, selected actions, inventory, the remaining failure and earlier real CHO prediction errors. It includes an inventory toggle, a filterable table of all 24 decisions and downloadable evidence. The model-only comparison and negative real-data findings remain visible. Methods and older studies expand on demand; older study deep links still work.
+
+Run `python3 frontend/scripts/export_decision_followup.py` from the repository root to regenerate the static snapshot and downloads from completed local results. This verifies the saved study's integrity, copies its PDF/report and exports actual action counts; it does not run inference. The public page needs no backend connection. The trade-off is explicit re-exporting when the source results change.
 
 Regenerate assets using `npm run export-combined-studies` and `npm run export-physics-benchmark`. These project saved analyses into public presentation data without running experiments. Reports and SHA-256 source identifiers are downloadable from the page. Published physical outcomes are explicitly distinguished from agent recommendations and simulated outcomes.
 
-From the repository root, run `PLAYWRIGHT_MODULE=/path/to/playwright node frontend/scripts/check_combined_studies.cjs http://127.0.0.1:5187`. It checks source-number agreement, 21 primary figures, earlier benchmark access/filtering, downloads, other-case navigation and mobile overflow. Build with `npm run build` from `frontend/`; static output is in `dist/`. This updates the local app only.
+From the repository root, run `node frontend/scripts/check_public_case_studies.cjs http://127.0.0.1:5184`. Set `AGENT_BROWSER_BIN` to the installed agent-browser binary when needed. It checks exported source values, served snapshot bytes, public navigation, downloads, decision filtering, the inventory toggle, legacy deep links and overflow at desktop/mobile widths. Screenshots and a receipt are saved to `/private/tmp/sievance-public-study-check`. Build with `npm run build` from `frontend/`; static output is in `dist/`. This updates local files only.
 
 ## Accounts and organization access
 

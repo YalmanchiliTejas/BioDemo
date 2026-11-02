@@ -32,11 +32,14 @@ def response_usage(wire):
     candidates = [wire]
     candidates += [line[5:].strip() for line in wire.splitlines() if line.startswith(b'data:')]
     usage = None
+    response_models = set()
     for value in candidates:
         try:
             item = json.loads(value)
         except (ValueError, UnicodeDecodeError):
             continue
+        if isinstance(item, dict) and isinstance(item.get('model'), str):
+            response_models.add(item['model'])
         proposed = item.get('usage') if isinstance(item, dict) else None
         if not isinstance(proposed, dict):
             continue
@@ -49,6 +52,8 @@ def response_usage(wire):
                      'cached_prompt_tokens':cached,
                      'uncached_rate_estimate_usd':(prompt * 1.4 + completion * 4.4) / 1e6,
                      'conservative_cost_usd': ((prompt-cached)*1.4 + cached*.26 + completion*4.4) / 1e6}
+    if usage is not None:
+        usage['response_models'] = sorted(response_models)
     return usage
 
 
@@ -73,6 +78,8 @@ def main():
     parser.add_argument('--campaign-module', choices=['benchmarks.common.pilot_benchmark', 'benchmarks.workflow_agents.campaign'], default='benchmarks.common.pilot_benchmark')
     parser.add_argument('--budget-usd', type=float, default=CAMPAIGN_USD)
     parser.add_argument('--max-requests', type=int, default=MAX_REQUESTS)
+    parser.add_argument('--command', nargs=argparse.REMAINDER,
+                        help='Run an explicitly supplied benchmark command through the same admission gate')
     args = parser.parse_args()
     if not 1 <= args.limit <= 60:
         parser.error('limit must be 1..60')
@@ -194,10 +201,10 @@ def main():
               'ledger': admission.name}
     (suite / 'modal-budget-policy.json').write_text(json.dumps(policy, indent=2) + '\n')
     try:
-        command = [sys.executable, '-m', args.campaign_module, 'run',
+        command = args.command or [sys.executable, '-m', args.campaign_module, 'run',
             '--suite', str(suite), '--methods', args.method, '--limit', str(args.limit),
             '--operator-id', 'bounded-modal-benchmark']
-        if args.provider_env:
+        if args.provider_env and not args.command:
             command += ['--provider-env', str(args.provider_env.resolve())]
         completed = subprocess.run(command, env=env)
         if completed.returncode:
