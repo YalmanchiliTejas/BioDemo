@@ -1,0 +1,54 @@
+{
+  "questions": [],
+  "reply": "Understood — baseline only. I will run the attached published/reconstructed transfer context (ATTACHED_SOURCE_ID) unchanged at its recorded settings — shelf −24 °C, chamber pressure 8 Pa, 11,000 vials (2.5 mL fill), 75 h, initial dried fraction 0 — using the registered quasi-steady lyo.kv_rp model, which needs no additional thermal assumptions. The workflow is a single prepare + execute of that one pipeline: no variant, no comparison, no interpretation step, and no review proposal. The calculated trajectory chart and the constraint-margins table will be attached from the execution results. Caveats: the run inherits the context's recorded synthetic assumptions (e.g., vapor capacity 0.65 kg/h, constant H_sub/k_ice) and its listed missing condenser/utility specifications, so margins are conditional on those; lyo.kv_rp is an unqualified engineering demonstration, numerical completion is not residual moisture or release suitability, and no plant validation is claimed.",
+  "workflow": [
+    {
+      "depends_on": [
+        "ATTACHED_SOURCE_ID"
+      ],
+      "node_id": "baseline_prepare",
+      "payload": {
+        "calibration": "none",
+        "max_solver_calls": 32,
+        "max_wall_seconds": 30,
+        "models": [
+          {
+            "model_id": "lyo.kv_rp",
+            "rationale": "User-requested registered quasi-steady Kv-Rp model; every required input (Kv(P) coefficients, Rp coefficients, porosity, fill, critical temperature, load, schedule) is already recorded in the attached source ATTACHED_SOURCE_ID, and no transient thermal assumptions are supplied or needed."
+          }
+        ],
+        "objective": "Single baseline run of the attached published/reconstructed freeze-drying transfer context at its existing recorded settings: shelf -24 C, chamber 8 Pa, 11000 vials, 2.5 mL fill, 75 h, initial dried fraction 0. Compute the lyo.kv_rp quasi-steady trajectory and constraint margins only; no variants, no calibration, no interpretation.",
+        "samples": 4,
+        "seed": 2025,
+        "simulation_id": {
+          "$node": "ATTACHED_SOURCE_ID",
+          "path": [
+            "id"
+          ]
+        },
+        "thermal_assumptions": null,
+        "views": [
+          "trajectories"
+        ]
+      },
+      "task_kind": "physical_pipeline_prepare",
+      "title": "Prepare baseline lyo.kv_rp pipeline"
+    },
+    {
+      "depends_on": [
+        "baseline_prepare"
+      ],
+      "node_id": "baseline_execute",
+      "payload": {
+        "plan_id": {
+          "$node": "baseline_prepare",
+          "path": [
+            "plan_id"
+          ]
+        }
+      },
+      "task_kind": "physical_pipeline_execute",
+      "title": "Execute baseline lyo.kv_rp run"
+    }
+  ]
+}

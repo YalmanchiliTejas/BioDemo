@@ -89,6 +89,53 @@ def test_validation_repair_then_escalation(env):
     assert any("repair" in c["prompt"] or "failed validation" in c["prompt"] for c in env.fake.calls[1:2])
 
 
+def test_host_contract_uses_existing_repair_and_preserves_rejected_output(env):
+    qualify(env.reg, 'short_summary', 'anthropic-haiku')
+    def contract(output):
+        if output['summary'] != 'accepted':
+            raise ValueError('summary does not satisfy the host contract')
+    env.fake.scripts = {'claude-haiku-5-5': [summary('invalid'), summary('accepted')]}
+    result = env.gw.run(TaskRequest('short_summary', env.ctx, prompt='Check the host contract.',
+        output_validator=contract, output_validation_version='contract-1', max_validation_repairs=1))
+    assert result.status == 'completed' and result.output['summary'] == 'accepted'
+    assert len(env.fake.calls) == 2
+    assert result.attempts[0]['rejected_output']['summary'] == 'invalid'
+    assert result.attempts[1]['validation'] == 'passed'
+    correction = json.loads(env.fake.calls[1]['prompt'])['plan_correction']
+    assert correction['rejected_decision']['summary'] == 'invalid'
+    assert 'host contract' in correction['validation_error']
+    with pytest.raises(ValueError, match='requires a version'):
+        env.gw.run(TaskRequest('short_summary', env.ctx, output_validator=contract))
+
+
+def test_host_contract_can_only_lower_repair_budget(env):
+    qualify(env.reg, 'short_summary', 'anthropic-haiku')
+    def reject(output):
+        raise ValueError('rejected by host')
+    env.fake.scripts = {'claude-haiku-5-5': [summary('invalid'), summary('never requested')]}
+    result = env.gw.run(TaskRequest('short_summary', env.ctx, prompt='No retry.',
+        output_validator=reject, output_validation_version='reject-1', max_validation_repairs=0))
+    assert result.status != 'completed' and len(env.fake.calls) == 1
+
+
+def test_host_contract_cache_is_versioned_and_revalidated(env):
+    qualify(env.reg, 'short_summary', 'anthropic-haiku')
+    def contract(output):
+        if output['summary'] != 'accepted':
+            raise ValueError('invalid cached response')
+    env.fake.scripts = {'claude-haiku-5-5': [summary('accepted')] * 3}
+    request = TaskRequest('short_summary', env.ctx, prompt='Same prompt.',
+        output_validator=contract, output_validation_version='contract-1')
+    assert env.gw.run(request).status == 'completed'
+    assert env.gw.run(request).cached
+    route = env.gw.router.route('short_summary')
+    env.gw._cache_put(env.ctx, env.gw._cache_key(request, route), {'summary': 'invalid'}, [])
+    assert not env.gw.run(request).cached  # A cache hit cannot bypass host validation.
+    request.output_validation_version = 'contract-2'
+    assert not env.gw.run(request).cached
+    assert len(env.fake.calls) == 3
+
+
 def test_grounding_rejects_unsupplied_sources_and_probabilities(env):
     qualify(env.reg, "short_summary", "anthropic-haiku")
     env.idn.assign_role(T, "u1", "operator", site_id="S1")

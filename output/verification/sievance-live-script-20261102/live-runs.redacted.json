@@ -1,0 +1,347 @@
+{
+  "checked_at_utc": "2026-11-02",
+  "origin": "https://www.sievance.com",
+  "workspace": "Test1",
+  "classification": "live_authenticated_functional_test_not_benchmark",
+  "model_calls_observed": 3,
+  "provider": "modal",
+  "model": "zai-org/GLM-5.3",
+  "provider_billed_cost_usd": null,
+  "workflow_artifacts_created": 0,
+  "manufacturing_actions_executed": 0,
+  "threads": [
+    {
+      "http": 200,
+      "id": "engchat_01M6EF9916XB765RQS51J6CZ4B",
+      "source_ids": [],
+      "turns": [
+        {
+          "artifacts": [],
+          "elapsed_seconds": 37.332,
+          "gateway_runs": [
+            {
+              "issues": [],
+              "model": "zai-org/GLM-5.3",
+              "output": {
+                "questions": [
+                  "Which batch and feed stream does the drop concern, and can you attach the feed-rate trend (setpoint vs measured, with timestamps and units) as a source?",
+                  "When did the drop begin relative to batch age, and is feed delivery reduced or stopped now?",
+                  "Is there an equipment record for that window — pump calibration, tubing or filter changes, alarms — that you can attach?",
+                  "If the batch is a verified CHO CMO delivery, what dataset_id and batch should I use, and what cutoff (default 72 h)?"
+                ],
+                "reply": "I can't investigate the drop yet because this workspace contains no evidence about it: no sources are attached, there is no screen snapshot, and no prior artifacts exist. Demo sources are also disabled in this session, so the simulated perfusion and fed-batch cases can't be loaded. As you asked, I won't invent a batch, maintenance note, or measurements, and nothing here approves or executes any manufacturing action.\n\nWhat is actually usable right now:\n- cho.monod_batch is the only available model, but it only consumes verified CMO delivery datasets (viable cell density and glucose readings) and forecasts growth and glucose — a rough reference, not a feed-delivery diagnosis. No such dataset is attached.\n- The penicillin fed-batch and antibody perfusion simulators are not installed, and in any case they run only on the listed simulated demo cases, which are disabled here.\n- The registered physical models are freeze-drying models; I won't force an upstream feed problem into them.\n\nWhat to check next — this is the evidence list, not measured values:\n1. The feed trend itself: setpoint vs measured delivery (loss-in-weight or pump output) with timestamps and units, and the window where the drop began.\n2. Batch and unit identity: which batch and which feed stream, so every reading ties to a real record.\n3. Equipment record for that window: pump calibration or verification status, tubing or pump-head changes, filter and line integrity, alarms, maintenance history.\n4. Whether the culture saw the effect: glucose, lactate, ammonia, DO, pH and viable cell density trends around the drop.\n5. If the batch is a verified CHO delivery: I can fit the growth model to that delivery only, forecast one batch's glucose and cell density from its readings up to a cutoff (default 72 h), and compare against that batch's later readings — reporting holdout error and the model's known weakness (glucose forecasts got worse with the model in an earlier real-CHO test, MAE 0.60 to 0.72 g/L).\n\nIf you would rather see a simulated example, demo sources would need to be enabled; even then the tool and case share equations, so agreement is not validation. Please attach the feed trend and the batch/equipment records as sources, or give me the verified CMO dataset_id and batch for the CHO forecast.",
+                "workflow": []
+              },
+              "provider": "modal",
+              "run_id": "run_01M6EF9AKRWEFR8P932G6GD64N",
+              "status": "completed",
+              "unqualified": true
+            }
+          ],
+          "id": "engturn_01M6EF99M5PTB72FBHGZ2CFBB7",
+          "issues": [],
+          "questions": [
+            "Which batch and feed stream does the drop concern, and can you attach the feed-rate trend (setpoint vs measured, with timestamps and units) as a source?",
+            "When did the drop begin relative to batch age, and is feed delivery reduced or stopped now?",
+            "Is there an equipment record for that window — pump calibration, tubing or filter changes, alarms — that you can attach?",
+            "If the batch is a verified CHO CMO delivery, what dataset_id and batch should I use, and what cutoff (default 72 h)?"
+          ],
+          "reply": "I can't investigate the drop yet because this workspace contains no evidence about it: no sources are attached, there is no screen snapshot, and no prior artifacts exist. Demo sources are also disabled in this session, so the simulated perfusion and fed-batch cases can't be loaded. As you asked, I won't invent a batch, maintenance note, or measurements, and nothing here approves or executes any manufacturing action.\n\nWhat is actually usable right now:\n- cho.monod_batch is the only available model, but it only consumes verified CMO delivery datasets (viable cell density and glucose readings) and forecasts growth and glucose — a rough reference, not a feed-delivery diagnosis. No such dataset is attached.\n- The penicillin fed-batch and antibody perfusion simulators are not installed, and in any case they run only on the listed simulated demo cases, which are disabled here.\n- The registered physical models are freeze-drying models; I won't force an upstream feed problem into them.\n\nWhat to check next — this is the evidence list, not measured values:\n1. The feed trend itself: setpoint vs measured delivery (loss-in-weight or pump output) with timestamps and units, and the window where the drop began.\n2. Batch and unit identity: which batch and which feed stream, so every reading ties to a real record.\n3. Equipment record for that window: pump calibration or verification status, tubing or pump-head changes, filter and line integrity, alarms, maintenance history.\n4. Whether the culture saw the effect: glucose, lactate, ammonia, DO, pH and viable cell density trends around the drop.\n5. If the batch is a verified CHO delivery: I can fit the growth model to that delivery only, forecast one batch's glucose and cell density from its readings up to a cutoff (default 72 h), and compare against that batch's later readings — reporting holdout error and the model's known weakness (glucose forecasts got worse with the model in an earlier real-CHO test, MAE 0.60 to 0.72 g/L).\n\nIf you would rather see a simulated example, demo sources would need to be enabled; even then the tool and case share equations, so agreement is not validation. Please attach the feed trend and the batch/equipment records as sources, or give me the verified CMO dataset_id and batch for the CHO forecast.",
+          "status": "needs_information",
+          "user_text": "Investigate the drop in feed delivery and identify what I need to check next. Use only evidence available in this workspace. Do not invent a batch, maintenance note, or measurements. This is a read-only demo check; do not approve or execute any manufacturing action."
+        }
+      ]
+    },
+    {
+      "http": 200,
+      "id": "engchat_01M6EFMA8S9Q1WVN8B7GRHSTN2",
+      "source_ids": [
+        "phys_01M6A21JGW239J77ZKJCFARF5Q"
+      ],
+      "turns": [
+        {
+          "artifacts": [],
+          "elapsed_seconds": 69.294,
+          "gateway_runs": [
+            {
+              "issues": [],
+              "model": "zai-org/GLM-5.3",
+              "output": {
+                "questions": [],
+                "reply": "已附上来源 phys_01M6A21JGW239J77ZKJCFARF5Q (版本 vanbillemont-reconstruction-1)：这是一个重建的一次干燥（primary-drying）工艺转移案例 —— BSA–sucrose–Tris–PS20，2.5 mL 灌装于 20/22 mm 小瓶中，5.4 m² 冻干机板上放置 11000 个小瓶，一个记录的设定点（-24 °C 冻干机板，8 Pa），75 h 窗口，临界温度 -28 °C。来源/假设谱系：几何参数、孔隙率、Rp 和 Kv(P) 系数、RSD 以及临界温度均为已发布数据 (doi:10.1186/s41120-025-00115-5)；水蒸气捕集能力 0.65 kg/h、捕集器容量 30 kg、装载量、持续时间和初始设定点均为合成/重建的演示假设，且设备记录中明确指出缺少随压力变化的水蒸气能力曲线。工作流程将在本回复之后运行；数据将显示在随附的图表工件中，此处不作显示。计划：(1) 在记录的设置下运行已注册的准稳态 lyo.kv_rp 模型的基础案例 —— 该模型可用且已提供所有必需的输入，且未发明任何瞬态热假设（瞬态模型保持未使用状态）。输出：界面/底部温度轨迹、随假设 0.65 kg/h 水蒸气能力变化的升华速率、剩余冰量以及 -28 °C 的裕度，并对 Kv RSD 0.11 进行了采样。(2) 输入支持的一种保守替代方案，作为合成假设分析：在相同的 8 Pa 和装载量下，冻干机板降至 -30 °C，作为独立的上下文变体 —— 这仅是时间表变更，而非设备特征的重新表征。(3) 通过合规的解释路径对比基础案例和变体案例，评估基础结果，然后起草与该实际结果相关的工程审查建议书 —— 仅提供建议书：不批准、不分派或执行任何制造行动。随之而来的注意事项包括：代表性小瓶筛选无法确立最高小瓶保护；规定压力在水蒸气处理能力之上时无效；无资质的工程演示，无工厂验证声明；数值完成并不代表残留水分、效力或放行适用性。任何缺失的模型或依赖项都将被如实报告，而不会虚构数据。",
+                "workflow": [
+                  {
+                    "depends_on": [
+                      "phys_01M6A21JGW239J77ZKJCFARF5Q"
+                    ],
+                    "node_id": "base_prepare",
+                    "payload": {
+                      "max_solver_calls": 32,
+                      "max_wall_seconds": 30,
+                      "models": [
+                        {
+                          "model_id": "lyo.kv_rp",
+                          "rationale": "Registered quasi-steady Kv-Rp screening model, explicitly requested. Every required input (Kv(P) coefficients with RSD, Rp(l) coefficients, vial geometry, fill, porosity, critical temperature, single-step schedule, load, duration) is present in the attached context; no transient thermal assumptions are invented."
+                        }
+                      ],
+                      "objective": "Base case at the recorded settings: single step shelf -24 C, chamber 8 Pa, 11000 vials, 75 h, initial dried fraction 0. Report interface and bottom temperature trajectories, sublimation rate against the assumed 0.65 kg/h vapor capacity, remaining ice, constraint margins to the -28 C critical temperature, condenser load against the assumed 30 kg capacity, and source/assumption lineage for every input.",
+                      "samples": 4,
+                      "seed": 2025,
+                      "simulation_id": {
+                        "$node": "phys_01M6A21JGW239J77ZKJCFARF5Q",
+                        "path": [
+                          "id"
+                        ]
+                      },
+                      "views": [
+                        "trajectories",
+                        "validation"
+                      ]
+                    },
+                    "task_kind": "physical_pipeline_prepare",
+                    "title": "Prepare base-case quasi-steady run at recorded settings"
+                  },
+                  {
+                    "depends_on": [
+                      "base_prepare"
+                    ],
+                    "node_id": "base_execute",
+                    "payload": {
+                      "plan_id": {
+                        "$node": "base_prepare",
+                        "path": [
+                          "plan_id"
+                        ]
+                      }
+                    },
+                    "task_kind": "physical_pipeline_execute",
+                    "title": "Execute base-case quasi-steady run"
+                  },
+                  {
+                    "depends_on": [
+                      "phys_01M6A21JGW239J77ZKJCFARF5Q"
+                    ],
+                    "node_id": "conservative_variant",
+                    "payload": {
+                      "label": "Conservative hold: shelf -30 C at 8 Pa",
+                      "rationale": "Single conservative what-if supported by the supplied inputs: lower the shelf setpoint from -24 C to -30 C while keeping the recorded 8 Pa chamber pressure and the 11000-vial load unchanged, to widen the margin to the -28 C critical temperature and reduce sublimation demand against the assumed 0.65 kg/h vapor capacity. Synthetic schedule change only, not a correction or re-characterization of the receiving equipment.",
+                      "schedule": [
+                        {
+                          "chamber_pressure_pa": 8,
+                          "shelf_temperature_c": -30,
+                          "time_h": 0
+                        }
+                      ],
+                      "source_id": {
+                        "$node": "phys_01M6A21JGW239J77ZKJCFARF5Q",
+                        "path": [
+                          "id"
+                        ]
+                      }
+                    },
+                    "task_kind": "physical_context_variant",
+                    "title": "Create conservative -30 C shelf variant context"
+                  },
+                  {
+                    "depends_on": [
+                      "conservative_variant"
+                    ],
+                    "node_id": "variant_prepare",
+                    "payload": {
+                      "max_solver_calls": 32,
+                      "max_wall_seconds": 30,
+                      "models": [
+                        {
+                          "model_id": "lyo.kv_rp",
+                          "rationale": "Same registered quasi-steady model as the base case so the variant differs only by the changed shelf setpoint; all other required inputs are inherited unchanged from the attached source context."
+                        }
+                      ],
+                      "objective": "Conservative alternative on an independent context variant: identical model and load, single step shelf -30 C at 8 Pa over the same 75 h window. Report the same observables and margins as the base case so the comparison isolates the shelf-temperature change alone.",
+                      "samples": 4,
+                      "seed": 2025,
+                      "simulation_id": {
+                        "$node": "conservative_variant",
+                        "path": [
+                          "id"
+                        ]
+                      },
+                      "views": [
+                        "trajectories",
+                        "validation"
+                      ]
+                    },
+                    "task_kind": "physical_pipeline_prepare",
+                    "title": "Prepare conservative variant run"
+                  },
+                  {
+                    "depends_on": [
+                      "variant_prepare"
+                    ],
+                    "node_id": "variant_execute",
+                    "payload": {
+                      "plan_id": {
+                        "$node": "variant_prepare",
+                        "path": [
+                          "plan_id"
+                        ]
+                      }
+                    },
+                    "task_kind": "physical_pipeline_execute",
+                    "title": "Execute conservative variant run"
+                  },
+                  {
+                    "depends_on": [
+                      "base_execute",
+                      "variant_execute"
+                    ],
+                    "node_id": "results_compare",
+                    "payload": {
+                      "result_ids": [
+                        {
+                          "$node": "base_execute",
+                          "path": [
+                            "result_id"
+                          ]
+                        },
+                        {
+                          "$node": "variant_execute",
+                          "path": [
+                            "result_id"
+                          ]
+                        }
+                      ]
+                    },
+                    "task_kind": "physical_results_compare",
+                    "title": "Compare base case vs conservative variant"
+                  },
+                  {
+                    "depends_on": [
+                      "base_execute",
+                      "results_compare"
+                    ],
+                    "node_id": "base_assess",
+                    "payload": {
+                      "result_id": {
+                        "$node": "base_execute",
+                        "path": [
+                          "result_id"
+                        ]
+                      }
+                    },
+                    "task_kind": "physical_results_assess",
+                    "title": "Qualified interpretation of the base-case result"
+                  },
+                  {
+                    "depends_on": [
+                      "base_assess",
+                      "results_compare"
+                    ],
+                    "node_id": "draft_review",
+                    "payload": {
+                      "result_id": {
+                        "$node": "base_execute",
+                        "path": [
+                          "result_id"
+                        ]
+                      }
+                    },
+                    "task_kind": "physical_analysis_review",
+                    "title": "Draft engineering review proposal (no approval or dispatch)"
+                  }
+                ]
+              },
+              "provider": "modal",
+              "run_id": "run_01M6EFMBNK8GHYKXXHP21TESAW",
+              "status": "completed",
+              "unqualified": true
+            }
+          ],
+          "id": "engturn_01M6EFMAWZQZZ0H58YQZMJJN5R",
+          "issues": [
+            "ValueError: unknown dependency"
+          ],
+          "questions": [],
+          "reply": null,
+          "status": "blocked",
+          "user_text": "Demo verification: use the attached published/reconstructed freeze-drying transfer context. Run a supported registered quasi-steady model at its recorded settings and show the calculated trajectory, constraint margins and source/assumption lineage. Compare one conservative operating alternative only if the supplied inputs support it. Then create a draft engineering review proposal tied to the actual result. Do not approve, dispatch, or execute any manufacturing action. Do not claim plant validation. Keep the conversational reply concise; use the calculated chart and table artifacts for the numbers. If a model or dependency is unavailable, report that plainly instead of inventing results."
+        },
+        {
+          "artifacts": [],
+          "elapsed_seconds": 35.478,
+          "gateway_runs": [
+            {
+              "issues": [],
+              "model": "zai-org/GLM-5.3",
+              "output": {
+                "questions": [],
+                "reply": "Understood — baseline only. I will run the attached published/reconstructed transfer context (phys_01M6A21JGW239J77ZKJCFARF5Q) unchanged at its recorded settings — shelf −24 °C, chamber pressure 8 Pa, 11,000 vials (2.5 mL fill), 75 h, initial dried fraction 0 — using the registered quasi-steady lyo.kv_rp model, which needs no additional thermal assumptions. The workflow is a single prepare + execute of that one pipeline: no variant, no comparison, no interpretation step, and no review proposal. The calculated trajectory chart and the constraint-margins table will be attached from the execution results. Caveats: the run inherits the context's recorded synthetic assumptions (e.g., vapor capacity 0.65 kg/h, constant H_sub/k_ice) and its listed missing condenser/utility specifications, so margins are conditional on those; lyo.kv_rp is an unqualified engineering demonstration, numerical completion is not residual moisture or release suitability, and no plant validation is claimed.",
+                "workflow": [
+                  {
+                    "depends_on": [
+                      "phys_01M6A21JGW239J77ZKJCFARF5Q"
+                    ],
+                    "node_id": "baseline_prepare",
+                    "payload": {
+                      "calibration": "none",
+                      "max_solver_calls": 32,
+                      "max_wall_seconds": 30,
+                      "models": [
+                        {
+                          "model_id": "lyo.kv_rp",
+                          "rationale": "User-requested registered quasi-steady Kv-Rp model; every required input (Kv(P) coefficients, Rp coefficients, porosity, fill, critical temperature, load, schedule) is already recorded in the attached source phys_01M6A21JGW239J77ZKJCFARF5Q, and no transient thermal assumptions are supplied or needed."
+                        }
+                      ],
+                      "objective": "Single baseline run of the attached published/reconstructed freeze-drying transfer context at its existing recorded settings: shelf -24 C, chamber 8 Pa, 11000 vials, 2.5 mL fill, 75 h, initial dried fraction 0. Compute the lyo.kv_rp quasi-steady trajectory and constraint margins only; no variants, no calibration, no interpretation.",
+                      "samples": 4,
+                      "seed": 2025,
+                      "simulation_id": {
+                        "$node": "phys_01M6A21JGW239J77ZKJCFARF5Q",
+                        "path": [
+                          "id"
+                        ]
+                      },
+                      "thermal_assumptions": null,
+                      "views": [
+                        "trajectories"
+                      ]
+                    },
+                    "task_kind": "physical_pipeline_prepare",
+                    "title": "Prepare baseline lyo.kv_rp pipeline"
+                  },
+                  {
+                    "depends_on": [
+                      "baseline_prepare"
+                    ],
+                    "node_id": "baseline_execute",
+                    "payload": {
+                      "plan_id": {
+                        "$node": "baseline_prepare",
+                        "path": [
+                          "plan_id"
+                        ]
+                      }
+                    },
+                    "task_kind": "physical_pipeline_execute",
+                    "title": "Execute baseline lyo.kv_rp run"
+                  }
+                ]
+              },
+              "provider": "modal",
+              "run_id": "run_01M6EFTEVBT2BAMXS6H9Q06M2G",
+              "status": "completed",
+              "unqualified": true
+            }
+          ],
+          "id": "engturn_01M6EFTDP5ARC7PSFADBPE6800",
+          "issues": [
+            "ValueError: unknown dependency"
+          ],
+          "questions": [],
+          "reply": null,
+          "status": "blocked",
+          "user_text": "Please answer in English. Simplify this to a single baseline run of the attached freeze-drying context at its existing recorded settings using lyo.kv_rp. No operating variant, comparison, interpretation step, or review proposal yet. Show only the resulting calculated chart and constraint table. Use only the attached evidence and do not invent inputs or claim plant validation."
+        }
+      ]
+    }
+  ]
+}

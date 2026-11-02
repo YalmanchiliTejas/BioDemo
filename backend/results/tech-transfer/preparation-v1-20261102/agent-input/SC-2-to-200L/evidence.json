@@ -1,0 +1,139 @@
+{
+  "case_id": "SC-2-to-200L",
+  "study": "rastadter2023",
+  "task": "Phase1: assess transfer readiness from donor characterization and equipment. Commit assessment before opening the separate characterization query. Phase2: predict water kLa at the supplied receiver setting; this tests characterization prediction, not selection of a successful operating recipe.",
+  "evidence": {
+    "S1": {
+      "source": "Rastadter2023 Methods2.1 and supplement TableS1; reviewed transcription",
+      "equipment": [
+        {
+          "working_volume_l": 2,
+          "total_volume_l": 3,
+          "manufacturer": "Sartorius",
+          "model": "Biostat A-plus",
+          "impeller_type": "Rushton",
+          "blades_per_impeller": 6,
+          "submerged_impellers": 2,
+          "impeller_diameter_mm": 52,
+          "impeller_blade_height_mm": 10
+        },
+        {
+          "working_volume_l": 200,
+          "total_volume_l": 300,
+          "manufacturer": "Heinrich Frings",
+          "model": "Proreact 20P",
+          "impeller_type": "Rushton",
+          "blades_per_impeller": 6,
+          "submerged_impellers": 4,
+          "impeller_diameter_mm": 200,
+          "impeller_blade_height_mm": 40
+        }
+      ]
+    },
+    "S2": {
+      "source": "Rastadter2023 Table2 donor ring-sparger rows; reviewed transcription",
+      "donor_calibration": [
+        {
+          "id": "source_ring_355",
+          "source_id": "rastadter-2023-main",
+          "source_location": "Table 2, 2 L ring sparger at 355 rpm",
+          "working_volume_l": 2,
+          "sparger": "ring",
+          "agitation_rpm": 355,
+          "airflow_l_min": 0.51,
+          "kla_h_inv": 32.6,
+          "aerated_power_density_kw_m3": 0.25,
+          "impeller_tip_speed_m_s": 0.97,
+          "reactor_geometry_ratio_as_reported": 40.8,
+          "classifications": {
+            "working_volume_l": "published_operating_setting",
+            "sparger": "published_equipment_characteristic",
+            "agitation_rpm": "published_operating_setting_not_hardware_limit",
+            "airflow_l_min": "published_operating_setting",
+            "kla_h_inv": "experimental_water_characterization",
+            "aerated_power_density_kw_m3": "author_calculated_using_Junker_2004",
+            "impeller_tip_speed_m_s": "author_calculated",
+            "reactor_geometry_ratio_as_reported": "author_reported_ratio_unit_not_stated_in_header"
+          },
+          "heldout_candidate": false
+        },
+        {
+          "id": "source_ring_500",
+          "source_id": "rastadter-2023-main",
+          "source_location": "Table 2, 2 L ring sparger at 500 rpm",
+          "working_volume_l": 2,
+          "sparger": "ring",
+          "agitation_rpm": 500,
+          "airflow_l_min": 0.51,
+          "kla_h_inv": 38.8,
+          "aerated_power_density_kw_m3": 0.63,
+          "impeller_tip_speed_m_s": 1.36,
+          "reactor_geometry_ratio_as_reported": 40.8,
+          "classifications": {
+            "working_volume_l": "published_operating_setting",
+            "sparger": "published_equipment_characteristic",
+            "agitation_rpm": "published_operating_setting_not_hardware_limit",
+            "airflow_l_min": "published_operating_setting",
+            "kla_h_inv": "experimental_water_characterization",
+            "aerated_power_density_kw_m3": "author_calculated_using_Junker_2004",
+            "impeller_tip_speed_m_s": "author_calculated",
+            "reactor_geometry_ratio_as_reported": "author_reported_ratio_unit_not_stated_in_header"
+          },
+          "heldout_candidate": false
+        }
+      ]
+    },
+    "S3": {
+      "source": "Rastadter2023 Methods2.1.1",
+      "characterization": {
+        "medium": "deionized water",
+        "temperature_c": 75,
+        "method": "N2 to air dynamic DO transition; DO calibrated at each N and airflow",
+        "kla_sd_h_inv": 1.17,
+        "uncertainty_interpretation": "Author-reported mean measurement standard deviation across kLa determinations; not a row-specific confidence interval and not prediction uncertainty",
+        "source_location": "\u00a72.1.1 and \u00a73.2"
+      }
+    }
+  },
+  "fact_requests": [
+    {
+      "id": "receiver_working_volume",
+      "request": "Receiving working volume",
+      "unit": "L"
+    },
+    {
+      "id": "receiver_total_volume",
+      "request": "Receiving total vessel volume",
+      "unit": "L"
+    },
+    {
+      "id": "receiver_impeller_diameter",
+      "request": "Receiving impeller diameter",
+      "unit": "mm"
+    },
+    {
+      "id": "receiver_impeller_count",
+      "request": "Receiving submerged impeller count",
+      "unit": "count"
+    },
+    {
+      "id": "characterization_temperature",
+      "request": "Temperature of the supplied oxygen-transfer characterization",
+      "unit": "degC"
+    },
+    {
+      "id": "characterization_medium",
+      "request": "Medium used for the supplied oxygen-transfer characterization",
+      "unit": "text"
+    }
+  ],
+  "prediction_requests": [
+    {
+      "id": "receiver_water_kla",
+      "metric": "water_kla",
+      "unit": "h^-1",
+      "classification": "experimental_water_summary_not_broth_or_product"
+    }
+  ],
+  "instruction": "Use only staged evidence. Cite evidence IDs and JSON paths or CSV sheet/row. Distinguish measurements, calculations, assumptions and unknowns. Submit a transfer assessment, supported risks, characterization requests and predictions. A recommendation is not approval or execution. Do not retrieve full papers or future receiver data."
+}

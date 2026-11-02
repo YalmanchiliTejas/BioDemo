@@ -1,0 +1,447 @@
+{
+  "case_ids": [],
+  "created_at": "2026-11-02T16:44:30.579825+00:00",
+  "dataset_ids": [],
+  "demo_enabled": false,
+  "id": "engchat_01M6EJBTZKDTXQ0GN1C3AQAAE9",
+  "mission_id": "msn_01M6EJBTZK04TFTNK9W9T9DBBF",
+  "owner_id": "priya",
+  "site_id": "NF1",
+  "source_ids": [
+    "phys_01M6EJBTZJZ33TC9DHSNJ8T50Z",
+    "phys_01M6EJDDG44PTCCF92X59QF3BT"
+  ],
+  "title": "Use the attached freeze-drying transfer context. Calculate its recorded baseline with the ",
+  "turn_ids": [
+    "engturn_01M6EJBTZMPMAJQJQ8BV34PP31"
+  ],
+  "revision": 3,
+  "turns": [
+    {
+      "artifacts": [
+        {
+          "id": "phys_01M6EJDDFY2G1SEPGTXVT7MEKZ",
+          "kind": "physical_analysis_plan",
+          "title": "Model selection and numerical pipeline",
+          "status": "current"
+        },
+        {
+          "id": "phys_01M6EJDDG44PTCCF92X59QF3BT",
+          "kind": "physical_analysis_context",
+          "title": "Synthetic 6000-vial load what-if, other inputs unchanged",
+          "status": "current"
+        },
+        {
+          "id": "phys_01M6EJDE7G069N3VHTE2ACETR9",
+          "kind": "physical_analysis_result",
+          "title": "Calculated process forecast",
+          "status": "current"
+        },
+        {
+          "id": "phys_01M6EJDE83H66VT0RVHH1HVTB8",
+          "kind": "physical_analysis_plan",
+          "title": "Model selection and numerical pipeline",
+          "status": "current"
+        },
+        {
+          "id": "phys_01M6EJDF2CPWTHT5V4BEYHPWZC",
+          "kind": "physical_analysis_result",
+          "title": "Calculated process forecast",
+          "status": "current"
+        },
+        {
+          "id": "prop_01M6EJDF4FEK392R1AW0QFM8Y4",
+          "kind": "proposal",
+          "title": "Engineering review proposal · no production action",
+          "status": "proposed"
+        },
+        {
+          "id": "phys_01M6EJDF69308599SHNJAH7RV4",
+          "kind": "physical_analysis_comparison",
+          "title": "Operating scenario comparison",
+          "status": "current"
+        }
+      ],
+      "conversation_id": "engchat_01M6EJBTZKDTXQ0GN1C3AQAAE9",
+      "created_at": "2026-11-02T16:44:30.580726+00:00",
+      "display_context": null,
+      "elapsed_seconds": 53.524,
+      "flow_run_id": "flowrun_01M6EJDDFN4V2FWDE55TWWFE7K",
+      "gateway_runs": [
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 0,
+              "cost_usd": 0.0,
+              "input_tokens": 9348,
+              "latency_ms": 51663.62674999982,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 8942,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "54af9d9dc67045e9a40e3a1e6cc538f3",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "questions": [],
+            "reply": "Plan: run the recorded baseline (11000 vials, -24 °C / 8 Pa) with the registered quasi-steady Kv–Rp model, then a synthetic 6000-vial variant with every other input unchanged, and compare trajectories, constraint margins and evidence side by side. I will also open an engineering review proposal on the baseline result only — a proposal for qualified review, not an approval, and no plant-validation claim. Caveat: the 0.65 kg/h condenser vapor capacity is a flagged synthetic assumption in the attached context, so vapor-related margins inherit that uncertainty.",
+            "workflow": [
+              {
+                "depends_on": [],
+                "node_id": "baseline_prepare",
+                "payload": {
+                  "calibration": "none",
+                  "max_solver_calls": 32,
+                  "max_wall_seconds": 30,
+                  "models": [
+                    {
+                      "model_id": "lyo.kv_rp",
+                      "rationale": "Registered quasi-steady Kv-Rp screening model as requested; the attached context supplies published Kv and Rp parameters and no transient thermal assumptions were provided, so the lumped transient model is not used."
+                    }
+                  ],
+                  "objective": "Calculate the recorded baseline primary-drying run of the attached 11000-vial freeze-drying transfer context with the registered quasi-steady Kv-Rp model: interface and bottom temperatures, remaining ice, sublimation rate, and constraint margins against the -28 C critical temperature and the recorded vapor-capacity assumption.",
+                  "samples": 4,
+                  "seed": 2025,
+                  "simulation_id": "phys_01M6EJBTZJZ33TC9DHSNJ8T50Z",
+                  "views": [
+                    "trajectories"
+                  ]
+                },
+                "task_kind": "physical_pipeline_prepare",
+                "title": "Prepare baseline run (11000 vials, quasi-steady Kv-Rp)"
+              },
+              {
+                "depends_on": [
+                  "baseline_prepare"
+                ],
+                "node_id": "baseline_execute",
+                "payload": {
+                  "plan_id": {
+                    "$node": "baseline_prepare",
+                    "path": [
+                      "id"
+                    ]
+                  }
+                },
+                "task_kind": "physical_pipeline_execute",
+                "title": "Execute baseline run"
+              },
+              {
+                "depends_on": [],
+                "node_id": "variant_6000",
+                "payload": {
+                  "label": "Synthetic 6000-vial load what-if, other inputs unchanged",
+                  "load_vials": 6000,
+                  "rationale": "User-requested synthetic what-if: reduce load from 11000 to 6000 vials while keeping product, equipment characterization and the recorded -24 C / 8 Pa schedule unchanged; this is a load-only comparison, not a correction to equipment characterization.",
+                  "source_id": "phys_01M6EJBTZJZ33TC9DHSNJ8T50Z"
+                },
+                "task_kind": "physical_context_variant",
+                "title": "Create synthetic 6000-vial variant"
+              },
+              {
+                "depends_on": [
+                  "variant_6000"
+                ],
+                "node_id": "variant_prepare",
+                "payload": {
+                  "calibration": "none",
+                  "max_solver_calls": 32,
+                  "max_wall_seconds": 30,
+                  "models": [
+                    {
+                      "model_id": "lyo.kv_rp",
+                      "rationale": "Same registered quasi-steady Kv-Rp model as the baseline so the only difference is vial load; no transient thermal assumptions provided."
+                    }
+                  ],
+                  "objective": "Run the synthetic 6000-vial variant with the same registered quasi-steady Kv-Rp model and otherwise unchanged inputs for a like-for-like comparison against the recorded 11000-vial baseline.",
+                  "samples": 4,
+                  "seed": 2025,
+                  "simulation_id": {
+                    "$node": "variant_6000",
+                    "path": [
+                      "id"
+                    ]
+                  },
+                  "views": [
+                    "trajectories"
+                  ]
+                },
+                "task_kind": "physical_pipeline_prepare",
+                "title": "Prepare variant run (6000 vials)"
+              },
+              {
+                "depends_on": [
+                  "variant_prepare"
+                ],
+                "node_id": "variant_execute",
+                "payload": {
+                  "plan_id": {
+                    "$node": "variant_prepare",
+                    "path": [
+                      "id"
+                    ]
+                  }
+                },
+                "task_kind": "physical_pipeline_execute",
+                "title": "Execute variant run"
+              },
+              {
+                "depends_on": [
+                  "baseline_execute",
+                  "variant_execute"
+                ],
+                "node_id": "compare_results",
+                "payload": {
+                  "result_ids": [
+                    {
+                      "$node": "baseline_execute",
+                      "path": [
+                        "id"
+                      ]
+                    },
+                    {
+                      "$node": "variant_execute",
+                      "path": [
+                        "id"
+                      ]
+                    }
+                  ]
+                },
+                "task_kind": "physical_results_compare",
+                "title": "Compare baseline and 6000-vial variant"
+              },
+              {
+                "depends_on": [
+                  "baseline_execute"
+                ],
+                "node_id": "baseline_review",
+                "payload": {
+                  "result_id": {
+                    "$node": "baseline_execute",
+                    "path": [
+                      "id"
+                    ]
+                  }
+                },
+                "task_kind": "physical_analysis_review",
+                "title": "Engineering review proposal for baseline result"
+              }
+            ]
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M6EJBV0QTN7AP7DVEP7C4ZQX",
+          "status": "completed"
+        }
+      ],
+      "id": "engturn_01M6EJBTZMPMAJQJQ8BV34PP31",
+      "issues": [],
+      "planning_attempts": [
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M6EJBV0QTN7AP7DVEP7C4ZQX",
+          "status": "accepted",
+          "validation_error": null
+        }
+      ],
+      "planning_gateway_run_id": "run_01M6EJBV0QTN7AP7DVEP7C4ZQX",
+      "questions": [],
+      "reply": "Plan: run the recorded baseline (11000 vials, -24 °C / 8 Pa) with the registered quasi-steady Kv–Rp model, then a synthetic 6000-vial variant with every other input unchanged, and compare trajectories, constraint margins and evidence side by side. I will also open an engineering review proposal on the baseline result only — a proposal for qualified review, not an approval, and no plant-validation claim. Caveat: the 0.65 kg/h condenser vapor capacity is a flagged synthetic assumption in the attached context, so vapor-related margins inherit that uncertainty.",
+      "site_id": "NF1",
+      "solver_calls_admitted": 64,
+      "solver_calls_used": 10,
+      "status": "completed",
+      "system_message": "Workflow completed. Review the calculated artifacts and assumptions below.",
+      "user_ref": {
+        "id": "engineering-user-instruction:engturn_01M6EJBTZMPMAJQJQ8BV34PP31",
+        "kind": "evidence",
+        "revision": 1,
+        "site_id": "NF1"
+      },
+      "user_text": "Use the attached freeze-drying transfer context. Calculate its recorded baseline with the registered quasi-steady model. Compare a synthetic alternative with 6000 vials, keeping the other inputs unchanged. Show the calculated chart, comparison table, constraint margins and evidence. Create an engineering review proposal for the baseline result, without an additional interpretation step. Do not approve or execute manufacturing changes, invent inputs, or claim plant validation. Reply briefly in English.",
+      "workflow_status": "completed",
+      "basis_status": "current",
+      "steps": [
+        {
+          "depends_on": [],
+          "node_id": "baseline_prepare",
+          "payload": {
+            "calibration": "none",
+            "max_solver_calls": 32,
+            "max_wall_seconds": 30,
+            "models": [
+              {
+                "model_id": "lyo.kv_rp",
+                "rationale": "Registered quasi-steady Kv-Rp screening model as requested; the attached context supplies published Kv and Rp parameters and no transient thermal assumptions were provided, so the lumped transient model is not used."
+              }
+            ],
+            "objective": "Calculate the recorded baseline primary-drying run of the attached 11000-vial freeze-drying transfer context with the registered quasi-steady Kv-Rp model: interface and bottom temperatures, remaining ice, sublimation rate, and constraint margins against the -28 C critical temperature and the recorded vapor-capacity assumption.",
+            "samples": 4,
+            "seed": 2025,
+            "simulation_id": "phys_01M6EJBTZJZ33TC9DHSNJ8T50Z",
+            "views": [
+              "trajectories"
+            ]
+          },
+          "task_kind": "physical_pipeline_prepare",
+          "title": "Prepare baseline run (11000 vials, quasi-steady Kv-Rp)",
+          "status": "completed",
+          "issues": []
+        },
+        {
+          "depends_on": [
+            "baseline_prepare"
+          ],
+          "node_id": "baseline_execute",
+          "payload": {
+            "plan_id": {
+              "$node": "baseline_prepare",
+              "path": [
+                "id"
+              ]
+            }
+          },
+          "task_kind": "physical_pipeline_execute",
+          "title": "Execute baseline run",
+          "status": "completed",
+          "issues": []
+        },
+        {
+          "depends_on": [],
+          "node_id": "variant_6000",
+          "payload": {
+            "label": "Synthetic 6000-vial load what-if, other inputs unchanged",
+            "load_vials": 6000,
+            "rationale": "User-requested synthetic what-if: reduce load from 11000 to 6000 vials while keeping product, equipment characterization and the recorded -24 C / 8 Pa schedule unchanged; this is a load-only comparison, not a correction to equipment characterization.",
+            "source_id": "phys_01M6EJBTZJZ33TC9DHSNJ8T50Z"
+          },
+          "task_kind": "physical_context_variant",
+          "title": "Create synthetic 6000-vial variant",
+          "status": "completed",
+          "issues": []
+        },
+        {
+          "depends_on": [
+            "variant_6000"
+          ],
+          "node_id": "variant_prepare",
+          "payload": {
+            "calibration": "none",
+            "max_solver_calls": 32,
+            "max_wall_seconds": 30,
+            "models": [
+              {
+                "model_id": "lyo.kv_rp",
+                "rationale": "Same registered quasi-steady Kv-Rp model as the baseline so the only difference is vial load; no transient thermal assumptions provided."
+              }
+            ],
+            "objective": "Run the synthetic 6000-vial variant with the same registered quasi-steady Kv-Rp model and otherwise unchanged inputs for a like-for-like comparison against the recorded 11000-vial baseline.",
+            "samples": 4,
+            "seed": 2025,
+            "simulation_id": {
+              "$node": "variant_6000",
+              "path": [
+                "id"
+              ]
+            },
+            "views": [
+              "trajectories"
+            ]
+          },
+          "task_kind": "physical_pipeline_prepare",
+          "title": "Prepare variant run (6000 vials)",
+          "status": "completed",
+          "issues": []
+        },
+        {
+          "depends_on": [
+            "variant_prepare"
+          ],
+          "node_id": "variant_execute",
+          "payload": {
+            "plan_id": {
+              "$node": "variant_prepare",
+              "path": [
+                "id"
+              ]
+            }
+          },
+          "task_kind": "physical_pipeline_execute",
+          "title": "Execute variant run",
+          "status": "completed",
+          "issues": []
+        },
+        {
+          "depends_on": [
+            "baseline_execute",
+            "variant_execute"
+          ],
+          "node_id": "compare_results",
+          "payload": {
+            "result_ids": [
+              {
+                "$node": "baseline_execute",
+                "path": [
+                  "id"
+                ]
+              },
+              {
+                "$node": "variant_execute",
+                "path": [
+                  "id"
+                ]
+              }
+            ]
+          },
+          "task_kind": "physical_results_compare",
+          "title": "Compare baseline and 6000-vial variant",
+          "status": "completed",
+          "issues": []
+        },
+        {
+          "depends_on": [
+            "baseline_execute"
+          ],
+          "node_id": "baseline_review",
+          "payload": {
+            "result_id": {
+              "$node": "baseline_execute",
+              "path": [
+                "id"
+              ]
+            }
+          },
+          "task_kind": "physical_analysis_review",
+          "title": "Engineering review proposal for baseline result",
+          "status": "completed",
+          "issues": []
+        }
+      ]
+    }
+  ]
+}

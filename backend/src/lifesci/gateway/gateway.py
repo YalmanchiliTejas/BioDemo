@@ -38,6 +38,11 @@ class TaskRequest:
     queued_at: str | None = None
     prompt_version: str = "v1"
     use_cache: bool = True
+    # Host-supplied contracts participate in the existing bounded repair loop.
+    # Callables never come from a model/user payload and must not change output.
+    output_validator: Callable[[dict[str, Any]], None] | None = None
+    output_validation_version: str = ""
+    max_validation_repairs: int | None = None
 
 
 @dataclass
@@ -87,6 +92,8 @@ class ModelGateway:
 
     # --- main entry ---------------------------------------------------------------------
     def run(self, req: TaskRequest) -> TaskResult:
+        if req.output_validator and not req.output_validation_version:
+            raise ValueError('a host output validator requires a version for cache isolation')
         started = utc_now()
         run_id = new_id("run")
         ctx = req.ctx
@@ -108,7 +115,7 @@ class ModelGateway:
         cache_key = self._cache_key(req, route)
         if req.use_cache:
             hit = self._cache_get(ctx, cache_key, req.inputs)
-            if hit is not None:
+            if hit is not None and not self._validate(json.dumps(hit), req)[1]:
                 return self._finish(req, run_id, started, "completed", hit, route, [], 0.0, [], cached=True)
 
         attempts: list[dict[str, Any]] = []
@@ -118,6 +125,8 @@ class ModelGateway:
         policy = self.registry.policies.get(req.task_kind)
         max_out = policy.max_output_tokens if policy else 4000
         repairs_left = policy.max_repairs if policy else 1
+        if req.max_validation_repairs is not None:
+            repairs_left = min(repairs_left, max(0, req.max_validation_repairs))
         escalations_left = 1 if (policy is None or policy.allow_escalation) else 0
         prompt = req.prompt
         index = 0
@@ -144,6 +153,8 @@ class ModelGateway:
                 continue
             output, problems = self._validate(completion.text, req)
             attempts[-1]["validation"] = problems or "passed"
+            if problems and req.output_validator and output is not None:
+                attempts[-1]['rejected_output'] = output
             if not problems:
                 if not self._inputs_current(ctx, req.inputs):
                     return self._finish(req, run_id, started, "stale_basis", output, route, attempts, total_cost,
@@ -153,8 +164,13 @@ class ModelGateway:
             issues.extend(problems)
             if repairs_left > 0:
                 repairs_left -= 1
-                prompt = (f"{req.prompt}\n\nYour previous answer failed validation: {'; '.join(problems)}. "
-                          "Return corrected JSON only.")
+                if req.output_validator:
+                    prompt = json.dumps({'original_request': req.prompt, 'plan_correction': {
+                        'rejected_decision': output, 'validation_error': '; '.join(problems),
+                        'instruction': 'Correct the response using the original authorized evidence and host contracts. Return corrected JSON only; do not change the request or invent new inputs.'}})
+                else:
+                    prompt = (f"{req.prompt}\n\nYour previous answer failed validation: {'; '.join(problems)}. "
+                              "Return corrected JSON only.")
                 continue  # one targeted repair on the same model
             if escalations_left > 0 and index + 1 < len(chain):
                 escalations_left -= 1
@@ -238,6 +254,11 @@ class ModelGateway:
                 problems.append(f"cites sources not supplied: {unknown[:5]}")
         if output.get("confidence_probability") is not None:
             problems.append("uncalibrated probability of correctness is not permitted")
+        if req.output_validator and not problems:
+            try:
+                req.output_validator(output)
+            except (ValueError, TypeError, KeyError) as exc:
+                problems.append(f'host response contract: {exc}')
         return output, problems
 
     def _inputs_current(self, ctx: AccessContext, inputs: list[dict[str, Any]]) -> bool:
@@ -253,7 +274,7 @@ class ModelGateway:
     # --- caching ----------------------------------------------------------------------------
     def _cache_key(self, req: TaskRequest, route: RouteDecision) -> str:
         return content_hash([req.ctx.tenant_id, req.task_kind, self.registry.version, route.profile.profile_id,
-                             route.profile.version, req.prompt_version, req.system, req.prompt,
+                             route.profile.version, req.prompt_version, req.output_validation_version, req.system, req.prompt,
                              sorted((r.get("kind"), r.get("id"), r.get("revision")) for r in req.inputs)])[:40]
 
     def _cache_get(self, ctx: AccessContext, key: str, inputs: list[dict[str, Any]]) -> dict[str, Any] | None:

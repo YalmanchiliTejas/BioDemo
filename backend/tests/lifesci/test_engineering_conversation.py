@@ -1,5 +1,7 @@
 """FakeProvider checks orchestration contracts, never measured live AI behavior."""
 import json
+from copy import deepcopy
+from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from src.lifesci.api import create_app
@@ -193,7 +195,8 @@ def test_bad_bindings_and_unregistered_models_are_blocked(env):
     p, ctx = env
     workflow = simulate_workflow()
     workflow[1]['depends_on'] = []
-    fake_planner(p, [{'reply': 'I will prepare it.', 'workflow': workflow}])
+    # The gateway permits one correction; keep both invalid to test rejection.
+    fake_planner(p, [{'reply': 'I will prepare it.', 'workflow': workflow}] * 2)
     result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Use the example', enable_demo=True)
     assert result['turns'][-1]['status'] == 'blocked' and not result['turns'][-1]['flow_run_id']
     workflow = simulate_workflow()
@@ -302,3 +305,95 @@ def test_forecast_cannot_claim_an_earlier_cutoff_than_the_agent_was_shown(env):
     assert thread['turns'][-1]['status'] == 'blocked'
     assert 'source evidence cutoff' in thread['turns'][-1]['steps'][0]['issues'][0]
     assert not p.store.read().list(TENANT, 'physical_analysis_plan')
+
+
+def test_live_glm_source_dependency_is_replanned_before_execution(env, monkeypatch):
+    """Actual Nov2 GLM contract failure; scripted correction tests host wiring only."""
+    p, ctx = env
+    source = p.process_models.context(ctx, audience='technology_transfer')
+    text = Path(__file__).with_name('fixtures').joinpath('glm_attached_source_plan.json').read_text()
+    invalid = json.loads(text.replace('ATTACHED_SOURCE_ID', source['id']))
+    corrected = deepcopy(invalid)
+    corrected['workflow'][0]['depends_on'] = []
+    corrected['workflow'][0]['payload']['simulation_id'] = source['id']
+    corrected['workflow'][1]['payload']['plan_id'] = binding('baseline_prepare')
+    requests = []
+    original = p.gateway.run
+    def capture(req):
+        requests.append(req)
+        return original(req)
+    monkeypatch.setattr(p.gateway, 'run', capture)
+    fake = fake_planner(p, [invalid, corrected])
+    result = send(p, ctx, p.engineering_conversations.create(ctx, {}),
+        'Run one baseline forecast and show the chart.', source_ids=[source['id']])
+    turn = result['turns'][-1]
+    assert turn['status'] == 'completed', turn['issues']
+    assert len(turn['gateway_runs']) == 1  # Reuse the gateway repair loop, not a nested agent loop.
+    assert turn['gateway_runs'][0]['attempts'][0]['rejected_output'] == invalid
+    assert [a['status'] for a in turn['planning_attempts']] == ['rejected', 'accepted']
+    assert source['id'] in turn['planning_attempts'][0]['validation_error']
+    repair = json.loads(fake.calls[1]['prompt'])['plan_correction']
+    assert repair['rejected_decision'] == invalid
+    assert source['id'] in repair['validation_error']
+    assert len(requests) == 1 and not requests[0].use_cache and requests[0].max_validation_repairs == 1
+    assert len(p.store.read().list(TENANT, 'physical_analysis_result')) == 1
+    assert not p.store.read().list(TENANT, 'action_intent')
+
+
+def test_invalid_plan_correction_is_bounded_and_never_executes(env):
+    p, ctx = env
+    invalid = {'reply': 'I will run it.', 'workflow': [node('prepare', 'physical_pipeline_prepare',
+        plan(binding('missing_source')), ['missing_source'])]}
+    fake = fake_planner(p, [invalid, invalid])
+    result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Evaluate the process.')
+    turn = result['turns'][-1]
+    assert turn['status'] == 'blocked' and turn['flow_run_id'] is None
+    assert len(fake.calls) == 2
+    assert [a['status'] for a in turn['planning_attempts']] == ['rejected', 'rejected']
+    assert all(a['rejected_output'] == invalid for a in turn['gateway_runs'][0]['attempts'])
+    assert 'No simulation has run' in turn['system_message']
+    assert not turn['artifacts'] and not p.store.read().list(TENANT, 'data_flow')
+
+
+def test_output_id_alias_is_repaired_before_creating_any_plan(env):
+    p, ctx = env
+    invalid = {'reply': 'I will calculate the result.', 'workflow': simulate_workflow()}
+    invalid['workflow'][2]['payload']['plan_id'] = binding('select', 'plan_id')
+    corrected = deepcopy(invalid)
+    corrected['workflow'][2]['payload']['plan_id'] = binding('select')
+    fake_planner(p, [invalid, corrected])
+    result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Use the example.', enable_demo=True)
+    turn = result['turns'][-1]
+    assert turn['status'] == 'completed', turn['issues']
+    assert 'path ["id"]' in turn['planning_attempts'][0]['validation_error']
+    assert len(p.store.read().list(TENANT, 'physical_analysis_plan')) == 1
+    assert len(p.store.read().list(TENANT, 'physical_analysis_result')) == 1
+
+
+def test_binding_rejects_wrong_record_type_and_undeclared_dependency():
+    from src.lifesci.process_engineering.conversation import EngineeringConversationService
+    from src.lifesci.process_engineering.conversation_schemas import ChatDecision
+    workflow = [node('source', 'physical_demo_context', {}),
+                node('execute', 'physical_pipeline_execute', {'plan_id': binding('source')}, ['source'])]
+    with pytest.raises(ValueError, match='requires an output'):
+        EngineeringConversationService._validate_decision({'reply': 'Plan.', 'workflow': workflow})
+    workflow = simulate_workflow()
+    workflow[2]['depends_on'] = []
+    with pytest.raises(ValueError, match='explicit dependency'):
+        EngineeringConversationService._validate_workflow(ChatDecision.model_validate({'reply': 'Plan.', 'workflow': workflow}))
+
+
+def test_valid_attached_source_needs_no_correction_and_prompt_explains_ids(env):
+    p, ctx = env
+    source = p.process_models.context(ctx, audience='technology_transfer')
+    valid = {'reply': 'I will calculate the attached inputs.', 'workflow': [
+        node('select', 'physical_pipeline_prepare', plan(source['id'])),
+        node('execute', 'physical_pipeline_execute', {'plan_id': binding('select')}, ['select'])]}
+    fake = fake_planner(p, [valid])
+    result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Run a forecast.', source_ids=[source['id']])
+    assert result['turns'][-1]['status'] == 'completed', result['turns'][-1]['issues']
+    assert len(fake.calls) == 1
+    prompt = json.loads(fake.calls[0]['prompt'])
+    assert 'literal id string' in prompt['binding']['attached_record']
+    assert 'language of the latest user message' in ' '.join(prompt['instructions'])
+    assert 'plan_id/result_id wrapper' in prompt['binding']['output_id_field']
