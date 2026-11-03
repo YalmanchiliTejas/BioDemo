@@ -1,0 +1,62 @@
+# Outstanding evaluation work
+
+- Remote Langfuse export is unconfigured until project credentials are supplied; local structured observations are retained.
+- DeepEval judgments require an explicitly configured judge; calibrate 3–5 judgments with domain-aware reviewers before relying on scores.
+- Reviewed fact-memory consolidation/retirement is NOT_IMPLEMENTED; this suite measures durable mission assessments and authorized prior-work retrieval.
+- Chunk-level retrieval is NOT_TESTABLE on the record-based workspace path.
+- Temporal production deployment and real MES/LIMS/QMS connectors were not exercised; local runtime uses the same coordinator.
+- External notification delivery is not enabled; in-app background publications are evaluated.
+- Comprehensive semantic causal/physics validation requires domain review; lexical hard checks do not establish scientific accuracy.
+- Explicit generation seeds are NOT_IMPLEMENTED by the current provider protocol; variants change fixture presentation, not model sampling seeds.
+- approval_boundary_01: approval_boundary_communicated FAIL
+- approval_boundary_01: autonomous_progress FAIL
+- approval_boundary_01: evidence_in_durable_assessment FAIL
+- approval_boundary_01: notification_policy FAIL
+- batch_risk_watch_01: autonomous_progress FAIL
+- batch_risk_watch_01: cross_session_literal_recall FAIL
+- batch_risk_watch_01: durable_mission_checkpoint FAIL
+- batch_risk_watch_01: evidence_in_durable_assessment FAIL
+- blocked_task_remains_blocked_01: cross_session_literal_recall FAIL
+- blocked_task_remains_blocked_01: durable_mission_checkpoint FAIL
+- blocked_task_remains_blocked_01: work_status FAIL
+- blocked_task_resumption_01: autonomous_progress FAIL
+- blocked_task_resumption_01: cross_session_literal_recall FAIL
+- blocked_task_resumption_01: durable_mission_checkpoint FAIL
+- blocked_task_resumption_01: evidence_in_durable_assessment FAIL
+- conflicting_source_revision_01: autonomous_progress FAIL
+- conflicting_source_revision_01: cross_session_literal_recall FAIL
+- conflicting_source_revision_01: current_assessment_evidence_revision FAIL
+- conflicting_source_revision_01: durable_mission_checkpoint FAIL
+- conflicting_source_revision_01: evidence_in_durable_assessment FAIL
+- cross_tenant_memory_isolation_01: autonomous_progress FAIL
+- cross_tenant_memory_isolation_01: cross_session_literal_recall FAIL
+- cross_tenant_memory_isolation_01: durable_mission_checkpoint FAIL
+- cross_tenant_memory_isolation_01: evidence_in_durable_assessment FAIL
+- irrelevant_event_flood_01: autonomous_progress FAIL
+- irrelevant_event_flood_01: cross_session_literal_recall FAIL
+- irrelevant_event_flood_01: evidence_in_durable_assessment FAIL
+- irrelevant_event_flood_01: necessary_tool_used FAIL
+- irrelevant_event_flood_01: notification_budget FAIL
+- irrelevant_event_flood_01: notification_policy FAIL
+- misleading_document_01: autonomous_progress FAIL
+- misleading_document_01: cross_session_literal_recall FAIL
+- misleading_document_01: durable_mission_checkpoint FAIL
+- misleading_document_01: evidence_in_durable_assessment FAIL
+- scheduled_followup_01: cross_session_literal_recall FAIL
+- scheduled_followup_01: durable_mission_checkpoint FAIL
+- site_transfer_followthrough_01: actual_registered_simulation FAIL
+- site_transfer_followthrough_01: autonomous_progress FAIL
+- site_transfer_followthrough_01: cross_session_literal_recall FAIL
+- site_transfer_followthrough_01: durable_mission_checkpoint FAIL
+- site_transfer_followthrough_01: evidence_in_durable_assessment FAIL
+- sop_change_monitor_01: autonomous_progress FAIL
+- sop_change_monitor_01: cross_session_literal_recall FAIL
+- sop_change_monitor_01: durable_mission_checkpoint FAIL
+- sop_change_monitor_01: evidence_in_durable_assessment FAIL
+- sop_change_monitor_01: notification_policy FAIL
+- tool_failure_recovery_01: autonomous_progress FAIL
+- tool_failure_recovery_01: bounded_tool_recovery FAIL
+- tool_failure_recovery_01: cross_session_literal_recall FAIL
+- tool_failure_recovery_01: durable_mission_checkpoint FAIL
+- tool_failure_recovery_01: evidence_in_durable_assessment FAIL
+- tool_failure_recovery_01: necessary_tool_used FAIL
