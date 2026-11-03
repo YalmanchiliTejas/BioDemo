@@ -25,6 +25,7 @@ def conversations(snapshot,observations):
 
 
 def evaluate(snapshot,observations,model=None):
+    os.environ.setdefault('DEEPEVAL_TELEMETRY_OPT_OUT','YES')
     model=model or os.environ.get('SIEVANCE_EVAL_JUDGE_MODEL')
     if not model:
         return [unavailable('deepeval_judge','Set SIEVANCE_EVAL_JUDGE_MODEL and its provider credentials. Advisory scores are uncalibrated until reviewed.')]
@@ -78,6 +79,7 @@ def evaluate(snapshot,observations,model=None):
 
 def simulate(adapter,session_id,scenario,*,model,max_user_simulations=3):
     """Optional adaptive user messages; callbacks enter the same real message service."""
+    os.environ.setdefault('DEEPEVAL_TELEMETRY_OPT_OUT','YES')
     from deepeval.simulator import ConversationSimulator
     from deepeval.dataset import ConversationalGolden
     from deepeval.test_case import Turn

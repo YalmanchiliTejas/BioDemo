@@ -52,7 +52,7 @@ def _snapshot(p, ctx, mission_id):
                                   'state': record.state})
             for rid in turn.get('flow_run_ids', []):
                 flows.append(p.store.read().require(ctx.tenant_id, 'data_flow_run', rid).state)
-    summary = mission.get('summary')
+    summary = mission.get('assistant_assessment_ref') or mission.get('summary')
     if isinstance(summary, dict) and summary.get('kind') == 'assistant_mission_checkpoint' and not any(a['id'] == summary['id'] for a in artifacts):
         record = p.evidence.read_derived(ctx, summary['kind'], summary['id'])
         artifacts.append({'kind': summary['kind'], 'id': summary['id'], 'revision': summary['revision'], 'state': record})
@@ -63,7 +63,7 @@ def _snapshot(p, ctx, mission_id):
             # These are actual in-app publications, not external sends.
             'notifications': [{'channel': 'in_app', 'id': t['id'], 'at': t['created_at'],
                 'reply': t['reply'], 'artifacts': t['artifacts']}
-                for t in turns if t.get('origin') == 'background' and t.get('reply')
+                for t in turns if t.get('origin') == 'background' and (t.get('reply') or t.get('artifacts'))
                 and t.get('notification_status') != 'suppressed'],
             'proposals': [r.state for r in p.store.read().list(ctx.tenant_id, 'proposal')
                           if r.state.get('mission_id') == mission_id],
@@ -173,7 +173,7 @@ def _operation(p, ctx, r, directory):
         return {'status': 'PASS' if not errors and verified else 'NOT_TESTABLE', 'verified_trace_ids': verified, 'errors': errors}
     if op == 'scores':
         for score in r['scores']:
-            p.telemetry.score(score['name'], score['value'], trace_id=r['trace_id'])
+            p.telemetry.score(score['name'], score['value'], trace_id=score.get('trace_id') or r['trace_id'])
         return {'score_sync_errors': p.telemetry.errors}
     if op == 'start':
         for doc in r['documents']:

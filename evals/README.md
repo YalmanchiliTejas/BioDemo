@@ -67,3 +67,24 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest evals/tests backend/tests/life
 Tests with FakeProvider are explicitly **scripted contract tests**, not model-quality results. Process persistence tests use actual separate workers and SQLite. GitHub Actions runs contracts without inference credentials; live suites are an explicit operator action.
 
 Scope limits appear in every report: record retrieval has no chunk ranking; reviewed reusable knowledge consolidation/retirement is separate from mission assessments; numerical/causal correctness needs qualified review; external delivery and deployed Temporal/MES/LIMS/QMS paths are not exercised locally. No benchmark result establishes GMP compliance or real factory benefit.
+
+## Regrade a recorded campaign
+
+```bash
+python -m evals.runner --suite mission --replay-report evals/reports/campaign-9127ad6.json --output evals/reports/latest.json
+python -m evals.runner --suite smoke --replay-report evals/reports/campaign-9127ad6.json --output evals/reports/smoke-replay.json
+python -m evals.runner --suite memory --replay-report evals/reports/campaign-9127ad6.json --output evals/reports/memory.json
+```
+
+Replay performs **no new inference** and creates no new trials. It retains the original agent/model versions and records the current grader version separately. It checks the frozen fixture hash, re-evaluates the saved before/after states and observations, and preserves original operation failures and resource admissions. Scripted contract runs cannot be promoted to live results. Smoke replay retains the entire selected recorded mission; fresh smoke execution still uses its shorter initial-session/trigger timeline.
+
+The committed synthetic evidence archive can restore the recorded data in another checkout:
+
+```bash
+mkdir -p evals/reports/runs
+tar -xzf evals/reports/campaign-9127ad6-evidence.tar.gz -C evals/reports/runs
+```
+
+The replayer falls back to this relative location when the original absolute worktree path is unavailable. The archive contains synthetic application stores, traces, snapshots and call receipts; no provider environment file or hidden model reasoning is included.
+
+Assessments use a separate `assistant_assessment_ref` on the existing mission. Mission compaction retains its text `summary`, and recording an assistant next action preserves unrelated unfinished work. Memory reads/writes carry provenance in structured observations. Virtual trigger/action times are reported separately from real model/tool elapsed time; no deployment latency SLA is inferred from a frozen test clock.

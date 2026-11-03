@@ -80,7 +80,8 @@ class Telemetry:
             if span:
                 try:
                     span.update(output=event.get('output') if self.capture_content else None,
-                                metadata={**context, 'status': event['status']})
+                                metadata={**context, 'status': event['status'],
+                                          **({'action_id':event['action_id']} if event.get('action_id') else {})})
                 except Exception as exc:
                     self.errors.append({'operation': 'langfuse_update', 'error_type': type(exc).__name__})
             try:
@@ -143,6 +144,9 @@ def instrument_tool(name):
             with telemetry.observation('tool.call', metadata={'tool_name': name}, input=arguments) as event:
                 result = method(ctx, raw)
                 event['output'] = result
+                output=result.get('output') or {}
+                if isinstance(output,dict) and (output.get('id') or output.get('proposal_id')):
+                    event['action_id']=output.get('id') or output.get('proposal_id')
                 return result
         return wrapped
     return decorate

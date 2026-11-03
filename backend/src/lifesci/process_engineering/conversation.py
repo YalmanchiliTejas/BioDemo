@@ -360,15 +360,20 @@ class EngineeringConversationService:
                     summaries.append(data)
             history[-1]['computed_artifacts'] = list(reversed(summaries))
         durable_assessment = None
-        if mission.get('summary') and isinstance(mission['summary'], dict):
-            try:
-                basis = mission['summary']
-                self.p.identity.validate_refs(ctx, [basis])
-                if ctx.delegated_from:
-                    self.p.identity.validate_refs(self.p.identity.context_for(ctx.tenant_id, ctx.delegated_from), [basis])
-                durable_assessment = self.p.evidence.read_derived(ctx, basis['kind'], basis['id'])
-            except (ValueError, KeyError, PermissionError):
-                durable_assessment = {'status': 'stale_or_unavailable; inspect current evidence'}
+        basis = mission.get('assistant_assessment_ref')
+        if not basis and isinstance(mission.get('summary'), dict):
+            basis = mission['summary']  # Compatibility with the initial local evaluation stores.
+        if basis:
+            with self.p.telemetry.observation('memory.read', metadata={
+                    'mission_id': thread['mission_id'], 'memory_kind': 'mission_assessment'}, input=basis) as observation:
+                try:
+                    self.p.identity.validate_refs(ctx, [basis])
+                    if ctx.delegated_from:
+                        self.p.identity.validate_refs(self.p.identity.context_for(ctx.tenant_id, ctx.delegated_from), [basis])
+                    durable_assessment = self.p.evidence.read_derived(ctx, basis['kind'], basis['id'])
+                except (ValueError, KeyError, PermissionError):
+                    durable_assessment = {'status': 'stale_or_unavailable; inspect current evidence'}
+                observation['output'] = {'reference': basis, 'assessment': durable_assessment}
         prompt = {
             'mission_context': {'objective': mission['objective'], 'constraints': mission['constraints'],
                 'corrections': corrections, 'rejected_hypotheses': [h for h in mission['rejected_hypotheses'] if h['correction_id'] in visible_corrections],
@@ -659,26 +664,30 @@ class EngineeringConversationService:
                         owner_id=thread['owner_id'], site_id=thread['site_id'], mission_id=thread['mission_id'])
                 kind, title = 'proposal', 'Proposed action · human approval required'
             elif name == 'workspace_checkpoint':
-                inspected = set()
-                for artifact in self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', tid).state['artifacts']:
-                    if artifact['kind'] == 'assistant_workspace_result':
-                        data = self.p.evidence.read_derived(ctx, artifact['kind'], artifact['id'])
-                        inspected.update((r['kind'], r['id'], r['revision']) for r in data.get('source_refs', []))
-                if any(r.kind == 'engineering_chat_turn' or (r.kind, r.id, r.revision) not in inspected for r in payload.basis):
-                    raise PermissionError('mission checkpoint requires current original evidence inspected in this turn')
-                refs = self.p.identity.validate_refs(ctx, [r.model_dump() for r in payload.basis])
-                with self.p.store.transaction(ctx.actor_id) as tx:
-                    self._mission_fence(ctx, turn, tx)
-                    record = self.p.evidence.record_derived(ctx, 'assistant_mission_checkpoint',
-                        {'site_id': thread['site_id'], 'mission_id': thread['mission_id'],
-                         **payload.model_dump(exclude={'basis'}), 'review_state': 'unapproved_assessment'},
-                        inputs=[EvidenceRef(**r) for r in refs], produced_by={'method': VERSION, 'actor_id': ctx.actor_id})
-                    mission = tx.require(ctx.tenant_id, 'mission', thread['mission_id'])
-                    tx.put(ctx.tenant_id, 'mission', mission.id, {**mission.state,
-                        'summary': {'kind': 'assistant_mission_checkpoint', 'id': record['id'], 'revision': 1, 'site_id': thread['site_id']},
-                        'remaining_work': [payload.next_action],
-                        'findings': [*mission.state['findings'], {'kind': 'assistant_mission_checkpoint', 'id': record['id']}][-30:]},
-                        expected_revision=mission.revision, action='checkpoint_assistant_work')
+                with self.p.telemetry.observation('memory.write', metadata={'mission_id': thread['mission_id'], 'memory_kind': 'mission_assessment'}, input=payload.model_dump()) as memory:
+                    inspected = set()
+                    for artifact in self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', tid).state['artifacts']:
+                        if artifact['kind'] == 'assistant_workspace_result':
+                            data = self.p.evidence.read_derived(ctx, artifact['kind'], artifact['id'])
+                            inspected.update((r['kind'], r['id'], r['revision']) for r in data.get('source_refs', []))
+                    if any(r.kind == 'engineering_chat_turn' or (r.kind, r.id, r.revision) not in inspected for r in payload.basis):
+                        raise PermissionError('mission checkpoint requires current original evidence inspected in this turn')
+                    refs = self.p.identity.validate_refs(ctx, [r.model_dump() for r in payload.basis])
+                    with self.p.store.transaction(ctx.actor_id) as tx:
+                        self._mission_fence(ctx, turn, tx)
+                        record = self.p.evidence.record_derived(ctx, 'assistant_mission_checkpoint',
+                            {'site_id': thread['site_id'], 'mission_id': thread['mission_id'],
+                             **payload.model_dump(exclude={'basis'}), 'review_state': 'unapproved_assessment'},
+                            inputs=[EvidenceRef(**r) for r in refs], produced_by={'method': VERSION, 'actor_id': ctx.actor_id})
+                        mission = tx.require(ctx.tenant_id, 'mission', thread['mission_id'])
+                        remaining = [w for w in mission.state['remaining_work'] if w != mission.state.get('assistant_next_action')]
+                        tx.put(ctx.tenant_id, 'mission', mission.id, {**mission.state,
+                            'assistant_assessment_ref': {'kind': 'assistant_mission_checkpoint', 'id': record['id'], 'revision': 1, 'site_id': thread['site_id']},
+                            'assistant_next_action': payload.next_action,
+                            'remaining_work': list(dict.fromkeys([*remaining, payload.next_action])),
+                            'findings': [*mission.state['findings'], {'kind': 'assistant_mission_checkpoint', 'id': record['id']}]},
+                            expected_revision=mission.revision, action='checkpoint_assistant_work')
+                    memory['output'] = {'reference': {'kind': 'assistant_mission_checkpoint', 'id': record['id']}, 'input_refs': refs, 'next_action': payload.next_action}
                 kind, title = 'assistant_mission_checkpoint', 'Mission assessment · review required'
             elif name == 'physical_demo_context':
                 if not thread['demo_enabled']:

@@ -38,10 +38,15 @@ class BoundedProvider:
                  'prompt_hash':content_hash(kwargs['prompt'])}
         calls.append(entry)
         self.ledger.write_text(json.dumps(calls, indent=2))
+        for field in ('last_response_model','last_response_usage'):
+            if hasattr(self.inner,field):
+                setattr(self.inner,field,None)
         try:
             result = self.inner.complete(**kwargs)
         except Exception as exc:
-            entry.update(status='error', error_type=type(exc).__name__, error_kind=getattr(exc, 'kind', 'error'))
+            entry.update(status='error', error_type=type(exc).__name__, error_kind=getattr(exc, 'kind', 'error'),
+                         returned_model=getattr(self.inner,'last_response_model',None),
+                         failure_response_usage=getattr(self.inner,'last_response_usage',None))
             self.ledger.write_text(json.dumps(calls, indent=2))
             raise
         entry.update(status='completed', provider_request_id=result.provider_request_id,
@@ -59,6 +64,7 @@ def recorded_modal():
         def _post(self, path, body, headers, timeout_s):
             data = super()._post(path, body, headers, timeout_s)
             self.last_response_model = data.get('model')
+            self.last_response_usage = data.get('usage')
             if self.last_response_model != body['model']:
                 raise ProviderError('endpoint returned an unexpected model identity', retryable=False)
             return data

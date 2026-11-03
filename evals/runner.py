@@ -18,7 +18,7 @@ from .schema import load_case
 from .graders import check,unavailable,overall
 from .graders import mission as mission_grader, retrieval
 from .graders.deep_eval import evaluate as deep_evaluate, simulate
-from .reporting import write,metrics
+from .reporting import write,metrics,timing
 from src.lifesci.ids import content_hash
 
 BASE=Path(__file__).parent
@@ -102,6 +102,7 @@ def run_case(case,directory,*,provider_env=None,variant=0,repetition=0,judge_mod
                 last_snapshot=after
                 new_observations=adapter._observations()[before_observations:]
                 calls_after=len(provider_calls(directory))
+                row['timing']=timing(event['at'],before,after)
                 row['checks']=mission_grader.grade(event.get('expect',{}),before,after,new_observations,
                     provider_calls_before=calls_before,provider_calls_after=calls_after)
                 old={n['id'] for n in before['notifications']}
@@ -143,7 +144,7 @@ def run_case(case,directory,*,provider_env=None,variant=0,repetition=0,judge_mod
             result['trace_export']=adapter._call('verify_traces', trace_ids=sorted({r['trace_id'] for r in result['trace_refs']}))
             adapter._call('scores',mission_id=mid,scores=[{'name':c['name'],'value':1.0 if c['status']=='PASS' else 0.0}
                 for c in result['final_checks'] if c['status'] in ('PASS','FAIL')] +
-                [{'name':c['name'],'value':c['score']} for c in result['advisory'] if c.get('score') is not None],trace_id=result['trace_refs'][-1]['trace_id'])
+                [{'name':c['name'],'value':c['score'],'trace_id':next((o['trace_id'] for o in reversed(observations) if o.get('session_id')==c.get('session_id') and o.get('trace_id')), result['trace_refs'][-1]['trace_id'])} for c in result['advisory'] if c.get('score') is not None],trace_id=result['trace_refs'][-1]['trace_id'])
         result['session_count']=len(last_snapshot['sessions'])
         result['turn_count']=len(last_snapshot['turns'])
         result['background_turns']=sum(t.get('origin')=='background' for t in last_snapshot['turns'])
@@ -191,9 +192,18 @@ def main(argv=None):
     parser.add_argument('--simulator-model',help='Optional DeepEval adaptive-user model; incurs separate inference.')
     parser.add_argument('--jobs',type=int,default=1,help='Independent isolated missions; 1..3')
     parser.add_argument('--compare',type=Path)
+    parser.add_argument('--replay-report',type=Path,help='Regrade recorded real missions without new inference.')
     args=parser.parse_args(argv)
     if not 1<=args.repetitions<=5 or not 1<=args.variants<=5:parser.error('repetitions and variants must be 1..5')
     if not 1<=args.jobs<=3:parser.error('jobs must be 1..3')
+    if args.replay_report:
+        from .replay import regrade
+        ids=None
+        if args.case:
+            ids=[load_case(BASE/'missions'/f'{name}.yaml')['id'] for name in args.case]
+        report=regrade(args.replay_report,args.output,suite=args.suite,case_ids=ids)
+        print(json.dumps({'report':str(args.output),'status':report['status'],'counts':report['counts'],'new_provider_requests':0}))
+        return 1 if report['status']=='FAIL' else 2 if report['status'] in ('NOT_TESTABLE','NOT_IMPLEMENTED') else 0
     configure(args.provider_env)
     paths=sorted((BASE/'missions').glob('*.yaml'))
     if args.case:paths=[p for p in paths if p.stem in args.case]

@@ -48,3 +48,19 @@ def write(report,path):
     path.with_suffix('.md').write_text('\n'.join(lines)+'\n')
     (path.parent/'summary.md').write_text('\n'.join(lines)+'\n')
     (path.parent/'outstanding-work.md').write_text('# Outstanding evaluation work\n\n'+'\n'.join('- '+s for s in report['outstanding_work'])+'\n')
+
+
+def timing(trigger_at,before,after):
+    """Virtual scheduling and real execution times have distinct meanings."""
+    from src.lifesci.ids import parse_iso
+    previous={t['id'] for t in before['turns']}
+    new=[t for t in after['turns'] if t['id'] not in previous and t.get('origin')=='background']
+    due=[o['due_at'] for o in before['mission'].get('obligations',[])
+         if o.get('status')=='open' and o.get('due_at') and parse_iso(o['due_at'])<=parse_iso(trigger_at)]
+    activation=min((t['created_at'] for t in new),default=None)
+    basis=min(due) if due else trigger_at
+    return {'trigger_time':trigger_at,'scheduled_due_at':min(due) if due else None,
+            'action_time':activation,
+            'virtual_delay_seconds':(parse_iso(activation)-parse_iso(basis)).total_seconds() if activation else None,
+            'real_turn_elapsed_seconds':[t.get('elapsed_seconds') for t in new],
+            'meaning':'Virtual time measures event/timer activation; real elapsed time measures model/tool work. No production latency SLA is inferred.'}

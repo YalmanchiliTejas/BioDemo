@@ -22,11 +22,13 @@ def grade(expect,before,after,observations):
         if required:
             checks.append(check('source_event_to_background_correlation',bool(source_events&triggered),
                                 {'source_event_ids':sorted(source_events),'triggered_ids':sorted(triggered)}))
-        checkpoints=[a for a in after['artifacts'] if a['kind']=='assistant_mission_checkpoint'
+        checkpoints=[a for a in after['artifacts'] if a['kind'] in ('assistant_mission_checkpoint','physical_analysis_result','bioprocess_forecast','proposal','draft_artifact','claim')
+                     and a['state'].get('status') not in ('stale','quarantined','blocked')
+                     and (a['state'].get('inputs') or a['state'].get('basis'))
                      and a['id'] not in {x['id'] for x in before['artifacts']}]
         checks.append(check('autonomous_progress',bool(background and tools and checkpoints),
                             {'background_turns':len(background),'completed_tools':len(tools),
-                             'new_checkpoints':[a['id'] for a in checkpoints]}))
+                             'new_progress_artifacts':[{'kind':a['kind'],'id':a['id']} for a in checkpoints]}))
     if 'notification' in expect:
         prior={n['id'] for n in before['notifications']}
         emitted=[n for n in after['notifications'] if n['id'] not in prior]

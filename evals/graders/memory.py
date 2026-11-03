@@ -1,9 +1,16 @@
-import json
+import re
 from . import check
 
 
+def literal_present(term,text):
+    # Avoid credit for a limit of 4 from an identifier such as B-104 or a date.
+    suffix=r'(?![\d.])' if re.fullmatch(r'-?\d+(?:\.\d+)?',term) else r'(?![\w.-])'
+    return bool(re.search(r'(?<![\w.-])'+re.escape(term)+suffix,text,re.IGNORECASE))
+
+
 def latest_checkpoint(snapshot):
-    ref=snapshot['mission'].get('summary') or {}
+    ref=snapshot['mission'].get('assistant_assessment_ref') or snapshot['mission'].get('summary') or {}
+    if not isinstance(ref,dict):return None
     return next((a['state'] for a in snapshot['artifacts'] if a['id']==ref.get('id')),None)
 
 
@@ -16,13 +23,13 @@ def grade(expect,before,after):
     if expect.get('recall'):
         previous={t['id'] for t in before['turns']}
         replies=' '.join(t.get('reply') or '' for t in after['turns'] if t['id'] not in previous)
-        checks.append(check('cross_session_literal_recall',all(str(x).casefold() in replies.casefold() for x in expect['recall']),
+        checks.append(check('cross_session_literal_recall',all(literal_present(str(x),replies) for x in expect['recall']),
                             {'expected_terms':expect['recall'],'actual_reply':replies,
                              'limitation':'Term presence is not a semantic correctness grade.'}))
     if expect.get('checkpoint'):
         checks.append(check('durable_mission_checkpoint',bool(checkpoint and checkpoint.get('next_action')
                             and checkpoint.get('inputs') and checkpoint.get('review_state')=='unapproved_assessment'),
-                            {'summary_ref':after['mission'].get('summary'),'checkpoint':checkpoint}))
+                            {'assessment_ref':after['mission'].get('assistant_assessment_ref') or after['mission'].get('summary'),'checkpoint':checkpoint}))
     if 'work_status_any_of' in expect:
         checks.append(check('work_status',bool(checkpoint and checkpoint.get('work_status') in expect['work_status_any_of']),
                             {'expected':expect['work_status_any_of'],'actual':(checkpoint or {}).get('work_status')}))
