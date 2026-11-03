@@ -5,6 +5,7 @@ Source content is data; it never changes tool permissions or action authority.
 """
 import json
 
+from ..observability import instrument_retrieval
 from ..evidence import EvidenceRef
 from ..ids import iso, parse_iso
 
@@ -59,6 +60,7 @@ class WorkspaceTools:
                 else s.get('metadata', {}).get('classification'),
             'timeline_events': len(s.get('timeline', [])) if rec.kind == 'case' else None}
 
+    @instrument_retrieval
     def search(self, ctx, thread, *, kinds=None, query='', limit=20):
         kinds = kinds or list(KINDS)
         if any(k not in KINDS for k in kinds):
@@ -87,6 +89,7 @@ class WorkspaceTools:
             'scope': {'site_id': thread['site_id'], 'authorized_records_only': True},
             'warning': 'Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval.'}
 
+    @instrument_retrieval
     def read(self, ctx, thread, *, kind, record_id, revision, offset=0, max_chars=24000):
         if kind not in KINDS:
             raise ValueError('unsupported workspace record kind')

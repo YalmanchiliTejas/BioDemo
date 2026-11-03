@@ -12,10 +12,11 @@ Operator = Literal['physical_demo_context', 'physical_context_variant', 'physica
     'physical_pipeline_execute', 'physical_results_compare', 'physical_results_assess',
     'physical_analysis_review', 'physical_model_adapter_propose',
     'bioprocess_demo_case', 'bioprocess_forecast', 'cho_dataset_forecast',
-    'workspace_search', 'workspace_read', 'workspace_propose_action']
+    'workspace_search', 'workspace_read', 'workspace_propose_action', 'workspace_checkpoint']
 
 class ConversationIn(StrictModel):
     site_id: str = Field(default='NF1', min_length=1, max_length=100)
+    mission_id: str | None = Field(default=None, min_length=1, max_length=100)
 
 class DisplayContext(StrictModel):
     """Untrusted user-supplied display content, distinct from authorized sources."""
@@ -46,10 +47,11 @@ class ChatDecision(StrictModel):
     questions: list[str] = Field(default_factory=list, max_length=4)
     workflow: list[WorkflowNode] = Field(default_factory=list, max_length=10)
     continue_after_workflow: bool = False
+    notify_user: bool = True
 
     @model_validator(mode='after')
     def clarify_or_execute(self):
-        if self.questions and self.workflow:
+        if self.questions and any(n.task_kind != 'workspace_checkpoint' for n in self.workflow):
             raise ValueError('ask for missing information before running a workflow')
         if self.continue_after_workflow and not self.workflow:
             raise ValueError('continuation requires tool work')
@@ -92,6 +94,16 @@ class WorkspaceProposal(StrictModel):
     expected_result: str = Field(min_length=10, max_length=1000)
     follow_up_measure: str = Field(min_length=5, max_length=1000)
     constraints: list[str] = Field(default_factory=list, max_length=10)
+
+class WorkspaceCheckpoint(StrictModel):
+    """A reviewable work checkpoint, never an approval or a completed plant action."""
+    summary: str = Field(min_length=10, max_length=2000)
+    observations: list[str] = Field(default_factory=list, max_length=10)
+    hypotheses: list[str] = Field(default_factory=list, max_length=10)
+    unknowns: list[str] = Field(default_factory=list, max_length=10)
+    next_action: str = Field(min_length=5, max_length=1000)
+    work_status: Literal['investigating', 'awaiting_evidence', 'awaiting_engineer_review']
+    basis: list[SourceRef] = Field(min_length=1, max_length=10)
 
 class WatchIn(StrictModel):
     enabled: bool

@@ -4,14 +4,28 @@ import hashlib
 import json
 import os
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any
 
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+_clock = ContextVar('lifesci_clock', default=None)
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    provider = _clock.get()
+    return provider() if provider else datetime.now(timezone.utc)
+
+
+@contextmanager
+def use_clock(provider):
+    """Inject wall time in this execution context; elapsed-time budgets stay real."""
+    token = _clock.set(provider)
+    try:
+        yield
+    finally:
+        _clock.reset(token)
 
 
 def iso(value: datetime | None) -> str | None:

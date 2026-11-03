@@ -77,6 +77,8 @@ def run_coordinator(platform: Any, ctx: Any, act: Activation, reasons: list[str]
     consumed = list(act.pending_event_ids)
     if mission.get('assistant_responsibility', {}).get('enabled'):
         consumed = platform.assistant_responsibilities.run(ctx, act)
+        # The assistant may checkpoint a new evidence gap during this activation.
+        remaining = platform.missions.get(ctx, act.mission_id)['remaining_work']
     platform.missions.checkpoint(act, progress={"reasons": reasons, "completed_obligations": completed,
         "blocked_obligations": blocked}, consumed_event_ids=consumed,
         remaining_work=remaining, surfaced_obligations=blocked)

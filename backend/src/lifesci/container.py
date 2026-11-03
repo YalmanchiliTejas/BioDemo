@@ -58,8 +58,12 @@ class Platform:
     allow_unqualified: bool = False
     providers: dict[str, Any] | None = None
     api_extensions: list[Callable[..., None]] = field(default_factory=list)
+    telemetry: Any = None
 
     def __post_init__(self) -> None:
+        if self.telemetry is None:
+            from .observability import Telemetry
+            self.telemetry = Telemetry.from_env()
         s = self.store
         self.identity = IdentityService(s)
         self.ownership = OwnershipRegistry(s)
@@ -88,6 +92,7 @@ class Platform:
         providers = self.providers if self.providers is not None else self._env_providers()
         self.gateway = ModelGateway(s, self.identity, registry, providers,
                                     router=Router(registry, allow_unqualified=self.allow_unqualified, task_profile_bindings=bindings))
+        self.gateway.telemetry = self.telemetry
         from .lyophilization.service import ProcessModelService, register_handlers
         self.process_models = ProcessModelService(self)
         register_handlers(self.gateway)

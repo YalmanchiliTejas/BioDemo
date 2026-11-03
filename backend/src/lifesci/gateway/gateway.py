@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from ..observability import instrument_gateway
 from ..identity import AccessContext, IdentityService
 from ..ids import content_hash, iso, new_id, utc_now
 from ..store import RecordStore
@@ -92,6 +93,7 @@ class ModelGateway:
         self.handlers[task_kind] = (version, handler)
 
     # --- main entry ---------------------------------------------------------------------
+    @instrument_gateway
     def run(self, req: TaskRequest) -> TaskResult:
         if req.output_validator and not req.output_validation_version:
             raise ValueError('a host output validator requires a version for cache isolation')

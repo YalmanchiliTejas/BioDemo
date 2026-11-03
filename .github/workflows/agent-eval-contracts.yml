@@ -1,0 +1,22 @@
+name: Agent evaluation contracts
+on:
+  pull_request:
+    paths:
+      - 'evals/**'
+      - 'backend/src/lifesci/**'
+      - '.github/workflows/agent-eval-contracts.yml'
+  workflow_dispatch:
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e './backend[lifesci-platform]' -r evals/requirements.txt
+      - name: Test harness and host contracts (no live inference)
+        env:
+          DEEPEVAL_TELEMETRY_OPT_OUT: 'YES'
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+        run: python -m pytest evals/tests backend/tests/lifesci/test_engineering_conversation.py backend/tests/lifesci/test_missions.py -q

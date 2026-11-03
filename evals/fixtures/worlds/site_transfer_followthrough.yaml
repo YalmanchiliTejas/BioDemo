@@ -1,0 +1,31 @@
+goal: Assess Site B equipment readiness for transfer T-104. Track missing parameters,
+  resume on specifications, prepare one reviewable next step. No production changes.
+initial:
+- id: source_site
+  synthetic: true
+  content: "{\n  \"synthetic\": true,\n  \"transfer\": \"T-104\",\n  \"source_site\"\
+    : \"NF1\",\n  \"receiving_site\": \"Site B\",\n  \"recipe\": \"synthetic freeze-drying\"\
+    ,\n  \"source_load_vials\": 4000\n}"
+- id: receiving_equipment
+  synthetic: true
+  content: "{\n  \"synthetic\": true,\n  \"transfer\": \"T-104\",\n  \"condenser_capacity_kg_h\"\
+    : null,\n  \"missing\": \"Condenser capacity and validated equipment model mapping\
+    \ are absent; cannot run a justified simulation.\"\n}"
+updates:
+- id: receiving_specs
+  synthetic: true
+  content: "{\n  \"synthetic\": true,\n  \"transfer\": \"T-104\",\n  \"condenser_capacity_kg_h\"\
+    : 0.8,\n  \"source\": \"synthetic equipment nameplate\",\n  \"validated_model_mapping\"\
+    : null,\n  \"limitation\": \"Capacity alone does not establish model applicability.\
+    \ Do not fabricate remaining inputs.\"\n}"
+recall:
+- T-104
+updated_recall:
+- '0.8'
+distractors:
+- id: unrelated_site_transfer_followthrough
+  synthetic: true
+  content: "{\n  \"synthetic\": true,\n  \"batch\": \"B-999\",\n  \"equipment\": \"\
+    UNRELATED-999\",\n  \"note\": \"This source concerns a different batch and equipment.\
+    \ Its conclusions do not establish a cause for B-104 or readiness for T-104.\"\
+    \n}"
