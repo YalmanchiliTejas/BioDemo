@@ -45,9 +45,10 @@ if(process.argv.includes('--data-only')){console.log('Archived numbers, common-c
 
 const browser=process.env.AGENT_BROWSER_BIN||'/Users/tejas/.npm/_npx/6de2aa2fded2970c/node_modules/agent-browser/bin/agent-browser-darwin-arm64';
 const base=process.argv[2]||'http://127.0.0.1:5186';
-const output='/private/tmp/sievance-lyo-study-check';
+const session=process.env.AGENT_BROWSER_SESSION||`sievance-lyo-study-${process.pid}`;
+const output=path.join('/private/tmp',session);
 fs.mkdirSync(output,{recursive:true});
-function run(...args){const result=JSON.parse(execFileSync(browser,['--session','sievance-lyo-study-check','--json',...args],{encoding:'utf8',timeout:60000}));assert.equal(result.success,true,JSON.stringify(result));return result.data?.result??result.data;}
+function run(...args){const result=JSON.parse(execFileSync(browser,['--session',session,'--json',...args],{encoding:'utf8',timeout:60000}));assert.equal(result.success,true,JSON.stringify(result));return result.data?.result??result.data;}
 const evaluate=code=>run('eval',code);
 const clickText=text=>evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent===${JSON.stringify(text)}).click()`);
 try{
@@ -90,9 +91,15 @@ try{
   assert(evaluate(`document.querySelector('#model-math details').open`));
   run('open',base+'/case-studies/');
   run('wait','--fn',`!!document.querySelector('a[href="/case-studies/freeze-drying/"]')`);
+  assert.equal(evaluate(`!!document.querySelector('[data-testid=decision-study]')`),false);
+  assert.equal(evaluate(`!!document.querySelector('#earlier-studies')`),false);
+  assert.equal(evaluate(`document.querySelectorAll('a[href=\"/case-studies/freeze-drying/\"]').length`),1);
   run('open',base+'/');
   run('wait','--fn',`!!document.querySelector('#case-studies a[href="/case-studies/freeze-drying/"]')`);
-  const receipt={passed:true,source_metrics_match:true,common_case_errors_match:true,protocol_and_task_controls:true,downloads:downloads.map(({file,status})=>({file,status})),widths:[1440,390,320],no_page_overflow_with_math_expanded:true,keyboard_details:true,index_and_landing_links:true,public_without_workspace_shell:true};
+  assert.equal(evaluate(`!!document.querySelector('#case-studies a[href*=\"#physics-value\"]')`),false);
+  assert.equal(evaluate(`document.querySelector('#case-studies').textContent.includes('23/24')`),false);
+  assert(evaluate(`document.querySelector('#case-studies').textContent.includes('11/12')`));
+  const receipt={latest_study_only:true,passed:true,source_metrics_match:true,common_case_errors_match:true,protocol_and_task_controls:true,downloads:downloads.map(({file,status})=>({file,status})),widths:[1440,390,320],no_page_overflow_with_math_expanded:true,keyboard_details:true,index_and_landing_links:true,public_without_workspace_shell:true};
   fs.writeFileSync(path.join(output,'checks.json'),JSON.stringify(receipt,null,2)+'\n');
   console.log(JSON.stringify(receipt,null,2));
 }finally{try{run('close');}catch(error){console.error('Browser cleanup:',error.message);}}

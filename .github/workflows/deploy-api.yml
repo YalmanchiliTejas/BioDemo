@@ -10,6 +10,7 @@ on:
       - backend/benchmarks/cmo_ingestion/demo/**
       - backend/deploy/aws/**
       - backend/tests/**
+      - backend/benchmarks/agent_pilot/**
       - .github/workflows/deploy-api.yml
   workflow_dispatch:
 
@@ -43,6 +44,9 @@ jobs:
           tests/lifesci/test_gateway.py tests/lifesci/test_llm_configuration.py tests/lifesci/test_normalized_schema.py
           tests/lifesci/test_engineering_conversation.py tests/test_cmo_ingestion.py tests/test_cmo_zero_silent.py
           tests/test_cmo_legacy_import.py
+          tests/lifesci/test_discovery_clarification.py
+          tests/lifesci/test_workspace_source_search.py
+          tests/test_agent_pilot_runner.py tests/test_agent_pilot_graders.py tests/test_agent_pilot_scenarios.py
       - name: Template lint
         run: pip install cfn-lint && cfn-lint deploy/aws/template.yaml deploy/aws/github-oidc.yaml
 

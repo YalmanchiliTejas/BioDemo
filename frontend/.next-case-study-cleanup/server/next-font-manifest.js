@@ -1,0 +1,1 @@
+self.__NEXT_FONT_MANIFEST="{\"pages\":{},\"app\":{\"/Users/tejas/Desktop/BioDemo/frontend/app/layout\":[\"static/media/e4af272ccee01ff0-s.p.woff2\",\"static/media/bb3ef058b751a6ad-s.p.woff2\",\"static/media/e91e1ff17da97c42-s.p.woff2\"]},\"appUsingSizeAdjust\":true,\"pagesUsingSizeAdjust\":false}"

@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST="{\"components/landing/LabStage.tsx -> ./labScene\":{\"id\":\"components/landing/LabStage.tsx -> ./labScene\",\"files\":[\"static/chunks/_app-pages-browser_components_landing_labScene_ts.js\"]}}"
