@@ -153,8 +153,10 @@ class ModelGateway:
             self.budgets.settle(ctx.tenant_id, reservation, actual)
             total_cost += actual
             if completion is None:
-                # Provider unavailable after bounded retries: fail over to next eligible qualified profile.
-                self.mark_unavailable(profile.profile_id)
+                # A request rejection does not establish an outage for unrelated work.
+                # Missing configuration and provider failures still open the breaker.
+                if not attempt_log or attempt_log[-1].get('error_kind') not in ('bad_request', 'output_limit'):
+                    self.mark_unavailable(profile.profile_id)
                 index += 1
                 continue
             output, problems = self._validate(completion.text, req)

@@ -17,7 +17,7 @@ class ProviderError(Exception):
     def __init__(self, message: str, *, retryable: bool, kind: str = "error") -> None:
         super().__init__(message)
         self.retryable = retryable
-        self.kind = kind  # rate_limit | timeout | unavailable | auth | bad_request | error
+        self.kind = kind  # rate_limit | timeout | unavailable | auth | bad_request | output_limit | error
 
 
 @dataclass(frozen=True)
@@ -211,7 +211,7 @@ class ModalProvider(_HTTPProvider):
             reason = choice.get("finish_reason")
             hint = " (output token budget exhausted, likely by reasoning)" if reason == "length" else ""
             raise ProviderError(f"modal returned no answer content{hint}; finish_reason={reason}",
-                                retryable=False, kind="error")
+                                retryable=False, kind="output_limit" if reason == "length" else "error")
         usage = data.get("usage") or {}
         cached = int((usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0) or 0)
         return Completion(content, int(usage.get("prompt_tokens", 0) or 0),

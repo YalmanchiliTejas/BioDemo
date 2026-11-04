@@ -40,6 +40,7 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
   const [recent, setRecent] = useState<Recent[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [stoppingTurns, setStoppingTurns] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState('');
   const [sources, setSources] = useState<Source[]>([]);
   const [published, setPublished] = useState<PublishedDataset[]>([]);
@@ -51,7 +52,7 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
   const end = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const last = thread?.turns.at(-1);
-  const busy = sending || active(last);
+  const busy = sending || active(last) || (!!last && stoppingTurns.has(last.id));
   const structuredWork = useMemo(() => new Set(thread ? projectThread(thread).map(r => r.id) : []), [thread]);
 
   function adopt(data: Thread) {
@@ -148,11 +149,15 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
     finally { setSending(false); }
   }
   async function stop() {
-    if (!thread) return;
+    if (!thread || !last || stoppingTurns.has(last.id)) return;
+    const id = thread.id;
+    const turnId = last.id;
+    setStoppingTurns(value => new Set(value).add(turnId)); setError('');
     try {
-      const data = await processRequest<Thread>(`/v1/process-model/conversations/${thread.id}/stop`, {});
-      if (current.current === data.id) adopt(data);
-    } catch (e) { setError(String(e)); }
+      const data = await processRequest<Thread>(`/v1/process-model/conversations/${id}/stop`, {});
+      if (current.current === id) adopt(data);
+    } catch (e) { if (current.current === id) setError(String(e)); }
+    finally { setStoppingTurns(value => { const remaining = new Set(value); remaining.delete(turnId); return remaining; }); }
   }
   function newConversation() {
     current.current = null; setThread(null); setDraft(''); setAttachment(''); setDemoConsent(false); setError('');
@@ -197,7 +202,7 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
               {turn.reply && <details className="mt-3 text-xs text-text-secondary"><summary className="cursor-pointer">Read the assistant’s explanation</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-7">{turn.reply}</p></details>}
             </> : turn.reply && <p className="whitespace-pre-wrap text-sm leading-7 text-text-primary">{turn.reply}</p>}
             {!!turn.questions.length && <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6">{turn.questions.map(q => <li key={q}>{q}</li>)}</ul>}
-            {active(turn) && <div><p role="status" className="mt-3 flex items-center gap-2 text-sm text-brand-teal"><Loader2 size={15} className="motion-safe:animate-spin" />{turn.steps?.length ? 'Running the assembled workflow…' : 'Reviewing context and assembling the analysis…'}</p><button type="button" onClick={() => void stop()} className={action}>Stop work</button><details className="mt-2 text-xs text-text-tertiary"><summary className="cursor-pointer">Work interrupted?</summary><p className="mt-2">Your work is saved. A running worker keeps its lease for up to five minutes; after it expires you can resume from the last completed step.</p><button type="button" disabled={sending} className={action} onClick={() => void retry()}><RotateCcw size={13} />Resume saved work</button></details></div>}
+            {(active(turn) || stoppingTurns.has(turn.id)) && <div><p role="status" className="mt-3 flex items-center gap-2 text-sm text-brand-teal"><Loader2 size={15} className="motion-safe:animate-spin" />{stoppingTurns.has(turn.id) ? 'Stopping work…' : turn.steps?.length ? 'Running the assembled workflow…' : 'Reviewing context and assembling the analysis…'}</p><button type="button" disabled={stoppingTurns.has(turn.id)} onClick={() => void stop()} className={action}>{stoppingTurns.has(turn.id) ? 'Stopping…' : 'Stop work'}</button><details className="mt-2 text-xs text-text-tertiary"><summary className="cursor-pointer">Work interrupted?</summary><p className="mt-2">Your work is saved. A running worker keeps its lease for up to five minutes; after it expires you can resume from the last completed step.</p><button type="button" disabled={sending || stoppingTurns.has(turn.id)} className={action} onClick={() => void retry()}><RotateCcw size={13} />Resume saved work</button></details></div>}
             {!!turn.steps?.length && <details className="my-4 rounded-card border border-border-hairline bg-surface p-4" open={active(turn)}><summary className="flex cursor-pointer items-center gap-2 text-xs font-medium text-text-secondary"><Workflow size={15} />{turn.steps.length} workflow steps · {turn.status.replaceAll('_', ' ')}<ChevronDown size={12} className="ml-auto" /></summary><ol className="mt-4 space-y-3">{turn.steps.map(step => <li className="flex gap-3 text-xs" key={step.node_id}>{step.status === 'completed' ? <Check size={14} className="shrink-0 text-status-success" /> : <Circle size={14} className={`shrink-0 ${step.status === 'blocked' ? 'text-status-critical' : 'text-text-muted'}`} />}<div><p className="font-medium">{step.title} <span className="ml-2 font-normal text-text-tertiary">{step.status}</span></p><p className="mt-1 text-text-tertiary">{step.task_kind.replaceAll('_', ' ')}{step.depends_on.length ? ` · after ${step.depends_on.join(', ')}` : ''}</p>{step.issues.map(issue => <p key={issue} className="mt-1 text-status-critical">{issue}</p>)}</div></li>)}</ol></details>}
             {turn.system_message && <div className={`mt-3 rounded-control border-l-2 px-4 py-3 text-sm leading-6 ${turn.status === 'agent_unavailable' || turn.status === 'blocked' ? 'border-status-warning bg-status-warning-bg' : 'border-brand-teal bg-brand-teal-light'}`}><p>{turn.system_message}</p>{index === (thread?.turns.length ?? 0)-1 && ['agent_unavailable', 'blocked'].includes(turn.status) && <button type="button" disabled={busy} onClick={() => void retry()} className={`${action} mt-2 border border-border-strong`}><RotateCcw size={13} />Retry this request</button>}</div>}
             {turn.artifacts.map(artifact => { const View = artifact.kind === 'assistant_demo_deviations' ? DemoDeviationsArtifact : artifact.kind === 'assistant_workspace_result' ? WorkspaceArtifact : artifact.kind.startsWith('bioprocess_') ? BioprocessArtifact : AnalysisArtifact; return ['physical_analysis_plan', 'physical_analysis_context', 'bioprocess_case'].includes(artifact.kind) ? <details className="my-3 text-xs" key={artifact.id}><summary className="cursor-pointer text-text-secondary">{artifact.title}</summary><View threadId={thread.id} artifact={artifact} /></details> : <View key={artifact.id} threadId={thread.id} artifact={artifact} />; })}

@@ -212,6 +212,10 @@ class Repository:
         try:
             tx = _Tx(conn, self.backend, tenant)
             if self.backend == 'postgresql':
+                # Poolers can default float text output to 15 significant
+                # digits. Preserve exact float8 round trips before comparing
+                # immutable source values with their stored representations.
+                tx.execute('SET LOCAL extra_float_digits = 3')
                 tx.execute("SELECT set_config('app.tenant_id', ?, true)", (tenant,))
             else: conn.execute('BEGIN IMMEDIATE')
             self._local.tx = tx

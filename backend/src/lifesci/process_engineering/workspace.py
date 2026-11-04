@@ -144,6 +144,11 @@ class WorkspaceTools:
 
     def save_result(self, ctx, thread, turn, result, title):
         refs = result.get('source_refs') or result.get('records') or []
+        if 'source_refs' not in result:
+            # Search results are discovery labels, not an inspection of the
+            # mutable answer/progress. Actual reads retain their source_refs.
+            refs = [self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', r['id']).state.get('user_ref', r)
+                    if r['kind'] == 'engineering_chat_turn' else r for r in refs]
         refs = [EvidenceRef(r['kind'], r['id'], r['revision'], r.get('site_id')) for r in refs]
         refs.append(EvidenceRef(**turn['user_ref']))
         self.p.identity.validate_refs(ctx, [r.to_dict() for r in refs])
