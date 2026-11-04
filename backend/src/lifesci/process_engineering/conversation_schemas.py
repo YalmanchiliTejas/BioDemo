@@ -49,7 +49,9 @@ class ChatDecision(StrictModel):
 
     @model_validator(mode='after')
     def clarify_or_execute(self):
-        if self.questions and self.workflow:
+        # Discovery can resolve the uncertainty behind a provisional question.
+        # Numerical work and proposals still require clarification first.
+        if self.questions and any(n.task_kind not in ('workspace_search', 'workspace_read') for n in self.workflow):
             raise ValueError('ask for missing information before running a workflow')
         if self.continue_after_workflow and not self.workflow:
             raise ValueError('continuation requires tool work')

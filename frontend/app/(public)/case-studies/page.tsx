@@ -4,7 +4,7 @@ import CaseStudies from '@/components/process/CaseStudies';
 
 export const metadata: Metadata = {
   title: { absolute: 'Case studies | Sievance' },
-  description: 'See the measured GLM-5.3 decision comparison, real-data findings and published manufacturing examples through charts, case records and reproducible evidence. No account required.',
+  description: 'Explore the freeze-drying comparison of an agent with and without a revised physical model, with interactive results, methods and reproducible evidence. No account required.',
 };
 
 export default function PublicCaseStudies() {

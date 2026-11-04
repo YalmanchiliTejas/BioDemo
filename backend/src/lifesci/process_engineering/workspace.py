@@ -22,6 +22,8 @@ FIELDS = {
     'engineering_chat_turn': ('user_text', 'reply', 'created_at', 'status', 'artifacts'),
     'evidence': ('source_system', 'source_record_id', 'event_time', 'recorded_at', 'media_type', 'metadata', 'size'),
 }
+MAX_SEARCH_SOURCE_BYTES = 2 * 1024 * 1024
+MAX_SEARCH_TOTAL_BYTES = 8 * 1024 * 1024
 
 
 class WorkspaceTools:
@@ -63,7 +65,8 @@ class WorkspaceTools:
         kinds = kinds or list(KINDS)
         if any(k not in KINDS for k in kinds):
             raise ValueError('unsupported workspace record kind')
-        out = []
+        out, content_search_gaps = [], []
+        searched_bytes = 0
         for kind in kinds:
             for rec in self.p.store.read().list(ctx.tenant_id, kind):
                 # User instructions are private conversation data, not process evidence.
@@ -77,10 +80,29 @@ class WorkspaceTools:
                     continue
                 searchable = json.dumps({k: rec.state[k] for k in FIELDS[kind] if k in rec.state}, ensure_ascii=False)
                 if query and query.casefold() not in searchable.casefold():
-                    continue
+                    # Source-system identifiers often contain no domain terms.
+                    # Search authorized text originals as well as their metadata;
+                    # retain explicit workspace_read for inspecting source content.
+                    if kind != 'evidence' or not rec.state.get('media_type', '').startswith(('text/', 'application/json')):
+                        continue
+                    size = rec.state.get('size', 0)
+                    if size > MAX_SEARCH_SOURCE_BYTES or searched_bytes + size > MAX_SEARCH_TOTAL_BYTES:
+                        content_search_gaps.append({'id': rec.id, 'reason': 'text_search_byte_limit'})
+                        continue
+                    try:
+                        original = self.p.evidence.original(ctx, rec.id, revision=rec.revision).decode('utf-8', errors='replace')
+                    except PermissionError:
+                        continue  # Authority may have changed after the earlier check.
+                    except LookupError:
+                        content_search_gaps.append({'id': rec.id, 'reason': 'original_unavailable'})
+                        continue
+                    searched_bytes += size
+                    if query.casefold() not in original.casefold():
+                        continue
                 out.append(self._summary(rec, ref))
         out.sort(key=lambda r: (r['time'] or '', r['id']), reverse=True)
-        return {'records': out[:limit], 'matching_count': len(out), 'truncated': len(out) > limit,
+        return {'records': out[:limit], 'matching_count': len(out), 'truncated': len(out) > limit or bool(content_search_gaps),
+            'matching_count_is_lower_bound': bool(content_search_gaps), 'content_search_gaps': content_search_gaps,
             'searched_kinds': list(kinds), 'query': query,
             'coverage': 'Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.',
             'ordering': 'Descending source timestamp, then id for stable ties; case time is opened_at, NOT deviation occurrence time. Undated records sort last.',
