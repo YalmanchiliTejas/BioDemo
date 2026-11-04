@@ -277,7 +277,13 @@ class EngineeringConversationService:
         index = self.workspace.search(ctx, thread, kinds=['case'], limit=20)
         refs.extend(EvidenceRef(r['kind'], r['id'], r['revision'], r.get('site_id')) for r in index['records'])
         saved = self.workspace.search(ctx, thread, kinds=['engineering_chat_turn'], limit=10)
-        refs.extend(EvidenceRef(r['kind'], r['id'], r['revision'], r.get('site_id')) for r in saved['records'])
+        # Discovery shows instruction labels, not another worker's mutable
+        # progress. Pin those labels to their original instruction evidence so
+        # ordinary checkpoints in another conversation cannot stale this answer.
+        for item in saved['records']:
+            saved_turn = self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', item['id'])
+            if saved_turn.state.get('user_ref'):
+                refs.append(EvidenceRef(**saved_turn.state['user_ref']))
         for sid in thread['source_ids'][-10:]:
             try:
                 source, config = self.analysis._source(ctx, sid, 0)
@@ -477,9 +483,11 @@ class EngineeringConversationService:
                     planning_attempts=[*turn.get('planning_attempts', []), *planning_attempts])
                 if result.status != 'completed':
                     invalid_plan = any(a['status'] == 'rejected' for a in planning_attempts)
-                    checkpoint(status='blocked' if invalid_plan else 'agent_unavailable',
+                    stale_basis = result.status == 'stale_basis'
+                    checkpoint(status='blocked' if invalid_plan or stale_basis else 'agent_unavailable',
                         issues=result.issues, reply=None,
                         system_message='The assistant could not construct a valid analysis plan after the allowed correction. No simulation has run; inspect the execution record or refine the request.' if invalid_plan else
+                            'Supporting evidence changed while the assistant was working, so its answer was withheld. Your message is saved; retry to use the current evidence.' if stale_basis else
                             'The engineering assistant is unavailable. Your message is saved; no workflow or simulation has run. Retry when the model connection is available.')
                     return self.get(ctx, thread_id)
                 decision = ChatDecision.model_validate(result.output)
@@ -559,10 +567,17 @@ class EngineeringConversationService:
                     if producer.task_kind not in producers:
                         raise ValueError(f'node {node.node_id}: {field} requires an output from {list(producers)}, not {producer.task_kind}')
 
+    def _active_turn(self, ctx, turn, tx):
+        self._mission_fence(ctx, turn, tx)
+        current = tx.require(ctx.tenant_id, 'engineering_chat_turn', turn['id'])
+        thread = self._thread(ctx, turn['conversation_id'], tx)
+        if current.state['status'] != 'running' or thread.state['turn_ids'][-1] != turn['id']:
+            raise ConflictError('work was stopped or superseded; do not publish new results')
+        return current
+
     def _remember(self, ctx, turn, kind, record, title):
         with self.p.store.transaction(ctx.actor_id) as tx:
-            self._mission_fence(ctx, turn, tx)
-            current = tx.require(ctx.tenant_id, 'engineering_chat_turn', turn['id'])
+            current = self._active_turn(ctx, turn, tx)
             artifact = {'kind': kind, 'id': record.get('id') or record.get('proposal_id'), 'title': title}
             tx.put(ctx.tenant_id, 'engineering_chat_turn', turn['id'],
                 {**current.state, 'artifacts': [*current.state['artifacts'], artifact]},
@@ -606,17 +621,19 @@ class EngineeringConversationService:
                 result = (self.workspace.search(ctx, thread, **payload.model_dump()) if name == 'workspace_search'
                           else self.workspace.read(ctx, thread, **payload.model_dump()))
                 title = 'Workspace search' if name == 'workspace_search' else f'{payload.kind} · {payload.record_id}'
-                record = self.workspace.save_result(ctx, thread, turn, result, title)
-                kind = 'assistant_workspace_result'
-                if name == 'workspace_read' and payload.kind in ('physical_analysis_context', 'process_simulation'):
-                    # Discovery grants no new authority; the read already validated the current source.
-                    self.analysis._source(ctx, payload.record_id, 0)
-                    with self.p.store.transaction(ctx.actor_id) as tx:
-                        self._mission_fence(ctx, turn, tx)
+                # The source read may take time. Recheck cancellation, persist,
+                # and attach in one transaction after the read has completed.
+                with self.p.store.transaction(ctx.actor_id) as tx:
+                    self._active_turn(ctx, turn, tx)
+                    record = self.workspace.save_result(ctx, thread, turn, result, title)
+                    if name == 'workspace_read' and payload.kind in ('physical_analysis_context', 'process_simulation'):
+                        self.analysis._source(ctx, payload.record_id, 0)
                         parent = self._thread(ctx, thread['id'], tx)
                         tx.put(ctx.tenant_id, 'engineering_conversation', parent.id,
                             {**parent.state, 'source_ids': list(dict.fromkeys([*parent.state['source_ids'], payload.record_id]))},
                             expected_revision=parent.revision, action='retain_discovered_analysis_context')
+                    self._remember(ctx, turn, 'assistant_workspace_result', record, title)
+                return {'status': 'completed', 'output': record, 'issues': []}
             elif name == 'workspace_propose_action':
                 if any(r.kind == 'engineering_chat_turn' for r in payload.basis):
                     raise PermissionError('saved assistant replies are not approved action evidence; inspect original source records')
@@ -630,10 +647,11 @@ class EngineeringConversationService:
                     raise PermissionError('draft action basis must have been inspected in this turn')
                 basis = self.p.identity.validate_refs(ctx, [r.model_dump() for r in payload.basis])
                 with self.p.store.transaction(ctx.actor_id) as tx:
-                    self._mission_fence(ctx, turn, tx)
+                    self._active_turn(ctx, turn, tx)
                     record = self.p.actions.propose(ctx, **payload.model_dump(exclude={'basis'}), basis=basis,
                         owner_id=thread['owner_id'], site_id=thread['site_id'], mission_id=thread['mission_id'])
-                kind, title = 'proposal', 'Proposed action · human approval required'
+                    self._remember(ctx, turn, 'proposal', record, 'Proposed action · human approval required')
+                return {'status': 'completed', 'output': record, 'issues': []}
             elif name == 'physical_demo_context':
                 if not thread['demo_enabled']:
                     raise PermissionError('example reconstruction has not been selected by the user')
