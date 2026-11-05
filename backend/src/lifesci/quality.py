@@ -106,6 +106,28 @@ class CaseService:
                 raise ValueError("procedure references must carry id and revision")
         return self._update(ctx, case_id, "set_procedures", lambda s: {**s, "procedure_refs": list(procedure_refs)})
 
+    def close(self, ctx: AccessContext, case_id: str, *, root_cause: str, actions_taken: str, outcome: str,
+              expected_revision: int, reason: str = "") -> dict[str, Any]:
+        """Close a case with the closure record its case card is built from. Only people holding `close`."""
+        _require_person(ctx, "closing a case")
+        fields = {"root_cause": root_cause.strip(), "actions_taken": actions_taken.strip(), "outcome": outcome.strip()}
+        missing = [k for k, v in fields.items() if not v]
+        if missing:
+            raise ValueError("closing a case requires " + ", ".join(missing) + ' (use "not established" for an unknown root cause)')
+        with self.store.transaction(ctx.actor_id) as tx:
+            rec = tx.require(ctx.tenant_id, "case", case_id)
+            self.identity.require(ctx, "close", "case", case_id, site_id=rec.state["site_id"], tx=tx)
+            if rec.revision != expected_revision:
+                raise ConflictError(f"case at revision {rec.revision}; close targeted {expected_revision}")
+            if rec.state.get("status") == "closed":
+                raise ValueError("case is already closed")
+            state = {**rec.state, "status": "closed", "closure": {**fields, "closed_by": ctx.actor_id,
+                     "closed_at": iso(utc_now())}}
+            out = tx.put(ctx.tenant_id, "case", case_id, state, expected_revision=rec.revision, action="close_case",
+                         reason=reason or None, event_type="case.closed",
+                         event_payload={"case_id": case_id, "site_id": rec.state["site_id"]})
+        return {**out.state, "revision": out.revision}
+
     def _update(self, ctx: AccessContext, case_id: str, action: str, change) -> dict[str, Any]:
         with self.store.transaction(ctx.actor_id) as tx:
             rec = tx.require(ctx.tenant_id, "case", case_id)

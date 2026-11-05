@@ -321,7 +321,9 @@ def test_api_delivery_upload_auto_config_bulk_and_reprocess(tmp_path, monkeypatc
     body=io.StringIO(); csv.writer(body).writerows([['Lot','Elapsed time (h)','pH','Temperature (°C)'],['L-1',0,7.0,37],['L-1',1,7.1,37.1]])
     added=client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/files",params={'filename':'lot export.csv'},content=body.getvalue().encode())
     assert added.status_code==200 and added.json()['files'][0]['sha256']
-    assert client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/files",params={'filename':'run.exe'},content=b'x').status_code==400
+    blocked=client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/files",params={'filename':'run.exe'},content=b'x').json()
+    assert [e['outcome'] for e in blocked['intake'] if e['path']=='run.exe']==['blocked'] and 'run.exe' not in {f['path'] for f in blocked['files']}
+    assert not list((tmp_path/'runtime').rglob('run.exe'))  # an executable is listed, never stored
     archive=io.BytesIO()
     with zipfile.ZipFile(archive,'w') as z: z.writestr('../evil.csv','a')
     assert client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/files",params={'filename':'p.zip'},content=archive.getvalue()).status_code==400

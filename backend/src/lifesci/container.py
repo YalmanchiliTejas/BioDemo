@@ -67,6 +67,8 @@ class Platform:
         self.signatures = SignatureService(s, self.identity)
         self.actions = ActionService(s, self.identity, self.ownership)
         self.missions = MissionService(s, self.identity)
+        from .rules import RuleService
+        self.rules = RuleService(s, self.identity)
         self.assurance = AssuranceService(s, self.identity)
         self.queue = WorkQueue(s)
         from .procedures import ProcedureService

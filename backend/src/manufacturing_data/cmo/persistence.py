@@ -140,7 +140,8 @@ DISPOSITION = ('actor', 'reason', 'at', 'grouped_with', 'covered_by', 'carried_f
 DERIVED_ISSUE = {'ignore_rules'}
 TEMPLATE_COLUMNS = ['id', 'cmo', 'fingerprint', 'kind', 'version', 'mapping', 'headers', 'actor', 'at', 'origin']
 RULE_COLUMNS = ['id', 'cmo', 'pattern', 'actor', 'reason', 'at', 'run_id', 'issue_id']
-DELIVERY_FIELDS = {'id', 'cmo', 'name', 'created', 'dataset', 'condition', 'synthetic', 'files', 'disclosure'}
+DELIVERY_FIELDS = {'id', 'cmo', 'name', 'created', 'dataset', 'condition', 'synthetic', 'files', 'disclosure', 'intake'}
+INTAKE_COLUMNS = ['source', 'path', 'outcome', 'reason', 'size', 'sha256']
 
 
 def _unknown(kind, item, allowed):
@@ -590,8 +591,13 @@ class Repository:
             for delivery, path, size, sha in tx.fetchall('SELECT delivery_id, path, size_bytes, sha256 FROM cmo_delivery_files '
                                                          'WHERE tenant_id=? ORDER BY delivery_id, position', (tx.tenant,)):
                 files.setdefault(delivery, []).append({'path': path, 'size': size, 'sha256': sha})
+            intake = {}
+            for delivery, *values in tx.fetchall('SELECT delivery_id, source, path, outcome, reason, size_bytes, sha256 FROM cmo_delivery_intake '
+                                                 'WHERE tenant_id=? ORDER BY delivery_id, position', (tx.tenant,)):
+                intake.setdefault(delivery, []).append(dict(zip(INTAKE_COLUMNS, values)))
         return [{'id': i, 'cmo': cmo, 'name': name, 'created': created, 'dataset': dataset, 'condition': condition,
-                 'synthetic': None if synthetic is None else bool(synthetic), 'files': files.get(i, []), 'disclosure': disclosure}
+                 'synthetic': None if synthetic is None else bool(synthetic), 'files': files.get(i, []), 'disclosure': disclosure,
+                 'intake': intake.get(i, [])}
                 for i, cmo, name, created, dataset, condition, synthetic, disclosure in rows]
 
     def save_delivery(self, item):
@@ -616,6 +622,10 @@ class Repository:
             tx.executemany('INSERT INTO cmo_delivery_files (tenant_id, delivery_id, position, path, size_bytes, sha256) VALUES (?,?,?,?,?,?)',
                            [(tx.tenant, item['id'], i, f['path'], f['size'], f['sha256'])
                             for i, f in enumerate(item.get('files', [])) if i >= len(existing)])
+            logged = tx.fetchone('SELECT COUNT(*) FROM cmo_delivery_intake WHERE tenant_id=? AND delivery_id=?', (tx.tenant, item['id']))[0]
+            tx.executemany('INSERT INTO cmo_delivery_intake (tenant_id, delivery_id, position, source, path, outcome, reason, size_bytes, sha256) '
+                           'VALUES (?,?,?,?,?,?,?,?,?)', [(tx.tenant, item['id'], i, *[e[c] for c in INTAKE_COLUMNS])
+                                                          for i, e in enumerate(item.get('intake', [])) if i >= logged])
 
     # --- audit ------------------------------------------------------------------------
     def append_audit(self, action, data, *, at=None):
@@ -643,6 +653,12 @@ class Repository:
                                'WHERE tenant_id=? AND prev_hash IS NOT NULL ORDER BY seq', (tx.tenant,))
         return [{'payload': audit_payload(at, action, json.loads(details)), 'prev_hash': prev, 'hash': hashed}
                 for action, at, details, prev, hashed in rows]
+
+    def link_reviews(self):
+        """Durable cross-file link decisions for this tenant, oldest first (see manufacturing_data.knowledge)."""
+        with self.transaction() as tx:
+            rows = tx.fetchall("SELECT details FROM audit WHERE tenant_id=? AND action='link_reviewed' ORDER BY seq", (tx.tenant,))
+        return [json.loads(r[0]) for r in rows]
 
     def verify_audit(self):
         prev = GENESIS

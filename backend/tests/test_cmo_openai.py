@@ -113,11 +113,11 @@ def test_decisions_pipeline_confirmed_layout_reuses_without_any_model_calls(tmp_
     requests=transport(monkeypatch,{'document_type':('instrument_export',.99),
         'column_0':('__batch__',.99),'column_1':('__time__',.99),'column_2':('temperature',.99)})
     run=service.run(raw,'local','decisions',synthetic=True)
-    # Batch/time/variable columns classify deterministically; only mapping calls the model.
-    assert run['status']=='complete' and len(requests)==1
+    # Classification is deterministic and aliases name every header, so no model call is needed.
+    assert run['status']=='complete' and len(requests)==0
     assert run['documents'][0]['classification_method']=='content'
     layout=run['layouts'][0]
-    assert layout['decisions'][2]['choice']=='temperature'
+    assert layout['decisions']==[] and layout['mapping']['columns']['Temp [degC]']=='temperature'
     service.confirm_template(run['id'],layout['fingerprint'],layout['mapping'],'qa','Checked original source')
     count=len(requests)
     returning=service.run(raw,'local','decisions',synthetic=True)
@@ -231,7 +231,7 @@ def test_combined_pipeline_calls_clairic_for_documents(tmp_path,monkeypatch):
     monkeypatch.setattr(ClairicProvider,'call',extract)
     requests=transport(monkeypatch,{'column_0':('__batch__',.99),'column_1':('__time__',.99),'column_2':('pH',.99)})
     run=service.run(raw,'local','clairic_decisions',synthetic=True)
-    assert len(extracted)==1 and len(requests)==1
+    assert len(extracted)==1 and len(requests)==0  # extracted fields are fully alias-mapped: no mapping model call
     assert len(run['measurements'])==1 and run['summary']['auto_accepted']==0
     assert run['layouts'][0]['mapping']['columns']=={'pH [pH]':'pH'}
 

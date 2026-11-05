@@ -32,7 +32,10 @@ export type Summary = { measurements: number; auto_accepted: number; accepted: n
   review_groups: number; unconfirmed_layouts?: number; corrections: number; model_calls: number; inference_cost_usd: number | null; elements: number | null; unaccounted: number | null; verified_package: boolean };
 export type DocumentInfo = { source_id: string; path: string; doc_type: string; classification_method: string; classification_evidence: string | null; sha256: string };
 export type Review = { at: string; actor: string; reason: string; decision: string; before: Measurement; after: Measurement; carried_from?: { run_id: string } };
+/** What intake did with each uploaded file (backend/src/manufacturing_data/cmo/intake.py). */
+export type IntakeEntry = { source: string; path: string; outcome: 'added' | 'renamed' | 'duplicate' | 'set_aside' | 'unreadable' | 'system' | 'blocked'; reason: string; size: number };
 export type Run = {
+  intake?: IntakeEntry[];
   id: string; cmo: string; status: 'queued' | 'running' | 'complete' | 'failed' | 'unavailable' | 'interrupted'; error?: string; unavailable_reasons?: string[];
   stages: Array<{ stage: string; state: string; elapsed_seconds: number }>; configuration?: string; requested_configuration?: string; configuration_notes?: string[];
   hosted_inference?: { approved: boolean; synthetic: boolean; basis: string }; package_id?: string; package_ref?: string; delivery_name?: string; disclosure?: string;
@@ -97,15 +100,17 @@ export const setUploadConfig = (config?: UploadConfig) => { uploadConfig = confi
 
 const sizeLabel = (bytes: number) => bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`;
 
-export async function uploadFile(deliveryId: string, file: File, config: UploadConfig = uploadConfig) {
+/** path: the file's place in a dropped folder (e.g. 'October/lims.csv'); defaults to its name. */
+export async function uploadFile(deliveryId: string, file: File, path: string = file.name, config: UploadConfig = uploadConfig) {
   if (config.max_bytes && file.size > config.max_bytes) {
     throw new ApiError(`${file.name} is ${sizeLabel(file.size)}, larger than the ${sizeLabel(config.max_bytes)} limit for one file. Split it or ask your administrator to raise the limit.`, 413);
   }
   if (config.mode !== 'storage') {
-    return (await cmoFetch(`/deliveries/${deliveryId}/files?filename=${encodeURIComponent(file.name)}`, { method: 'POST', body: file, headers: { 'Content-Type': 'application/octet-stream' } })).json() as Promise<CatalogItem>;
+    return (await cmoFetch(`/deliveries/${deliveryId}/files?filename=${encodeURIComponent(path)}`, { method: 'POST', body: file, headers: { 'Content-Type': 'application/octet-stream' } })).json() as Promise<CatalogItem>;
   }
   // Large files go straight to storage with a pre-signed URL, then the API is told the upload is complete.
-  const target = await postJson<{ upload_id: string; url: string; method: string; headers: Record<string, string> }>(`/deliveries/${deliveryId}/uploads`, { filename: file.name, size: file.size });
+  const target = await postJson<{ upload_id: string; url: string; method: string; headers: Record<string, string>; skipped?: boolean } & Partial<CatalogItem>>(`/deliveries/${deliveryId}/uploads`, { filename: path, size: file.size });
+  if (target.skipped) return target as unknown as CatalogItem; // blocked type: recorded by the server, never transferred
   let stored: Response;
   try { stored = await fetch(target.url, { method: target.method || 'PUT', headers: target.headers ?? {}, body: file }); }
   catch { throw new ApiError('The file could not be uploaded to storage. Check your connection and try again.', 0); }
@@ -153,6 +158,14 @@ export const RULES: Record<string, { title: string; help: string }> = {
   EXPECTED_DOCUMENT_MISSING: { title: 'Document missing compared with last delivery', help: 'The previous verified delivery from this CMO included this document type.' },
   EXPECTED_PARAMETER_MISSING: { title: 'Parameter missing compared with last delivery', help: 'The previous verified delivery reported this parameter.' },
 };
+/** Readable names for parameter IDs (backend/src/ingestion/schema.py VOCAB); a bare ID like "product" reads as a mistake. */
+const PARAMETER_LABELS: Record<string, string> = {
+  product: 'product titer', substrate: 'substrate', dissolved_oxygen: 'dissolved oxygen', sugar_feed: 'sugar feed rate',
+  do_saturation: 'dissolved O₂ saturation', dissolved_co2: 'dissolved CO₂', aeration_standard: 'aeration (standard flow)',
+  environment_cfu: 'environmental monitoring CFU', feed_added: 'cumulative feed added', base_added: 'cumulative base added',
+  acid_feed: 'acid feed rate', base_feed: 'base feed rate', viable_cell_density: 'viable cell density', total_cell_density: 'total cell density',
+};
+export const parameterLabel = (id: string) => PARAMETER_LABELS[id] ?? id.replace(/^raman_/, 'Raman ').replace(/_/g, ' ');
 export const ruleTitle = (code: string) => RULES[code]?.title ?? code.replace(/_/g, ' ').toLowerCase();
 
 export function sourceLabel(source: SourceRef) {

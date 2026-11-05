@@ -171,8 +171,8 @@ def test_large_files_upload_through_storage(tmp_path, monkeypatch):
     client = _cmo_app(tmp_path / 'u', monkeypatch, TaskRunner())
     assert client.get('/api/cmo-ingestion/catalog').json()['upload'] == {'mode': 'storage', 'max_bytes': 64 * 1024 * 1024}
     delivery = client.post('/api/cmo-ingestion/deliveries', json={'cmo': 'Acme', 'name': 'Big'}).json()
-    assert client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/uploads",
-                       json={'filename': 'run.exe', 'size': 3}).status_code == 400
+    blocked = client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/uploads", json={'filename': 'run.exe', 'size': 3}).json()
+    assert blocked['skipped'] and 'upload_id' not in blocked and blocked['intake'][-1]['outcome'] == 'blocked'
     assert client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/uploads",
                        json={'filename': 'lot.csv', 'size': 65 * 1024 * 1024}).status_code == 413
     begun = client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/uploads", json={'filename': 'lot.csv', 'size': 30}).json()

@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS source_columns (
 );
 CREATE TABLE IF NOT EXISTS relations (
  left_id TEXT NOT NULL, right_id TEXT NOT NULL, relation TEXT NOT NULL,
- source_id TEXT NOT NULL, confidence REAL NOT NULL, available_at TEXT,
+ source_id TEXT NOT NULL, confidence REAL NOT NULL, available_at TEXT, evidence_id TEXT,
  PRIMARY KEY (left_id,right_id,relation,source_id)
 );
 CREATE TABLE IF NOT EXISTS sheets (
@@ -85,6 +85,8 @@ class ManufacturingStore:
                 con.execute("ALTER TABLE sheets ADD COLUMN parquet_sha256 TEXT")
             if "available_at" not in {row[1] for row in con.execute("PRAGMA table_info(relations)")}:
                 con.execute("ALTER TABLE relations ADD COLUMN available_at TEXT")
+            if "evidence_id" not in {row[1] for row in con.execute("PRAGMA table_info(relations)")}:
+                con.execute("ALTER TABLE relations ADD COLUMN evidence_id TEXT")
             if "pipeline_version" not in {row[1] for row in con.execute("PRAGMA table_info(sources)")}:
                 con.execute("ALTER TABLE sources ADD COLUMN pipeline_version TEXT")
             if "original_mode" not in {row[1] for row in con.execute("PRAGMA table_info(sources)")}:
@@ -169,7 +171,7 @@ class ManufacturingStore:
                                 (related_id,kind,related_id,0.6,o.source.source_id,
                                  "candidate inferred from source identifier"))
                     if o.entity_id and related_id != o.entity_id:
-                        con.execute("INSERT OR IGNORE INTO relations VALUES (?,?,?,?,?,?)",
+                        con.execute("INSERT OR IGNORE INTO relations (left_id,right_id,relation,source_id,confidence,available_at) VALUES (?,?,?,?,?,?)",
                                     (o.entity_id,related_id,"co_observed",o.source.source_id,0.6,o.available_at))
                 record_id = hashlib.sha256(f"{o.source.source_id}|{o.source.sheet}|{o.source.row}|{o.source.page}".encode()).hexdigest()[:24]
                 path = o.source.path.lower()
@@ -229,9 +231,11 @@ class ManufacturingStore:
             con.executemany('INSERT OR IGNORE INTO entities VALUES (?,?,?,?,?,?)',
                             [(identifier,kind,identifier,0.6,source_id,'candidate inferred from source identifier')
                              for identifier,kind in prepared['entities']])
-            con.executemany('INSERT OR REPLACE INTO relations VALUES (?,?,?,?,?,?)',
-                            [(left,right,'co_observed',source_id,0.6,available)
-                             for left,right,available in prepared['relations']])
+            # ponytail: confidence kept for old readers; status/method in knowledge.assertions is what agents should use.
+            con.executemany('INSERT OR REPLACE INTO relations (left_id,right_id,relation,source_id,confidence,available_at,evidence_id) '
+                            'VALUES (?,?,?,?,?,?,?)',
+                            [(left,right,method,source_id,1.0 if method=='same_record' else 0.6,available,evidence)
+                             for left,right,available,method,evidence in prepared['relations']])
         for path in old_paths:
             Path(path).unlink(missing_ok=True)
         for path in self.numerical.glob(f'{source_id}-*.parquet'):

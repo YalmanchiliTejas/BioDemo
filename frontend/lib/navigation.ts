@@ -1,4 +1,4 @@
-import { Building2, Database, FlaskConical, FolderKanban, LayoutDashboard, MessageSquare, PackageCheck, UserRound, type LucideIcon } from 'lucide-react';
+import { Building2, Database, FlaskConical, FolderKanban, LayoutDashboard, MessageSquare, PackageCheck, ScrollText, UserRound, type LucideIcon } from 'lucide-react';
 
 /** One entry per destination; the sidebar, page breadcrumbs and quick find all read from this list. */
 export type NavItem = { label: string; href: string; icon: LucideIcon; description: string; guide?: string; keywords?: string };
@@ -22,6 +22,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'settings', label: 'Settings', items: [
       { label: 'Data connections', href: '/sources', icon: Database, guide: 'connections', description: 'Connect source systems and manage collection', keywords: 'sources connectors deltav pi veeva labware sap' },
       { label: 'Organization & team', href: '/settings/organization', icon: Building2, guide: 'organization', description: 'Members, roles and site access', keywords: 'members roles access admin' },
+      { label: 'Assistant rules', href: '/settings/assistant-rules', icon: ScrollText, description: 'Standing instructions the assistant always follows', keywords: 'rules memory instructions corrections preferences' },
       { label: 'My profile', href: '/settings/profile', icon: UserRound, guide: 'profile', description: 'Your name, sign-in and memberships', keywords: 'account password' },
     ],
   },

@@ -92,7 +92,7 @@ def test_manufacturing_tools_expose_data_and_deterministic_analysis_operations(w
     tools=ManufacturingTools(store)
     assert {"inspect_data","infer_schema","reconcile_entities","normalize_measurements",
             "query_data","search_evidence","verify_evidence","extract_region",
-            "get_process_context","get_state_at","summarize_series","calculate_metrics","align_series"} == set(tools.handlers())
+            "get_process_context","entity_graph","get_state_at","summarize_series","calculate_metrics","align_series"} == set(tools.handlers())
     assert tools.search_evidence(query="B1")["evidence_ids"]
 
 def test_zip_ingestion_rejects_traversal(workspace,tmp_path):

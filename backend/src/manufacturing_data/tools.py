@@ -40,6 +40,10 @@ class EvidenceRequest(ToolRequest):
 class EntityRequest(ToolRequest):
     entity_id: str
 
+class EntityGraphRequest(EntityRequest):
+    hops: int = Field(default=1, ge=1, le=2)
+    include_candidates: bool = True
+
 class UnitRequest(ToolRequest):
     observation_ids: list[str]
     target_unit: str
@@ -345,6 +349,24 @@ class ManufacturingTools:
                 "related_entities":sorted({x["right_id"] if x["left_id"]==req.entity_id else x["left_id"] for x in links}),
                 "relations":links,"evidence_ids":[o["id"] for o in records]}
 
+    def entity_graph(self, **kwargs) -> dict:
+        """Linked batches, lots, materials, equipment, deviations... with the basis and cited cell of every link."""
+        from .knowledge import neighborhood
+        req=EntityGraphRequest.model_validate({"as_of":self.as_of,"scopes":list(self.scopes),**kwargs})
+        v=self._visibility(req.model_dump())
+        sources=[s for s in self._sources(v) if s["extraction_status"]=="indexed"]
+        out=neighborhood(self.store,req.entity_id,sources=sources,as_of=v["as_of"],hops=req.hops,
+                         include_candidates=req.include_candidates)
+        cited=[e["evidence_id"] for link in out["links"] for e in link["evidence"] if e["evidence_id"]]
+        # A cell can carry a later field-level publication time than its row; cite only what is visible now.
+        visible={r["id"] for r in self.store.get_many(cited,as_of=v["as_of"],scopes=v["scopes"])} if cited else set()
+        for link in out["links"]:
+            for e in link["evidence"]:
+                if e["evidence_id"] and e["evidence_id"] not in visible:
+                    e["evidence_id"]=None; e["note"]="cited cell not visible at this cutoff"
+        out["evidence_ids"]=[i for i in dict.fromkeys(cited) if i in visible]
+        return out
+
     def get_state_at(self, **kwargs) -> dict:
         req=ToolRequest.model_validate({"as_of":self.as_of,"scopes":list(self.scopes),**kwargs})
         if not req.as_of: raise ValueError("as_of required")
@@ -398,4 +420,4 @@ class ManufacturingTools:
             return call
         return {name:typed(getattr(self,name)) for name in ("inspect_data","infer_schema","reconcile_entities",
                 "normalize_measurements","query_data","search_evidence","verify_evidence",
-                "extract_region","get_process_context","get_state_at","summarize_series","calculate_metrics","align_series")}
+                "extract_region","get_process_context","entity_graph","get_state_at","summarize_series","calculate_metrics","align_series")}

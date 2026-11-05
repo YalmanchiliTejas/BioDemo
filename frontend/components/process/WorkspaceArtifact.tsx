@@ -19,6 +19,32 @@ function searchSummary(data: WorkspaceResult) {
   return `Searched · ${data.matching_count ?? 0} found${parts.length ? ` (${parts.join(', ')})` : ''}${data.truncated ? ', partial list' : ''}`;
 }
 
+/** Closing records the case review's conclusion; the server allows it only for people holding `close`. */
+function CloseCase({ caseId, revision }: { caseId: string; revision: number }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ root_cause: '', actions_taken: '', outcome: '' });
+  const [state, setState] = useState<'idle' | 'busy' | 'closed'>('idle');
+  const [error, setError] = useState('');
+  if (state === 'closed') return <p role="status" className="mt-3 text-status-success">Case closed. It is now available to similar-case lookup.</p>;
+  if (!open) return <button type="button" className="mt-3 text-text-secondary underline" onClick={() => setOpen(true)}>Close this case…</button>;
+  const field = (key: keyof typeof form, label: string, hint: string) => <label className="block">{label}
+    <textarea required rows={2} value={form[key]} placeholder={hint} onChange={e => setForm({ ...form, [key]: e.target.value })}
+      className="mt-1 w-full rounded border border-border-hairline p-2" /></label>;
+  async function submit(e: React.FormEvent) {
+    e.preventDefault(); setState('busy'); setError('');
+    try { await processRequest(`/v1/quality/cases/${encodeURIComponent(caseId)}/close`, { ...form, expected_revision: revision }); setState('closed'); }
+    catch (err) { setError((err as Error).message); setState('idle'); }
+  }
+  return <form onSubmit={submit} className="mt-3 grid gap-2 rounded border border-border-hairline p-3">
+    {field('root_cause', 'Root cause', 'As concluded by the case review, or "not established"')}
+    {field('actions_taken', 'Actions taken (CAPA)', 'Corrective and preventive actions')}
+    {field('outcome', 'Outcome', 'What was observed after the actions')}
+    {error && <p role="alert" className="text-status-critical">{error}</p>}
+    <div className="flex gap-2"><button type="submit" disabled={state === 'busy'} className="rounded bg-ink px-3 py-1.5 text-white disabled:opacity-50">Close case</button>
+      <button type="button" onClick={() => setOpen(false)} className="px-3 py-1.5 text-text-secondary">Cancel</button></div>
+  </form>;
+}
+
 export function WorkspaceArtifact({ threadId, artifact }: { threadId: string; artifact: ArtifactRef }) {
   const [data, setData] = useState<WorkspaceResult | null>(() => cached<WorkspaceResult>(`/v1/process-model/conversations/${threadId}/artifacts/${artifact.kind}/${encodeURIComponent(artifact.id)}`) ?? null);
   const [error, setError] = useState('');
@@ -49,6 +75,7 @@ export function WorkspaceArtifact({ threadId, artifact }: { threadId: string; ar
         {rec && <dl className="mt-3 grid gap-2 sm:grid-cols-2">{Object.entries(rec.data).filter(([key, value]) => key !== 'original' && (typeof value === 'string' || typeof value === 'number')).map(([key, value]) => <div key={key}><dt className="text-text-tertiary">{key.replaceAll('_', ' ')}</dt><dd className="mt-1 break-words">{String(value)}</dd></div>)}</dl>}
         {!!data.source_refs?.length && <p className="mt-3 text-text-tertiary">Sources: {data.source_refs.map(r => `${r.id} @${r.revision}`).join(' · ')}</p>}
         {data.warning && <p className="mt-2 text-text-tertiary">{data.warning}</p>}
+        {rec?.kind === 'case' && rec.data.status !== 'closed' && <CloseCase caseId={String(rec.data.case_id ?? rec.id)} revision={rec.revision} />}
         {!data.records && <details className="mt-3"><summary className="cursor-pointer text-text-secondary">Raw record and provenance</summary><pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded bg-surface-secondary p-3">{JSON.stringify(data.record ?? data, null, 2)}</pre></details>}
       </div>
     </details>}
