@@ -2,23 +2,14 @@
 import { SourceVerificationPanel } from '@/components/SourceVerificationPanel';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Check, Database, FlaskConical, ShieldCheck, Activity, BookOpen, Wrench, Boxes, Factory, RefreshCw, Plus, Loader2 } from 'lucide-react';
-import { connectorRequest, configuration, type Catalog, type Connector, type Identity, type Mapping } from '@/lib/connectors-api';
+import { ArrowLeft, ArrowRight, Check, Database, ShieldCheck, RefreshCw, Plus, Loader2, Upload } from 'lucide-react';
+import { connectorRequest, configuration, type Catalog, type Connector, type Identity, type Mapping, type Product } from '@/lib/connectors-api';
+import { FAMILIES as families, PRODUCT_ICONS } from '@/lib/connector-labels';
+import { GuidedConnection, type GuidedStep } from '@/components/GuidedConnection';
 import { useSession } from '@/lib/auth';
-const families: Record<string, {
-    title: string;
-    description: string;
-    icon: typeof Database;
-}> = {
-    MES: { title: 'Manufacturing', description: 'Batch records, orders & production events', icon: Factory },
-    LIMS: { title: 'Laboratory', description: 'Samples, tests & laboratory results', icon: FlaskConical },
-    QMS: { title: 'Quality', description: 'Deviations, CAPAs & quality records', icon: ShieldCheck },
-    HISTORIAN: { title: 'Historian', description: 'Process measurements & equipment tags', icon: Activity },
-    ERP: { title: 'Enterprise resources', description: 'Materials, lots & resource planning', icon: Boxes },
-    ELN: { title: 'Lab notebooks', description: 'Experiments & research context', icon: BookOpen },
-    CMMS: { title: 'Maintenance', description: 'Equipment & maintenance work orders', icon: Wrench },
-    WMS: { title: 'Warehouse', description: 'Inventory, storage locations & stock', icon: Database },
-};
+const every = (seconds: number) => seconds % 86400 === 0 ? (seconds === 86400 ? 'daily' : `every ${seconds / 86400} days`) : seconds % 3600 === 0 ? (seconds === 3600 ? 'hourly' : `every ${seconds / 3600} hours`) : seconds % 60 === 0 ? `every ${seconds / 60} min` : `every ${seconds}s`;
+const syncSummary = (result: unknown) => { const r = (result ?? {}) as { ingested?: number; duplicates?: number }; return `${r.ingested ?? 0} new record${r.ingested === 1 ? '' : 's'}${r.duplicates ? `, ${r.duplicates} already collected` : ''}.`; };
+const GUIDED_STEPS: [GuidedStep, string][] = [['signin', 'Sign in'], ['choose', 'Choose data'], ['fields', 'Check fields'], ['collect', 'Start collecting']];
 const transports: Record<string, string> = { rest: 'REST API', file: 'Server folder', webhook: 'Signed webhook', mqtt: 'MQTT', opcua: 'OPC UA' };
 const empty = (family: string, me: Identity): Connector => ({ connector_id: '', family, transport: 'rest', site_id: me.site_ids[0] || '', owner: me.actor_id, vendor: 'generic', version: '1', options: { poll_seconds: 0, events_path: '/events' }, enabled: true, write_operations: [] });
 type Preview = {
@@ -51,6 +42,10 @@ export function ConnectorOnboarding({ embedded = false }: { embedded?: boolean }
     const [interval, setInterval] = useState(300);
     const [verificationId, setVerificationId] = useState<string | null>(null);
     const [sourceQuery, setSourceQuery] = useState('');
+    const [guided, setGuided] = useState<{ product: Product; existing?: Connector } | null>(null);
+    const [guidedStep, setGuidedStep] = useState<GuidedStep>('signin');
+    const [advanced, setAdvanced] = useState(false);
+    const onGuidedStep = useCallback((step: GuidedStep) => setGuidedStep(step), []);
     const refresh = useCallback(async () => {
         const connections = await connectorRequest<{
             items: Connector[];
@@ -105,7 +100,10 @@ export function ConnectorOnboarding({ embedded = false }: { embedded?: boolean }
             setBusy('');
         }
     };
-    const edit = (c: Connector) => { setDraft(configuration(c)); setEditingId(c.connector_id); setSaved(true); setPreview(null); setStage(1); setInterval(Number(c.options.poll_seconds) || 0); setError(''); setNotice('Saving changes returns this connection to manual mode for testing.'); };
+    const productOf = (c: Connector) => catalog?.products.find(p => p.product === c.transport);
+    const openGuided = (product: Product, existing?: Connector) => { setGuided({ product, existing }); setGuidedStep('signin'); setVerificationId(null); setError(''); setNotice(''); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+    const closeGuided = () => { setGuided(null); setStage(0); void refresh().catch(() => undefined); };
+    const edit = (c: Connector) => { const product = productOf(c); if (product) return openGuided(product, c); setAdvanced(true); setDraft(configuration(c)); setEditingId(c.connector_id); setSaved(true); setPreview(null); setStage(1); setInterval(Number(c.options.poll_seconds) || 0); setError(''); setNotice('Saving changes returns this connection to manual mode for testing.'); };
     const choose = (family: string) => {
         if (!me)
             return;
@@ -154,13 +152,13 @@ export function ConnectorOnboarding({ embedded = false }: { embedded?: boolean }
             setDraft(next);
             await refresh();
             setStage(3);
-            setNotice(`First sync finished. ${interval ? 'Recurring collection is enabled.' : 'Manual collection is selected.'} Sync result: ${JSON.stringify(result)}`);
+            setNotice(`First sync finished. ${interval ? 'Recurring collection is enabled.' : 'Manual collection is selected.'} ${syncSummary(result)}`);
         });
     };
     const manage = (c: Connector, action: 'sync' | 'toggle') => void run(`${action}:${c.connector_id}`, async () => {
         if (action === 'sync') {
             const result = await connectorRequest(`/connectors/${encodeURIComponent(c.connector_id)}/sync`, {});
-            setNotice(`Sync finished for ${c.connector_id}: ${JSON.stringify(result)}`);
+            setNotice(`Sync finished for ${c.connector_id}: ${syncSummary(result)}`);
         }
         else {
             await connectorRequest('/connectors', configuration({ ...c, enabled: !c.enabled }));
@@ -174,24 +172,34 @@ export function ConnectorOnboarding({ embedded = false }: { embedded?: boolean }
         window.location.assign('/dashboard/');
     });
     const o = draft?.options || {};
+    const steps = guided || !advanced ? ['Choose a system', ...GUIDED_STEPS.map(([, label]) => label)] : ['Choose a source', 'Configure access', 'Test & start collection', 'Ready to work'];
+    const current = guided ? (guidedStep === 'done' ? steps.length : GUIDED_STEPS.findIndex(([s]) => s === guidedStep) + 1) : advanced ? stage : 0;
+    const query = sourceQuery.trim().toLowerCase();
+    const shownProducts = (catalog?.products ?? []).filter(p => `${p.name} ${p.category} ${p.description}`.toLowerCase().includes(query));
     return <div className={`setup-main ${embedded ? 'setup-embedded' : ''}`}>
     <aside className="setup-sidebar"><p className="setup-eyebrow">LET’S GET YOU STARTED</p><h1>Make room for<br />your data.</h1><p>Connect the tools you use.<br />Keep working the way you work.</p>
-      <ol className="setup-steps">{['Choose a source', 'Configure access', 'Test & start collection', 'Ready to work'].map((label, i) => <li key={label} aria-current={stage === i ? 'step' : undefined} className={i <= stage ? 'active' : ''}><span>{stage > i ? <Check size={14}/> : i + 1}</span>{label}</li>)}</ol>
+      <ol className="setup-steps">{steps.map((label, i) => <li key={label} aria-current={current === i ? 'step' : undefined} className={i <= current ? 'active' : ''}><span>{current > i ? <Check size={14}/> : i + 1}</span>{label}</li>)}</ol>
       <div className="setup-assurance"><ShieldCheck size={21}/><strong>Read access. Clear boundaries.</strong><p>Source records stay in your existing systems. Connections created here cannot write back.</p></div>
       {me && <p className="setup-identity">Workspace: {me.tenant_id}<br />{mode === 'development' ? `Local test account · ${me.actor_id}` : me.actor_id}</p>}
     </aside>
     <section className="setup-content" aria-busy={!!busy || loading}>
-      <div className="setup-content-top"><span>{embedded ? 'DATA CONNECTIONS' : 'WELCOME TO YOUR WORKSPACE'}</span><span>Step {stage + 1} of 4</span></div>
-      {mode === 'development' && <div className="setup-message">Local test account: a synthetic organization on your development API. Configure Supabase before onboarding real users.</div>}
+      <div className="setup-content-top"><span>{embedded ? 'DATA CONNECTIONS' : 'WELCOME TO YOUR WORKSPACE'}</span><span>Step {Math.min(current + 1, steps.length)} of {steps.length}</span></div>
       {error && <div className="setup-message error" role="alert">{error} {!catalog && <button className="setup-text-link" onClick={load}>Try again</button>}</div>}
       {notice && <div className="setup-message" role="status">{notice}</div>}
       {loading ? <p role="status" className="setup-loading"><Loader2 className="animate-spin" size={20}/> Loading your workspace and available connections…</p> : <>
-      {stage === 0 && <><h2>Bring your context along.</h2><p className="setup-subtitle">Choose a source to connect. Start with one, add others later.</p><label className="source-catalog-search"><Database size={15}/><input aria-label="Search data sources" type="search" placeholder="Find a system or type of data…" value={sourceQuery} onChange={e => setSourceQuery(e.target.value)}/></label><div className="connector-grid">{catalog?.families.filter(f => `${f.system} ${f.record_type} ${families[f.system]?.title ?? ''} ${families[f.system]?.description ?? ''}`.toLowerCase().includes(sourceQuery.trim().toLowerCase())).map(f => {
+      {guided && me && <GuidedConnection key={`${guided.product.product}:${guided.existing?.connector_id ?? 'new'}`} product={guided.product} me={me} existing={guided.existing} taken={items.map(c => c.connector_id)} onStep={onGuidedStep} onChanged={refresh} onExit={closeGuided} onVerify={cid => { closeGuided(); setVerificationId(cid); window.setTimeout(() => document.getElementById('source-verification')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300); }} />}
+      {!guided && stage === 0 && !advanced && <><h2>Connect a system</h2><p className="setup-subtitle">Pick where your data lives. You&rsquo;ll sign in, choose what to collect and check a sample before any data is collected.</p>
+        <label className="source-catalog-search"><Database size={15}/><input aria-label="Search systems" type="search" placeholder="Find a system…" value={sourceQuery} onChange={e => setSourceQuery(e.target.value)}/></label>
+        <div className="connector-grid">{shownProducts.map(p => { const Icon = PRODUCT_ICONS[p.product] ?? Database; return <button key={p.product} className="connector-choice" onClick={() => openGuided(p)}><span className="connector-icon"><Icon size={23} strokeWidth={1.5}/></span><span className="connector-kind">{p.category.toUpperCase()}</span><strong>{p.name}</strong><span>{p.description}</span><ArrowRight size={17} className="connector-arrow"/></button>; })}
+          <Link href="/cmo/" className="connector-choice"><span className="connector-icon"><Upload size={23} strokeWidth={1.5}/></span><span className="connector-kind">ANY SYSTEM</span><strong>Upload files instead</strong><span>For systems without a connection: upload exports (PDF, Excel, CSV). Every value is checked against its source.</span><ArrowRight size={17} className="connector-arrow"/></Link></div>
+        {catalog && !shownProducts.length && <p className="setup-fine" role="status">No systems match your search. You can still upload files or use a REST API connection.</p>}
+        <p className="setup-fine">Is your system only reachable inside your plant network? Upload its exports for now. Need MQTT, OPC UA, webhooks or a server folder? <button className="setup-text-link" onClick={() => { setAdvanced(true); setError(''); setNotice(''); }}>Use an advanced connection</button> (for IT administrators).</p></>}
+      {!guided && stage === 0 && advanced && <><button className="setup-back" onClick={() => setAdvanced(false)}><ArrowLeft size={15}/> All systems</button><h2>Advanced connection</h2><p className="setup-subtitle">Protocol-level connections configured with server-side credentials. Your administrator must install secrets and approve hosts on the API server first.</p><div className="connector-grid">{catalog?.families.map(f => {
                     const details = families[f.system] || { title: f.system, description: f.record_type, icon: Database };
                     const Icon = details.icon;
                     return <button key={f.system} className="connector-choice" onClick={() => choose(f.system)}><span className="connector-icon"><Icon size={23} strokeWidth={1.5}/></span><span className="connector-kind">{f.system}</span><strong>{details.title}</strong><span>{details.description}</span><ArrowRight size={17} className="connector-arrow"/></button>;
-                })}</div>{catalog && !catalog.families.some(f => `${f.system} ${f.record_type} ${families[f.system]?.title ?? ''} ${families[f.system]?.description ?? ''}`.toLowerCase().includes(sourceQuery.trim().toLowerCase())) && <p className="setup-fine" role="status">No sources match your search. Try a system type such as LIMS or MES.</p>}<p className="setup-fine">Connectors use configurable source mappings. Vendor qualification has not been performed.</p></>}
-      {stage === 1 && draft && <><button className="setup-back" onClick={() => setStage(0)}><ArrowLeft size={15}/> All sources</button><h2>Connect your {draft.family}.</h2><p className="setup-subtitle">Use access approved by your system owner. Start with a manual test.</p>
+                })}</div></>}
+      {!guided && stage === 1 && draft && <><button className="setup-back" onClick={() => setStage(0)}><ArrowLeft size={15}/> All sources</button><h2>Connect your {draft.family}.</h2><p className="setup-subtitle">Use access approved by your system owner. Start with a manual test.</p>
         <form className="connector-form" onSubmit={save}><div className="setup-two-columns"><label>Connection ID<input readOnly={!!editingId} required pattern="[A-Za-z0-9_.-]{1,80}" maxLength={80} placeholder="e.g. mesa-lims" value={draft.connector_id} onChange={e => change('connector_id', e.target.value)}/></label>
         <label>Site{me?.site_ids.length ? <select value={draft.site_id} onChange={e => change('site_id', e.target.value)}>{me.site_ids.map(s => <option key={s}>{s}</option>)}</select> : <input required placeholder="Your authorized site ID" value={draft.site_id} onChange={e => change('site_id', e.target.value)}/>}</label></div>
         <label>CDMO / source group <span className="setup-optional">optional</span><input maxLength={120} placeholder="e.g. northfield-cdmo" value={draft.source_group || ''} onChange={e => change('source_group', e.target.value || undefined)}/><small>Use the same group for this CDMO’s lab and process connections. Checks compare records within this site and group.</small></label>
@@ -208,17 +216,17 @@ export function ConnectorOnboarding({ embedded = false }: { embedded?: boolean }
                             change('mapping', { ...mapping, fields: mapping.fields.map((f, n) => n === i ? { ...f, source: e.target.value } : f) } as Mapping);
                     }}/></label>)}<label className="source-confirm-mapping"><input type="checkbox" checked={draft.mapping_confirmed || false} onChange={e => change('mapping_confirmed', e.target.checked)}/><span>I checked this mapping against the source. Values that pass all checks may be accepted automatically.</span></label></details>
         <button className="setup-primary" disabled={!!busy} type="submit">{busy ? 'Saving…' : 'Save & continue'} <ArrowRight size={17}/></button></form></>}
-      {stage === 2 && draft && <><h2>Make sure it connects.</h2><p className="setup-subtitle">{draft.connector_id} · {transports[draft.transport]} · {draft.site_id}</p>
+      {!guided && stage === 2 && draft && <><h2>Make sure it connects.</h2><p className="setup-subtitle">{draft.connector_id} · {transports[draft.transport]} · {draft.site_id}</p>
         {draft.transport === 'webhook' ? <div className="setup-message"><strong>Your webhook receiver</strong><code>/v1/webhooks/{me?.tenant_id}/{draft.connector_id}</code><p>Send signed deliveries to this path on the API server. Webhooks receive data when your source sends it; recurring polling is not needed.</p><button className="setup-primary" onClick={() => setStage(3)}>Finish setup <Check size={16}/></button></div> : <>
         <div className="connection-test"><Database size={28}/><strong>{draft.connector_id}</strong><span>Saved · {saved ? 'ready to test' : 'manual mode'}</span>{draft.transport !== 'mqtt' ? <button className="setup-secondary" disabled={!!busy} onClick={test}>{busy === 'test' ? 'Testing…' : 'Test connection & mapping'}</button> : <p>MQTT begins durable collection with the first sync. Review your topics and mapping before starting.</p>}</div>
         {preview && <div className="setup-preview"><h3>{preview.ok ? 'Source reached · mapping passed' : 'Preview needs attention'}</h3>{!preview.ok && <p className="setup-message error">{preview.error ? String(preview.error) : 'Review the field mappings and source details below, then configure this connection again.'}</p>}<p className="setup-fine">{preview.records_sampled ?? 0} records sampled. Source records have not been ingested.</p>{preview.preview?.rows?.slice(0, 3).map(row => <div className="preview-record" key={row.source_record_id}><strong>Source record: {row.source_record_id}</strong><dl>{Object.entries(row.fields).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === 'object' ? JSON.stringify(value) : String(value ?? 'Missing')}</dd></div>)}</dl></div>)}<details className="setup-details"><summary>Inspect source and mapping details</summary><pre>{JSON.stringify(preview, null, 2)}</pre></details></div>}
         <label className="setup-poll">Collection schedule<select value={interval} onChange={e => setInterval(Number(e.target.value))}><option value={0}>Manual only</option><option value={60}>Every minute</option><option value={300}>Every 5 minutes</option><option value={900}>Every 15 minutes</option><option value={3600}>Every hour</option></select></label>
         <p className="setup-fine">Starting collection reads source data into this workspace. Recurring sync runs on the server and can be paused below.</p><button className="setup-primary" disabled={!!busy || (draft.transport !== 'mqtt' && (!preview?.ok))} onClick={activate}>{busy === 'activate' ? 'Starting collection…' : 'Run first sync & finish'} <ArrowRight size={17}/></button></>}
         <button className="setup-text-link" disabled={!!busy} onClick={() => { setStage(0); setDraft(null); }}>Keep saved and return to connections</button></>}
-      {stage === 3 && <div className="setup-complete"><span><Check size={28}/></span><h2>Your source is set up.</h2><p>Review collection status below, add another source, or start working with your data.</p><button className="setup-primary" onClick={() => { setStage(0); setDraft(null); setNotice(''); }}><Plus size={17}/> Add another source</button><button disabled={!!busy} className="setup-text-link" onClick={finishOnboarding}>Open workspace <ArrowRight size={16}/></button></div>}
-      {items.length > 0 && <section className="saved-connections"><div><h3>Your connections <span>{items.length}</span></h3><button aria-label="Refresh connections" disabled={!!busy} onClick={() => void run('refresh', refresh)}><RefreshCw size={16}/></button></div>{items.map(c => <article key={c.connector_id}><Database size={20}/><div><strong>{c.connector_id}</strong><p>{c.family} · {c.site_id} · {!c.enabled ? 'Paused' : Number(c.options.poll_seconds) ? `Every ${c.options.poll_seconds}s` : c.transport === 'webhook' ? 'Receives webhooks' : 'Manual'}</p><p>{c.last_sync ? `Last attempt: ${new Date(c.last_sync).toLocaleString()}` : 'No sync attempt recorded'}{c.last_error && <span className="connection-error"> · {c.last_error}</span>}</p></div><div className="connection-actions"><button disabled={!!busy} onClick={() => setVerificationId(c.connector_id)}>Verify data</button><button disabled={!!busy} onClick={() => edit(c)}>Configure</button><button disabled={!!busy} onClick={() => manage(c, 'toggle')}>{c.enabled ? 'Pause' : 'Resume'}</button>{c.transport !== 'webhook' && <button disabled={!!busy || !c.enabled} onClick={() => manage(c, 'sync')}>{busy === `sync:${c.connector_id}` ? 'Syncing…' : 'Sync now'}</button>}</div></article>)}</section>}
-      {verificationId && <><button className="setup-text-link" onClick={() => setVerificationId(null)}>Close source verification</button><SourceVerificationPanel key={verificationId} connectorId={verificationId}/></>}
-      <div className="setup-bottom"><button disabled={!!busy || loading} onClick={finishOnboarding}>Continue without adding a source <ArrowRight size={15}/></button><span>You can return here anytime.</span></div>
+      {!guided && stage === 3 && <div className="setup-complete"><span><Check size={28}/></span><h2>Your source is set up.</h2><p>Review collection status below, add another source, or start working with your data.</p><button className="setup-primary" onClick={() => { setStage(0); setDraft(null); setNotice(''); setAdvanced(false); }}><Plus size={17}/> Add another source</button><button disabled={!!busy} className="setup-text-link" onClick={finishOnboarding}>Open workspace <ArrowRight size={16}/></button></div>}
+      {!guided && items.length > 0 && <section className="saved-connections"><div><h3>Your connections <span>{items.length}</span></h3><button aria-label="Refresh connections" disabled={!!busy} onClick={() => void run('refresh', refresh)}><RefreshCw size={16}/></button></div>{items.map(c => { const product = productOf(c); const Icon = product ? PRODUCT_ICONS[product.product] ?? Database : families[c.family]?.icon ?? Database; return <article key={c.connector_id}><Icon size={20}/><div><strong>{c.connector_id}</strong><p>{product?.name ?? transports[c.transport] ?? c.transport} · {families[c.family]?.title ?? c.family} · {c.site_id} · {!c.enabled ? 'Paused' : Number(c.options.poll_seconds) ? `Checks ${every(Number(c.options.poll_seconds))}` : c.transport === 'webhook' ? 'Receives webhooks' : 'Manual sync'}</p><p>{c.last_sync ? `Last attempt: ${new Date(c.last_sync).toLocaleString()}` : 'No sync attempt recorded'}{c.last_error && <span className="connection-error"> · {c.last_error}</span>}</p></div><div className="connection-actions"><button disabled={!!busy} onClick={() => setVerificationId(c.connector_id)}>Verify data</button><button disabled={!!busy} onClick={() => edit(c)}>Configure</button><button disabled={!!busy} onClick={() => manage(c, 'toggle')}>{c.enabled ? 'Pause' : 'Resume'}</button>{c.transport !== 'webhook' && <button disabled={!!busy || !c.enabled} onClick={() => manage(c, 'sync')}>{busy === `sync:${c.connector_id}` ? 'Syncing…' : 'Sync now'}</button>}</div></article>; })}</section>}
+      {verificationId && <><button id="source-verification" className="setup-text-link" onClick={() => setVerificationId(null)}>Close source verification</button><SourceVerificationPanel key={verificationId} connectorId={verificationId}/></>}
+      {!guided && <div className="setup-bottom"><button disabled={!!busy || loading} onClick={finishOnboarding}>Continue without adding a source <ArrowRight size={15}/></button><span>You can return here anytime.</span></div>}
       </>}
     </section>
   </div>;

@@ -33,6 +33,9 @@ PLAIN_TEXT = {".txt", ".log", ".md", ".json"}
 IMAGES = {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
 
 
+# ponytail: one 16 MB cap for every csv reader in the process (default 128 KB fails whole deliveries on one long cell).
+csv.field_size_limit(16*1024*1024)
+
 def _routing_capabilities() -> dict[str, bool]:
     """Invalidate the incremental cache when an optional backend becomes available."""
     def installed(name: str) -> bool:

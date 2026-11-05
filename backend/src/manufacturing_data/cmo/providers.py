@@ -10,6 +10,7 @@ import urllib.request
 from urllib.parse import urlsplit
 
 from .schema import TYPES, VOCAB
+from ...ingestion.schema import _decimal_comma
 
 
 class Unavailable(RuntimeError): pass
@@ -140,7 +141,7 @@ class ClairicProvider:
                 reasons.append('Multiple measurements in one record; scalar coverage is incomplete and requires review')
             for numeric,raw in [('elapsed_hours','elapsed_hours_text'),('measurement_value','measurement_value_text')]:
                 try:
-                    printed=float(values[raw].replace(',','.'))
+                    printed=float(_decimal_comma(values[raw]))
                     if not math.isfinite(printed) or values[numeric] is None or printed!=values[numeric]:
                         reasons.append(f'{numeric}: numeric answer does not equal printed source value')
                 except (ValueError,TypeError,AttributeError): reasons.append(f'{raw}: missing or invalid source number')
@@ -150,7 +151,7 @@ class ClairicProvider:
             candidate=None
             if values.get('measurement_label') and values.get('measurement_value_text'):
                 try:
-                    if not math.isfinite(float(values['measurement_value_text'].replace(',','.'))): raise ValueError()
+                    if not math.isfinite(float(_decimal_comma(values['measurement_value_text']))): raise ValueError()
                     candidate={'evidence_id':evidence_id,'header':values['measurement_label'],
                         'value_raw':values['measurement_value_text'],'batch':values.get('batch_id') or '',
                         'time':values.get('elapsed_hours_text') or '', 'review_reasons':reasons,

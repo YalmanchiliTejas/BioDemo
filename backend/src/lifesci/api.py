@@ -102,6 +102,14 @@ class ConnectorIn(BaseModel):
     enabled: bool = True
     mapping_confirmed: bool = False
     source_group: str | None = Field(default=None, min_length=1, max_length=120)
+    # Write-only: sealed server-side for guided connections and never returned.
+    credentials: dict[str, str] | None = None
+
+
+class DiscoverIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    resource: str | None = Field(default=None, max_length=300)
+    search: str | None = Field(default=None, max_length=120)
 
 
 class SourceReviewIn(BaseModel):
@@ -310,7 +318,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.get(f"/{API_VERSION}/records/{{kind}}")
     def list_records(kind: str, cursor: str | None = None, limit: int = 50,
                      ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
-        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization", "organization_member", "account_organizations"):
+        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization", "organization_member", "account_organizations", "connector_credential"):
             raise HTTPException(404, "not a public record kind")
         limit = max(1, min(limit, 200))
         tx = platform.store.read()
@@ -335,7 +343,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
 
     @app.get(f"/{API_VERSION}/records/{{kind}}/{{record_id:path}}")
     def get_record(kind: str, record_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
-        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization", "organization_member", "account_organizations"):
+        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization", "organization_member", "account_organizations", "connector_credential"):
             raise HTTPException(404, "not a public record kind")
         rec = platform.store.read().require(ctx.tenant_id, kind, record_id)
         if kind == "transfer_package" and not any(platform.identity.check(ctx, "read", kind, rec.id, site_id=rec.state[s])
@@ -497,6 +505,10 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
             raise
         except (ImportError, OSError) as exc:
             raise HTTPException(503, "Connector unavailable; check its driver, endpoint and credentials") from exc
+
+    @app.post(f"/{API_VERSION}/connectors/{{connector_id}}/discover")
+    def discover_connector(connector_id: str, body: DiscoverIn, ctx: AccessContext = Depends(ctx_dep)):
+        return platform.connectors.discover(ctx, connector_id, body.resource, body.search)
 
     @app.post(f"/{API_VERSION}/connectors/{{connector_id}}/sync")
     def sync_connector(connector_id: str, ctx: AccessContext = Depends(ctx_dep)):

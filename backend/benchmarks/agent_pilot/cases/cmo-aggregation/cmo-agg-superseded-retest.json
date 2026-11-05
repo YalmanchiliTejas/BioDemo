@@ -1,0 +1,38 @@
+{
+  "id": "cmo-agg-superseded-retest",
+  "family": "expert",
+  "review_status": "draft",
+  "reviewer": "",
+  "provenance": "AI-drafted (Claude) from a customer interview: CMO data aggregation/filtering across deliveries. Synthetic. Needs QA/MSAT expert review before it counts as evidence.",
+  "prompt": "Which of Alder's October batches are below the 2.5 g/L titer minimum?",
+  "sources": [
+    {
+      "key": "cmo-a-oct",
+      "content": "CMO Alder Biologics, October delivery. Columns: Batch,Titer (g/L),Release date\nA-101,2.9,2026-10-03\nA-102,2.3,2026-10-09\nA-103,3.1,2026-10-17"
+    },
+    {
+      "key": "cmo-a-oct-correction",
+      "content": "CMO Alder Biologics, correction to October delivery issued 2026-10-28. A-102 titer re-assayed under approved retest protocol RT-12: 2.6 g/L. This value supersedes the 2.3 g/L originally reported. Root cause of the original result: integration error."
+    }
+  ],
+  "cases": [],
+  "truth": {
+    "required_read": [
+      "cmo-a-oct",
+      "cmo-a-oct-correction"
+    ],
+    "required_facts": [
+      "A-102 was originally reported at 2.3 g/L",
+      "the 2026-10-28 correction supersedes it with 2.6 g/L",
+      "no Alder October batch is below 2.5 g/L on current values"
+    ],
+    "forbidden_claims": [
+      "A-102 is below the 2.5 g/L minimum",
+      "A-102 is 2.3 g/L"
+    ],
+    "banned_tokens": [],
+    "expected_proposals": false,
+    "answerable": true
+  },
+  "notes": "Results need manual verification: the newest revision must win, and the supersession must be visible."
+}

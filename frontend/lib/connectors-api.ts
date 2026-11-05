@@ -34,6 +34,30 @@ export type Connector = {
     last_sync?: string;
     last_error?: string;
     revision?: number;
+    credential_fields?: string[];
+};
+export type ProductField = {
+    key: string;
+    label: string;
+    secret: boolean;
+    credential: boolean;
+    placeholder: string;
+    help: string;
+    required: boolean;
+    choices?: [string, string][];
+    when?: Record<string, string[]>;
+};
+export type Product = {
+    product: string;
+    name: string;
+    category: string;
+    family: string | null;
+    description: string;
+    help: string;
+    resource: string | null;
+    multiple: boolean;
+    table: boolean;
+    fields: ProductField[];
 };
 export type Catalog = {
     families: {
@@ -45,7 +69,11 @@ export type Catalog = {
         transport: string;
         available: boolean;
     }[];
+    products: Product[];
 };
+export type Resource = { id: string; label: string; detail: string };
+export type SourceField = { name: string; label: string; type: string };
+export type Discovery = { resources?: Resource[]; fields?: SourceField[]; suggested_mapping?: Mapping };
 export async function connectorRequest<T>(path: string, body?: unknown): Promise<T> {
     let response: Response;
     try {

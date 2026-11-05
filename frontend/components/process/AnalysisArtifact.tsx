@@ -68,7 +68,6 @@ export function AnalysisArtifact({ threadId, artifact }: { threadId: string; art
           <p className="mt-2">{data.rationale ?? data.expected_result}</p>
           <dl className="mt-3 grid grid-cols-2 gap-3 text-xs"><div><dt className="text-text-tertiary">Review</dt><dd>{data.status}</dd></div><div><dt className="text-text-tertiary">Execution</dt><dd>{data.execution_status?.replaceAll('_', ' ') ?? 'not started'}</dd></div><div><dt className="text-text-tertiary">Owner</dt><dd>{data.owner_id ?? 'Not assigned'}</dd></div><div><dt className="text-text-tertiary">Required approval</dt><dd>{data.required_roles?.join(', ') ?? 'Designated reviewer'}</dd></div></dl>
           {data.follow_up_measure && <p className="mt-3 text-xs">Follow-up: {data.follow_up_measure}</p>}
-          <p className="mt-3 text-xs text-text-tertiary">A proposal is distinct from approval and execution. Review the evidence before authorizing an action.</p>
         </>}
         {!!data?.warnings?.length && <details className="mt-4 text-xs"><summary className="cursor-pointer">Limits and applicability</summary><ul className="mt-2 list-disc pl-5">{data.warnings.map(w => <li key={w}>{w}</li>)}</ul></details>}
         <details className="mt-3 text-xs"><summary className="cursor-pointer text-text-tertiary">Inspect source, parameters and record</summary><pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded bg-surface-secondary p-3">{JSON.stringify(data, null, 2)}</pre></details>

@@ -48,10 +48,9 @@ async function startDemoStep(packageId: string) {
 function DemoCard({ catalog, onError }: { catalog: Catalog | null; onError: (e: string) => void }) {
   const [runs, setRuns] = useState<RunListing[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
-  const [cmo, setCmo] = useState('');
   const available = new Set((catalog?.packages ?? []).map(p => p.id));
   const load = useCallback(async () => {
-    const name = demoCmo(); setCmo(name);
+    const name = demoCmo();
     try { setRuns((await getJson<{ runs: RunListing[] }>(`/runs?cmo=${encodeURIComponent(name)}`)).runs); } catch { setRuns([]); }
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -63,7 +62,7 @@ function DemoCard({ catalog, onError }: { catalog: Catalog | null; onError: (e: 
     <section className="rounded-2xl border border-border-hairline bg-white p-7" data-testid="demo">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className={eyebrow}>Live demo · real CHO data</p>
+          <p className={eyebrow}>Sample deliveries</p>
           <h2 className="mt-3 font-display text-[24px] font-light tracking-tight text-ink">Three months of deliveries from one CMO</h2>
         </div>
         {runs.length > 0 && <button onClick={() => { resetDemo(); void load(); }} className="flex items-center gap-1 text-[12px] text-text-tertiary hover:text-ink" title="Start again with a fresh workspace"><RotateCcw className="h-3.5 w-3.5" />Restart</button>}
@@ -86,7 +85,7 @@ function DemoCard({ catalog, onError }: { catalog: Catalog | null; onError: (e: 
           );
         })}
       </ol>
-      <p className="mt-4 text-[12px] leading-relaxed text-text-tertiary">24 real bioreactor runs from Zenodo record 20829178 (CC BY 4.0), repackaged as deliveries from a fictional CMO. Your demo workspace: {cmo}.</p>
+      <p className="mt-4 text-[12px] leading-relaxed text-text-tertiary">Data: 24 CHO bioreactor runs, Zenodo 20829178 (CC BY 4.0). The CMO is fictional.</p>
     </section>
   );
 }

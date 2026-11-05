@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, CheckCircle2, Circle, PackageCheck, Plus, RotateCw, ShieldCheck } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Circle, PackageCheck, Plus, RotateCw } from 'lucide-react';
 import { connectorRequest, type Connector } from '@/lib/connectors-api';
 import { decisionCount, getJson, type RunListing } from '@/lib/cmo-api';
 import { isDemoCmo } from '@/lib/cmo-demo';
@@ -67,10 +67,9 @@ export function WorkspaceDashboard() {
         {runs && runs.length > 0 && <table className="delivery-table"><thead><tr><th>Delivery</th><th>Status</th><th className="date-column">Received</th></tr></thead><tbody>{runs.slice(0, 6).map(run => { const status = deliveryStatus(run); return <tr key={run.id}><td><Link href={deliveryHref(run)}>{run.delivery_name || run.cmo}<small>{run.cmo}</small></Link></td><td><span className={`status-label ${status.tone}`}>{status.label}</span></td><td className="date-column">{run.started_at ? new Date(run.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}</td></tr>; })}</tbody></table>}
       </section>
       <div className="dashboard-stack">
-        {!setupComplete && <section className="workspace-panel"><div className="panel-heading"><div><h2>Get started</h2><p>{steps.filter(step => step.done).length} of {steps.length} done · at your own pace</p></div></div><ol className="getting-started-list">{steps.map(step => <li key={step.label}>{step.done ? <CheckCircle2 size={16} className="done" /> : <Circle size={16} />}<Link href={step.href}>{step.label}<small>{step.detail}</small></Link></li>)}</ol><div className="panel-foot"><button type="button" className="text-action" onClick={() => guide.open()}>Open the workspace guide <ArrowRight size={13} /></button></div></section>}
+        {!setupComplete && <section className="workspace-panel"><div className="panel-heading"><div><h2>Get started</h2><p>{steps.filter(step => step.done).length} of {steps.length} done</p></div></div><ol className="getting-started-list">{steps.map(step => <li key={step.label}>{step.done ? <CheckCircle2 size={16} className="done" /> : <Circle size={16} />}<Link href={step.href}>{step.label}<small>{step.detail}</small></Link></li>)}</ol><div className="panel-foot"><button type="button" className="text-action" onClick={() => guide.open()}>Open the workspace guide <ArrowRight size={13} /></button></div></section>}
         <section className="workspace-panel"><div className="panel-heading"><h2>Data connections</h2><Link href="/sources/">Manage</Link></div>{connections?.length ? <ul className="source-status-list">{connections.slice(0, 5).map(connection => <li key={connection.connector_id}><div><span>{connection.connector_id}</span><span className={`status-label ${connection.last_error ? 'failed' : connection.enabled ? 'verified' : ''}`}>{connection.last_error ? 'Needs attention' : connection.enabled ? 'Enabled' : 'Paused'}</span></div><small>{connection.family} · {connection.last_sync ? `Last attempt ${new Date(connection.last_sync).toLocaleDateString()}` : 'No sync attempt yet'}</small>{connection.last_error && <small className="source-error">{connection.last_error}</small>}</li>)}</ul> : <p className="panel-body panel-muted">{loading ? 'Loading connections…' : connections ? 'No sources connected yet. Connect an authorized system to start collecting data.' : 'Connection status is unavailable.'}</p>}</section>
       </div>
     </div>
-    <p className="dashboard-note"><ShieldCheck size={13} />Counts reflect records available to your account. Your source systems remain the systems of record.</p>
   </div>;
 }

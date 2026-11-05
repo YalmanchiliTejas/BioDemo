@@ -44,7 +44,7 @@ export function Inspector() {
       )}
       <div className="flex-1 min-h-0">
         {tab === 'AGENT' ? <AgentDock /> : e ? <EntityPanel e={e} onClose={closeInspector} /> : (
-          <p className="p-4 text-[12.5px] text-text-tertiary">Select any citation chip to see its raw excerpt, transformation, timestamp and content hash here. Your agent task keeps running in the other tab.</p>
+          <p className="p-4 text-[12.5px] text-text-tertiary">Select a citation to see its source excerpt and details.</p>
         )}
       </div>
     </aside>

@@ -87,7 +87,9 @@ One-time setup:
    (`brew install gh && gh auth login`). It creates the `production`
    environment and stores:
    - **secrets:** `DATABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
-     `MODAL_PROXY_TOKEN`
+     `MODAL_PROXY_TOKEN`, `LIFESCI_CONNECTOR_KEY` (generate with
+     `openssl rand -base64 32`; it encrypts credentials people enter for data
+     connections, so keep a copy and don't change it)
    - **variables:** `AWS_REGION`, `AWS_DEPLOY_ROLE_ARN`, `SUPABASE_URL`,
      `DEPLOYMENT_TENANT`, `CORS_ORIGINS`, `MODAL_BASE_URL`, and the model
      settings
