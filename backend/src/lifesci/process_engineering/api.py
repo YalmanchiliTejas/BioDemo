@@ -41,7 +41,7 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
     def assess(result_id: str, ctx=Depends(ctx_dep), key: str | None = Header(None, alias="Idempotency-Key")):
         return idempotent(ctx, key, f"physical-agent-assessment:{result_id}", {}, lambda: service.interpret(ctx, result_id))
 
-    from .conversation_schemas import ConversationIn, MessageIn, WatchIn
+    from .conversation_schemas import ConversationIn, ConversationUpdate, MessageIn, WatchIn
     conversations = p.engineering_conversations
     tasks = app.state.tasks
 
@@ -58,8 +58,8 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
                                           'partner_org_id': ctx.partner_org_id, 'thread_id': thread_id, 'turn_id': turn_id})
 
     @app.get('/v1/process-model/conversations')
-    def list_conversations(ctx=Depends(ctx_dep)):
-        return {'conversations': conversations.list_for(ctx)}
+    def list_conversations(archived: bool = False, ctx=Depends(ctx_dep)):
+        return {'conversations': conversations.list_for(ctx, archived=archived)}
 
     @app.post('/v1/process-model/conversations')
     def new_conversation(body: ConversationIn, ctx=Depends(ctx_dep), key: str | None = Header(None, alias='Idempotency-Key')):
@@ -72,6 +72,10 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
     @app.get('/v1/process-model/conversations/{thread_id}')
     def get_conversation(thread_id: str, ctx=Depends(ctx_dep)):
         return conversations.get(ctx, thread_id)
+
+    @app.post('/v1/process-model/conversations/{thread_id}/update')
+    def update_conversation(thread_id: str, body: ConversationUpdate, ctx=Depends(ctx_dep)):
+        return conversations.update(ctx, thread_id, body)
 
     @app.post('/v1/process-model/conversations/{thread_id}/responsibility')
     def configure_responsibility(thread_id: str, body: WatchIn, ctx=Depends(ctx_dep)):

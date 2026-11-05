@@ -86,7 +86,11 @@ names = {"ImageUri": "IMAGE", "FunctionName": "FUNCTION", "DatabaseUrl": "DATABA
          "ConnectorCredentialKey": "LIFESCI_CONNECTOR_KEY",
          "RuntimeSchedule": "RUNTIME_SCHEDULE", "MemorySize": "MEMORY_SIZE", "ApiDomain": "API_DOMAIN",
          "CertificateArn": "CERTIFICATE_ARN", "MultiTenant": "LIFESCI_MULTI_TENANT",
-         "ReservedConcurrency": "RESERVED_CONCURRENCY"}
+         "ReservedConcurrency": "RESERVED_CONCURRENCY",
+         "InvestigationExecutorUrl": "INVESTIGATION_EXECUTOR_URL", "InvestigationExecutorAudience": "INVESTIGATION_EXECUTOR_AUDIENCE",
+         "InvestigationExecutorTenant": "INVESTIGATION_EXECUTOR_TENANT", "InvestigationExecutorProject": "INVESTIGATION_EXECUTOR_PROJECT",
+         "InvestigationIssuer": "INVESTIGATION_ISSUER", "InvestigationSigningKeySecretArn": "INVESTIGATION_SIGNING_KEY_SECRET_ARN",
+         "InvestigationSigningKeyId": "INVESTIGATION_SIGNING_KEY_ID"}
 params = {k: os.environ[v] for k, v in names.items() if os.environ.get(v)}
 json.dump({"Parameters": params}, open(sys.argv[1], "w"))  # the form `deploy --parameter-overrides file://` accepts
 PY

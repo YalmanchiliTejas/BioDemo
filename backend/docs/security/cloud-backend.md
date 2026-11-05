@@ -224,3 +224,29 @@ the applicable regulated relationship. Relevant primary sources:
 [DigitalOcean HIPAA scope and BAA](https://www.digitalocean.com/trust/hipaa-at-do),
 [DigitalOcean Spaces limitations](https://docs.digitalocean.com/products/spaces/details/limits/),
 [Node proxy support](https://nodejs.org/learn/http/enterprise-network-configuration).
+
+## Platform integration: Lambda as issuer, live investigation progress
+
+Used by the deployed product (see `docs/architecture/multi-agent-investigations.md`). Browsers never call this stack; the platform API on Lambda does, service-to-service.
+
+**Identity.** Lambda is the token issuer. Configure the API service with:
+
+| Variable | Value |
+| --- | --- |
+| `OIDC_ISSUER` | the Lambda `INVESTIGATION_ISSUER` value (HTTPS) |
+| `OIDC_JWKS_URL` | `https://<platform-api>/.well-known/investigation-jwks.json` |
+| `OIDC_AUDIENCE` | the Lambda `INVESTIGATION_EXECUTOR_AUDIENCE` value |
+| `DEPLOYMENT_TENANT` | the platform deployment tenant, matching the token's `tenant_id` |
+
+Lambda's tokens carry `projects={<project>: "operator"}` for `INVESTIGATION_EXECUTOR_PROJECT` and live ≤5 minutes. `auth.py` is unchanged.
+
+**Progress events.**
+- **What the agent writes.** The agent prints only allow-listed, metadata-only `investigation_event` lines to stdout (`src/prime_runtime/investigation_events.py`). Its stderr is redirected to the container's tmpfs.
+- **Log retention.** Agent containers now use a bounded `local` log driver (10 MB, 1 file) instead of `none`, so the dispatcher can read those lines. The log is removed with the container.
+- **What the dispatcher stores.** It re-validates every line with the same allow-list and stores accepted events in `cloud_job_events`, keyed by `(job, attempt, local_seq)` and fenced to the current attempt. Lines that fail validation, such as tracebacks or plain text, are discarded.
+- **Reading events.** Use `GET /v1/projects/{project}/jobs/{id}/events?after=seq` (viewer/operator/auditor).
+- **Database changes.** Re-run `schema.sql` (adds `cloud_job_events`, `cloud_jobs.log_since`) and `runtime_roles.sql` (API: SELECT; dispatcher: SELECT/INSERT and sequence USAGE).
+
+**Investigator attribution.** The Prime SDK does not pass its child id into child kernels; it does give each child kernel its own `RLM_SESSION_DIR`, and the SDK child snapshot reports the same `sessionDir`. Bridge calls send `sha256(RLM_SESSION_DIR)[:16]` and `child_activity` events carry the same key, so subreports and tool budgets are attributed to the exact child. Calls whose key is unknown are stored with `agent_id = null` and shown as approximate.
+
+**Token cap.** The optional job field `max_tokens` is enforced by the agent: root-session tokens from `message_end` plus each child's latest `token_count` snapshot. Child snapshots are context size, not billed usage, so the cap is approximate. When exceeded, the agent emits `error: token_cap_exceeded` and stops the SDK host; the job fails without a report.

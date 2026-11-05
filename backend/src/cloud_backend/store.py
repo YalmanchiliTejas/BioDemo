@@ -102,6 +102,33 @@ class Store:
             return bool(row)
 
 
+    def append_events(self, ident, fence, attempt, events, log_since=None):
+        """Store cleaned events for the current attempt only; replays and late lines are ignored."""
+        with self.connect() as con:
+            job = con.execute("SELECT attempt FROM cloud_jobs WHERE id=%s AND fence=%s FOR UPDATE",
+                              (ident, fence)).fetchone()
+            if not job or job["attempt"] != attempt:
+                return 0
+            added = 0
+            for event in events:
+                added += con.execute(
+                    "INSERT INTO cloud_job_events (job_id,attempt,local_seq,at,kind,agent_id,parent_id,payload) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                    (ident, attempt, event["local_seq"], event["at"], event["kind"], event["agent_id"],
+                     event["parent_id"], Jsonb(event["payload"]))).rowcount
+            if log_since is not None:
+                con.execute("UPDATE cloud_jobs SET log_since=%s WHERE id=%s AND fence=%s", (log_since, ident, fence))
+            return added
+
+    def events(self, tenant, project, ident, after=0, limit=500):
+        with self.connect() as con:
+            rows = con.execute(
+                "SELECT e.seq,e.attempt,e.at,e.kind,e.agent_id,e.parent_id,e.payload FROM cloud_job_events e "
+                "JOIN cloud_jobs j ON j.id=e.job_id WHERE j.tenant=%s AND j.project=%s AND e.job_id=%s AND e.seq>%s "
+                "ORDER BY e.seq LIMIT %s", (tenant, project, ident, after, limit)).fetchall()
+        return [{**row, "at": row["at"].isoformat()} for row in rows]
+
+
 if __name__ == "__main__":
     import os
     Store(os.environ["DATABASE_URL"]).migrate()

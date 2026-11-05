@@ -133,6 +133,13 @@ class Runtime:
                     self._run_local(tenant, scheduler)
             except Exception:
                 log.exception("Runtime tick failed; persisted work will be retried")
+        investigations = getattr(self.platform, "investigations", None)
+        if investigations is not None:
+            try:
+                # Keeps running investigations current when nobody has the page open.
+                investigations.sync_active(lambda tenant, owner: self.platform.identity.context_for(tenant, owner))
+            except Exception:
+                log.exception("Investigation sync deferred to the next tick")
 
     def _run_local(self, tenant: str, scheduler: InProcessScheduler) -> None:
         for rec in self.platform.store.read().list(tenant, "mission"):

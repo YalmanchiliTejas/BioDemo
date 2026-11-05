@@ -74,6 +74,21 @@ class RuleDecisionIn(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
 
 
+class InvestigationBudgetIn(BaseModel):
+    max_tool_calls: int | None = Field(default=None, ge=1, le=200)
+    minutes: int | None = Field(default=None, ge=1, le=60)
+    max_tokens: int | None = Field(default=None, ge=1000, le=5_000_000)
+
+class InvestigationIn(BaseModel):
+    objective: str = Field(default="", max_length=8000)
+    site_id: str = Field(default="NF1", min_length=1, max_length=100)
+    case_id: str | None = Field(default=None, max_length=160)
+    conversation_id: str | None = Field(default=None, max_length=160)
+    proposal_id: str | None = Field(default=None, max_length=160)
+    dataset_ids: list[str] = Field(default_factory=list, max_length=10)
+    record_refs: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
+    budget: InvestigationBudgetIn | None = None
+
 class CorrectionIn(BaseModel):
     text: str
     source_ref: dict[str, Any] | None = None
@@ -489,6 +504,41 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/assistant-rules/{{rule_id}}/retire")
     def retire_rule(rule_id: str, body: RuleDecisionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
         return platform.rules.retire(ctx, rule_id, body.reason)
+
+    @app.get("/.well-known/investigation-jwks.json")
+    def investigation_jwks() -> dict[str, Any]:
+        if not platform.investigations.issuer:
+            raise HTTPException(404, "Investigation execution is not configured")
+        return platform.investigations.issuer.jwks()
+
+    @app.post(f"/{API_VERSION}/investigation-runs", status_code=201)
+    def start_investigation(body: InvestigationIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.start(ctx, body.model_dump())
+
+    @app.get(f"/{API_VERSION}/investigation-runs")
+    def list_investigations(case_id: str | None = None, conversation_id: str | None = None,
+                            ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return {"items": platform.investigations.list(ctx, case_id=case_id, conversation_id=conversation_id)}
+
+    @app.get(f"/{API_VERSION}/investigation-runs/{{run_id}}")
+    def get_investigation(run_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.get(ctx, run_id)
+
+    @app.get(f"/{API_VERSION}/investigation-runs/{{run_id}}/events")
+    def investigation_events(run_id: str, after: int = 0, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.events(ctx, run_id, after)
+
+    @app.post(f"/{API_VERSION}/investigation-runs/{{run_id}}/stop")
+    def stop_investigation(run_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.stop(ctx, run_id)
+
+    @app.post(f"/{API_VERSION}/investigation-runs/{{run_id}}/send-for-review")
+    def send_investigation_for_review(run_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.send_for_review(ctx, run_id)
+
+    @app.get(f"/{API_VERSION}/investigation-runs/{{run_id}}/report")
+    def investigation_report(run_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.report(ctx, run_id)
 
     @app.get(f"/{API_VERSION}/cases/{{case_id}}/similar")
     def similar_cases(case_id: str, site_id: str, include_open: bool = False,

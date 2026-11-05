@@ -16,3 +16,6 @@ GRANT SELECT, UPDATE ON cloud_jobs TO cloud_dispatcher;
 GRANT SELECT, INSERT ON cloud_audit TO cloud_api;
 GRANT INSERT ON cloud_audit TO cloud_dispatcher;
 GRANT USAGE ON SEQUENCE cloud_audit_id_seq TO cloud_api, cloud_dispatcher;
+GRANT SELECT ON cloud_job_events TO cloud_api;
+GRANT SELECT, INSERT ON cloud_job_events TO cloud_dispatcher;
+GRANT USAGE ON SEQUENCE cloud_job_events_seq_seq TO cloud_dispatcher;

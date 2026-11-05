@@ -24,6 +24,64 @@ from .bridge import ManufacturingBridge, finalization_reserve
 DEFAULT_COMPACTION_TARGET_TOKENS = 128_000
 
 
+def _stream(command, *, cwd, env, input_text, timeout, on_line=None, started=None):
+    """subprocess.run(capture_output=True) with each stdout line delivered as it arrives.
+
+    Same contract: returns CompletedProcess(stdout, stderr, returncode); on timeout the child is
+    killed and TimeoutExpired carries the output read so far."""
+    import queue
+    import threading
+    process = subprocess.Popen(command, cwd=cwd, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, text=True, bufsize=1)
+    if started:
+        started(process)
+    lines, errors, stdout = queue.Queue(), [], []
+
+    def feed():
+        try:
+            process.stdin.write(input_text); process.stdin.close()
+        except (BrokenPipeError, OSError):
+            pass
+    def drain_out():
+        for line in process.stdout:
+            lines.put(line)
+        lines.put(None)
+    def drain_err():
+        errors.append(process.stderr.read())
+    threads = [threading.Thread(target=f, daemon=True) for f in (feed, drain_out, drain_err)]
+    for thread in threads:
+        thread.start()
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            line = lines.get(timeout=max(0.0, min(1.0, deadline - time.monotonic())))
+        except queue.Empty:
+            if time.monotonic() >= deadline:
+                process.kill(); process.wait()
+                for thread in threads[1:]:
+                    thread.join(timeout=5)
+                while not lines.empty():
+                    item = lines.get_nowait()
+                    if item is not None:
+                        stdout.append(item)
+                raise subprocess.TimeoutExpired(command, timeout, output=''.join(stdout), stderr=''.join(errors))
+            continue
+        if line is None:
+            break
+        stdout.append(line)
+        if on_line:
+            try:
+                on_line(json.loads(line))
+            except (ValueError, TypeError):
+                pass
+            except Exception:
+                pass  # a progress consumer must never break the investigation
+    returncode = process.wait()
+    for thread in threads[1:]:
+        thread.join(timeout=5)
+    return subprocess.CompletedProcess(command, returncode, ''.join(stdout), ''.join(errors))
+
+
 class PrimeManufacturingHarness:
     def __init__(self, *, command: list[str], store: ManufacturingStore,
                  blackboards: BlackboardStore, workflow: ManufacturingInvestigationWorkflow,
@@ -39,6 +97,10 @@ class PrimeManufacturingHarness:
         self.timeout_seconds = 900
         self.evaluation_mode = False
         self.response_mode = 'investigation'
+        # Optional live progress: on_event(parsed SDK stdout line); on_bridge_event(kind, payload, depth, key).
+        self.on_event = None
+        self.on_bridge_event = None
+        self._process = None
         # History is summarized above this size; "off" keeps the model's full window.
         target = os.getenv("BIODEMO_COMPACTION_TARGET_TOKENS", str(DEFAULT_COMPACTION_TARGET_TOKENS))
         self.compaction_target_tokens = None if target.strip().lower() == "off" else int(target)
@@ -48,6 +110,11 @@ class PrimeManufacturingHarness:
         self.system_path = Path(__file__).with_name("system_prompt.md")
         if not self.skill_path.is_file() or not self.message_skill_path.is_file():
             raise RuntimeError("Prime manufacturing and agent-message skills are required")
+
+    def abort(self) -> None:
+        """Stop the running SDK host (e.g. a token cap); the run then fails without a report."""
+        if self._process is not None and self._process.poll() is None:
+            self._process.kill()
 
     @classmethod
     def from_env(cls, *, store: ManufacturingStore, blackboards: BlackboardStore,
@@ -90,6 +157,7 @@ class PrimeManufacturingHarness:
                 additional_tools=self.additional_tools,
             ).start()
             bridge.configure_execution(self.execution_policy)
+            bridge.event_hook = self.on_bridge_event
             workdir = self.runtime_root / "workspaces" / incident_id
             session_dir = self.runtime_root / "sessions" / incident_id
             log_dir = self.runtime_root / "logs"
@@ -161,9 +229,9 @@ class PrimeManufacturingHarness:
             error_path = log_dir / f"{incident_id}-{run_tag}.stderr"
             tools_path = log_dir / f"{incident_id}-{run_tag}.tools.jsonl"
             try:
-                process = subprocess.run(self.command, cwd=workdir, env=environment,
-                                         input=json.dumps(request), text=True, capture_output=True,
-                                         check=False, timeout=request['timeout_seconds'])
+                process = _stream(self.command, cwd=workdir, env=environment, input_text=json.dumps(request),
+                                  timeout=request['timeout_seconds'], on_line=self.on_event,
+                                  started=lambda child: setattr(self, '_process', child))
             except subprocess.TimeoutExpired as exc:
                 for destination,content in ((log_path,exc.stdout),(error_path,exc.stderr)):
                     destination.write_text(content.decode(errors='replace') if isinstance(content,bytes) else content or '')

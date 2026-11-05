@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -44,7 +45,10 @@ def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
         token = os.environ.get("BIODEMO_PRIME_BRIDGE_TOKEN")
     if not base or not token:
         raise BridgeError("Manufacturing OS bridge is not configured")
-    payload={**payload,'_caller':{'depth':int(os.environ.get('RLM_DEPTH','0'))}}
+    session_dir = os.environ.get('RLM_SESSION_DIR')
+    # The SDK gives child kernels their own RLM_SESSION_DIR, not a child id; the host maps this key to the child.
+    session = hashlib.sha256(session_dir.encode()).hexdigest()[:16] if session_dir else None
+    payload={**payload,'_caller':{'depth':int(os.environ.get('RLM_DEPTH','0')),'session':session}}
     request = Request(base.rstrip("/") + path,
                       data=json.dumps(payload).encode("utf-8"),
                       headers={"Authorization": f"Bearer {token}",

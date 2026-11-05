@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowUp, FlaskConical, MessageSquare, Plus, RotateCcw, ChevronDown, Workflow, Check, Circle, Loader2, Paperclip, X, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { Archive, ArrowUp, BookOpen, FlaskConical, History, MoreHorizontal, Pencil, Plus, RotateCcw, ChevronDown, Workflow, Check, Circle, Loader2, Paperclip, X, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { Markdown } from './Markdown';
+import { QuestionCard } from './QuestionCard';
+import { InvestigationProposal } from './InvestigationProposal';
 import { processRequest } from '@/lib/process-api';
 import { cached } from '@/lib/cache';
 import { useOptionalCompanion, type AttachedDataset, type DisplayContext } from '@/lib/companion-context';
@@ -15,7 +18,8 @@ import { WorkspaceArtifact } from './WorkspaceArtifact';
 import { DemoDeviationsArtifact } from './DemoDeviationsArtifact';
 import { AssistantResponsibility, type Responsibility } from './AssistantResponsibility';
 
-type Step = { node_id: string; title: string; task_kind: string; depends_on: string[]; status: string; issues: string[] };
+type Step = { node_id: string; title: string; task_kind: string; depends_on: string[]; status: string; issues: string[]; started_at?: string | null; ended_at?: string | null };
+const seconds = (a?: string | null, b?: string | null) => a && b ? Math.max(0, (new Date(b).getTime() - new Date(a).getTime()) / 1000) : null;
 type Grounding = { status: string; unsupported_numbers?: number[]; derived_numbers?: number[]; claims?: { text: string; kind?: string; source_id: string; quote: string; verified: boolean; problem: string | null }[] };
 // Host-verified provenance of the reply's factual statements (quote exists in an inspected source).
 function GroundingNote({ g }: { g: Grounding }) {
@@ -33,11 +37,12 @@ function GroundingNote({ g }: { g: Grounding }) {
     </ul>
   </details>;
 }
-type Turn = { origin?: string; responsibility_objective?: string; display_context?: DisplayContext | null; id: string; user_text: string; status: string; reply: string | null; questions: string[]; system_message?: string; issues: string[]; artifacts: ArtifactRef[]; steps?: Step[]; elapsed_seconds?: number; basis_status?: string; grounding?: Grounding | null; gateway_runs: { route?: { unqualified?: boolean } | null; [key: string]: unknown }[] };
-type Thread = { id: string; revision: number; title: string; turns: Turn[]; turn_ids: string[]; demo_enabled: boolean; source_ids: string[]; dataset_ids?: string[]; responsibility?: Responsibility | null; mission_status?: string };
+type Turn = { origin?: string; responsibility_objective?: string; display_context?: DisplayContext | null; id: string; user_text: string; status: string; reply: string | null; questions: string[]; system_message?: string; issues: string[]; artifacts: ArtifactRef[]; steps?: Step[]; elapsed_seconds?: number; basis_status?: string; grounding?: Grounding | null; context_used?: ContextUsed | null; gateway_runs: { route?: { unqualified?: boolean } | null; [key: string]: unknown }[] };
+type ContextUsed = { rules: { rule_id: string; scope: string; text: string }[]; corrections: { correction_id: string; text: string }[]; earlier_corrections: { correction_id: string; text: string }[] };
+type Thread = { id: string; site_id?: string; mission_id?: string; revision: number; title: string; turns: Turn[]; turn_ids: string[]; demo_enabled: boolean; source_ids: string[]; dataset_ids?: string[]; responsibility?: Responsibility | null; mission_status?: string };
 type PublishedDataset = { id: string; cmo: string; delivery_name: string | null; measurements: number; batches: string[] };
 const datasetLabel = (d: PublishedDataset) => d.delivery_name ?? d.cmo;
-type Recent = { id: string; title: string };
+type Recent = { id: string; title: string; updated_at?: string; archived?: boolean };
 type Source = { id: string; audience: string; provenance: string };
 const storageKey = 'biodemo.engineering.conversation.v1';
 const EXAMPLES = [
@@ -53,6 +58,152 @@ function friendlyNote(turn: Turn): string | null {
 }
 const active = (turn?: Turn) => !!turn && ['queued', 'running'].includes(turn.status);
 const action = 'inline-flex items-center gap-2 rounded-control px-3 py-2 text-xs text-text-secondary hover:bg-surface-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-teal disabled:opacity-40';
+
+/** Corrections are kept by the owner's mission and carried into later conversations (shown as "Built on"). */
+function CorrectAnswer({ missionId }: { missionId: string }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [state, setState] = useState<'idle' | 'busy' | 'saved'>('idle');
+  const [error, setError] = useState('');
+  if (state === 'saved') return <p role="status" className="mt-2 text-xs text-status-success">Correction saved. I’ll keep it in mind here and in your future conversations.</p>;
+  if (!open) return <button type="button" onClick={() => setOpen(true)} className="mt-2 text-xs text-text-tertiary underline-offset-2 hover:text-text-secondary hover:underline">Correct this</button>;
+  async function save(e: React.FormEvent) {
+    e.preventDefault(); if (!text.trim()) return; setState('busy'); setError('');
+    try { await processRequest(`/v1/missions/${encodeURIComponent(missionId)}/corrections`, { text: text.trim() }); setState('saved'); }
+    catch (err) { setError((err as Error).message); setState('idle'); }
+  }
+  return <form onSubmit={save} className="mt-2 rounded-card border border-border-hairline bg-surface p-3 text-xs">
+    <label htmlFor={`correct-${missionId}`} className="font-medium text-text-secondary">What’s wrong or missing?</label>
+    <textarea id={`correct-${missionId}`} autoFocus rows={2} value={text} onChange={e => setText(e.target.value)} maxLength={2000}
+      placeholder="e.g. Valve V-12 was inspected on 2 Nov and ruled out" className="mt-1.5 block w-full rounded-control border border-border-strong p-2 text-sm outline-none focus:border-brand-teal" />
+    {error && <p role="alert" className="mt-1 text-status-critical">{error}</p>}
+    <div className="mt-2 flex gap-2"><button type="submit" disabled={!text.trim() || state === 'busy'} className="rounded-control bg-brand-teal px-3 py-1.5 font-medium text-white disabled:opacity-40">Save correction</button>
+      <button type="button" onClick={() => setOpen(false)} className="px-2 py-1.5 text-text-secondary">Cancel</button></div>
+  </form>;
+}
+
+/** What this answer built on beyond the message itself: standing rules, carried-over corrections,
+ *  identifier links followed and precedents checked. Recorded when the prompt was built, not inferred. */
+function DrewOn({ turn }: { turn: Turn }) {
+  const used = turn.context_used;
+  const links = turn.artifacts.filter(a => a.title.startsWith('Linked records'));
+  const precedents = turn.artifacts.filter(a => a.title === 'Similar closed cases');
+  const corrections = [...(used?.corrections ?? []), ...(used?.earlier_corrections ?? [])];
+  const chips: [string, number][] = ([['rule', used?.rules.length ?? 0], ['correction', corrections.length],
+    ['link lookup', links.length], ['precedent search', precedents.length]] as [string, number][]).filter(([, n]) => n > 0);
+  if (!chips.length) return null;
+  return <details className="group mt-3 text-xs">
+    <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1.5 text-text-tertiary hover:text-text-secondary">
+      <BookOpen size={13} className="text-brand-teal" />Built on
+      {chips.map(([label, n]) => <span key={label} className="rounded-pill border border-border-hairline bg-surface px-2 py-0.5 text-text-secondary">{n} {label}{n === 1 ? '' : 's'}</span>)}
+      <ChevronDown size={12} className="transition-transform group-open:rotate-180" /></summary>
+    <div className="mt-2 space-y-3 rounded-card bg-surface p-4 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+      {!!used?.rules.length && <div><p className="font-medium text-text-secondary">Standing rules it followed</p>
+        <ul className="mt-1 space-y-1">{used.rules.map(r => <li key={r.rule_id}>{r.text} <span className="text-text-tertiary">· {r.scope} rule</span></li>)}</ul>
+        <a href="/settings/assistant-rules/" className="mt-1 inline-block text-brand-teal underline">Manage rules</a></div>}
+      {!!corrections.length && <div><p className="font-medium text-text-secondary">Corrections it kept honouring</p>
+        <ul className="mt-1 space-y-1">{used?.corrections.map(c => <li key={c.correction_id}>{c.text} <span className="text-text-tertiary">· this conversation</span></li>)}
+          {used?.earlier_corrections.map(c => <li key={c.correction_id}>{c.text} <span className="text-text-tertiary">· from an earlier conversation</span></li>)}</ul></div>}
+      {!!(links.length || precedents.length) && <p className="text-text-secondary">It also followed {links.length ? `identifier links (${links.map(l => l.title.replace('Linked records · ', '')).join(', ')})` : ''}{links.length && precedents.length ? ' and ' : ''}{precedents.length ? 'searched closed cases for precedents' : ''}. Details are under “How I worked this out”.</p>}
+    </div>
+  </details>;
+}
+
+/** Everything the assistant did to reach its answer, folded into one place: steps, records it checked
+ *  and technical details. Open while it is working; one quiet line afterwards. */
+function WorkLog({ turn, threadId, running }: { turn: Turn; threadId: string; running: boolean }) {
+  const reads = turn.artifacts.filter(a => a.kind === 'assistant_workspace_result');
+  const steps = turn.steps ?? [];
+  if (!steps.length && !reads.length && !turn.gateway_runs.length) return null;
+  const parts = [steps.length && `${steps.length} step${steps.length === 1 ? '' : 's'}`, reads.length && `${reads.length} record lookup${reads.length === 1 ? '' : 's'}`,
+    turn.elapsed_seconds != null && `${turn.elapsed_seconds.toFixed(1)} s`].filter(Boolean).join(' · ');
+  return <details className="group mt-4 text-xs" open={running}>
+    <summary className="flex cursor-pointer list-none items-center gap-2 text-text-tertiary hover:text-text-secondary">
+      <Workflow size={14} />{running ? `Working${steps.find(x => x.status !== 'completed') ? ` · ${steps.find(x => x.status !== 'completed')!.title}` : ''}` : 'How I worked this out'}{parts && <span className="text-text-muted">· {parts}</span>}<ChevronDown size={12} className="transition-transform group-open:rotate-180" /></summary>
+    <div className="mt-3 space-y-3 rounded-card bg-surface p-4 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+      {!!steps.length && <ol className="space-y-2">{steps.map(step => <li className="flex gap-2.5" key={step.node_id}>
+        {step.status === 'completed' ? <Check size={14} className="mt-0.5 shrink-0 text-status-success" /> : running && step.status !== 'blocked' ? <Loader2 size={14} className="mt-0.5 shrink-0 text-brand-teal motion-safe:animate-spin" /> : <Circle size={14} className={`mt-0.5 shrink-0 ${step.status === 'blocked' ? 'text-status-critical' : 'text-text-muted'}`} />}
+        <div><p className="text-text-primary">{step.title}
+          {step.status === 'completed' && seconds(step.started_at, step.ended_at) != null && <span className="ml-2 text-text-tertiary">{seconds(step.started_at, step.ended_at)!.toFixed(1)} s</span>}
+          {step.status !== 'completed' && <span className="ml-2 text-text-tertiary">{running && step === steps.find(x => x.status !== 'completed') ? 'working on this now' : step.status.replaceAll('_', ' ')}</span>}</p>
+          {step.issues.map(issue => <p key={issue} className="mt-1 text-status-critical">{issue}</p>)}</div></li>)}</ol>}
+      {!!reads.length && <div className="space-y-1 border-t border-border-hairline pt-3 first:border-0 first:pt-0"><p className="mb-1 font-medium text-text-secondary">Records checked</p>
+        {reads.map(a => <WorkspaceArtifact key={a.id} threadId={threadId} artifact={a} />)}</div>}
+      {!!turn.gateway_runs.length && <details className="border-t border-border-hairline pt-3 text-text-tertiary"><summary className="cursor-pointer">Technical details (for audit)</summary>
+        {turn.system_message && <p className="mt-2">{turn.system_message}</p>}
+        <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-all rounded-card bg-surface-secondary p-3">{JSON.stringify({ gateway_runs: turn.gateway_runs, issues: turn.issues, artifacts: turn.artifacts }, null, 2)}</pre></details>}
+    </div>
+  </details>;
+}
+
+type ListActions = { onOpen: (id: string) => void; onNew: () => void; onRename: (id: string, title: string) => Promise<void>;
+  onArchive: (id: string, archived: boolean) => Promise<void>; loadArchived: () => Promise<Recent[]> };
+
+function groupLabel(iso?: string) {
+  if (!iso) return 'Older';
+  const day = 86400000, start = new Date(); start.setHours(0, 0, 0, 0);
+  const t = new Date(iso).getTime();
+  return t >= start.getTime() ? 'Today' : t >= start.getTime() - day ? 'Yesterday' : t >= start.getTime() - 6 * day ? 'Previous 7 days' : 'Older';
+}
+
+function ConversationItem({ item, current, actions, archived }: { item: Recent; current: boolean; actions: ListActions; archived?: boolean }) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(item.title);
+  const [menu, setMenu] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const saving = useRef(false);
+  async function save() {
+    if (saving.current) return; // Enter saves, then the input's blur fires: one request only
+    saving.current = true;
+    const next = title.trim();
+    if (!next || next === item.title) { setEditing(false); setTitle(item.title); saving.current = false; return; }
+    setBusy(true); try { await actions.onRename(item.id, next); setEditing(false); } finally { setBusy(false); saving.current = false; }
+  }
+  if (editing) return <li><input autoFocus onFocus={() => { saving.current = false; }} value={title} maxLength={90} disabled={busy} aria-label="Conversation name"
+    onChange={e => setTitle(e.target.value)} onBlur={() => void save()}
+    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void save(); } if (e.key === 'Escape') { setEditing(false); setTitle(item.title); } }}
+    className="w-full rounded-control border border-brand-teal bg-surface px-2 py-1.5 text-xs outline-none" /></li>;
+  return <li className="group relative">
+    <button type="button" onClick={() => archived ? undefined : actions.onOpen(item.id)} aria-current={current ? 'page' : undefined} title={item.title}
+      className={`block w-full truncate rounded-control py-2 pl-2 pr-8 text-left text-xs ${current ? 'bg-brand-teal-light/60 font-medium text-text-primary' : 'text-text-secondary hover:bg-surface-secondary'} ${archived ? 'cursor-default' : ''}`}>{item.title || 'Untitled conversation'}</button>
+    {archived
+      ? <button type="button" onClick={() => void actions.onArchive(item.id, false)} className="absolute right-1 top-1/2 -translate-y-1/2 rounded px-1.5 py-1 text-[11px] text-brand-teal hover:bg-surface-secondary">Restore</button>
+      : <button type="button" aria-label={`Manage ${item.title}`} aria-expanded={menu} onClick={() => setMenu(m => !m)}
+          className={`absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-text-tertiary hover:bg-surface hover:text-text-primary focus:opacity-100 ${menu || current ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}><MoreHorizontal size={14} /></button>}
+    {menu && <>
+      <button type="button" aria-label="Close menu" className="fixed inset-0 z-30 cursor-default" onClick={() => setMenu(false)} />
+      <div role="menu" className="absolute right-1 top-full z-40 w-36 rounded-card border border-border-hairline bg-surface p-1 shadow-lg">
+        <button role="menuitem" type="button" onClick={() => { setMenu(false); setEditing(true); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-surface-secondary"><Pencil size={13} />Rename</button>
+        <button role="menuitem" type="button" onClick={() => { setMenu(false); void actions.onArchive(item.id, true); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-surface-secondary"><Archive size={13} />Archive</button>
+      </div></>}
+  </li>;
+}
+
+function ConversationList({ recent, currentId, actions }: { recent: Recent[]; currentId: string | null; actions: ListActions }) {
+  const [filter, setFilter] = useState('');
+  const [archived, setArchived] = useState<Recent[] | null>(null);
+  const shown = filter.trim() ? recent.filter(r => r.title.toLowerCase().includes(filter.trim().toLowerCase())) : recent;
+  const groups: [string, Recent[]][] = [];
+  for (const r of shown) { const label = groupLabel(r.updated_at); const g = groups.find(([l]) => l === label); if (g) g[1].push(r); else groups.push([label, [r]]); }
+  return <nav aria-label="Conversation history" className="flex h-full flex-col">
+    <button type="button" onClick={actions.onNew} className="flex w-full items-center gap-2 rounded-control bg-brand-teal px-3 py-2 text-xs font-medium text-white hover:bg-brand-teal-dark"><Plus size={14} />New conversation</button>
+    {recent.length > 6 && <input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Find a conversation" aria-label="Find a conversation"
+      className="mt-3 w-full rounded-control border border-border-hairline bg-surface px-2.5 py-1.5 text-xs outline-none focus:border-brand-teal" />}
+    <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
+      {groups.map(([label, items]) => <section key={label} className="mb-3">
+        <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">{label}</p>
+        <ul className="space-y-0.5">{items.map(r => <ConversationItem key={r.id} item={r} current={r.id === currentId} actions={actions} />)}</ul>
+      </section>)}
+      {!recent.length && <p className="px-2 text-xs text-text-tertiary">Your conversations will be saved here.</p>}
+      {!!recent.length && !shown.length && <p className="px-2 text-xs text-text-tertiary">No conversation matches “{filter}”.</p>}
+      <button type="button" onClick={async () => setArchived(archived ? null : await actions.loadArchived())}
+        className="mt-2 flex items-center gap-1.5 px-2 text-[11px] text-text-tertiary hover:text-text-secondary"><Archive size={12} />{archived ? 'Hide archived' : 'Archived'}</button>
+      {archived && <ul className="mt-1 space-y-0.5">{archived.length ? archived.map(r => <ConversationItem key={r.id} item={r} current={false} archived
+        actions={{ ...actions, onArchive: async (id, value) => { await actions.onArchive(id, value); setArchived(a => a?.filter(x => x.id !== id) ?? null); } }} />)
+        : <li className="px-2 py-1 text-[11px] text-text-tertiary">Nothing archived.</li>}</ul>}
+    </div>
+  </nav>;
+}
 
 export function EngineeringChat({ companion = false, compact = false }: { companion?: boolean; compact?: boolean }) {
   const companionState = useOptionalCompanion();
@@ -75,6 +226,7 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
   const [attachment, setAttachment] = useState('');
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [demoConsent, setDemoConsent] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const current = useRef<string | null>(null);
   const inFlight = useRef(false);
   const end = useRef<HTMLDivElement>(null);
@@ -202,17 +354,49 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
     }
   }
 
-  return <div className={`mx-auto flex w-full flex-col ${compact ? 'min-h-full px-4' : 'min-h-[calc(100dvh-7rem)] max-w-4xl px-2 sm:px-8'}`} data-testid="engineering-chat">
-    <header className="flex flex-wrap items-center justify-between gap-3 py-3">
-      <div className="flex min-w-0 items-center gap-3">{compact ? <p className="max-w-[190px] truncate text-xs text-text-tertiary" title={pageName}>{pageName}</p> : <>{companion ? <span className="companion-mark" aria-hidden /> : <FlaskConical size={20} className="text-brand-teal" />}<h1 className="text-sm font-medium text-text-primary">{companion ? 'Assistant' : 'Process engineering'}</h1></>}</div>
-      <div className="flex items-center gap-1">
-        <details className="relative"><summary className={`${action} cursor-pointer list-none`}><MessageSquare size={14} /><span className={compact ? 'sr-only' : ''}>Conversations</span><ChevronDown size={12} /></summary><div className="absolute right-0 top-10 z-20 w-72 rounded-card border border-border-hairline bg-surface p-2 shadow-lg">{recent.length ? recent.map(r => <button key={r.id} className="block w-full truncate rounded p-2 text-left text-xs hover:bg-surface-secondary" onClick={e => { const menu = e.currentTarget.closest('details'); if (menu) menu.open = false; void open(r.id); }}>{r.title}</button>) : <p className="p-2 text-xs text-text-tertiary">Your conversations will be saved here.</p>}</div></details>
-        <button type="button" onClick={newConversation} className={action} aria-label="New conversation"><Plus size={16} /><span className={compact ? 'sr-only' : 'hidden sm:inline'}>New</span></button>
+  async function refreshRecent() {
+    try { setRecent((await processRequest<{ conversations: Recent[] }>('/v1/process-model/conversations')).conversations); }
+    catch (e) { setError(String(e)); }
+  }
+  const listActions: ListActions = {
+    onOpen: id => { setHistoryOpen(false); void open(id); },
+    onNew: () => { setHistoryOpen(false); newConversation(); },
+    onRename: async (id, title) => {
+      try { const data = await processRequest<Thread>(`/v1/process-model/conversations/${id}/update`, { title }); if (current.current === id) adopt(data); await refreshRecent(); }
+      catch (e) { setError(String(e)); }
+    },
+    onArchive: async (id, archived) => {
+      try { await processRequest<Thread>(`/v1/process-model/conversations/${id}/update`, { archived }); if (archived && current.current === id) newConversation(); await refreshRecent(); }
+      catch (e) { setError(String(e)); }
+    },
+    loadArchived: async () => {
+      try { return (await processRequest<{ conversations: Recent[] }>('/v1/process-model/conversations?archived=true')).conversations; }
+      catch (e) { setError(String(e)); return []; }
+    },
+  };
+  const history = <ConversationList recent={recent} currentId={thread?.id ?? null} actions={listActions} />;
+
+  return <div className={`flex w-full ${compact ? 'min-h-full' : 'min-h-[calc(100dvh-7rem)]'}`} data-testid="engineering-chat">
+    {!compact && <aside className="sticky top-0 hidden max-h-[calc(100dvh-7rem)] w-64 shrink-0 self-start border-r border-border-hairline py-4 pl-2 pr-3 md:block">{history}</aside>}
+    <div className={`mx-auto flex w-full min-w-0 flex-col ${compact ? 'px-4' : 'max-w-4xl px-2 sm:px-8'}`}>
+    <header className={`relative flex items-center justify-between gap-3 py-3 ${compact ? 'sticky top-0 z-20 bg-surface' : ''}`}>
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={`flex items-center ${compact ? '' : 'md:hidden'}`}>
+          <button type="button" onClick={() => setHistoryOpen(o => !o)} aria-expanded={historyOpen} aria-label="Conversation history"
+            className={action}><History size={15} /><span className={compact ? 'sr-only' : ''}>History</span></button>
+          <button type="button" onClick={newConversation} className={action} aria-label="New conversation"><Plus size={16} /><span className={compact ? 'sr-only' : ''}>New</span></button>
+        </span>
+        {compact ? <p className="max-w-[190px] truncate text-xs text-text-tertiary" title={pageName}>{thread?.title || pageName}</p>
+          : <>{companion ? <span className="companion-mark" aria-hidden /> : <FlaskConical size={20} className="text-brand-teal" />}<h1 className="truncate text-sm font-medium text-text-primary">{thread?.title || (companion ? 'Assistant' : 'Process engineering')}</h1></>}
       </div>
+      {historyOpen && <>
+        <button type="button" aria-label="Close history" className="fixed inset-0 z-20 cursor-default" onClick={() => setHistoryOpen(false)} />
+        <div className="absolute left-0 top-full z-30 max-h-[70vh] w-72 overflow-y-auto rounded-card border border-border-hairline bg-surface p-2 shadow-lg">{history}</div>
+      </>}
     </header>
     {thread && <AssistantResponsibility key={thread.id} thread={thread} onChange={adopt} />}
 
-    <div className="flex-1 pb-6">
+    <div className="flex-1 pb-10">
       {!thread?.turns.length && <section className={`mx-auto max-w-2xl ${compact ? 'pb-5 pt-8' : 'pb-8 pt-16 sm:pt-24'}`}>
         <h2 className={`font-medium leading-tight tracking-tight text-text-primary ${compact ? 'text-2xl' : 'text-3xl sm:text-[38px]'}`}>{pending.length ? 'Ask about this delivery.' : selection ? 'Let’s look at this together.' : companion ? 'What are we working on?' : 'What process problem are you working on?'}</h2>
         <p className="mt-4 max-w-lg text-sm leading-6 text-text-secondary">{pending.length ? 'The verified values, their batches and source files are attached below. Ask about trends, gaps or differences between batches.' : selection ? 'Your selection is attached below. Ask a question or describe what you’d like to do.' : companion ? 'Bring a question, explore an idea, or select something in your workspace. We’ll take it from there.' : 'Describe the decision you need to make. The agent will identify the evidence and models needed.'}</p>
@@ -226,15 +410,18 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
             {turn.gateway_runs.some(r => r.route?.unqualified) && <p className="mb-2 text-xs text-status-warning">Development LLM run · route unqualified · review required</p>}
             {structuredWork.has(turn.id) ? <>
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border-hairline bg-surface p-4"><div><p className="text-sm font-medium">{turn.status === 'blocked' ? 'Saved work needs attention' : 'Your work is ready to inspect'}</p><p className="mt-1 text-xs text-text-tertiary">Chart, source table, checks and next review step.</p></div><Link href={`/workspaces/#${encodeURIComponent(turn.id)}`} className="inline-flex items-center gap-1.5 rounded-control bg-brand-teal px-3 py-2 text-xs font-medium text-white">Open workspace<ArrowUpRight size={14} /></Link></div>
-              {turn.reply && <details className="mt-3 text-xs text-text-secondary"><summary className="cursor-pointer">Read the assistant’s explanation</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-7">{turn.reply}</p></details>}
-            </> : turn.reply && <p className="whitespace-pre-wrap text-sm leading-7 text-text-primary">{turn.reply}</p>}
+              {turn.reply && <details className="mt-3 text-xs text-text-secondary"><summary className="cursor-pointer">Read the assistant’s explanation</summary><Markdown className="mt-3" text={turn.reply} /></details>}
+            </> : turn.reply && <Markdown text={turn.reply} />}
             {turn.grounding && turn.reply && <GroundingNote g={turn.grounding} />}
-            {!!turn.questions.length && <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6">{turn.questions.map(q => <li key={q}>{q}</li>)}</ul>}
+            <DrewOn turn={turn} />
+            {turn.reply && !active(turn) && thread.mission_id && <CorrectAnswer key={`correct-${turn.id}`} missionId={thread.mission_id} />}
+            <WorkLog turn={turn} threadId={thread.id} running={active(turn)} />
+            {!!turn.questions.length && (index === (thread?.turns.length ?? 0) - 1 && !active(turn)
+              ? <QuestionCard key={`questions-${turn.id}`} questions={turn.questions} disabled={busy} onAnswer={text => void send(text)} />
+              : <div className="mt-3 rounded-card bg-surface-secondary/60 px-4 py-3 text-xs text-text-secondary"><p className="font-medium">{active(turn) ? 'I may need to ask you' : 'I asked'}</p><ul className="mt-1.5 list-disc space-y-1 pl-4">{turn.questions.map(q => <li key={q}>{q}</li>)}</ul></div>)}
             {(active(turn) || stoppingTurns.has(turn.id)) && <div><p role="status" className="mt-3 flex items-center gap-2 text-sm text-brand-teal"><Loader2 size={15} className="motion-safe:animate-spin" />{stoppingTurns.has(turn.id) ? 'Stopping…' : turn.steps?.length ? 'Working through the steps…' : 'Looking through your records…'}</p><button type="button" disabled={stoppingTurns.has(turn.id)} onClick={() => void stop()} className={action}>{stoppingTurns.has(turn.id) ? 'Stopping…' : 'Stop work'}</button><details className="mt-2 text-xs text-text-tertiary"><summary className="cursor-pointer">Work interrupted?</summary><p className="mt-2">Your work is saved. If it stopped, resume from the last completed step.</p><button type="button" disabled={sending || stoppingTurns.has(turn.id)} className={action} onClick={() => void retry()}><RotateCcw size={13} />Resume saved work</button></details></div>}
-            {!!turn.steps?.length && <details className="my-3 text-xs [&[open]]:rounded-card [&[open]]:bg-surface [&[open]]:p-4 [&[open]]:shadow-[0_1px_3px_rgba(16,24,40,0.06)]" open={active(turn)}><summary className="flex cursor-pointer list-none items-center gap-2 text-text-tertiary hover:text-text-secondary"><Workflow size={15} />{turn.steps.length} {turn.steps.length === 1 ? 'step' : 'steps'}{active(turn) ? ' · in progress' : ''}<ChevronDown size={12} /></summary><ol className="mt-4 space-y-3">{turn.steps.map(step => <li className="flex gap-3 text-xs" key={step.node_id}>{step.status === 'completed' ? <Check size={14} className="shrink-0 text-status-success" /> : <Circle size={14} className={`shrink-0 ${step.status === 'blocked' ? 'text-status-critical' : 'text-text-muted'}`} />}<div><p className="font-medium">{step.title} <span className="ml-2 font-normal text-text-tertiary">{step.status}</span></p><p className="mt-1 text-text-tertiary">{step.task_kind.replaceAll('_', ' ')}{step.depends_on.length ? ` · after ${step.depends_on.join(', ')}` : ''}</p>{step.issues.map(issue => <p key={issue} className="mt-1 text-status-critical">{issue}</p>)}</div></li>)}</ol></details>}
             {friendlyNote(turn) && <div className={`mt-3 rounded-card px-4 py-3 text-sm leading-6 ${turn.status === 'agent_unavailable' || turn.status === 'blocked' ? 'bg-status-warning-bg/70 text-text-primary' : 'bg-brand-teal-light/60 text-text-secondary'}`}><p>{friendlyNote(turn)}</p>{index === (thread?.turns.length ?? 0)-1 && ['agent_unavailable', 'blocked'].includes(turn.status) && <button type="button" disabled={busy} onClick={() => void retry()} className={`${action} mt-2 bg-surface shadow-[0_1px_2px_rgba(16,24,40,0.06)]`}><RotateCcw size={13} />Try again</button>}</div>}
-            {turn.artifacts.map(artifact => { if (artifact.kind === 'assistant_rule') return <p key={artifact.id} className="my-1.5 text-xs text-text-secondary">{artifact.title} · <a className="underline" href="/settings/assistant-rules/">Review rule</a></p>; const View = artifact.kind === 'assistant_demo_deviations' ? DemoDeviationsArtifact : artifact.kind === 'assistant_workspace_result' ? WorkspaceArtifact : artifact.kind.startsWith('bioprocess_') ? BioprocessArtifact : AnalysisArtifact; return ['physical_analysis_plan', 'physical_analysis_context', 'bioprocess_case'].includes(artifact.kind) ? <details className="my-3 text-xs" key={artifact.id}><summary className="cursor-pointer text-text-secondary">{artifact.title}</summary><View threadId={thread.id} artifact={artifact} /></details> : <View key={artifact.id} threadId={thread.id} artifact={artifact} />; })}
-            {!!turn.gateway_runs.length && <details className="mt-3 text-xs text-text-tertiary"><summary className="cursor-pointer">Details{turn.elapsed_seconds != null ? ` · ${turn.elapsed_seconds.toFixed(1)} s` : ''}</summary>{turn.system_message && <p className="mt-2">{turn.system_message}</p>}<pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-all rounded-card bg-surface-secondary p-3">{JSON.stringify({ gateway_runs: turn.gateway_runs, issues: turn.issues, artifacts: turn.artifacts }, null, 2)}</pre></details>}
+            {turn.artifacts.filter(a => a.kind !== 'assistant_workspace_result').map(artifact => { if (artifact.kind === 'investigation_proposal') return <InvestigationProposal key={artifact.id} threadId={thread.id} siteId={thread.site_id ?? 'NF1'} artifact={artifact} />; if (artifact.kind === 'assistant_rule') return <p key={artifact.id} className="my-1.5 text-xs text-text-secondary">{artifact.title} · <a className="underline" href="/settings/assistant-rules/">Review rule</a></p>; const View = artifact.kind === 'assistant_demo_deviations' ? DemoDeviationsArtifact : artifact.kind.startsWith('bioprocess_') ? BioprocessArtifact : AnalysisArtifact; return ['physical_analysis_plan', 'physical_analysis_context', 'bioprocess_case'].includes(artifact.kind) ? <details className="my-3 text-xs" key={artifact.id}><summary className="cursor-pointer text-text-secondary">{artifact.title}</summary><View threadId={thread.id} artifact={artifact} /></details> : <View key={artifact.id} threadId={thread.id} artifact={artifact} />; })}
           </div></div>
         </article>)}
         <div ref={end} />
@@ -256,7 +443,7 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
       </div>}
       <form className="rounded-xl border border-border-strong bg-surface p-3 shadow-sm focus-within:border-brand-teal" onSubmit={e => { e.preventDefault(); void send(); }}>
         <label className="sr-only" htmlFor="engineering-message">Describe your process problem or follow up</label>
-        <textarea ref={composer} id="engineering-message" value={draft} maxLength={4000} rows={2} onChange={e => setDraft(e.target.value)} placeholder={last?.questions.length ? 'Answer the questions or refine the analysis…' : pending.length ? 'For example: which batches had the lowest viability, and when?' : selection ? 'What would you like to do with this?' : companion ? 'Ask or describe what you’d like to do…' : 'Describe your process problem or ask a follow-up…'} className="block min-h-[52px] w-full resize-none bg-transparent px-2 py-1 text-sm leading-6 text-text-primary outline-none placeholder:text-text-muted" onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }} />
+        <textarea ref={composer} id="engineering-message" value={draft} maxLength={4000} rows={2} onChange={e => setDraft(e.target.value)} placeholder={last?.questions.length ? 'Or reply in your own words…' : pending.length ? 'For example: which batches had the lowest viability, and when?' : selection ? 'What would you like to do with this?' : companion ? 'Ask or describe what you’d like to do…' : 'Describe your process problem or ask a follow-up…'} className="block min-h-[52px] w-full resize-none bg-transparent px-2 py-1 text-sm leading-6 text-text-primary outline-none placeholder:text-text-muted" onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }} />
         <div className="mt-2 flex items-center justify-between"><button type="button" onClick={() => void loadSources()} className={action} aria-expanded={sourcesOpen}><Paperclip size={14} />{attachment || pending.length ? 'Context attached' : 'Context'}</button><div className="flex items-center gap-3"><span className="hidden text-[11px] text-text-muted sm:inline">{busy ? 'Work in progress · saved as it runs' : 'Enter to send · Shift + Enter for a new line'}</span><button type="submit" aria-label="Send message" disabled={!draft.trim() || busy} className="flex h-9 w-9 items-center justify-center rounded-control bg-brand-teal text-white hover:bg-brand-teal-dark disabled:opacity-40"><ArrowUp size={18} /></button></div></div>
       </form>
     </div>
@@ -265,10 +452,9 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
         <Link href="/workbench/AN-104" className="flex items-center justify-between border-b border-border-hairline py-3 text-xs text-text-secondary hover:text-brand-teal">Explore the sample workbench<ArrowUpRight size={14} /></Link>
         <Link href="/reviews/REV-01" className="flex items-center justify-between border-b border-border-hairline py-3 text-xs text-text-secondary hover:text-brand-teal">2 sample items awaiting review<ArrowUpRight size={14} /></Link>
       </div>}
-      <details className="text-xs text-text-tertiary"><summary className="cursor-pointer">Try an engineering example</summary>
-        <p className="mt-3 leading-5">Examples use published or simulated data.</p>
-        <div className="mt-2 flex flex-wrap gap-2">{EXAMPLES.map(e => <button key={e.label} type="button" disabled={busy} onClick={() => void send(e.prompt, true)} className={`${action} border border-border-hairline`}><FlaskConical size={14} />{e.label}</button>)}</div>
-      </details>
+      <p className="text-xs text-text-tertiary">Or start from an example <span className="text-text-muted">(published or simulated data)</span></p>
+      <div className="mt-2 flex flex-wrap gap-2">{EXAMPLES.map(e => <button key={e.label} type="button" disabled={busy} onClick={() => void send(e.prompt, true)} className={`${action} border border-border-hairline`}><FlaskConical size={14} />{e.label}</button>)}</div>
     </div>}
+    </div>
   </div>;
 }

@@ -25,6 +25,8 @@ class Job(Input):
     as_of: str = Field(min_length=20, max_length=40)
     timeout_seconds: int = Field(default=900, ge=60, le=3600)
     max_tool_calls: int = Field(default=72, ge=1, le=200)
+    # Optional approximate token cap; the agent stops the run when root + child token snapshots exceed it.
+    max_tokens: int | None = Field(default=None, ge=1000, le=20_000_000)
 
 
 def input_key(tenant, project, sha):
@@ -139,6 +141,13 @@ def create_app(store=None, verifier=None, s3=None, encryption_key=None):
     def get(project: str, ident: str, access=Depends(identity)):
         scope(project, access, {"viewer", "operator", "auditor"})
         return store.public(row(project, ident, access))
+
+    @app.get("/v1/projects/{project}/jobs/{ident}/events")
+    def events(project: str, ident: str, after: int = 0, access=Depends(identity)):
+        scope(project, access, {"viewer", "operator", "auditor"})
+        row(project, ident, access)
+        page = store.events(tenant, project, ident, after=max(0, after), limit=500)
+        return {"events": page, "next": page[-1]["seq"] if page else max(0, after)}
 
     @app.post("/v1/projects/{project}/jobs/{ident}/cancel")
     def cancel(project: str, ident: str, access=Depends(identity)):

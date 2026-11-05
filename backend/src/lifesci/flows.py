@@ -7,7 +7,7 @@ from copy import deepcopy
 from typing import Any
 
 from .gateway.gateway import TaskRequest
-from .ids import content_hash, new_id
+from .ids import content_hash, iso, new_id, utc_now
 
 
 def node_order(nodes: list[dict[str, Any]]) -> list[str]:
@@ -117,6 +117,7 @@ class FlowService:
                     continue
                 node = by_id[nid]
                 self.p.identity.validate_refs(ctx, state["inputs"], require_current=True)
+                started = iso(utc_now())
                 try:
                     payload = resolve(node.get("payload", {}), state["results"], set(node.get("depends_on", [])))
                     name = node["task_kind"]
@@ -131,6 +132,8 @@ class FlowService:
                             payload=payload, inputs=state["inputs"], timeout_s=60)).to_dict()
                 except (KeyError, IndexError, TypeError, ValueError, PermissionError) as exc:
                     result = {"status": "blocked", "output": None, "issues": [f"node {nid}: {exc}"]}
+                # Shown to the person following the work; not part of the result's evidence content.
+                result = {**result, "started_at": started, "ended_at": iso(utc_now())}
                 with self.p.store.transaction(ctx.actor_id) as tx:
                     tx.check_lease(ctx.tenant_id, "data_flow_run", rid, owner, token)
                     current = tx.require(ctx.tenant_id, "data_flow_run", rid)

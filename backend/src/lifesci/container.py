@@ -55,6 +55,7 @@ class Platform:
     bioprocess: Any = field(init=False)
     engineering_conversations: Any = field(init=False)
     fermentation: Any = field(init=False)
+    investigations: Any = field(init=False)
     allow_unqualified: bool = False
     providers: dict[str, Any] | None = None
     api_extensions: list[Callable[..., None]] = field(default_factory=list)
@@ -110,6 +111,8 @@ class Platform:
         self.engineering_conversations = EngineeringConversationService(self)
         from .process_engineering.responsibilities import AssistantResponsibilities
         self.assistant_responsibilities = AssistantResponsibilities(self)
+        from .investigations import InvestigationService
+        self.investigations = InvestigationService(self)
         from .fermentation.service import FermentationService
         self.fermentation = FermentationService(self)
         from .collab import RemoteSessionService

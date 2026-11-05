@@ -48,6 +48,8 @@ class ManufacturingBridge:
         parse_time(as_of)
         self.store, self.blackboards, self.workflow = store, blackboards, workflow
         self.scope, self.incident_id, self.objective, self.as_of = scope, incident_id, objective, as_of
+        # Optional progress hook: (kind, payload, depth, session_key) -> None. Metadata only.
+        self.event_hook = None
         self.session = ManufacturingSession(store, as_of=as_of, scopes=(scope,))
         self.tools = ManufacturingTools(store, as_of=as_of, scopes=(scope,))
         self.seed_ids = list(dict.fromkeys(map(str, seed_ids)))
@@ -703,6 +705,28 @@ class ManufacturingBridge:
                                      evidence_request_count=len(board.pending_evidence), task_count=len(board.recommended_actions))
             return output
 
+    def emit_progress(self, path, result, depth, key):
+        """Progress metadata for the live investigation view (§12.1); never raises into the tool call."""
+        if self.event_hook is None or not isinstance(result, dict):
+            return
+        try:
+            if path == '/allocate-work' and result.get('status') == 'allocated':
+                a = result['allocation']
+                self.event_hook('allocation', {'task_ids': a['task_ids'], 'owner': a['owner'], 'reason': a['reason'],
+                                               'calls': a['calls']}, depth, key)
+            elif result.get('status') == 'sub_investigation_saved':
+                entry = next((s for s in self.subreports if s['subreport_id'] == result.get('subreport_id')), None)
+                if entry:
+                    self.event_hook('subreport_saved', {'subreport_id': entry['subreport_id'], 'assessment': entry['assessment'],
+                        'fact_count': len(entry['observed_facts']), 'claim_count': len(entry['claims']),
+                        'open_question_count': len(entry['open_questions']), 'evidence_ids': entry['evidence_ids']}, depth, key)
+            if path in ('/tool', '/allocate-work'):
+                budget = self.budget(depth)
+                self.event_hook('budget', {'tool_calls_used': self.tool_calls, 'tool_calls_limit': budget['active_tool_limit'],
+                                           'elapsed_seconds': budget['elapsed_seconds']}, depth, key)
+        except Exception:
+            pass
+
     def start(self) -> "ManufacturingBridge":
         bridge = self
 
@@ -718,6 +742,7 @@ class ManufacturingBridge:
                     value = json.loads(self.rfile.read(length))
                     caller=value.pop('_caller',{})
                     depth=caller.get('depth',0)
+                    session_key=caller.get('session') if isinstance(caller.get('session'),str) else None
                     if type(depth) is not int or depth<0:raise ValueError('invalid runtime caller depth')
                     if self.path == "/context":
                         result = bridge.context(depth)
@@ -744,6 +769,7 @@ class ManufacturingBridge:
                     else:
                         self.send_error(404)
                         return
+                    bridge.emit_progress(self.path, result, depth, session_key)
                     # The model sees this response; the host keeps full results.
                     body = json.dumps(agent_view(self.path, result), default=str).encode()
                     self.send_response(200)
