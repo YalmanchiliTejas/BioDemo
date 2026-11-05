@@ -134,9 +134,42 @@ def links(store, *, sources: list[dict], as_of: str | None,
     return list(edges.values()), aliases
 
 
+def links_many(parts: list[tuple[str, object, list[dict]]], *, as_of: str | None,
+               reviews: list[dict] = ()) -> list[dict]:
+    """Links across several stores (e.g. successive deliveries from one CMO): (label, store, sources) each.
+    Edges with the same link id merge their evidence, each item naming the delivery it came from; identifiers
+    equal after canonicalisation are linked across stores too."""
+    merged: dict[str, dict] = {}
+    seen: dict[tuple, set[str]] = defaultdict(set)
+    for label, store, sources in parts:
+        edges, _ = links(store, sources=sources, as_of=as_of, reviews=reviews)
+        for e in edges:
+            for ident, kind in ((e['a'], e['a_kind']), (e['b'], e['b_kind'])):
+                seen[(e['scope'], kind, canonical(ident))].add(ident)
+            if e['link_id'] in merged:
+                merged[e['link_id']]['evidence'] += [{**ev, 'delivery': label} for ev in e['evidence']]
+            else:
+                merged[e['link_id']] = {**e, 'evidence': [{**ev, 'delivery': label} for ev in e['evidence']]}
+    reviewed = _reviews(parts[0][1], as_of, list(reviews)) if parts else {}
+    for (scope, kind, _key), members in seen.items():
+        members = sorted(members)
+        for other in members[1:]:
+            ident = link_id(scope, 'same_identifier', members[0], other)
+            if ident not in merged:
+                edge = {'link_id': ident, 'a': members[0], 'b': other, 'a_kind': kind, 'b_kind': kind,
+                        'predicate': 'same_identifier', 'basis': BASIS['same_identifier'], 'scope': scope,
+                        'status': 'extracted', 'evidence': []}
+                if ident in reviewed:
+                    edge['status'] = reviewed[ident]['decision']
+                    edge['review'] = {k: reviewed[ident][k] for k in ('actor', 'reason', 'reviewed_at')}
+                merged[ident] = edge
+    return list(merged.values())
+
+
 def neighborhood(store, entity_id: str, *, sources: list[dict], as_of: str | None,
-                 hops: int = 1, include_candidates: bool = True, reviews: list[dict] = ()) -> dict:
-    all_edges, _ = links(store, sources=sources, as_of=as_of, reviews=reviews)
+                 hops: int = 1, include_candidates: bool = True, reviews: list[dict] = (),
+                 edges: list[dict] | None = None) -> dict:
+    all_edges = edges if edges is not None else links(store, sources=sources, as_of=as_of, reviews=reviews)[0]
     usable = [e for e in all_edges if e['status'] != 'rejected'
               and (include_candidates or e['status'] != 'candidate')]
     adjacent = defaultdict(list)

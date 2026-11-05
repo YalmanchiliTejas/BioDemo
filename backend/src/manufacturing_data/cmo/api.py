@@ -502,29 +502,44 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
                                         source_namespace=run['package_ref']))
             return store,True
 
+    EARLIER_DELIVERIES=3  # ponytail: bounded so a links request never rebuilds a CMO's whole history
+
     def run_links(run_id):
-        from ..knowledge import links
+        """Links across this delivery and the CMO's most recent earlier deliveries, so month-2 records
+        connect to month-1 batches, lots and equipment. Each evidence item names its delivery."""
+        from ..knowledge import links_many
         run=guard(lambda:service.get(run_id))
         store,rebuilt=link_store(run)
-        sources=[s for s in store.visible_sources(scopes=(run['cmo'],)) if s['extraction_status']=='indexed']
+        label=lambda r: r.get('delivery_name') or r.get('package_ref') or r['id'][:8]
+        earlier=[r for r in service.runs(run['cmo']) if r['id']!=run_id and r.get('status')=='complete'
+                 and not r.get('superseded_by') and r.get('started_at','')<run.get('started_at','')][-EARLIER_DELIVERIES:]
+        parts,unavailable=[],[]
+        for r in [run,*reversed(earlier)]:
+            try: part_store=store if r is run else link_store(r)[0]
+            except HTTPException: unavailable.append(label(r)); continue
+            parts.append((label(r),part_store,[s for s in part_store.visible_sources(scopes=(run['cmo'],)) if s['extraction_status']=='indexed']))
         reviews=service.link_reviews()
-        return store,sources,links(store,sources=sources,as_of=None,reviews=reviews)[0],reviews,rebuilt
+        sources=[s for _,_,ss in parts for s in ss]
+        edges=links_many(parts,as_of=None,reviews=reviews)
+        return store,sources,edges,reviews,rebuilt,[p[0] for p in parts],unavailable
 
     @api.get('/runs/{run_id}/links')
     def list_links(run_id:str,entity_id:str|None=None,hops:int=1):
-        store,sources,all_links,reviews,rebuilt=run_links(run_id)
+        store,sources,all_links,reviews,rebuilt,deliveries,unavailable=run_links(run_id)
         if entity_id:
             from ..knowledge import neighborhood
-            return neighborhood(store,entity_id,sources=sources,as_of=None,hops=max(1,min(hops,2)),reviews=reviews)
+            return {**neighborhood(store,entity_id,sources=sources,as_of=None,hops=max(1,min(hops,2)),reviews=reviews,edges=all_links),
+                    'deliveries':deliveries,'deliveries_unavailable':unavailable}
         order={'candidate':0,'extracted':1,'confirmed':2,'rejected':3}
         return {'links':sorted(all_links,key=lambda l:(order.get(l['status'],9),l['a'],l['b'])),
                 'counts':{k:sum(1 for l in all_links if l['status']==k) for k in order},
-                'sources_searched':len(sources),'rebuilt_from_originals':rebuilt}
+                'sources_searched':len(sources),'rebuilt_from_originals':rebuilt,
+                'deliveries':deliveries,'deliveries_unavailable':unavailable}
 
     @api.post('/runs/{run_id}/links/reviews')
     def review_link(run_id:str,value:LinkReviewInput):
         from ..knowledge import review
-        store,_,all_links,_,_=run_links(run_id)
+        store,_,all_links,_,_,_,_=run_links(run_id)
         if value.link_id not in {l['link_id'] for l in all_links}: raise HTTPException(404,'Unknown link for this run')
         reason=value.reason.strip() or ('Checked the cited source row' if value.decision=='confirmed' else '')
         if not reason: raise HTTPException(400,'A reason is required to reject a link')
