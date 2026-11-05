@@ -311,6 +311,12 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
                        expected_revision=None, action="idempotency")
         return response
 
+    from .signals import signal_routes
+    from .alerts import alert_routes
+    signal_routes(app, platform, ctx_dep)
+    alert_routes(app, platform, ctx_dep)
+    from .triage import triage_routes
+    triage_routes(app, platform, ctx_dep)
     from .organization_api import install_organization_api
     install_organization_api(app, platform, resolver, ctx_dep, os.environ.get("LIFESCI_MULTI_TENANT") == "1",
                              development=auth_mode == "development_headers")

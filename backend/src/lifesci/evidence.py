@@ -104,7 +104,10 @@ class EvidenceService:
                          expected_revision=current.revision if current else None,
                          action="ingest" if not current else "correct",
                          event_type="evidence.ingested" if not current else "evidence.corrected",
-                         event_payload={"evidence_id": evidence_id, "digest": digest, "site_id": site_id})
+                         event_payload={"evidence_id": evidence_id, "digest": digest, "site_id": site_id,
+                                        "source_system": source_system,
+                                        "record_type": ((metadata or {}).get("mapped") or {}).get("record_type")
+                                        or (metadata or {}).get("record_type")})
             stale: list[str] = []
             if current:
                 stale = self._invalidate(tx, ctx.tenant_id, "evidence", evidence_id,

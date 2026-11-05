@@ -113,6 +113,24 @@ class Platform:
         self.assistant_responsibilities = AssistantResponsibilities(self)
         from .investigations import InvestigationService
         self.investigations = InvestigationService(self)
+        # Deviation signals: detection on committed events, then alerts and assistant triage (docs/architecture/deviation-signals-and-alerts.md).
+        from .specifications import SpecificationService
+        self.specifications = SpecificationService(s, self.identity)
+        from .signals import SignalService, register_signal_listeners
+        self.signals = SignalService(self)
+        from .alerts import AlertService
+        self.alerts = AlertService(self)
+        from .signal_followup import SignalFollowUp
+        self.signal_followup = SignalFollowUp(self)
+        from .triage import TriageService
+
+        def report_triage(tenant: str, signal_id: str, triage: dict) -> None:
+            state = self.signals.annotate(tenant, signal_id, triage=triage)
+            if triage.get('status') == 'ready':
+                self.alerts.on_triage_ready(tenant, state)
+        self.triage = TriageService(self, report=report_triage)
+        register_signal_listeners(self)
+        s.subscribe(self.signal_followup.on_event)
         from .fermentation.service import FermentationService
         self.fermentation = FermentationService(self)
         from .collab import RemoteSessionService

@@ -78,7 +78,7 @@ class ChatDecision(StrictModel):
         return self
 
 WorkspaceKind = Literal['case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
-    'proposal', 'physical_analysis_context', 'process_simulation', 'engineering_chat_turn']
+    'proposal', 'physical_analysis_context', 'process_simulation', 'engineering_chat_turn', 'deviation_signal']
 
 class WorkspaceSearch(StrictModel):
     """mode=search: records by kind and query. mode=links: records sharing an identifier with record_kind/record_id.

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Archive, ArrowUp, BookOpen, FlaskConical, History, MoreHorizontal, Pencil, Plus, RotateCcw, ChevronDown, Workflow, Check, Circle, Loader2, Paperclip, X, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import { Markdown } from './Markdown';
 import { QuestionCard } from './QuestionCard';
+import { SignalCard } from './SignalCard';
 import { InvestigationProposal } from './InvestigationProposal';
 import { processRequest } from '@/lib/process-api';
 import { cached } from '@/lib/cache';
@@ -37,7 +38,7 @@ function GroundingNote({ g }: { g: Grounding }) {
     </ul>
   </details>;
 }
-type Turn = { origin?: string; responsibility_objective?: string; display_context?: DisplayContext | null; id: string; user_text: string; status: string; reply: string | null; questions: string[]; system_message?: string; issues: string[]; artifacts: ArtifactRef[]; steps?: Step[]; elapsed_seconds?: number; basis_status?: string; grounding?: Grounding | null; context_used?: ContextUsed | null; gateway_runs: { route?: { unqualified?: boolean } | null; [key: string]: unknown }[] };
+type Turn = { origin?: string; triage_signal_id?: string | null; responsibility_objective?: string; display_context?: DisplayContext | null; id: string; user_text: string; status: string; reply: string | null; questions: string[]; system_message?: string; issues: string[]; artifacts: ArtifactRef[]; steps?: Step[]; elapsed_seconds?: number; basis_status?: string; grounding?: Grounding | null; context_used?: ContextUsed | null; gateway_runs: { route?: { unqualified?: boolean } | null; [key: string]: unknown }[] };
 type ContextUsed = { rules: { rule_id: string; scope: string; text: string }[]; corrections: { correction_id: string; text: string }[]; earlier_corrections: { correction_id: string; text: string }[] };
 type Thread = { id: string; site_id?: string; mission_id?: string; revision: number; title: string; turns: Turn[]; turn_ids: string[]; demo_enabled: boolean; source_ids: string[]; dataset_ids?: string[]; responsibility?: Responsibility | null; mission_status?: string };
 type PublishedDataset = { id: string; cmo: string; delivery_name: string | null; measurements: number; batches: string[] };
@@ -249,6 +250,9 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
   useEffect(() => {
     let saved: string | null = null;
     try { saved = localStorage.getItem(storageKey); } catch { /* Storage is optional. */ }
+    // A link such as /home/?conversation=<id> (e.g. "Open the triage" on a signal) opens that conversation.
+    const linked = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('conversation') : null;
+    if (linked) saved = linked;
     if (saved) void open(saved);
     processRequest<{ conversations: Recent[] }>('/v1/process-model/conversations')
       .then(r => setRecent(r.conversations)).catch(e => setError(String(e)));
@@ -406,6 +410,7 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
         {thread?.turns.map((turn, index) => <article key={turn.id} data-testid="conversation-turn">
           <div className="mb-6 flex justify-end"><div className="min-w-0 max-w-[90%] rounded-2xl rounded-br-sm bg-surface-secondary px-5 py-4 text-sm leading-6 text-text-primary"><span className="sr-only">{turn.origin === 'background' ? 'Background follow-up: ' : 'You: '}</span><p className="whitespace-pre-wrap">{turn.origin === 'background' ? `Background follow-up · ${turn.responsibility_objective}` : turn.user_text}</p>{turn.display_context && <details className="mt-3 border-t border-border-hairline pt-2 text-xs"><summary className="cursor-pointer">{turn.display_context.kind === 'chart' ? 'Chart' : 'Text'} from {turn.display_context.label}</summary><p className="mt-2 text-text-tertiary">Screen snapshot · {turn.display_context.page_path} · {turn.display_context.captured_at}</p><pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words font-sans">{turn.display_context.content}</pre></details>}</div></div>
           <div className="flex gap-3 sm:gap-4"><span className="companion-mark mt-1 shrink-0" aria-hidden /><div className="min-w-0 flex-1">
+            {turn.triage_signal_id && <SignalCard id={turn.triage_signal_id} />}
             {['stale', 'quarantined'].includes(turn.basis_status ?? '') && <p role="status" className="mb-3 rounded-control bg-status-warning-bg px-4 py-3 text-sm text-text-secondary">Contributing evidence changed or was withdrawn. Rebuild this analysis before using its findings.</p>}
             {turn.gateway_runs.some(r => r.route?.unqualified) && <p className="mb-2 text-xs text-status-warning">Development LLM run · route unqualified · review required</p>}
             {structuredWork.has(turn.id) ? <>

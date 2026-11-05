@@ -473,6 +473,17 @@ class EngineeringConversationService:
                 'For simulations', 'To compare operating scenarios', 'For CDMO interventions',
                 'At most 3 executions', 'physical_results_assess calls', 'Do not add physical_results_assess')
             prompt['instructions'] = [s for s in prompt['instructions'] if not s.startswith(scientific_prefixes)]
+        # One assistant, capability packs: show the tools and guidance this request needs (never other agents).
+        from .. import capabilities
+        latest = self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', thread['turn_ids'][-1]).state if thread['turn_ids'] else {}
+        request_text = ' '.join(filter(None, [latest.get('user_text'), (latest.get('display_context') or {}).get('content')]))
+        packs = capabilities.select(request_text, self.p.identity.context_for(ctx.tenant_id, thread['owner_id']).roles,
+            has_process_context=bool(thread['source_ids'] or thread.get('dataset_ids') or thread['demo_enabled']),
+            has_signal='deviation_signal' in request_text or bool(latest.get('triage_signal_id')))
+        allowed = capabilities.operators(packs)
+        prompt['operator_payload_schemas'] = {k: v for k, v in prompt['operator_payload_schemas'].items() if k in allowed}
+        prompt['capabilities'] = capabilities.describe(packs)
+        prompt['capabilities_used'] = packs
         return prompt
 
     def run_turn(self, ctx, thread_id, turn_id):
@@ -537,7 +548,8 @@ class EngineeringConversationService:
                     for i, a in enumerate(result.attempts) if 'validation' in a]
                 checkpoint(gateway_runs=[*turn['gateway_runs'], result.to_dict()], planning_gateway_run_id=result.run_id,
                     planning_attempts=[*turn.get('planning_attempts', []), *planning_attempts],
-                    context_used=self._context_used(shown.get('mission_context') or {}))
+                    context_used=self._context_used(shown.get('mission_context') or {}),
+                    capabilities_used=shown.get('capabilities_used', []))
                 if result.status != 'completed':
                     invalid_plan = any(a['status'] == 'rejected' for a in planning_attempts)
                     stale_basis = result.status == 'stale_basis'
