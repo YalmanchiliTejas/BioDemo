@@ -47,7 +47,7 @@ export function LinkButton({ variant = 'secondary', size = 'md', className, ...p
 
 export function Card({ className, children, ...rest }: ComponentProps<'section'>) {
   return (
-    <section className={cn('bg-surface border border-border-hairline rounded-card', className)} {...rest}>
+    <section className={cn('bg-surface border border-border-hairline/70 rounded-card shadow-[0_1px_2px_rgba(16,24,40,0.04),0_2px_8px_rgba(16,24,40,0.03)]', className)} {...rest}>
       {children}
     </section>
   );
@@ -55,7 +55,7 @@ export function Card({ className, children, ...rest }: ComponentProps<'section'>
 
 export function CardHeader({ title, subtitle, actions, icon, className }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; icon?: ReactNode; className?: string }) {
   return (
-    <header className={cn('flex items-start justify-between gap-3 px-4 py-3 border-b border-border-hairline', className)}>
+    <header className={cn('flex items-start justify-between gap-3 px-5 pt-4 pb-1', className)}>
       <div className="min-w-0 flex items-start gap-2">
         {icon && <span className="mt-0.5 text-text-tertiary">{icon}</span>}
         <div className="min-w-0">
@@ -69,7 +69,7 @@ export function CardHeader({ title, subtitle, actions, icon, className }: { titl
 }
 
 export function CardBody({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cn('p-4', className)}>{children}</div>;
+  return <div className={cn('px-5 py-4', className)}>{children}</div>;
 }
 
 export function SectionLabel({ children, className }: { children: ReactNode; className?: string }) {

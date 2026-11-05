@@ -1,5 +1,6 @@
 /** Client for the CMO delivery API (backend/src/manufacturing_data/cmo/api.py), served by the platform API. */
 import { PROCESS_API } from './process-api';
+import { forgetMutable, remember } from './cache';
 import { authHeaders, authMode, redirectToSignIn, SIGNED_OUT_MESSAGE } from './auth';
 
 export type SourceRef = { path: string; sheet?: string | null; cell?: string | null; row?: number | null; column?: string | null; page?: number | null; region?: number[] | null; span?: string | null };
@@ -87,8 +88,8 @@ export async function cmoFetch(path: string, init: RequestInit = {}): Promise<Re
   return response;
 }
 
-export const getJson = async <T,>(path: string) => (await cmoFetch(path)).json() as Promise<T>;
-export const postJson = async <T,>(path: string, body: unknown) => (await cmoFetch(path, { method: 'POST', body: JSON.stringify(body) })).json() as Promise<T>;
+export const getJson = async <T,>(path: string) => { const data = await (await cmoFetch(path)).json() as T; remember(`cmo:${path}`, data); return data; };
+export const postJson = async <T,>(path: string, body: unknown) => { const data = await (await cmoFetch(path, { method: 'POST', body: JSON.stringify(body) })).json() as T; forgetMutable(); return data; };
 
 let uploadConfig: UploadConfig = { mode: 'direct' };
 /** Called wherever the catalog is loaded; the server decides whether files go through the API or straight to storage. */

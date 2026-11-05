@@ -15,7 +15,7 @@ const config: Config = {
           dim: '#e2e8f0',
         },
         border: {
-          hairline: '#e2e8f0',
+          hairline: '#e9edf2',
           strong: '#cbd5e1',
         },
         brand: {
@@ -48,8 +48,8 @@ const config: Config = {
         mono: ['var(--font-mono)', 'JetBrains Mono', 'Fira Code', 'monospace'],
       },
       borderRadius: {
-        card: '8px',
-        control: '6px',
+        card: '14px',
+        control: '10px',
         pill: '9999px',
       },
     },

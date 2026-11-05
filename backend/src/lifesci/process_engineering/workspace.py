@@ -64,7 +64,8 @@ class WorkspaceTools:
             'timeline_events': len(s.get('timeline', [])) if rec.kind == 'case' else None}
 
     def search(self, ctx, thread, *, kinds=None, query='', limit=20):
-        kinds = kinds or list(KINDS)
+        # Saved chats are earlier assistant answers, not process records: search them only when asked by kind.
+        kinds = kinds or [k for k in KINDS if k != 'engineering_chat_turn']
         if any(k not in KINDS for k in kinds):
             raise ValueError('unsupported workspace record kind')
         out, content_search_gaps = [], []
