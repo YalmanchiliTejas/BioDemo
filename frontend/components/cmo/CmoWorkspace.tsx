@@ -14,6 +14,7 @@ import { setReviewer, useReviewer } from '@/lib/reviewer';
 import { authMode } from '@/lib/auth';
 import { useOptionalCompanion } from '@/lib/companion-context';
 import { processRequest } from '@/lib/process-api';
+import { cached } from '@/lib/cache';
 import { DataView } from './DataView';
 import { Mappings } from './Mappings';
 import { SourceViewer } from './SourceViewer';
@@ -227,7 +228,7 @@ function NextDemoStep({ run }: { run: Run }) {
 }
 
 function Delivery({ runId }: { runId: string }) {
-  const [run, setRun] = useState<Run | null>(null);
+  const [run, setRun] = useState<Run | null>(() => cached<Run>(`cmo:/runs/${runId}`) ?? null);
   const [error, setError] = useState('');
   const [inspect, setInspect] = useState<Measurement | null>(null);
   const [parameters, setParameters] = useState<Parameter[]>([]);
@@ -237,7 +238,7 @@ function Delivery({ runId }: { runId: string }) {
     try { const data = await getJson<Run>(`/runs/${runId}`); setRun(data); setError(''); return data; }
     catch (e) { setError((e as Error).message); return null; }
   }, [runId]);
-  useEffect(() => { setRun(null); setInspect(null); void load(); getJson<{ parameters: Parameter[] }>('/vocabulary').then(v => setParameters(v.parameters)).catch(() => {}); }, [load]);
+  useEffect(() => { setRun(cached<Run>(`cmo:/runs/${runId}`) ?? null); setInspect(null); void load(); getJson<{ parameters: Parameter[] }>('/vocabulary').then(v => setParameters(v.parameters)).catch(() => {}); }, [load]);
   useEffect(() => {
     if (!run || !['queued', 'running'].includes(run.status)) return;
     const timer = setInterval(() => { void load(); }, 700);
@@ -312,8 +313,8 @@ function Delivery({ runId }: { runId: string }) {
 
 export function CmoWorkspace() {
   const [runId, setRunId] = useState<string | null>(null);
-  const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [runs, setRuns] = useState<RunListing[]>([]);
+  const [catalog, setCatalog] = useState<Catalog | null>(() => cached<Catalog>('cmo:/catalog') ?? null);
+  const [runs, setRuns] = useState<RunListing[]>(() => cached<{ runs: RunListing[] }>('cmo:/runs')?.runs ?? []);
   const [error, setError] = useState('');
   const [needsToken, setNeedsToken] = useState(false);
   const [token, setTokenDraft] = useState('');

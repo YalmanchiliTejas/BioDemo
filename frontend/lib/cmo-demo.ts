@@ -23,4 +23,7 @@ export function isDemoCmo(cmo?: string) {
   return !!cmo && typeof window !== 'undefined' && sessionStorage.getItem(KEY) === cmo;
 }
 
+/** The random demo tag keeps sample runs apart; people should only see the CMO's name. */
+export const cmoName = (cmo: string) => cmo.replace(/ · demo \w+$/, '');
+
 export function resetDemo() { sessionStorage.removeItem(KEY); }

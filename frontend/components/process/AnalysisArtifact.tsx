@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { ScientificPlot } from '@/components/ScientificPlot';
 import { processRequest } from '@/lib/process-api';
+import { cached } from '@/lib/cache';
 import type { GeometryRecord } from './VialScene';
 
 const VialScene = dynamic(() => import('./VialScene'), { ssr: false, loading: () => <p>Loading 3D review…</p> });
@@ -15,7 +16,7 @@ const fmt = (v: number | null | undefined) => v == null ? '—' : v.toFixed(2);
 const colors = ['#0e7490', '#c26a31', '#7c3aed'];
 
 export function AnalysisArtifact({ threadId, artifact }: { threadId: string; artifact: ArtifactRef }) {
-  const [data, setData] = useState<RecordData | null>(null);
+  const [data, setData] = useState<RecordData | null>(() => cached<RecordData>(`/v1/process-model/conversations/${threadId}/artifacts/${artifact.kind}/${artifact.id}`) ?? null);
   const [error, setError] = useState('');
   const [view, setView] = useState<'charts' | '3d'>('charts');
   const [selected, setSelected] = useState(0);

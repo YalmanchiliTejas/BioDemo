@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { clearCache } from './cache';
 
 /**
  * Sign-in and API identity. Supabase Auth when configured at build time; otherwise, and whenever
@@ -105,6 +106,7 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
+  clearCache();
   if (authMode() !== 'supabase') { setLocalSession(null); return; }
   const { error } = await attempt(() => supabase().auth.signOut());
   if (error) throw new Error('Sign-out failed. Try again.');
@@ -177,6 +179,7 @@ export async function selectOrganization(id: string) {
     userId = error ? undefined : data.session?.user.id;
   }
   if (!userId) throw new Error(SIGNED_OUT_MESSAGE);
+  if (localStorage.getItem(`sievance.organization:${userId}`) !== id) clearCache();
   localStorage.setItem(`sievance.organization:${userId}`, id);
   // Drop the previous workspace's display preferences when changing organizations.
   localStorage.removeItem('mos.context.v1');

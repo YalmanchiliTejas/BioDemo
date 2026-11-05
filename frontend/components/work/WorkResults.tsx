@@ -6,6 +6,7 @@ import { Button, Card, Pill } from '@/components/ui';
 import { useCompanion } from '@/lib/companion-context';
 import { useWorkspace } from '@/lib/workspace-context';
 import { processRequest } from '@/lib/process-api';
+import { cached, remember } from '@/lib/cache';
 import { cn } from '@/lib/cn';
 import { exportTable, projectThread, workView, WORK_KINDS, type SavedThread, type WorkKind, type WorkResult, type WorkView } from '@/lib/work-results';
 
@@ -17,15 +18,18 @@ export function WorkResults() {
 }
 
 function Results() {
-  const [results, setResults] = useState<WorkResult[]>([]);
-  const [loading, setLoading] = useState(true), [error, setError] = useState(''), [attempt, setAttempt] = useState(0);
+  // Revisits render the last projection at once; the effect below still rereads every thread.
+  const [results, setResults] = useState<WorkResult[]>(() => cached<WorkResult[]>('work-results') ?? []);
+  const [loading, setLoading] = useState(() => !cached('work-results')), [error, setError] = useState(''), [attempt, setAttempt] = useState(0);
   const [kind, setKind] = useState<WorkKind>('holds'), [selected, setSelected] = useState(''), [query, setQuery] = useState('');
   const [source, setSource] = useState<{ name: string; line: number } | null>(null);
   const [exported, setExported] = useState(false);
   const companion = useCompanion();
   useEffect(() => {
     let alive = true;
-    setLoading(true); setError(''); setResults([]);
+    const hadCache = !!cached('work-results');
+    if (!hadCache) { setLoading(true); setResults([]); }
+    setError('');
     (async () => {
       try {
         const list = await processRequest<{ conversations: { id: string }[] }>('/v1/process-model/conversations');
@@ -37,9 +41,9 @@ function Results() {
         }
         if (!alive) return;
         all.sort((a, b) => (b.turn.created_at ?? '').localeCompare(a.turn.created_at ?? ''));
-        setResults(all);
+        setResults(all); remember('work-results', all);
         const requested = decodeURIComponent(window.location.hash.slice(1));const picked = all.find(r => r.id === requested) ?? all.find(r => r.kind === 'holds') ?? all[0];
-        if (picked) { setKind(picked.kind); setSelected(picked.id); }
+        if (picked && !hadCache) { setKind(picked.kind); setSelected(picked.id); }
         if (failed) setError('Some saved work could not be loaded. Refresh to try again.');
       } catch (e) { if (alive) setError(e instanceof Error ? e.message : 'Saved work could not be loaded.'); }
       finally { if (alive) setLoading(false); }
@@ -74,19 +78,19 @@ function Results() {
   }
   return <div className="mx-auto max-w-[1440px] space-y-5" data-testid="work-results">
     <header className="flex flex-wrap items-start justify-between gap-4">
-      <div><p className="text-xs text-text-tertiary">Work / Workspaces</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">Workspaces</h1><p className="mt-2 text-sm text-text-secondary">Results, source records and the next review step.</p></div>
-      <div className="flex gap-2"><Button onClick={() => setAttempt(a => a + 1)} disabled={loading}><RefreshCw size={14} />Refresh</Button><Button variant="primary" onClick={() => companion.show()}><MessageSquare size={14} />Ask assistant</Button></div>
+      <div><h1 className="text-3xl font-semibold tracking-tight">Workspaces</h1><p className="mt-2 text-sm text-text-secondary">Everything you've worked through, with the records behind it.</p></div>
+      <div className="flex gap-2"><Button variant="subtle" onClick={() => setAttempt(a => a + 1)} disabled={loading} aria-label="Refresh saved work"><RefreshCw size={14} /></Button><Button variant="primary" onClick={() => companion.show()}><MessageSquare size={14} />Ask assistant</Button></div>
     </header>
-    <nav aria-label="Work type" className="flex gap-1 overflow-x-auto border-b border-border-hairline">
+    <nav aria-label="Work type" className="flex gap-1 overflow-x-auto">
       {WORK_KINDS.map(k => <button key={k.id} type="button" aria-current={kind === k.id ? 'page' : undefined}
         onClick={() => { setKind(k.id); const first = results.find(r => r.kind === k.id);if (first) pick(first.id); }}
-        className={cn('flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm', kind === k.id ? 'border-brand-teal font-semibold text-brand-teal' : 'border-transparent text-text-secondary hover:bg-surface-secondary')}>
-        {k.label}<span className="rounded bg-surface-secondary px-1.5 py-0.5 text-[10px] tabular-nums">{results.filter(r => r.kind === k.id).length}</span>
+        className={cn('flex shrink-0 items-center gap-2 rounded-pill px-4 py-2 text-sm transition-colors', kind === k.id ? 'bg-surface font-medium text-text-primary shadow-[0_1px_3px_rgba(16,24,40,0.08)]' : 'text-text-secondary hover:bg-surface-secondary')}>
+        {k.label}{(n => n > 0 && <span className="rounded-pill bg-brand-teal-light px-2 py-0.5 text-[10px] font-medium tabular-nums text-brand-teal">{n}</span>)(results.filter(r => r.kind === k.id).length)}
       </button>)}
     </nav>
     {error && <div role="alert" className="rounded-control border border-amber-200 bg-amber-50 p-3 text-sm">{error}</div>}
-    {loading && <Card className="p-8"><p role="status" className="text-sm text-text-secondary">Loading your saved work…</p></Card>}
-    {!loading && (!result || !view) && <Card className="p-8"><h2 className="font-semibold">No structured results for this work type yet</h2><p className="mt-2 max-w-xl text-sm text-text-secondary">Results from your assistant conversations will appear here.</p><Button className="mt-4" onClick={() => companion.show()}>Discuss the next task</Button></Card>}
+    {loading && <p role="status" className="py-10 text-sm text-text-secondary">Loading your saved work…</p>}
+    {!loading && (!result || !view) && <div className="py-12"><h2 className="text-base font-semibold">Nothing here yet</h2><p className="mt-2 max-w-lg text-sm leading-6 text-text-secondary">When you work through {WORK_KINDS.find(k => k.id === kind)?.label.toLowerCase() ?? 'a task'} with the assistant, the findings, tables and the source records behind them collect here.</p><Button className="mt-5" onClick={() => companion.show()}><MessageSquare size={14} />Start with the assistant</Button></div>}
     {!loading && result && view && <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="flex min-w-0 flex-wrap items-center gap-2 text-sm"><span className="text-text-tertiary">Saved review</span><select aria-label="Saved review" value={result.id} onChange={e => pick(e.target.value)} className="max-w-full rounded-control border border-border-strong bg-surface px-3 py-2 text-sm">

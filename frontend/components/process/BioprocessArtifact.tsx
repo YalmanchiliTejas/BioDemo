@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Check, TriangleAlert } from 'lucide-react';
 import { ScientificPlot } from '@/components/ScientificPlot';
 import { processRequest } from '@/lib/process-api';
+import { cached } from '@/lib/cache';
 import type { ArtifactRef } from './AnalysisArtifact';
 
 type Prediction = { value: number; unit: string; time_h: number; state: string };
@@ -121,7 +122,7 @@ function ChoView({ data }: { data: Data }) {
 }
 
 export function BioprocessArtifact({ threadId, artifact }: { threadId: string; artifact: ArtifactRef }) {
-  const [data, setData] = useState<Data | null>(null);
+  const [data, setData] = useState<Data | null>(() => cached<Data>(`/v1/process-model/conversations/${threadId}/artifacts/${artifact.kind}/${artifact.id}`) ?? null);
   const [error, setError] = useState('');
   useEffect(() => {
     let current = true;

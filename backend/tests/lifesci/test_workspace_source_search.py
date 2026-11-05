@@ -90,3 +90,13 @@ def test_reading_a_case_includes_its_linked_evidence_text():
     out = p.engineering_conversations.workspace.read(owner, thread, kind='case', record_id='C-1', revision=case['revision'])
     [linked] = out['record']['data']['linked_evidence']
     assert 'D-32 occurred October 21' in linked['original'] and not linked['stale']
+
+
+def test_default_search_leaves_out_saved_conversations():
+    p = Platform(RecordStore(), providers={})
+    p.identity.assign_role('T', 'owner', 'msat', site_id='NF1')
+    owner = p.identity.context_for('T', 'owner')
+    thread = p.engineering_conversations.create(owner, {'site_id': 'NF1'})
+    ws = p.engineering_conversations.workspace
+    assert 'engineering_chat_turn' not in ws.search(owner, thread, query='deviations')['searched_kinds']
+    assert ws.search(owner, thread, kinds=['engineering_chat_turn'])['searched_kinds'] == ['engineering_chat_turn']
