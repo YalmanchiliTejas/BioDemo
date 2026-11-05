@@ -21,6 +21,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from .connector_contracts import _source_record
 from .connector_contracts import AuthorizedAction, PullBatch
 
+from . import connector_products as products
 from .actions import DeliveryUnknown
 from .ids import content_hash, iso, utc_now
 from .integrations import (ConnectorContract, ConnectorMatrix, ConnectorTemplate, ConnectorWriter,
@@ -265,6 +266,7 @@ class ConnectorService:
         self.store, self.identity = platform.store, platform.identity
         self.matrix = ConnectorMatrix(self.store, self.identity)
         self.intake = IntakeService(self.store, platform.evidence)
+        self.credentials = products.CredentialStore(self.store)
         self._instances: dict[tuple[str, str, str], Any] = {}
         self._lock = threading.RLock()
 
@@ -280,17 +282,25 @@ class ConnectorService:
                 "transports": [{"transport": t, "available": t not in {"mqtt", "opcua"} or
                                 (not os.environ.get("AWS_LAMBDA_FUNCTION_NAME") and
                                  installed("paho.mqtt.client" if t == "mqtt" else "asyncua"))}
-                               for t in TRANSPORTS], "vendor_qualification": "not_performed"}
+                               for t in TRANSPORTS], "products": products.catalog(),
+                "vendor_qualification": "not_performed"}
 
     def configure(self, ctx: Any, config: dict[str, Any]) -> dict[str, Any]:
+        config = dict(config)
+        credentials = {k: v for k, v in (config.pop("credentials", None) or {}).items() if v not in ("", None)}
         cid, family, transport = config["connector_id"], config["family"], config["transport"]
-        if not _ID.fullmatch(cid) or family not in FAMILIES or transport not in TRANSPORTS:
+        product = transport in products.PRODUCTS
+        if not _ID.fullmatch(cid) or family not in FAMILIES or not (transport in TRANSPORTS or product):
             raise ValueError("invalid connector id, family or transport")
         if not config.get("site_id"):
             raise ValueError("a connector requires an explicit site")
         self.identity.require(ctx, "configure", "connector", cid, site_id=config["site_id"])
         if config.get('source_group') is not None and not config['source_group'].strip():
             raise ValueError('source_group must be a nonempty CDMO or source-group name')
+        if credentials and not product:
+            raise ValueError("this connection method uses server-managed credentials")
+        if product:
+            return self._configure_product(ctx, config, credentials)
         options = dict(config.get("options", {}))
         required = {"rest": ("base_url",), "mqtt": ("base_url", "addresses"),
                     "opcua": ("base_url", "addresses", "security_string_env"),
@@ -337,9 +347,34 @@ class ConnectorService:
         poll = options.get("poll_seconds", 0)
         if not isinstance(poll, int) or poll < 0 or (poll and poll < 10):
             raise ValueError("poll_seconds is zero (manual) or at least 10 seconds")
+        return self._persist(ctx, config, options, writes)
+
+    def _configure_product(self, ctx: Any, config: dict[str, Any], credentials: dict[str, str]) -> dict[str, Any]:
+        cid, transport = config["connector_id"], config["transport"]
+        if config.get("write_operations"):
+            raise ValueError("guided connections are read-only")
+        current = self.store.read().get(ctx.tenant_id, "connector", cid)
+        if current and current.state["transport"] != transport:
+            raise ValueError("use a new connection when changing the product")
+        stored = self.credentials.fields(ctx.tenant_id, cid) if current else []
+        options = products.prepare(transport, dict(config.get("options", {})), credentials, stored)
+        poll = options.get("poll_seconds", 0)
+        if not isinstance(poll, int) or poll < 0 or (poll and poll < 10):
+            raise ValueError("poll_seconds is zero (manual) or at least 10 seconds")
+        default = family_template(config["family"]).to_dict()
+        if transport != "pi_web_api":  # PI records are built with canonical names; others start unmapped.
+            default = products.suggest_mapping(default, [])
+        mapping = dict(config.get("mapping") or default)
+        mapping["ignore_fields"] = sorted(set(mapping.get("ignore_fields", [])) | set(products.envelope(transport, options)))
+        return self._persist(ctx, {**config, "vendor": transport, "mapping": mapping}, options, [], credentials)
+
+    def _persist(self, ctx: Any, config: dict[str, Any], options: dict[str, Any], writes: list[str],
+                 credentials: dict[str, str] | None = None) -> dict[str, Any]:
+        cid, family, transport = config["connector_id"], config["family"], config["transport"]
         template = ConnectorTemplate.from_dict(config["mapping"]) if config.get("mapping") else family_template(family)
         if template.problems():
             raise ValueError("; ".join(template.problems()))
+        product = transport in products.PRODUCTS
         with self.store.transaction(ctx.actor_id) as tx:
             current = tx.get(ctx.tenant_id, "connector", cid)
             if current:
@@ -353,8 +388,12 @@ class ConnectorService:
                      "mapping": template.to_dict(), "write_operations": writes,
                      "vendor": config.get("vendor", "generic"), "version": config.get("version", "1"),
                      "enabled": config.get("enabled", True), "last_sync": None, "last_error": None}
-            contract = self.matrix.register(ctx, ConnectorContract(family, state["vendor"], state["version"], transport,
-                ("pull",), config["owner"], "environment reference", template.version,
+            if credentials:
+                self.credentials.save(tx, ctx.tenant_id, cid, credentials)
+            contract = self.matrix.register(ctx, ConnectorContract(family, state["vendor"], state["version"],
+                "rest" if product else transport,
+                ("pull",), config["owner"], "encrypted workspace credential" if product else "environment reference",
+                template.version,
                 write_operations=tuple(writes), write_auth=options.get("write_auth_env"),
                 contract_version=content_hash([options, template.to_dict()])[:16],
                 limits=("Vendor qualification not performed",)))
@@ -396,14 +435,29 @@ class ConnectorService:
 
     def list_for(self, ctx: Any) -> list[dict[str, Any]]:
         return [{**r.state, "revision": r.revision,
+                 "credential_fields": self.credentials.fields(ctx.tenant_id, r.id) if r.state["transport"] in products.PRODUCTS else [],
                  "qualification": (self.matrix.get(ctx.tenant_id, r.state["contract_id"]) or {}).get("status", "unavailable")}
                 for r in self.store.read().list(ctx.tenant_id, "connector")
                 if self.identity.check(ctx, "configure", "connector", r.id, site_id=r.state["site_id"])]
 
-    def _build(self, tenant: str, rec: Any) -> Any:
+    def discover(self, ctx: Any, cid: str, resource: str | None = None, search: str | None = None) -> dict[str, Any]:
+        """List what a guided connection can collect, or the fields of one choice, with a suggested mapping."""
+        rec = self.record(ctx, cid)
+        if rec.state["transport"] not in products.PRODUCTS:
+            raise ValueError("discovery is available for guided connections only")
+        source = self._build(ctx.tenant_id, rec, require_enabled=False)
+        if resource is None and rec.state["transport"] != "rest_api":
+            return {"resources": source.discover((search or "").strip() or None)}
+        fields = source.fields(resource or "")
+        template = family_template(rec.state["family"]).to_dict()
+        return {"fields": fields, "suggested_mapping": products.suggest_mapping(template, [f["name"] for f in fields])}
+
+    def _build(self, tenant: str, rec: Any, require_enabled: bool = True) -> Any:
         c, o = rec.state, rec.state["options"]
-        if not c["enabled"]:
+        if require_enabled and not c["enabled"]:
             raise ValueError("connector is disabled")
+        if c["transport"] in products.PRODUCTS:
+            return products.build(c, self.credentials.load(tenant, rec.id))
         # Status updates change revisions: cache only MQTT connections by configuration content.
         if c["transport"] == "rest":
             return RestSource(c)
@@ -426,7 +480,10 @@ class ConnectorService:
         rec = self.record(ctx, cid)
         if rec.state["transport"] == "mqtt":
             raise ValueError("MQTT starts durable collection during sync; preview its mapping using the template")
-        return test_connection(ConnectorTemplate.from_dict(rec.state["mapping"]), self._build(ctx.tenant_id, rec))
+        result = test_connection(ConnectorTemplate.from_dict(rec.state["mapping"]), self._build(ctx.tenant_id, rec))
+        if str(result.get("error", "")).startswith("SourceError: "):
+            result["error"] = result["error"].removeprefix("SourceError: ")
+        return result
 
     def sync(self, ctx: Any, cid: str) -> dict[str, Any]:
         rec = self.record(ctx, cid)
@@ -442,8 +499,9 @@ class ConnectorService:
             result["rejected_records"] = rejects
             self._status(ctx, cid, result, "file rows rejected; inspect rejected_records" if rejects else None)
             return result
-        except Exception:
-            self._status(ctx, cid, None, "sync failed; check endpoint access, credentials and source schema")
+        except Exception as exc:
+            self._status(ctx, cid, None, str(exc) if isinstance(exc, products.SourceError)
+                         else "sync failed; check endpoint access, credentials and source schema")
             raise
         finally:
             with self.store.transaction(ctx.actor_id) as tx:

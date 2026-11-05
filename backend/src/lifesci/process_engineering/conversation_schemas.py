@@ -41,9 +41,17 @@ class WorkflowNode(StrictModel):
     depends_on: list[str] = Field(default_factory=list, max_length=10)
     payload: dict[str, Any] = Field(default_factory=dict)
 
+class ReplyClaim(StrictModel):
+    """One factual statement in the reply and the exact inspected words behind it."""
+    text: str = Field(min_length=1, max_length=500)
+    kind: Literal['observed', 'derived'] = 'observed'
+    source_id: str = Field(min_length=1, max_length=300)
+    quote: str = Field(min_length=1, max_length=500)
+
 class ChatDecision(StrictModel):
     reply: str = Field(min_length=1, max_length=4000)
     questions: list[str] = Field(default_factory=list, max_length=4)
+    claims: list[ReplyClaim] = Field(default_factory=list, max_length=8)
     workflow: list[WorkflowNode] = Field(default_factory=list, max_length=10)
     continue_after_workflow: bool = False
 

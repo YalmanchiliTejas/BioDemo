@@ -124,7 +124,8 @@ def test_workspace_reasoning_is_bounded_across_retry(env):
     result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Investigate the available cases')
     turn = result['turns'][-1]
     assert turn['status'] == 'blocked' and turn['planning_calls_admitted'] == 3
-    assert len(turn['flow_run_ids']) == 3 and len(turn['gateway_runs']) == 3
+    # The third round may not start another search; it must answer, so only two searches run.
+    assert len(turn['flow_run_ids']) == 2 and len(turn['gateway_runs']) == 3
     queued = p.engineering_conversations.queue_retry(ctx, result['id'])
     retried = p.engineering_conversations.run_turn(ctx, result['id'], queued['turn_ids'][-1])
     assert retried['turns'][-1]['planning_calls_admitted'] == 3
@@ -651,3 +652,12 @@ def test_valid_attached_source_needs_no_correction_and_prompt_explains_ids(env):
     assert 'literal id string' in prompt['binding']['attached_record']
     assert 'language of the latest user message' in ' '.join(prompt['instructions'])
     assert 'plan_id/result_id wrapper' in prompt['binding']['output_id_field']
+
+
+def test_final_planning_round_must_answer_instead_of_reading():
+    from src.lifesci.process_engineering.conversation import EngineeringConversationService as S
+    read = {'reply': "I'll read it now.", 'workflow': [node('read', 'workspace_read', {'kind': 'case', 'record_id': 'C', 'revision': 1})]}
+    S._validate_decision(read)  # earlier rounds may read
+    with pytest.raises(ValueError, match='final planning call'):
+        S._validate_decision(read, final=True)
+    S._validate_decision({'reply': 'Answer.', 'workflow': []}, final=True)

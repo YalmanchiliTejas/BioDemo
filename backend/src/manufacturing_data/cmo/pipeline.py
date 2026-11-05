@@ -420,7 +420,11 @@ class IngestionService:
                 if fp not in mappings:
                     proposed=draft_mapping(headers)
                     decisions=[]; based_on=None
-                    if template: proposed=Mapping.model_validate_json(template['mapping']).check(headers)
+                    if template:
+                        proposed,respelled=Mapping.model_validate_json(template['mapping']).respell(headers)
+                        proposed.check(headers)
+                        # Visible, and blocks auto-acceptance for this layout until a reviewer confirms.
+                        if respelled: issue('HEADER_RESPELLED',path=doc['path'],fingerprint=fp,renamed=respelled)
                     else:
                         closest=self.closest_template(cmo,doc['doc_type'],headers)
                         if closest:

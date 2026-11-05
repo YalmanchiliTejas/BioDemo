@@ -1,0 +1,34 @@
+{
+  "id": "cmo-agg-site-filter",
+  "family": "expert",
+  "review_status": "draft",
+  "reviewer": "",
+  "provenance": "AI-drafted (Claude) from a customer interview: CMO data aggregation/filtering across deliveries. Synthetic. Needs QA/MSAT expert review before it counts as evidence.",
+  "prompt": "Which Boston-site batches from Alder had a deviation in October?",
+  "sources": [
+    {
+      "key": "cmo-a-deviations",
+      "content": "CMO Alder Biologics, October deviation log. Columns: Batch,Site,Deviation\nA-101,Boston,DV-55 temperature excursion\nA-105,Raleigh,DV-58 filter integrity\nA-106,Boston,none"
+    }
+  ],
+  "cases": [],
+  "truth": {
+    "required_read": [
+      "cmo-a-deviations"
+    ],
+    "required_facts": [
+      "A-101 (DV-55) is the only Boston batch with a deviation",
+      "A-105 had a deviation but is a Raleigh batch",
+      "A-106 at Boston had no deviation"
+    ],
+    "forbidden_claims": [
+      "A-105 is a Boston batch",
+      "A-106 had a deviation",
+      "two Boston batches had deviations"
+    ],
+    "banned_tokens": [],
+    "expected_proposals": false,
+    "answerable": true
+  },
+  "notes": "Filtering: a mixed-site file must be filtered by the Site column."
+}

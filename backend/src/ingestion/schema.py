@@ -120,6 +120,22 @@ class Mapping(BaseModel):
     units: dict[str,str] = Field(default_factory=dict)
     ignored_columns: list[str] = Field(default_factory=list)
 
+    def respell(self, headers):
+        """Point a confirmed mapping at this delivery's spelling of the same header
+        (case, spacing or punctuation only, as the layout fingerprint already treats them).
+        Absent or ambiguous headers are left as they are, so check() still refuses them."""
+        spellings={}
+        for h in headers: spellings.setdefault(key(h),[]).append(h)
+        renamed={}
+        def to(h):
+            if h is None or h in headers: return h
+            hits=spellings.get(key(h),[])
+            if len(hits)!=1: return h
+            renamed[h]=hits[0]; return hits[0]
+        return Mapping(columns={to(h):p for h,p in self.columns.items()},batch_column=to(self.batch_column),
+                       time_column=to(self.time_column),units={to(h):u for h,u in self.units.items()},
+                       ignored_columns=[to(h) for h in self.ignored_columns]),renamed
+
     def check(self, headers):
         if any(p not in VOCAB for p in self.columns.values()):
             raise ValueError('Mapping uses a parameter outside the public vocabulary')
@@ -166,7 +182,7 @@ def time_key(value):
     Raises ValueError for anything else; never guesses a format."""
     text=str(value).strip()
     try:
-        hour=float(text.replace(',','.'))
+        hour=float(_decimal_comma(text))
         if not math.isfinite(hour) or hour<0: raise ValueError('Invalid elapsed time')
         return hour
     except ValueError:
@@ -179,9 +195,20 @@ def time_key(value):
     raise ValueError('Process time must be elapsed hours or an ISO timestamp with offset')
 
 
+def _decimal_comma(text):
+    """Accept a comma only where it cannot be a thousands separator; never guess."""
+    if ',' not in text: return text
+    whole,_,frac=text.partition(',')
+    if '.' in text or ',' in frac or not re.fullmatch(r'[+-]?\d+',whole) or not frac.isdigit():
+        raise ValueError(f'Ambiguous number {text!r}: comma may be a decimal or thousands separator')
+    if len(frac)==3 and whole.lstrip('+-')!='0':
+        raise ValueError(f'Ambiguous number {text!r}: comma may be a decimal or thousands separator')
+    return f'{whole}.{frac}'
+
+
 def normalize(value, raw_unit, parameter):
     """Explicit bioprocess units; dimensional mismatch never silently passes."""
-    number=float(str(value).strip().replace(',','.'))
+    number=float(_decimal_comma(str(value).strip()))
     if not math.isfinite(number): raise ValueError('Non-finite number')
     canonical=VOCAB[parameter]['unit']
     unit=canonical_unit(raw_unit)

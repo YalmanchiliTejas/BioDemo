@@ -54,6 +54,13 @@ Parameters:
     NoEcho: true
     Default: ""
     Description: Only for Supabase projects still on the legacy shared JWT secret.
+  ConnectorCredentialKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: >
+      32 random bytes, base64 (openssl rand -base64 32). Encrypts credentials people enter
+      for guided data connections. Changing it makes saved credentials unreadable.
   RuntimeSchedule:
     Type: String
     Default: rate(1 minute)
@@ -118,6 +125,7 @@ Resources:
           SUPABASE_URL: !Ref SupabaseUrl
           SUPABASE_SERVICE_ROLE_KEY: !Ref SupabaseServiceRoleKey
           SUPABASE_JWT_SECRET: !Ref SupabaseJwtSecret
+          LIFESCI_CONNECTOR_KEY: !Ref ConnectorCredentialKey
           CMO_STORAGE_BUCKET: !Ref StorageBucket
           LIFESCI_LLM_PROVIDER: !If [HasModal, modal, !Ref AWS::NoValue]
           LIFESCI_LLM_MODEL: !If [HasModal, !Ref LlmModel, !Ref AWS::NoValue]

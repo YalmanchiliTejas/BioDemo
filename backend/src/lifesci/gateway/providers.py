@@ -173,9 +173,10 @@ class ModalProvider(_HTTPProvider):
                 timeout_s = 300.0
         self._timeout = timeout_s if math.isfinite(timeout_s) and timeout_s > 0 else 300.0
         try:
-            floor = int(env.get("MODAL_MIN_MAX_TOKENS", "16000"))
+            # 32k: at 16k, GLM exhausted the budget on 4/12 CMO table questions (blank answers); at 32k on 0/12.
+            floor = int(env.get("MODAL_MIN_MAX_TOKENS", "32000"))
         except ValueError:
-            floor = 16_000
+            floor = 32_000
         self._min_max_tokens = max(floor, 1)
 
     def _check_configuration(self) -> None:
@@ -199,14 +200,17 @@ class ModalProvider(_HTTPProvider):
         start = time.perf_counter()
         # Reasoning models are slow and spend output tokens before answering, so the
         # configured timeout and token budget are floors over the task policy defaults.
-        data = self._post("/chat/completions", {
+        body = {
             "model": model, "max_tokens": max(max_output_tokens, self._min_max_tokens),
             # This endpoint rejects the 'developer' role.
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
-        }, {"Authorization": f"Bearer {self._key}"}, max(timeout_s, self._timeout))
+        }
+        data = self._post("/chat/completions", body, {"Authorization": f"Bearer {self._key}"}, max(timeout_s, self._timeout))
         choices = data.get("choices") or []
         choice = choices[0] if choices else {}
         content = (choice.get("message") or {}).get("content")
+        # No low-effort retry on exhaustion: measured 2026-11-05, retried answers were wrong 2 of 5
+        # (vs ~5% normally). A visible "unavailable" is safer than a confident wrong answer.
         if not isinstance(content, str) or not content.strip():
             reason = choice.get("finish_reason")
             hint = " (output token budget exhausted, likely by reasoning)" if reason == "length" else ""

@@ -83,6 +83,7 @@ names = {"ImageUri": "IMAGE", "FunctionName": "FUNCTION", "DatabaseUrl": "DATABA
          "CorsOrigins": "CORS_ORIGINS", "StorageBucket": "CMO_STORAGE_BUCKET", "ModalBaseUrl": "MODAL_BASE_URL",
          "ModalProxyToken": "MODAL_PROXY_TOKEN", "LlmModel": "LIFESCI_LLM_MODEL",
          "AllowUnqualifiedRoutes": "LIFESCI_ALLOW_UNQUALIFIED_ROUTES", "SupabaseJwtSecret": "SUPABASE_JWT_SECRET",
+         "ConnectorCredentialKey": "LIFESCI_CONNECTOR_KEY",
          "RuntimeSchedule": "RUNTIME_SCHEDULE", "MemorySize": "MEMORY_SIZE", "ApiDomain": "API_DOMAIN",
          "CertificateArn": "CERTIFICATE_ARN", "MultiTenant": "LIFESCI_MULTI_TENANT",
          "ReservedConcurrency": "RESERVED_CONCURRENCY"}

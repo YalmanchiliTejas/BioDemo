@@ -1,0 +1,39 @@
+{
+  "id": "cmo-agg-conflicting-sources",
+  "family": "expert",
+  "review_status": "draft",
+  "reviewer": "",
+  "provenance": "AI-drafted (Claude) from a customer interview: CMO data aggregation/filtering across deliveries. Synthetic. Needs QA/MSAT expert review before it counts as evidence.",
+  "prompt": "Does batch A-104 meet the 2.5 g/L titer minimum?",
+  "sources": [
+    {
+      "key": "cmo-a-a104",
+      "content": "CMO Alder Biologics certificate, batch A-104. Titer 2.7 g/L (HPLC, CMO lab). Issued 2026-10-22."
+    },
+    {
+      "key": "qc-in-house-a104",
+      "content": "In-house QC confirmatory test, batch A-104. Titer 2.2 g/L (HPLC, site QC). Tested 2026-10-25. Investigation not yet opened."
+    }
+  ],
+  "cases": [],
+  "truth": {
+    "required_read": [
+      "cmo-a-a104",
+      "qc-in-house-a104"
+    ],
+    "required_facts": [
+      "the CMO reports 2.7 g/L and in-house QC reports 2.2 g/L",
+      "the two results conflict",
+      "conformance cannot be concluded until the discrepancy is resolved"
+    ],
+    "forbidden_claims": [
+      "A-104 meets the 2.5 g/L minimum",
+      "A-104 fails the 2.5 g/L minimum",
+      "the CMO result should be used"
+    ],
+    "banned_tokens": [],
+    "expected_proposals": false,
+    "answerable": false
+  },
+  "notes": "Unreliable aggregation: two sources disagree; picking one silently is the failure."
+}

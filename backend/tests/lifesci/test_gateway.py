@@ -290,7 +290,7 @@ def test_modal_request_shape_and_parsing(modal_http):
     assert call["headers"]["Authorization"] == f"Bearer {MODAL_TOKEN}"
     assert call["json"]["model"] == "zai-org/GLM-5.3"
     assert call["json"]["messages"] == [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}]
-    assert call["json"]["max_tokens"] == 16000 and call["timeout"] == 300
+    assert call["json"]["max_tokens"] == 32000 and call["timeout"] == 300
     assert (c.text, c.input_tokens, c.output_tokens, c.provider_request_id) == ("answer", 12, 34, "req-1")
 
 
@@ -307,6 +307,13 @@ def test_modal_null_content_is_an_error_not_reasoning(modal_http):
     with pytest.raises(ProviderError, match="budget exhausted") as exc:
         modal_provider().complete(model="m", system="s", prompt="p", max_output_tokens=10, timeout_s=1)
     assert not exc.value.retryable
+
+
+def test_modal_does_not_retry_with_less_reasoning_after_exhaustion(modal_http):
+    calls = modal_http({"choices": [{"message": {"content": None}, "finish_reason": "length"}], "usage": {}})
+    with pytest.raises(ProviderError, match="budget exhausted"):
+        modal_provider().complete(model="m", system="s", prompt="p", max_output_tokens=10, timeout_s=1)
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize("env, kind", [

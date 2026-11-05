@@ -6,6 +6,7 @@ verdict evaluates meaning. Neither one is a substitute for the other.
 
 from collections import Counter
 from copy import deepcopy
+import re
 import json
 
 
@@ -36,6 +37,13 @@ def _judge_valid(judge):
         and all(isinstance(item[key], str) and item[key].strip() for key in item)
         for item in judge["evidence"]
     )
+
+
+def _contains_token(text, token):
+    """Whole-token match: 'D-11' is not inside 'D-110', '2.8' is not inside '2.85'."""
+    left = r"(?<![\w.-])" if token[:1].isalnum() else ""
+    right = r"(?![\w-]|\.\d)" if token[-1:].isalnum() else ""
+    return re.search(left + re.escape(token) + right, text) is not None
 
 
 def _text(value):
@@ -122,6 +130,17 @@ def grade_episode(case: dict, observation: dict, judge: dict | None) -> dict:
           {"expected": background, "observed": observation.get("background_turns", 0)},
           applicable=background is not None)
     check("host_errors", not observation.get("errors"), {"errors": observation.get("errors", [])})
+
+    # Metamorphic variants name tokens a correct reply cannot contain (stale
+    # identifiers, distractor IDs, specifics from withdrawn evidence).
+    replies = "\n".join(_text(turn.get("reply") or "") for turn in turns)
+    banned = [t for t in truth.get("banned_tokens", []) if _contains_token(replies, t)]
+    check("banned_tokens", not banned, {"found": banned}, applicable=bool(truth.get("banned_tokens")))
+    grounded = [turn["grounding"] for turn in turns if isinstance(turn.get("grounding"), dict)]
+    check("runtime_grounding", all(g["status"] in ("grounded", "no_claims") for g in grounded),
+          {"statuses": [g["status"] for g in grounded],
+           "unsupported_numbers": [n for g in grounded for n in g.get("unsupported_numbers", [])]},
+          applicable=bool(grounded))
     last = turns[-1] if turns else {}
     blocked_states = {"blocked", "failed", "error", "cancelled", "canceled", "queued", "running", "waiting", "pending",
                       "agent_unavailable", "budget_exhausted", "denied", "unresolved", "stale_basis"}

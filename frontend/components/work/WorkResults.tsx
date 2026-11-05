@@ -86,7 +86,7 @@ function Results() {
     </nav>
     {error && <div role="alert" className="rounded-control border border-amber-200 bg-amber-50 p-3 text-sm">{error}</div>}
     {loading && <Card className="p-8"><p role="status" className="text-sm text-text-secondary">Loading your saved work…</p></Card>}
-    {!loading && (!result || !view) && <Card className="p-8"><h2 className="font-semibold">No structured results for this work type yet</h2><p className="mt-2 max-w-xl text-sm text-text-secondary">Saved results need source rows and a structured answer before they can be shown as a chart or table.</p><Button className="mt-4" onClick={() => companion.show()}>Discuss the next task</Button></Card>}
+    {!loading && (!result || !view) && <Card className="p-8"><h2 className="font-semibold">No structured results for this work type yet</h2><p className="mt-2 max-w-xl text-sm text-text-secondary">Results from your assistant conversations will appear here.</p><Button className="mt-4" onClick={() => companion.show()}>Discuss the next task</Button></Card>}
     {!loading && result && view && <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="flex min-w-0 flex-wrap items-center gap-2 text-sm"><span className="text-text-tertiary">Saved review</span><select aria-label="Saved review" value={result.id} onChange={e => pick(e.target.value)} className="max-w-full rounded-control border border-border-strong bg-surface px-3 py-2 text-sm">
@@ -135,9 +135,7 @@ function Results() {
         <p className="text-text-secondary">Saved status: {result.turn.status.replaceAll('_', ' ')}{result.turn.elapsed_seconds !== undefined ? ` · ${result.turn.elapsed_seconds.toFixed(1)} s` : ''}{result.turn.gateway_runs?.[0]?.route?.model ? ` · ${result.turn.gateway_runs[0].route.model}` : ''}</p>
         {result.sources.map(s => <details key={s.name}><summary className="cursor-pointer font-medium">{s.name} · {s.rows.length} rows</summary><pre className="mt-2 max-h-72 overflow-auto rounded bg-surface-secondary p-3">{s.raw}</pre></details>)}
         <p className="break-all font-mono text-[10px] text-text-tertiary">Saved turn {result.id} · conversation {result.threadId}</p>
-        <p className="text-text-secondary">Original source inputs are user-supplied and unverified. Charts and comparison checks are deterministic views of these inputs and the agent’s structured answer. Reviewer approvals and manufacturing actions are not recorded by this view.</p>
       </div></details>
-      <p className="text-[11px] text-text-tertiary">Showing structured results from your recent saved conversations. Original records remain unchanged.</p>
     </>}
   </div>;
 }

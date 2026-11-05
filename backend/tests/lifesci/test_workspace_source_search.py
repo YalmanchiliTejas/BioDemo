@@ -74,3 +74,19 @@ def test_text_match_is_pinned_to_discovered_revision(monkeypatch):
     thread = p.engineering_conversations.create(ctx, {'site_id': 'NF1'})
     result = p.engineering_conversations.workspace.search(ctx, thread, kinds=['evidence'], query='CLEAN-8')
     assert [(r['id'], r['revision']) for r in result['records']] == [('MES:racing', 1)]
+
+
+def test_reading_a_case_includes_its_linked_evidence_text():
+    from src.lifesci.evidence import EvidenceRef
+    p = Platform(RecordStore(), providers={})
+    p.identity.assign_role('T', 'owner', 'msat', site_id='NF1')
+    owner = p.identity.context_for('T', 'owner')
+    src = p.evidence.ingest(owner, source_system='MES', source_record_id='reg', media_type='text/plain', site_id='NF1',
+                            content=b'D-32 occurred October 21; D-31 occurred October 18.', event_time=None)
+    p.cases.open(owner, 'C-1', 'owner', 'quinn', 'NF1')
+    case = p.cases.add_timeline_event(owner, 'C-1', '2026-10-20T10:00:00Z', 'Register',
+                                      [EvidenceRef('evidence', src['evidence_id'], src['revision'], 'NF1')])
+    thread = p.engineering_conversations.create(owner, {'site_id': 'NF1'})
+    out = p.engineering_conversations.workspace.read(owner, thread, kind='case', record_id='C-1', revision=case['revision'])
+    [linked] = out['record']['data']['linked_evidence']
+    assert 'D-32 occurred October 21' in linked['original'] and not linked['stale']
