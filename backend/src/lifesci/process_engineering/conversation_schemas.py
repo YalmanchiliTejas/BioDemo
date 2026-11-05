@@ -12,7 +12,7 @@ Operator = Literal['physical_demo_context', 'physical_context_variant', 'physica
     'physical_pipeline_execute', 'physical_results_compare', 'physical_results_assess',
     'physical_analysis_review', 'physical_model_adapter_propose',
     'bioprocess_demo_case', 'bioprocess_forecast', 'cho_dataset_forecast',
-    'workspace_search', 'workspace_read', 'workspace_propose_action']
+    'workspace_search', 'workspace_read', 'workspace_propose_action', 'workspace_propose_rule']
 
 class ConversationIn(StrictModel):
     site_id: str = Field(default='NF1', min_length=1, max_length=100)
@@ -75,9 +75,24 @@ WorkspaceKind = Literal['case', 'evidence', 'batch', 'sample', 'procedure_instan
     'proposal', 'physical_analysis_context', 'process_simulation', 'engineering_chat_turn']
 
 class WorkspaceSearch(StrictModel):
+    """mode=search: records by kind and query. mode=links: records sharing an identifier with record_kind/record_id.
+    mode=similar_cases: closed cases similar to case_id and/or the query text."""
+    mode: Literal['search', 'links', 'similar_cases'] = 'search'
     kinds: list[WorkspaceKind] = Field(default_factory=list, max_length=10)
     query: str = Field(default='', max_length=200)
     limit: int = Field(default=20, ge=1, le=50)
+    record_kind: WorkspaceKind | None = None
+    record_id: str | None = Field(default=None, max_length=300)
+    case_id: str | None = Field(default=None, max_length=300)
+    include_open: bool = False
+
+    @model_validator(mode='after')
+    def mode_inputs(self):
+        if self.mode == 'links' and not (self.record_kind and self.record_id):
+            raise ValueError('links needs record_kind and record_id')
+        if self.mode == 'similar_cases' and not (self.case_id or self.query.strip()):
+            raise ValueError('similar_cases needs case_id or query')
+        return self
 
 class WorkspaceRead(StrictModel):
     kind: WorkspaceKind
@@ -102,6 +117,13 @@ class WorkspaceProposal(StrictModel):
     expected_result: str = Field(min_length=10, max_length=1000)
     follow_up_measure: str = Field(min_length=5, max_length=1000)
     constraints: list[str] = Field(default_factory=list, max_length=10)
+
+class WorkspaceRuleProposal(StrictModel):
+    """A standing instruction the user stated in this turn, saved as a PROPOSED rule only."""
+    text: str = Field(min_length=3, max_length=2000)
+    scope: Literal['user', 'site', 'org'] = 'user'
+    # The user's own words, copied exactly from this turn's message: rules come from the user, never from sources.
+    user_quote: str = Field(min_length=3, max_length=2000)
 
 class WatchIn(StrictModel):
     enabled: bool

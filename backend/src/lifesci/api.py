@@ -63,6 +63,17 @@ class MissionIn(BaseModel):
     subscriptions: list[dict[str, Any]] = []
     mission_id: str | None = None
 
+class RuleIn(BaseModel):
+    scope: str = Field(pattern="^(user|site|org)$")
+    text: str = Field(min_length=1, max_length=2000)
+    site_id: str | None = None
+    reason: str = ""
+
+
+class RuleDecisionIn(BaseModel):
+    reason: str = Field(min_length=1, max_length=2000)
+
+
 class CorrectionIn(BaseModel):
     text: str
     source_ref: dict[str, Any] | None = None
@@ -461,6 +472,30 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/missions/{{mission_id}}/corrections", status_code=201)
     def correct(mission_id: str, body: CorrectionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
         return platform.missions.record_correction(ctx, mission_id, **body.model_dump())
+
+    @app.get(f"/{API_VERSION}/assistant-rules")
+    def list_rules(site_id: str | None = None, status: str | None = None,
+                   ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return {"items": platform.rules.visible(ctx, site_id=site_id, status=status)}
+
+    @app.post(f"/{API_VERSION}/assistant-rules", status_code=201)
+    def propose_rule(body: RuleIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.rules.propose(ctx, **body.model_dump())
+
+    @app.post(f"/{API_VERSION}/assistant-rules/{{rule_id}}/activate")
+    def activate_rule(rule_id: str, body: RuleDecisionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.rules.activate(ctx, rule_id, body.reason)
+
+    @app.post(f"/{API_VERSION}/assistant-rules/{{rule_id}}/retire")
+    def retire_rule(rule_id: str, body: RuleDecisionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.rules.retire(ctx, rule_id, body.reason)
+
+    @app.get(f"/{API_VERSION}/cases/{{case_id}}/similar")
+    def similar_cases(case_id: str, site_id: str, include_open: bool = False,
+                      ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        # The workspace tools authorize by site and owner; outside a conversation the caller is the owner.
+        scope = {"site_id": site_id, "owner_id": ctx.delegated_from or ctx.actor_id}
+        return platform.engineering_conversations.workspace.similar_cases(ctx, scope, case_id=case_id, include_open=include_open)
 
     @app.post(f"/{API_VERSION}/missions/{{mission_id}}/decisions/{{decision_id}}")
     def answer(mission_id: str, decision_id: str, body: AnswerIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:

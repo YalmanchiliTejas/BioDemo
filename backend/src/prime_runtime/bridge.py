@@ -289,6 +289,7 @@ class ManufacturingBridge:
                               "limit <= 1000"],
                 },
                 "text_search_tool": "search_evidence",
+                "entity_link_tool": "entity_graph(entity_id, hops<=2): cross-file links for an ID, each with basis, status (extracted|candidate|confirmed) and cited cell; prefer it over text search for ID questions",
                 "search_evidence_contract": {
                     "evidence_type": ["auto", "exact", "structured", "narrative"],
                     "mode": ["lexical", "semantic", "hybrid"],

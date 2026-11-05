@@ -19,6 +19,8 @@ from pydantic import BaseModel, Field
 
 SOURCE_SYSTEM = "cmo-verified-delivery"
 CLASSIFICATION = "verified_cmo_dataset"
+DOCUMENT_SOURCE = "cmo-delivery-document"
+DOCUMENT_CLASSIFICATION = "unverified_cmo_document"
 _FIELDS = ("id", "source_id", "batch", "time", "parameter", "value", "unit", "value_raw", "unit_raw", "status",
            "source", "source_sha256")
 log = logging.getLogger(__name__)
@@ -169,6 +171,38 @@ def install_cmo_api(p, app: FastAPI, ctx_dep) -> None:
                                event_time=payload.get("completed_at"), source_revision=body.run_id,
                                mapping_version="verified-cmo-1", metadata=meta)
         return listing(p.store.read().require(ctx.tenant_id, "evidence", ev["evidence_id"]))
+
+    @app.post("/v1/cmo-documents", status_code=201)
+    def share_documents(body: PublishIn, ctx=Depends(ctx_dep)):
+        """Share a delivery's emails, notes and reports with the assistant, at a reviewer's request.
+
+        Each becomes evidence labelled as unverified correspondence: what the CMO wrote, not a checked value.
+        Re-sharing identical text is idempotent; changed text becomes a new revision.
+        """
+        if cmo is None:
+            raise HTTPException(503, "File-delivery verification is not installed on this server")
+        found = cmo.delivery_documents(body.run_id, tenant=ctx.tenant_id)
+        shared = []
+        for doc in found["documents"]:
+            label = (f"UNVERIFIED CMO DOCUMENT as received from {found['cmo']} in delivery "
+                     f"\"{found['delivery_name']}\", file {doc['path']}. Not checked against verified measurements.\n\n")
+            ev = p.evidence.ingest(ctx, source_system=DOCUMENT_SOURCE, source_record_id=f"{found['package_id']}/{doc['path']}",
+                                   content=(label + doc["text"]).encode(), media_type="text/plain", site_id=body.site_id,
+                                   event_time=None, source_revision=doc["sha256"], mapping_version="cmo-document-1",
+                                   metadata={"classification": DOCUMENT_CLASSIFICATION, "cmo": found["cmo"],
+                                             "delivery_name": found["delivery_name"], "package_id": found["package_id"],
+                                             "path": doc["path"], "original_sha256": doc["sha256"]})
+            shared.append({"evidence_id": ev["evidence_id"], "path": doc["path"]})
+        return {"package_id": found["package_id"], "shared": shared}
+
+    @app.get("/v1/cmo-documents")
+    def shared_documents(package_id: str, site_id: str = "NF1", ctx=Depends(ctx_dep)):
+        out = [{"evidence_id": rec.id, "path": rec.state["metadata"].get("path"), "revision": rec.revision}
+               for rec in p.store.read().list(ctx.tenant_id, "evidence")
+               if rec.state.get("metadata", {}).get("package_id") == package_id and rec.state.get("site_id") == site_id
+               and rec.state.get("metadata", {}).get("classification") == DOCUMENT_CLASSIFICATION
+               and p.identity.check(ctx, "read", "evidence", rec.id, site_id=site_id)]
+        return {"documents": sorted(out, key=lambda d: d["path"] or "")}
 
     @app.get("/v1/cmo-datasets")
     def datasets(site_id: str = "NF1", ctx=Depends(ctx_dep)):

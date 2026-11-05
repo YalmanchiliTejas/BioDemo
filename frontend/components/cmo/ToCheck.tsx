@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { postJson, RULES, ruleTitle, type Issue, type Measurement, type Run } from '@/lib/cmo-api';
+import { parameterLabel, postJson, RULES, ruleTitle, type Issue, type Measurement, type Run } from '@/lib/cmo-api';
 import { plural, ReasonButton } from './shared';
 
 // Settled by confirming column meanings, so hidden while that step is pending.
@@ -15,16 +15,16 @@ function describe(issue: Issue & { members?: string[] }) {
   const where = [issue.path, issue.sheet, issue.header && `“${issue.header}”`].filter(Boolean).join(' · ');
   if (issue.rule_code === 'MISSING_FIELD' && issue.row != null && issue.parameter) {
     const n = issue.members?.length ?? 1;
-    const name = issue.parameter.replace(/_/g, ' ');
+    const name = parameterLabel(issue.parameter);
     return [`${name[0].toUpperCase()}${name.slice(1)} not reported in ${plural(n, 'row')}`, `${issue.path} · the cells are blank in the delivered file`];
   }
   switch (issue.rule_code) {
     case 'UNACCOUNTED_CONTENT': return [`${plural(issue.count ?? issue.lines?.length ?? 1, 'line')} in ${issue.path} not turned into data`, 'Read them so nothing is missed.'];
     case 'BATCH_DOCUMENT_MISSING': return [`Batch ${issue.batch} has no ${issue.doc_type?.replace(/_/g, ' ')}`, 'Other batches in this delivery have one.'];
     case 'EXPECTED_DOCUMENT_MISSING': return [`No ${issue.doc_type?.replace(/_/g, ' ')} in this delivery`, 'The last verified delivery from this CMO had one.'];
-    case 'EXPECTED_PARAMETER_MISSING': return [`${issue.parameter?.replace(/_/g, ' ')} is missing`, 'It was reported in the last verified delivery.'];
+    case 'EXPECTED_PARAMETER_MISSING': return [`${parameterLabel(issue.parameter ?? '')} is missing`, 'It was reported in the last verified delivery.'];
     case 'MISSING_PAGE': return [`${issue.path} is missing pages`, `${issue.actual_pages} of ${issue.expected_pages} pages delivered.`];
-    case 'DUPLICATE_CONFLICT': return [`Conflicting ${issue.parameter?.replace(/_/g, ' ')} for batch ${issue.batch} at ${issue.time} h`, where];
+    case 'DUPLICATE_CONFLICT': return [`Conflicting ${parameterLabel(issue.parameter ?? '')} for batch ${issue.batch} at ${issue.time} h`, where];
     default: return [ruleTitle(issue.rule_code) + (where ? ` · ${where}` : ''), issue.message ?? RULES[issue.rule_code]?.help ?? ''];
   }
 }
@@ -104,7 +104,7 @@ export function ToCheck({ run, reviewer, mappingPending, onChanged, onInspect }:
           return (
             <li key={group.id} className="flex flex-wrap items-center justify-between gap-2 px-6 py-3.5">
               <div className="min-w-0">
-                <p className="text-[13px]">{plural(group.count, `${group.parameter.replace(/_/g, ' ')} value`)} <span className="text-text-tertiary">from “{group.column}”</span></p>
+                <p className="text-[13px]">{plural(group.count, `${parameterLabel(group.parameter)} value`)} <span className="text-text-tertiary">from “{group.column}”</span></p>
                 <p className="truncate text-xs text-text-tertiary">{reasons} · {group.path}</p>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">

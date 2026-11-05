@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
-from . import quality
+from . import intake, quality
 from .evidence import restore
 from .persistence import current_tenant, set_tenant, tenant_scope
 from .pipeline import CONFIGURATIONS, IngestionService, digest, hosted_inference_approved, utc
@@ -68,7 +68,7 @@ class TemplateInput(BaseModel):
 
 
 class UploadInput(BaseModel):
-    filename: str = Field(min_length=1,max_length=255)
+    filename: str = Field(min_length=1,max_length=600)  # may carry a dropped folder's path; base64 keeps the storage key under 1 KB
     size: int = Field(ge=0)
 
 
@@ -106,6 +106,13 @@ class DispositionInput(BaseModel):
 
 
 class ReprocessInput(BaseModel):
+    actor: str = Field(min_length=1)
+    reason: str = ''
+
+
+class LinkReviewInput(BaseModel):
+    link_id: str = Field(pattern=r'^[0-9a-f]{24}$')
+    decision: Literal['confirmed','rejected']
     actor: str = Field(min_length=1)
     reason: str = ''
 
@@ -329,38 +336,34 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
         delivery(delivery_id)
         folder=guard(lambda:delivery_folder(delivery_id))
         if len(data)>FILE_LIMIT: raise HTTPException(413,'Per-file upload limit is 64 MiB')
-        def unpack():
-            name=Path(filename).name
-            if Path(name).suffix.lower()!='.zip':
-                return [(safe_member(name),bytes(data))]
-            entries=[]
-            with zipfile.ZipFile(io.BytesIO(bytes(data))) as archive:
-                members=[m for m in archive.infolist() if not m.is_dir()]
-                if len(members)>500 or sum(m.file_size for m in members)>128*1024*1024: raise ValueError('ZIP exceeds expansion limits')
-                for member in members:
-                    if member.flag_bits&1 or (member.external_attr>>16)&0o170000==0o120000: raise ValueError('Encrypted or linked ZIP member')
-                    if Path(member.filename).name.startswith('.') or '__MACOSX' in member.filename: continue
-                    entries.append((safe_member(member.filename),archive.read(member)))
-            return entries
-        try: entries=unpack()
+        try: entries=intake.expand(filename,bytes(data),ALLOWED_FILES)
         except (ValueError,zipfile.BadZipFile) as exc: raise HTTPException(400,str(exc)) from exc
         with lock:
             item=delivery(delivery_id)
-            existing={f['path'] for f in item['files']}
-            if sum(f['size'] for f in item['files'])+sum(len(b) for _,b in entries)>DELIVERY_LIMIT:
+            decided=intake.reconcile(entries,{f['path']:f['sha256'] for f in item['files']})
+            kept=[d for d in decided if d['outcome'] in ('added','renamed')]
+            if sum(f['size'] for f in item['files'])+sum(len(d['content']) for d in kept)>DELIVERY_LIMIT:
                 raise HTTPException(413,'Delivery exceeds 256 MiB')
             added=[]
-            for path,content in entries:
-                rel=path.as_posix()
-                if rel in existing: raise HTTPException(409,f'{rel} is already in this delivery; start a new delivery for a revised file')
-                target=folder/rel; target.parent.mkdir(parents=True,exist_ok=True)
-                target.write_bytes(content); target.chmod(0o400)
-                sha=hashlib.sha256(content).hexdigest()
-                service.evidence.put(f'deliveries/{delivery_id}/{rel}',target)
-                added.append({'path':rel,'size':len(content),'sha256':sha}); existing.add(rel)
+            for d in decided:
+                if d['outcome'] in ('added','renamed'):
+                    target=folder/d['path']; key=f"deliveries/{delivery_id}/{d['path']}"
+                elif d['outcome'] in ('set_aside','unreadable'):
+                    # Kept as evidence beside, never inside, the folder the checks read.
+                    rel=f"{d['sha256'][:12]}/{d['path']}"
+                    target=root/'set_aside'/delivery_id/rel; key=f'set_aside/{delivery_id}/{rel}'
+                    if target.exists(): continue
+                else: continue
+                target.parent.mkdir(parents=True,exist_ok=True)
+                target.write_bytes(d['content']); target.chmod(0o400)
+                service.evidence.put(key,target)
+                if d['outcome'] in ('added','renamed'): added.append({'path':d['path'],'size':len(d['content']),'sha256':d['sha256']})
             item['files']=[*item['files'],*added]
+            item['intake']=[*item.get('intake',[]),*({'source':filename,'path':d['path'],'outcome':d['outcome'],
+                'reason':d['reason'],'size':len(d['content']),'sha256':d['sha256']} for d in decided)]
             service.repo.save_delivery(item)
-        service.audit('delivery_files_added',delivery_id=delivery_id,files=added)
+        service.audit('delivery_files_added',delivery_id=delivery_id,files=added,
+                      intake={o:sum(d['outcome']==o for d in decided) for o in {d['outcome'] for d in decided}})
         return item
 
     @api.post('/deliveries/{delivery_id}/files')
@@ -376,7 +379,7 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
     # only a transport copy: it is validated and hashed like a direct upload,
     # stored under the delivery's normal key, then deleted.
     def pending_key(delivery_id,upload_id):
-        if not re.fullmatch(r'[0-9a-f]{32}-[A-Za-z0-9_-]{1,400}',upload_id): raise HTTPException(400,'Invalid upload ID')
+        if not re.fullmatch(r'[0-9a-f]{32}-[A-Za-z0-9_-]{1,820}',upload_id): raise HTTPException(400,'Invalid upload ID')
         delivery_folder(delivery_id)
         return f'uploads/{current_tenant()}/{delivery_id}/{upload_id}'
 
@@ -390,8 +393,11 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
         delivery(delivery_id)
         if upload_mode()!='storage': raise HTTPException(409,'Upload directly to /files; no private storage is configured')
         if value.size>FILE_LIMIT: raise HTTPException(413,'Per-file upload limit is 64 MiB')
-        name=Path(value.filename).name
-        if Path(name).suffix.lower()!='.zip': guard(lambda:safe_member(name))
+        name=value.filename
+        guard(lambda:intake._safe(name))
+        if Path(name).suffix.lower() in intake.BLOCKED:
+            # Never stored, so never transferred: record it as blocked and let the rest of the drop continue.
+            return {'skipped':True,**store_files(delivery_id,name,b'')}
         upload_id=uuid.uuid4().hex+'-'+base64.urlsafe_b64encode(name.encode()).decode().rstrip('=')
         signed=service.evidence.signed_upload(pending_key(delivery_id,upload_id))
         return {'upload_id':upload_id,**signed}
@@ -430,9 +436,13 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
         if header is None: raise HTTPException(404,'Unknown run')
         interrupt_if_stale(header)
         run=guard(lambda:service.get(run_id))  # one read decides the view; the run may finish meanwhile
+        package=next((i for i in service.repo.deliveries() if i['id']==run.get('package_id')),None)
+        # What intake did with the upload: shown with the run so nothing set aside goes unnoticed.
+        taken=[{k:v for k,v in e.items() if k!='sha256'} for e in (package or {}).get('intake',[])]
         if run['status'] in {'queued','running'}:
-            return {'id':run_id,'status':run['status'],'stages':run['stages']}
+            return {'id':run_id,'status':run['status'],'stages':run['stages'],'intake':taken}
         result=public(run)
+        result['intake']=taken
         if result.get('guarantee') is not None:
             result['guarantee']['checks'].append({'id':'audit_chain','label':'The append-only audit chain verifies end to end',
                 'passed':service.verify_audit(),'detail':'hash chain over every decision in this workspace'})
@@ -471,6 +481,57 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
         reason=reason_for(kind,value.reason)
         result=guard(lambda:service.resolve_issue(run_id,value.issue_id,recorded_actor(value.actor),reason,ignore_in_future=value.ignore_in_future,also=value.also))
         return {'summary':result['summary']}
+
+    link_store_locks={}; link_store_guard=threading.Lock()
+
+    def link_store(run):
+        """The run's parsed store. Workers and API servers do not share local disks (separate Lambda
+        instances), so a missing store is rebuilt here from the retained delivery originals."""
+        from ..ingest import ingest_package
+        from ..store import ManufacturingStore
+        target=Path(run.get('store') or root/'stores'/run['id'])
+        if (target/'metadata.sqlite').is_file(): return ManufacturingStore(target),False
+        if not run.get('package_ref'): raise HTTPException(409,'This run has no retained delivery to rebuild links from')
+        with link_store_guard: lock=link_store_locks.setdefault(run['id'],threading.Lock())
+        with lock:
+            if (target/'metadata.sqlite').is_file(): return ManufacturingStore(target),False
+            _,path=guard(lambda:find(run['package_ref']))
+            store=ManufacturingStore(target)
+            # ponytail: text-layer parsing only; OCR-only document mentions appear after a full reprocess.
+            guard(lambda:ingest_package(path,store,access_scope=run['cmo'],document_backend='pypdf',workers=2,
+                                        source_namespace=run['package_ref']))
+            return store,True
+
+    def run_links(run_id):
+        from ..knowledge import links
+        run=guard(lambda:service.get(run_id))
+        store,rebuilt=link_store(run)
+        sources=[s for s in store.visible_sources(scopes=(run['cmo'],)) if s['extraction_status']=='indexed']
+        reviews=service.link_reviews()
+        return store,sources,links(store,sources=sources,as_of=None,reviews=reviews)[0],reviews,rebuilt
+
+    @api.get('/runs/{run_id}/links')
+    def list_links(run_id:str,entity_id:str|None=None,hops:int=1):
+        store,sources,all_links,reviews,rebuilt=run_links(run_id)
+        if entity_id:
+            from ..knowledge import neighborhood
+            return neighborhood(store,entity_id,sources=sources,as_of=None,hops=max(1,min(hops,2)),reviews=reviews)
+        order={'candidate':0,'extracted':1,'confirmed':2,'rejected':3}
+        return {'links':sorted(all_links,key=lambda l:(order.get(l['status'],9),l['a'],l['b'])),
+                'counts':{k:sum(1 for l in all_links if l['status']==k) for k in order},
+                'sources_searched':len(sources),'rebuilt_from_originals':rebuilt}
+
+    @api.post('/runs/{run_id}/links/reviews')
+    def review_link(run_id:str,value:LinkReviewInput):
+        from ..knowledge import review
+        store,_,all_links,_,_=run_links(run_id)
+        if value.link_id not in {l['link_id'] for l in all_links}: raise HTTPException(404,'Unknown link for this run')
+        reason=value.reason.strip() or ('Checked the cited source row' if value.decision=='confirmed' else '')
+        if not reason: raise HTTPException(400,'A reason is required to reject a link')
+        actor=recorded_actor(value.actor)
+        row=guard(lambda:review(store,value.link_id,value.decision,actor=actor,reason=reason))
+        service.audit('link_reviewed',run_id=run_id,**row)
+        return row
 
     @api.get('/runs/{run_id}/sources/{source_id}')
     def source(run_id:str,source_id:str):
@@ -608,6 +669,19 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
     def audit(): return {'valid':service.verify_audit()}
 
     # Same-process consumers (the platform API) read verified datasets without an HTTP hop.
+    def delivery_documents(run_id:str,tenant:str):
+        """Text of a delivery's narrative files (emails, notes, reports) for sharing with the assistant on request."""
+        with tenant_scope(tenant):
+            run=guard(lambda:service.get(run_id))
+            item,folder=guard(lambda:find(run.get('package_id') or ''))
+            if item.get('kind')!='delivery': raise HTTPException(409,'Only uploaded deliveries have documents to share')
+            docs=[]
+            for f in item['files']:
+                text=intake.document_text(folder/f['path'])
+                if text is not None: docs.append({'path':f['path'],'sha256':f['sha256'],'text':text})
+            return {'cmo':item['cmo'],'delivery_name':item.get('name'),'package_id':item['id'],'documents':docs}
+
     api.verified_payload=verified_payload
+    api.delivery_documents=delivery_documents
     api.ingestion_service=service
     return api

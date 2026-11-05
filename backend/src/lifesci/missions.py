@@ -234,6 +234,17 @@ class MissionService:
         self.scheduler.schedule_wakeup(ctx.tenant_id, mission_id, f"correction:{corr['correction_id']}")
         return corr
 
+    def owner_corrections(self, ctx: AccessContext, owner_id: str, *, exclude_mission_id: str | None = None,
+                          limit: int = 10) -> list[dict[str, Any]]:
+        """The owner's corrections from their other missions, newest first, so a new conversation keeps them."""
+        if owner_id != (ctx.delegated_from or ctx.actor_id):
+            raise PermissionError("corrections are carried only for their own owner")
+        out = [{**c, "mission_id": rec.id}
+               for rec in self.store.read().list(ctx.tenant_id, KIND, lambda s: s.get("owner_id") == owner_id)
+               if rec.id != exclude_mission_id for c in rec.state.get("corrections", [])]
+        out.sort(key=lambda c: c.get("at", ""), reverse=True)
+        return out[:limit]
+
     # --- events and wakeups -----------------------------------------------------------
     def deliver_events(self, tenant_id: str) -> dict[str, int]:
         """Match newly committed events to mission subscriptions; coalesce wakeups, never drop event ids."""

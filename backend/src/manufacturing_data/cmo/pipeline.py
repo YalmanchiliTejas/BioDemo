@@ -16,6 +16,7 @@ import json
 import math
 import os
 import re
+import shutil
 import threading
 import time
 import uuid
@@ -107,6 +108,13 @@ def fingerprint(kind, sheet, headers, extension):
     return digest({'kind':kind,'sheet':sheet,'headers':names,'format':extension})
 
 
+def aliases_cover(mapping,headers):
+    """Aliases already name batch, time and every other header: a mapping model adds cost, not information.
+    The layout still needs human confirmation either way."""
+    return bool(mapping.batch_column and mapping.time_column and
+                all(h in mapping.columns or h in {mapping.batch_column,mapping.time_column} for h in headers))
+
+
 class IngestionService:
     def __init__(self, root):
         from .settings import load_local_settings
@@ -171,6 +179,8 @@ class IngestionService:
     def save(self,run): self.repo.save_run(run)
 
     def get(self,run_id): return self.repo.get_run(run_id)
+
+    def link_reviews(self): return self.repo.link_reviews()
 
     def runs(self,cmo=None): return sorted(self.repo.runs(cmo),key=lambda r:r.get('started_at',''))
 
@@ -262,7 +272,7 @@ class IngestionService:
             if queued['status'] not in {'queued','running'}: raise ValueError(f"Run {run['id']} was already processed")
             run['started_at']=queued['started_at']
             run.update({k:queued[k] for k in ('package_id','delivery_name','disclosure') if queued[k] is not None})
-        store=ManufacturingStore(self.root/'stores'/run['id'])
+        store=self._seeded_store(self.root/'stores'/run['id'],supersedes,package_ref)
         run['store']=str(store.root)
         def stage(name,state='running'):
             if run['stages'] and run['stages'][-1]['state']=='running':
@@ -288,7 +298,8 @@ class IngestionService:
             stage('Ingest')
             # Reuses the original parser, immutable source storage, native sheet readers and OCR.
             ingestion=ingest_package(package,store,access_scope=cmo,
-                document_backend='docling' if configuration in {'decisions','clairic_decisions'} else 'pypdf',workers=2)
+                document_backend='docling' if configuration in {'decisions','clairic_decisions'} else 'pypdf',workers=2,
+                source_namespace=package_ref)
             run['ingestion']=ingestion
             for error in ingestion['errors']: issue('PARSE_ERROR',**error)
             stage('Classify')
@@ -444,7 +455,7 @@ class IngestionService:
                                       'added_headers':[h for h in headers if h not in old],
                                       'removed_headers':[h for h in old if h not in headers],
                                       'reused_headers':sorted(shared)}
-                        if mapping_provider:
+                        if mapping_provider and not aliases_cover(proposed,headers):
                             try:
                                 suggested=mapping_provider.call('map_headers',{'headers':headers,'vocabulary':VOCAB,
                                     'sample_rows':[{h:v[0] for h,v in values.items()}]},Mapping).check(headers)
@@ -661,6 +672,28 @@ class IngestionService:
         concerns the same source element, raw text and parameter."""
         with self._lock, self.repo.transaction():
             return self._carry_over(old_id,self.get(new_run['id']))
+
+    NAMESPACE_FILE='source_namespace.txt'
+
+    def _seeded_store(self,target,supersedes,package_ref):
+        """Start a reprocess from the superseded run's parsed store so unchanged files are not re-parsed or re-OCR'd.
+        Only when both runs ingest the same delivery identity: ingest_package skips a file only if its source id,
+        bytes and parser signature all match, so anything else is still parsed fresh."""
+        if supersedes and package_ref and not target.exists():
+            try:
+                previous=Path(self.get(supersedes).get('store') or '')
+                marker=previous/self.NAMESPACE_FILE
+                if marker.is_file() and marker.read_text()==package_ref:
+                    shutil.copytree(previous,target)
+                    store=ManufacturingStore(target)
+                    (target/self.NAMESPACE_FILE).write_text(package_ref)
+                    return store
+            except Exception:
+                # ponytail: any seeding problem falls back to a full parse; it costs time, never correctness.
+                shutil.rmtree(target,ignore_errors=True)
+        store=ManufacturingStore(target)
+        if package_ref: (target/self.NAMESPACE_FILE).write_text(package_ref)
+        return store
 
     def _carry_over(self,old_id,run):
         """Apply to an in-memory result inside the caller's lock/transaction."""

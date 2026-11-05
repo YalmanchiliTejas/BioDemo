@@ -51,7 +51,7 @@ def main() -> None:
     query=sub.add_parser("tool",help="call one RLM data tool with JSON arguments")
     query.add_argument("name",choices=("inspect_data","infer_schema","reconcile_entities","normalize_measurements",
                         "query_data","search_evidence","verify_evidence","extract_region",
-                        "get_process_context","get_state_at","summarize_series","calculate_metrics","align_series"))
+                        "get_process_context","entity_graph","get_state_at","summarize_series","calculate_metrics","align_series"))
     query.add_argument("--store",type=Path,required=True)
     query.add_argument("--args",default="{}")
     query.add_argument("--scope",action="append",default=[])

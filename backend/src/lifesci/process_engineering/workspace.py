@@ -4,8 +4,10 @@ The allowlist is a capability boundary, not arbitrary access to the record store
 Source content is data; it never changes tool permissions or action authority.
 """
 import json
+import re
 
-from ..evidence import EvidenceRef
+from ...manufacturing_data.knowledge import canonical
+from ..evidence import STATUS_CURRENT, EvidenceRef
 from ..ids import iso, parse_iso
 
 KINDS = ('case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
@@ -26,6 +28,54 @@ MAX_SEARCH_SOURCE_BYTES = 2 * 1024 * 1024
 MAX_SEARCH_TOTAL_BYTES = 8 * 1024 * 1024
 # ponytail: fixed one-hop bound; page via workspace_read on the evidence id when truncated.
 MAX_LINKED, LINKED_CHARS = 6, 6000
+# Fields naming people, places or containers, not manufacturing entities.
+NOT_ENTITY_FIELDS = {'owner_id', 'qa_reviewer_id', 'site_id', 'actor_id', 'conversation_id', 'added_by', 'opened_by',
+                     'by', 'created_by', 'decided_by', 'mission_id', 'instance_id', 'id'}
+# An identifier-looking token in free text: letters then digits (B-001, BR03, LOT_7781, DEV-2024-17).
+ID_PATTERN = re.compile(r'(?<![A-Za-z0-9])[A-Za-z]{1,8}[-_/.]?\d{1,8}(?:[-_/.][A-Za-z0-9]{1,8}){0,2}(?![A-Za-z0-9])')
+TOKEN = re.compile(r'[a-z0-9]{2,}')
+CLOSED = {'closed', 'completed', 'complete', 'resolved', 'archived'}
+
+
+def _tokens(text):
+    return set(TOKEN.findall(str(text).casefold()))
+
+
+def _identifiers(state, fields):
+    """canonical -> {raw, field, structured}. Explicit *_id/lot fields are structured; free-text tokens are not."""
+    found = {}
+
+    def add(raw, field, structured):
+        key = canonical(raw)
+        if len(key) >= 3 and any(c.isdigit() for c in key):
+            prior = found.get(key)
+            if prior is None or (structured and not prior['structured']):
+                found[key] = {'raw': str(raw), 'field': field, 'structured': structured}
+
+    def walk(value, field):
+        if isinstance(value, dict):
+            for k, v in value.items():
+                if k in NOT_ENTITY_FIELDS:
+                    continue
+                if isinstance(v, (str, int)) and (k.endswith('_id') or k.endswith('_number') or k in ('lot', 'batch', 'equipment')):
+                    add(v, k, True)
+                else:
+                    walk(v, k)
+        elif isinstance(value, list):
+            for v in value:
+                walk(v, field)
+        elif isinstance(value, str):
+            for match in ID_PATTERN.findall(value):
+                add(match, field, False)
+    walk({k: state[k] for k in fields if k in state}, None)
+    return found
+
+
+def _overlap(query_tokens, text):
+    """Share of query words present. ponytail: coverage, not BM25; add IDF when corpora make common words dominate."""
+    if not query_tokens:
+        return 0.0
+    return len(query_tokens & _tokens(text)) / len(query_tokens)
 
 
 class WorkspaceTools:
@@ -66,6 +116,7 @@ class WorkspaceTools:
     def search(self, ctx, thread, *, kinds=None, query='', limit=20):
         # Saved chats are earlier assistant answers, not process records: search them only when asked by kind.
         kinds = kinds or [k for k in KINDS if k != 'engineering_chat_turn']
+        query_tokens = _tokens(query) if query and len(_tokens(query)) > 1 else set()
         if any(k not in KINDS for k in kinds):
             raise ValueError('unsupported workspace record kind')
         out, content_search_gaps = [], []
@@ -82,7 +133,8 @@ class WorkspaceTools:
                 except (PermissionError, ValueError, KeyError):
                     continue
                 searchable = json.dumps({k: rec.state[k] for k in FIELDS[kind] if k in rec.state}, ensure_ascii=False)
-                if query and query.casefold() not in searchable.casefold():
+                score = _overlap(query_tokens, searchable)
+                if query and query.casefold() not in searchable.casefold() and score < 0.5:
                     # Source-system identifiers often contain no domain terms.
                     # Search authorized text originals as well as their metadata;
                     # retain explicit workspace_read for inspecting source content.
@@ -100,15 +152,22 @@ class WorkspaceTools:
                         content_search_gaps.append({'id': rec.id, 'reason': 'original_unavailable'})
                         continue
                     searched_bytes += size
-                    if query.casefold() not in original.casefold():
+                    score = _overlap(query_tokens, original)
+                    if query.casefold() not in original.casefold() and score < 0.5:
                         continue
-                out.append(self._summary(rec, ref))
+                    exact = query.casefold() in original.casefold()
+                else:
+                    exact = not query or query.casefold() in searchable.casefold()
+                out.append({**self._summary(rec, ref), 'match': 'exact' if exact else 'words', 'word_overlap': round(score, 2)})
+        # Literal matches keep the established newest-first order; word matches follow, best overlap first.
         out.sort(key=lambda r: (r['time'] or '', r['id']), reverse=True)
+        out.sort(key=lambda r: (r['match'] != 'exact', -r['word_overlap'] if r['match'] != 'exact' else 0))
         return {'records': out[:limit], 'matching_count': len(out), 'truncated': len(out) > limit or bool(content_search_gaps),
             'matching_count_is_lower_bound': bool(content_search_gaps), 'content_search_gaps': content_search_gaps,
             'searched_kinds': list(kinds), 'query': query,
             'coverage': 'Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.',
-            'ordering': 'Descending source timestamp, then id for stable ties; case time is opened_at, NOT deviation occurrence time. Undated records sort last.',
+            'ordering': 'Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.',
+            'time_cutoff': 'none: results include all current authorized records regardless of when they became available.',
             'scope': {'site_id': thread['site_id'], 'authorized_records_only': True},
             'warning': 'Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval.'}
 
@@ -175,3 +234,119 @@ class WorkspaceTools:
         return self.p.evidence.record_derived(ctx, 'assistant_workspace_result',
             {'site_id': thread['site_id'], 'title': title, **result}, inputs=refs,
             produced_by={'method': 'authorized_workspace_tools:v1', 'actor_id': ctx.actor_id})
+
+    # --- cross-record links and precedent recall ------------------------------------------
+    def _authorized(self, ctx, thread, kinds):
+        """Authorized process records (never private instructions or saved chats) with their refs."""
+        for kind in kinds:
+            for rec in self.p.store.read().list(ctx.tenant_id, kind):
+                if kind == 'evidence' and rec.state.get('source_system') == 'engineering-user-instruction':
+                    continue
+                try:
+                    yield rec, self._authorize(ctx, thread, rec)
+                except (PermissionError, ValueError, KeyError):
+                    continue
+
+    def links(self, ctx, thread, *, kind, record_id, limit=20):
+        """Records sharing an identifier (batch, lot, equipment, material, deviation...) with one record.
+        A shared identifier says the records mention the same ID, not that one caused the other."""
+        if kind not in KINDS or kind == 'engineering_chat_turn':
+            raise ValueError('links apply to workspace process records')
+        target = self.p.store.read().require(ctx.tenant_id, kind, record_id)
+        target_ref = self._authorize(ctx, thread, target)
+        mine = _identifiers(target.state, FIELDS[kind])
+        found, searched = [], 0
+        for rec, ref in self._authorized(ctx, thread, [k for k in KINDS if k != 'engineering_chat_turn']):
+            if (rec.kind, rec.id) == (kind, record_id):
+                continue
+            searched += 1
+            theirs = _identifiers(rec.state, FIELDS[rec.kind])
+            shared = [{'identifier': mine[key]['raw'], 'their_spelling': theirs[key]['raw'], 'canonical': key,
+                       'fields': [mine[key]['field'], theirs[key]['field']],
+                       'status': 'extracted' if mine[key]['structured'] and theirs[key]['structured'] else 'candidate',
+                       'basis': 'both records name this identifier in an ID field' if mine[key]['structured'] and theirs[key]['structured']
+                                else 'identifier-like text in a free-text field; confirm by reading the record'}
+                      for key in mine.keys() & theirs.keys()]
+            if shared:
+                found.append({**self._summary(rec, ref), 'shared_identifiers': shared})
+        found.sort(key=lambda r: (-sum(s['status'] == 'extracted' for s in r['shared_identifiers']),
+                                  -len(r['shared_identifiers']), r['id']))
+        # 'target', not 'record': a link list is discovery, not an inspection of the target's content.
+        return {'target': target_ref, 'identifiers': [{'canonical': k, **v} for k, v in sorted(mine.items())],
+                'records': found[:limit], 'matching_count': len(found), 'truncated': len(found) > limit,
+                'records_searched': searched,
+                'coverage': f'Searched {searched} authorized process records at this site; records you cannot access, '
+                            'saved chats and text originals were not searched. No link here does not establish that none exist.',
+                'identity_rule': 'IDs match after ignoring case and - _ . / separators (B-001 = B001); leading zeros are kept.'}
+
+    def _card(self, ctx, thread, rec):
+        """A case summary derived on read from the case, its current claims and its proposals' outcomes."""
+        s = rec.state
+        claims = []
+        for claim in self.p.store.read().list(ctx.tenant_id, 'claim', lambda c: c.get('case_id') == s.get('case_id')):
+            try:
+                self._authorize(ctx, thread, claim)
+            except (PermissionError, ValueError, KeyError):
+                continue
+            if claim.state.get('status', STATUS_CURRENT) == STATUS_CURRENT:
+                claims.append(claim.state)
+        by_class = lambda *names: [c['text'] for c in claims if (c.get('claim_class') or c.get('classification')) in names]
+        outcomes = []
+        for prop in self.p.store.read().list(ctx.tenant_id, 'proposal', lambda p: p.get('target_id') == s.get('case_id')):
+            try:
+                self._authorize(ctx, thread, prop)
+            except (PermissionError, ValueError, KeyError):
+                continue
+            outcomes.append({k: prop.state.get(k) for k in ('operation', 'status', 'execution_status', 'effectiveness')})
+        timeline = s.get('timeline', [])
+        text = {'timeline': [e.get('description', '') for e in timeline], 'claims': [c['text'] for c in claims]}
+        entities = _identifiers({**{k: s[k] for k in FIELDS['case'] if k in s}, 'claims': text['claims']},
+                                [*FIELDS['case'], 'claims'])
+        closure = s.get('closure') or {}
+        closing = [closure.get(k, '') for k in ('root_cause', 'actions_taken', 'outcome')]
+        if closure:
+            entities |= _identifiers({'closure': ' '.join(closing)}, ['closure'])
+        return {'case_id': s.get('case_id'), 'status': s.get('status'), 'opened_at': s.get('opened_at'),
+                'symptom': [*text['timeline'][:3], *by_class('observation')[:3]],
+                'recorded_causes': by_class('hypothesis')[:3],
+                # A closure is the case review's recorded conclusion, attributed; hypotheses alone are not a cause.
+                'closure': ({**closure, 'basis': 'recorded at case closure by ' + str(closure.get('closed_by'))} if closure else None),
+                'cause_status': ('as recorded at closure' if closure else
+                                 'hypotheses as recorded; a cause is established only by its case review'),
+                'actions': by_class('recommendation')[:3], 'outcomes': outcomes,
+                'entities': sorted(entities), 'evidence_refs': [r for e in timeline for r in e.get('evidence_refs', [])][:10],
+                'words': _tokens(' '.join([*text['timeline'], *text['claims'], *closing]))}
+
+    def similar_cases(self, ctx, thread, *, case_id=None, text='', limit=5, include_open=False):
+        """Closed cases ranked by shared identifiers, then word overlap. Advisory recall, never applicability."""
+        if not case_id and not text.strip():
+            raise ValueError('give a case_id or a description')
+        query_ids, query_words, exclude = set(), _tokens(text), None
+        if case_id:
+            rec = self.p.store.read().require(ctx.tenant_id, 'case', case_id)
+            self._authorize(ctx, thread, rec)
+            card = self._card(ctx, thread, rec)
+            query_ids, query_words, exclude = set(card['entities']), query_words | card['words'], rec.id
+        query_ids |= {canonical(m) for m in ID_PATTERN.findall(text)}
+        ranked, searched, skipped_open = [], 0, 0
+        for rec, ref in self._authorized(ctx, thread, ['case']):
+            if rec.id == exclude:
+                continue
+            if not include_open and str(rec.state.get('status', '')).casefold() not in CLOSED:
+                skipped_open += 1
+                continue
+            searched += 1
+            card = self._card(ctx, thread, rec)
+            shared = sorted(query_ids & set(card['entities']))
+            overlap = len(query_words & card['words']) / len(query_words) if query_words else 0.0
+            if shared or overlap >= 0.2:
+                ranked.append({**ref, 'card': {k: v for k, v in card.items() if k != 'words'},
+                               'similarity': {'shared_identifiers': shared, 'word_overlap': round(overlap, 2)},
+                               'label': 'similar, not established as applicable'})
+        ranked.sort(key=lambda r: (-len(r['similarity']['shared_identifiers']), -r['similarity']['word_overlap'], r['id']))
+        return {'records': ranked[:limit], 'matching_count': len(ranked), 'closed_cases_searched': searched,
+                'open_cases_not_searched': skipped_open,
+                'coverage': f'Among {searched} closed cases searched at this site' +
+                            (f'; {skipped_open} open cases were not searched' if skipped_open else '') +
+                            '. Fewer matches does not mean no precedent exists elsewhere.',
+                'reuse': 'Reusing a prior investigation still requires the investigation owner\'s approval (prior-investigation reuse).'}

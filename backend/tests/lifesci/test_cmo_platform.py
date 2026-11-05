@@ -159,3 +159,31 @@ def test_delivery_rbac_and_site_boundary(platform_client):
     p.identity.assign_role(TENANT, 'org-admin', 'admin')
     admin = {'X-Tenant-Id': TENANT, 'X-Actor-Id': 'org-admin'}
     assert client.post('/api/cmo-ingestion/runs/unknown/reviews', headers=admin, json={}).status_code == 403
+
+
+def test_shared_cmo_email_becomes_searchable_unverified_evidence(platform_client):
+    from email.message import EmailMessage
+    p, client = platform_client
+    note = EmailMessage(); note['From'] = 'qa@acme.example'; note['Subject'] = 'Deviation DV-58'
+    note.set_content('Filter integrity failed on lot A-105 during October. Investigation opened.')
+    note.add_attachment(b'Lot,Elapsed time (h),pH\nA-105,0,7.0\n', maintype='text', subtype='csv', filename='lots.csv')
+    delivery = client.post('/api/cmo-ingestion/deliveries', json={'cmo': 'Acme CDMO', 'name': 'October mail'}).json()
+    client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/files", params={'filename': 'DV-58.eml'}, content=note.as_bytes())
+    run = _wait(client, client.post('/api/cmo-ingestion/runs', json={'package_id': delivery['id']}).json()['id'])
+    ctx = p.identity.context_for(TENANT, 'priya')
+    thread = p.engineering_conversations.create(ctx, {'site_id': 'NF1'})
+    search = lambda: p.engineering_conversations.workspace.search(ctx, thread, kinds=['evidence'], query='A-105')['records']
+    assert not search()  # nothing reaches the assistant until a reviewer shares it
+    shared = client.post('/v1/cmo-documents', json={'run_id': run['id']}, headers=HEADERS)
+    assert shared.status_code == 201, shared.text
+    assert [d['path'] for d in shared.json()['shared']] == ['DV-58/message.txt']  # the table is data, not a document
+    [hit] = search()
+    assert hit['classification'] == 'unverified_cmo_document'
+    text = p.evidence.original(ctx, hit['id']).decode()
+    assert text.startswith('UNVERIFIED CMO DOCUMENT') and 'Filter integrity failed on lot A-105' in text
+    again = client.post('/v1/cmo-documents', json={'run_id': run['id']}, headers=HEADERS).json()
+    assert again['shared'] == shared.json()['shared'] and len(search()) == 1  # re-sharing is idempotent
+    listed = client.get('/v1/cmo-documents', params={'package_id': delivery['id']}, headers=HEADERS).json()['documents']
+    assert [d['path'] for d in listed] == ['DV-58/message.txt']
+    other = {'X-Tenant-Id': 'other-customer', 'X-Actor-Id': 'priya'}
+    assert client.post('/v1/cmo-documents', json={'run_id': run['id']}, headers=other).status_code in (403, 404)

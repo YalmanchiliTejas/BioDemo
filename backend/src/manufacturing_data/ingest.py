@@ -24,10 +24,15 @@ from .models import Observation, SourceRef
 from .store import ManufacturingStore
 
 SUPPORTED = {".csv", ".tsv", ".xlsx", ".xlsm", ".parquet", ".pdf", ".docx", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".txt", ".log", ".md", ".json"}
-PIPELINE_VERSION = "0.6.2-docx-json-provenance"
+PIPELINE_VERSION = "0.7.0-typed-entity-links"
 TIME_WORDS = ("time", "timestamp", "date", "recorded", "collected", "sampled", "occurred")
 AVAIL_WORDS = ("available", "released", "approved", "reviewed", "reported")
-ENTITY_WORDS = {"batch": "batch", "lot": "batch", "run": "run", "reactor": "equipment", "equipment": "equipment", "sample": "sample", "site": "site", "campaign": "campaign", "process": "process"}
+# Order matters: the first marker found in a header wins ("material_lot_id" is a lot, "batch_lot" a batch).
+# A lot (material lot) is not a batch: conflating them breaks material genealogy.
+ENTITY_WORDS = {"batch": "batch", "lot": "lot", "material": "material", "run": "run", "reactor": "equipment",
+                "vessel": "equipment", "equipment": "equipment", "sample": "sample", "site": "site",
+                "campaign": "campaign", "process": "process", "deviation": "deviation", "capa": "capa",
+                "investigation": "investigation"}
 STRUCTURED = {".csv", ".tsv", ".xlsx", ".xlsm", ".parquet"}
 PLAIN_TEXT = {".txt", ".log", ".md", ".json"}
 IMAGES = {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
@@ -150,23 +155,6 @@ def _rows(path: Path, max_rows: int | None = None) -> Iterator[tuple[str | None,
         for i, values in enumerate(frame.collect(engine="streaming").iter_rows(), 1):
             yield None, i, headers, list(values)
 
-def _headers(path: Path) -> Iterator[tuple[str | None,list[str]]]:
-    suffix=path.suffix.lower()
-    if suffix in {".csv",".tsv"}:
-        with path.open(newline="",encoding="utf-8-sig",errors="replace") as handle:
-            yield None,[str(x) for x in next(csv.reader(handle,delimiter="\t" if suffix==".tsv" else ","),[])]
-    elif suffix in {".xlsx",".xlsm"}:
-        from openpyxl import load_workbook
-        wb=load_workbook(path,read_only=True,data_only=True)
-        try:
-            for sheet in wb:
-                head=next(sheet.iter_rows(max_row=1,values_only=True),())
-                yield sheet.title,[str(x) if x is not None else f"column_{i}" for i,x in enumerate(head,1)]
-        finally: wb.close()
-    elif suffix==".parquet":
-        import polars as pl
-        yield None,pl.scan_parquet(path).collect_schema().names()
-
 def _entity_from_context(rel: str, sheet: str | None, record: dict[str, Any]) -> tuple[str | None, str | None]:
     for header, value in record.items():
         key = _key(header)
@@ -206,45 +194,6 @@ def _related_entities(rel: str, sheet: str | None, record: dict[str,Any]) -> lis
         found.append(("run",re.sub(r"[ _]","",file_match.group(1)).upper()+"/"+
                       re.sub(r"[ _]","",sheet_match.group(1)).upper()))
     return list(dict.fromkeys(found))
-
-def _make_observations(source_id: str, rel: str, path: Path, scope: str, source_available: str | None,
-                       *, max_rows: int | None = None) -> Iterator[Observation]:
-    for sheet, row_index, headers, values in _rows(path,max_rows=max_rows):
-        record = dict(zip(headers, values))
-        field_times: dict[str,str] = {}
-        for key,value in record.items():
-            if _key(key) == "field_available_at" and isinstance(value,str):
-                try:
-                    parsed = json.loads(value)
-                    if isinstance(parsed,dict): field_times = parsed
-                except json.JSONDecodeError:
-                    pass
-        kind, entity_id = _entity_from_context(rel, sheet, record)
-        related_entities = _related_entities(rel,sheet,record)
-        occurred = available = None
-        for header, value in record.items():
-            key = _key(header)
-            if any(word in key for word in AVAIL_WORDS) and _iso(value):
-                available = _iso(value)
-            elif any(word in key for word in TIME_WORDS) and _iso(value):
-                occurred = _iso(value)
-        available = available or source_available
-        for col_index, (header, value) in enumerate(zip(headers, values), 1):
-            if value is None or value == "":
-                continue
-            from openpyxl.utils import get_column_letter
-            ref = SourceRef(source_id=source_id, path=rel, sheet=sheet, row=row_index,
-                            column=header, cell=f"{get_column_letter(col_index)}{row_index}" if sheet else None)
-            ident = hashlib.sha256(f"{source_id}|{sheet}|{row_index}|{col_index}".encode()).hexdigest()[:24]
-            number = _number(value)
-            field_available = _iso(field_times.get(header))
-            effective_available = max(filter(None,(available,field_available)), default=None)
-            yield Observation(observation_id=ident, source=ref, name=header,
-                              value_text=str(value), value_number=number, unit=_unit(header),
-                              occurred_at=occurred, available_at=effective_available, entity_id=entity_id, entity_kind=kind,
-                              related_entities=related_entities,
-                              access_scope=scope, extraction_method=path.suffix.lower().lstrip("."),
-                              confidence=1.0 if kind and any(k in _key(header) for k in ENTITY_WORDS) else None)
 
 def _document_observations(source_id: str, rel: str, path: Path, scope: str,
                            available: str | None, backend: str) -> Iterator[Observation]:
@@ -392,21 +341,29 @@ def _members(package: Path) -> Iterator[tuple[str, bytes, str | None, int]]:
 
 def ingest_package(package: str | Path, store: ManufacturingStore, *, access_scope: str = "default",
                    document_backend: str = "auto", max_rows_per_file: int | None = None,
-                   workers: int | None = None) -> dict:
+                   workers: int | None = None, source_namespace: str | None = None) -> dict:
+    """source_namespace: stable identity for the package (e.g. a delivery id). Defaults to its path;
+    pass one when the same package can arrive at different local paths so unchanged files are not re-parsed."""
     if document_backend in {'auto', 'docling'}:
-        from benchmarks.common.artifact_store import parser_models
+        try:
+            from benchmarks.common.artifact_store import parser_models
+        except ImportError:
+            # The Lambda image ships src/ only; without registered weights the router uses its native fallbacks.
+            from contextlib import nullcontext
+            parser_models = lambda *_: nullcontext()
         with parser_models(package, document_backend):
             return _ingest_package(package, store, access_scope=access_scope, document_backend=document_backend,
-                                   max_rows_per_file=max_rows_per_file, workers=workers)
+                                   max_rows_per_file=max_rows_per_file, workers=workers, source_namespace=source_namespace)
     return _ingest_package(package, store, access_scope=access_scope, document_backend=document_backend,
-                           max_rows_per_file=max_rows_per_file, workers=workers)
+                           max_rows_per_file=max_rows_per_file, workers=workers, source_namespace=source_namespace)
 
 
 def _ingest_package(package: str | Path, store: ManufacturingStore, *, access_scope: str = "default",
                     document_backend: str = "auto", max_rows_per_file: int | None = None,
-                    workers: int | None = None) -> dict:
+                    workers: int | None = None, source_namespace: str | None = None) -> dict:
     """Copy immutable source bytes and incrementally index changed files. Never alters input."""
     package = Path(package).resolve()
+    namespace = source_namespace or str(package)
     if document_backend not in {"auto", "docling", "pypdf", "chandra", "paddleocr-vl"}:
         raise ValueError("document_backend must be auto, pypdf, docling, chandra, or paddleocr-vl")
     if max_rows_per_file is not None and max_rows_per_file < 1:
@@ -447,7 +404,7 @@ def _ingest_package(package: str | Path, store: ManufacturingStore, *, access_sc
             safe_availability=(datetime.fromtimestamp(package.stat().st_mtime,timezone.utc).isoformat()
                                if package.suffix.lower()==".zip" else modified)
             digest = store.digest(content)
-            sid = hashlib.sha256(f"{package}|{rel}|{access_scope}".encode()).hexdigest()[:24]
+            sid = hashlib.sha256(f"{namespace}|{rel}|{access_scope}".encode()).hexdigest()[:24]
             parse_path = store.originals / digest[:2] / (digest + Path(rel).suffix.lower())
             parse_path.parent.mkdir(exist_ok=True)
             if not parse_path.exists():

@@ -171,6 +171,10 @@ def get_process_context(**kwargs: Any) -> dict[str, Any]:
     return call_tool("get_process_context", **kwargs)
 
 
+def entity_graph(**kwargs: Any) -> dict[str, Any]:
+    return call_tool("entity_graph", **kwargs)
+
+
 def get_state_at(**kwargs: Any) -> dict[str, Any]:
     return call_tool("get_state_at", **kwargs)
 
@@ -192,4 +196,4 @@ __all__ = ["BridgeError", "context", "call_tool", "evidence", "submit_report", "
            "assemble_report", "stopping_decision", "evidence_packet",
            "infer_schema", "reconcile_entities", "normalize_measurements",
            "query_data", "search_evidence", "verify_evidence", "extract_region",
-           "get_process_context", "get_state_at", "summarize_series", "calculate_metrics", "align_series"]
+           "get_process_context", "entity_graph", "get_state_at", "summarize_series", "calculate_metrics", "align_series"]
