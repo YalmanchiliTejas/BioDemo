@@ -1,38 +1,77 @@
 'use client';
+
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Check, Database, FileText, Activity, GitCompareArrows, ClipboardCheck } from 'lucide-react';
+import { ArrowRight, ClipboardCheck, FlaskConical, Gauge, Loader2, Workflow } from 'lucide-react';
 import { BrandMark } from '@/components/shell/BrandMark';
+import { adoptLocalDemoTenant, selectOrganization, signInAvailable, signInForDemo } from '@/lib/auth';
+import { CONTACT_URL, startDemo, type Persona } from '@/lib/demo-api';
+import { ProcessApiError } from '@/lib/process-api';
 
-const steps = [
-  { title: 'Bring the records together', label: 'Data intake', icon: Database, description: 'Start with records from existing systems. Inspect mapping gaps before accepting a dataset.', next: 'Review the missing unit with the source owner before publishing.' },
-  { title: 'Find the batch that needs attention', label: 'Batch monitoring', icon: Activity, description: 'Compare a batch with its reference trajectory. An observed departure prompts review; it does not establish a cause.', next: 'Inspect the feed change alongside equipment and lab records.' },
-  { title: 'Follow the evidence', label: 'Investigation', icon: FileText, description: 'Review supporting records, competing explanations and missing evidence in one place.', next: 'Request the pump inspection record to test the leading hypothesis.' },
-  { title: 'Explore a possible change', label: 'Forecasting', icon: GitCompareArrows, description: 'Compare an illustrative model scenario with the current trajectory. Keep assumptions and uncertainty visible.', next: 'Characterize the receiving vessel and verify equipment limits before engineering use.' },
-  { title: 'Prepare a reviewable next step', label: 'Human review', icon: ClipboardCheck, description: 'Give the reviewer a specific proposal and the evidence needed to decide. Proposal, approval and execution remain separate.', next: 'A named reviewer must authorize any consequential action in the existing system of record.' },
+const PERSONAS: { id: Persona; title: string; value: string; icon: typeof Gauge }[] = [
+  { id: 'process_engineer', title: 'Process Engineer', value: 'Find why a batch drifted, forecast growth and glucose, compare runs.', icon: FlaskConical },
+  { id: 'msat', title: 'MSAT', value: 'Judge whether CMO data is trustworthy and what a transfer still needs.', icon: Workflow },
+  { id: 'qa', title: 'Quality (QA)', value: 'Triage an overnight deviation, find precedents, prepare the review.', icon: ClipboardCheck },
+  { id: 'executive', title: 'Executive', value: 'See what needs attention this week, and who owns it.', icon: Gauge },
 ];
-export default function DemoPage() {
-  const [active, setActive] = useState(0);
-  const step = steps[active];
+const DEMO_NOTICE = 'This is a demo with synthetic data. We keep demo conversations and feedback to improve the product. Don’t enter confidential information.';
+
+/** One click into a private demo workspace with sample data and scenarios for the chosen role. */
+export default function DemoStartPage() {
+  const [persona, setPersona] = useState<Persona | null>(null);
+  const [accepted, setAccepted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [capacity, setCapacity] = useState(false);
+
+  async function start() {
+    if (!persona || !accepted) return;
+    setBusy(true); setError(''); setCapacity(false);
+    try {
+      await signInForDemo();
+      const workspace = await startDemo(persona);
+      const tenant = workspace.tenant_id ?? workspace.organization_id;
+      if (tenant) adoptLocalDemoTenant(tenant);
+      await selectOrganization(workspace.organization_id ?? tenant ?? '');
+      window.location.assign('/home/?scenarios=1');
+    } catch (e) {
+      if (e instanceof ProcessApiError && (e.status === 429 || e.status === 503)) setCapacity(true);
+      setError((e as Error).message || 'The demo could not start. Try again in a moment.');
+      setBusy(false);
+    }
+  }
+
   return <main className="min-h-screen bg-canvas px-5 py-6 sm:px-10">
-    <header className="mx-auto flex max-w-6xl items-center justify-between gap-4"><BrandMark href="/"/><Link href="/" className="text-sm text-text-secondary">Back to home</Link></header>
-    <div className="mx-auto max-w-6xl py-12">
-      <p className="lp-eyebrow">Live demo · guided platform walkthrough</p><h1 className="mt-4 text-3xl font-medium tracking-tight sm:text-5xl">From scattered records to a reviewable decision.</h1>
-      <p className="mt-5 max-w-3xl text-text-secondary">Explore at your own pace. All records, values and forecasts below are synthetic examples. No sign-in or connection to plant systems is required.</p>
-      <nav aria-label="Walkthrough steps" className="my-9 grid grid-cols-2 gap-2 sm:grid-cols-5">{steps.map((s,i) => <button key={s.label} aria-current={active===i?'step':undefined} onClick={()=>setActive(i)} className={`flex items-center gap-2 rounded-lg border p-3 text-left text-sm ${active===i?'border-brand-teal bg-brand-teal-light text-brand-teal':'border-border-hairline bg-white'}`}><s.icon className="h-4 w-4 shrink-0"/><span>{i+1}. {s.label}</span></button>)}</nav>
-      <section aria-label={step.label} className="overflow-hidden rounded-xl border border-border-hairline bg-white shadow-sm">
-        <div className="flex flex-wrap justify-between gap-2 border-b border-border-hairline bg-surface-secondary px-6 py-3 text-xs text-text-secondary"><span>Sievance / Demo workspace / UP-01</span><span>Synthetic data · read-only preview</span></div>
-        <div className="grid lg:grid-cols-[1fr_320px]">
-          <div className="min-w-0 p-6 sm:p-9"><h2 className="text-2xl font-medium">{step.title}</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary">{step.description}</p>
-            {active===0 && <div className="mt-8 space-y-3">{[['Batch records.csv','MES export · 12 batches','Mapped'],['Process history.csv','Historian export · 48 signals','Mapped'],['Lab results.xlsx','LIMS export · 36 samples','1 unit missing']].map(row=><div key={row[0]} className="flex flex-wrap justify-between gap-3 rounded-lg border border-border-hairline p-4"><div><p className="text-sm font-medium">{row[0]}</p><p className="mt-1 text-xs text-text-secondary">{row[1]}</p></div><span className="text-xs text-brand-teal">{row[2]}</span></div>)}</div>}
-            {(active===1 || active===3) && <div className="mt-8"><p className="text-sm font-medium">{active===1?'Batch DEMO-104 · feed rate (mL/h)':'Illustrative dissolved oxygen trajectory (%)'}</p><svg viewBox="0 0 560 240" role="img" aria-label={active===1?'Synthetic feed rate drops from 40 to 24 millilitres per hour at hour 18. Reference remains near 40.':'Illustrative baseline falls from 55 to 25 percent. Proposed scenario holds near 45 percent; this is not a validated forecast.'} className="mt-4 w-full"><path d="M40 20V200H535M40 60H535M40 130H535" fill="none" stroke="#dce5e5"/><path d={active===1?'M40 60L120 58L200 64L280 60L360 61L440 58L530 62':'M40 55L120 70L200 94L280 120L360 145L440 163L530 175'} fill="none" stroke="#94a3b8" strokeWidth="3" strokeDasharray="7 5"/><path d={active===1?'M40 62L120 61L200 64L280 62L360 130L440 138L530 135':'M40 55L120 70L200 90L280 95L360 91L440 88L530 87'} fill="none" stroke="#0e7490" strokeWidth="4"/><text x="40" y="225" fontSize="12" fill="#64748b">0 h</text><text x="275" y="225" fontSize="12" fill="#64748b">12 h</text><text x="505" y="225" fontSize="12" fill="#64748b">24 h</text></svg><p className="text-xs text-text-secondary">Teal: {active===1?'observed sample':'proposed scenario'} · Dashed: {active===1?'reference sample':'baseline scenario'}</p>{active===3&&<p className="mt-4 rounded-lg bg-surface-secondary p-4 text-xs leading-5">Assumptions: fixed oxygen demand and constant broth properties. Missing: measured broth kLa and certified equipment limits. Curves illustrate the interface; no model was executed.</p>}</div>}
-            {active===2 && <div className="mt-8 space-y-4">{[['Observation','Feed delivery decreased at hour 18.','Historian · DEMO-104 / FEED-01'],['Hypothesis','Pump tubing wear could explain lower delivery.','Maintenance note · DEMO-WO-204'],['Counterevidence','No corresponding dissolved oxygen sensor alert.','Instrument log · DEMO-DO-02'],['Missing evidence','Pump inspection and gravimetric calibration.','Requested · not yet available']].map(row=><div key={row[0]} className="border-l-2 border-brand-teal pl-4"><p className="text-xs text-brand-teal">{row[0]}</p><p className="mt-1 text-sm">{row[1]}</p><p className="mt-1 text-xs text-text-secondary">{row[2]} · synthetic record</p></div>)}</div>}
-            {active===4 && <dl className="mt-8 space-y-5 text-sm">{[['Proposal','Inspect feed pump tubing and verify delivery against calibration.'],['Rationale','The sample feed trace and maintenance note support checking the pump; a cause is not confirmed.'],['Owner','Demo process engineer'],['Status','Draft · awaiting human review'],['Outcome to check','Compare calibrated delivery with the reference range after an authorized inspection.']].map(([k,v])=><div key={k}><dt className="text-xs text-text-secondary">{k}</dt><dd className="mt-1">{v}</dd></div>)}</dl>}
-          </div>
-          <aside className="border-t border-border-hairline bg-surface-secondary p-6 lg:border-l lg:border-t-0"><p className="text-xs font-semibold text-brand-teal">What happens next</p><p className="mt-3 text-sm leading-6">{step.next}</p><div className="mt-8 flex items-start gap-2 text-xs leading-5 text-text-secondary"><Check className="mt-1 h-4 w-4 shrink-0"/>Existing MES, LIMS and QMS remain the systems of record. This preview cannot approve or execute changes.</div><Link href="/case-studies/" className="mt-8 inline-flex items-center gap-2 text-sm text-brand-teal">Explore the case studies <ArrowRight className="h-4 w-4"/></Link></aside>
-        </div>
-      </section>
-      <div className="mt-6 flex items-center justify-between gap-4"><button disabled={active===0} onClick={()=>setActive(i=>i-1)} className="lp-btn lp-btn-outline disabled:opacity-40"><ArrowLeft className="h-4 w-4"/>Previous</button><p aria-live="polite" className="text-xs text-text-secondary">Step {active+1} of {steps.length}</p>{active<steps.length-1?<button onClick={()=>setActive(i=>i+1)} className="lp-btn lp-btn-primary">Next <ArrowRight className="h-4 w-4"/></button>:<button onClick={()=>setActive(0)} className="lp-btn lp-btn-primary">Restart walkthrough</button>}</div>
+    <header className="mx-auto flex max-w-5xl items-center justify-between gap-4"><BrandMark href="/" /><Link href="/" className="text-sm text-text-secondary">Back to home</Link></header>
+    <div className="mx-auto max-w-5xl py-12">
+      <p className="lp-eyebrow">Try it yourself · no sign-up</p>
+      <h1 className="mt-4 text-3xl font-medium tracking-tight sm:text-5xl">Work a real manufacturing problem in a minute.</h1>
+      <p className="mt-5 max-w-3xl text-text-secondary">Pick your role. You get a private workspace with sample batch, lab and deviation data and a few realistic scenarios to try with the assistant. Nothing from your systems is needed.</p>
+
+      <fieldset className="mt-10">
+        <legend className="mb-3 text-sm font-medium text-text-secondary">Your role</legend>
+        <div className="grid gap-3 sm:grid-cols-2">{PERSONAS.map(p => <label key={p.id}
+          className={`flex cursor-pointer gap-3 rounded-xl border bg-white p-5 transition-colors ${persona === p.id ? 'border-brand-teal ring-2 ring-brand-teal/20' : 'border-border-hairline hover:border-brand-teal/60'}`}>
+          <input type="radio" name="persona" value={p.id} checked={persona === p.id} onChange={() => setPersona(p.id)} className="sr-only" />
+          <p.icon className="mt-0.5 h-5 w-5 shrink-0 text-brand-teal" />
+          <span><span className="block text-[15px] font-medium text-ink">{p.title}</span><span className="mt-1 block text-sm leading-6 text-text-secondary">{p.value}</span></span>
+        </label>)}</div>
+      </fieldset>
+
+      <label className="mt-8 flex max-w-3xl items-start gap-3 rounded-lg border border-border-hairline bg-white p-4 text-sm leading-6">
+        <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-1 h-4 w-4 shrink-0" />
+        <span>{DEMO_NOTICE} <span className="text-text-tertiary">Your workspace is deleted after 24 hours.</span></span>
+      </label>
+
+      {error && <div role="alert" className="mt-5 max-w-3xl rounded-lg bg-status-critical-bg px-4 py-3 text-sm text-text-primary">{error}
+        {capacity && CONTACT_URL && <> <a href={CONTACT_URL} className="font-medium text-brand-teal underline">Talk to us</a> and we’ll set one up for you.</>}</div>}
+      {!signInAvailable() && <p className="mt-5 text-sm text-text-secondary">Demo workspaces aren’t available on this deployment.</p>}
+
+      <div className="mt-6 flex flex-wrap items-center gap-4">
+        <button type="button" onClick={() => void start()} disabled={!persona || !accepted || busy || !signInAvailable()} className="lp-btn lp-btn-primary disabled:opacity-40">
+          {busy ? <><Loader2 className="h-4 w-4 animate-spin" />Preparing your workspace…</> : <>Start the demo<ArrowRight className="h-4 w-4" /></>}</button>
+        <Link href="/demo/tour/" className="text-sm text-text-secondary underline-offset-2 hover:underline">Prefer a guided tour without the assistant?</Link>
+      </div>
     </div>
   </main>;
 }

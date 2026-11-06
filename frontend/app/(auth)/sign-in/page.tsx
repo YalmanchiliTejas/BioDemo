@@ -99,7 +99,7 @@ export default function SignInPage() {
           {!local && <button type="button" className="auth-forgot" disabled={busy !== null} onClick={reset}>{busy === 'reset' ? 'Sending link…' : 'Forgot password?'}</button>}
           <button type="submit" className="setup-primary" disabled={busy !== null}>{busy === 'sign-in' ? <><Loader2 size={17} className="animate-spin"/> Signing in…</> : <>Sign in <ArrowRight size={17}/></>}</button>
         </form>}
-        {!local && <p className="auth-invite">New to Sievance? <Link href="/sign-up/" className="text-brand-teal underline">Create an account</Link><br />Joining a team? Ask its administrator to grant access after you register.</p>}
+        {!local && <p className="auth-invite">New to Sievance? <Link href="/sign-up/" className="text-brand-teal underline">Create an account</Link> or <Link href="/demo/" className="text-brand-teal underline">try a demo workspace</Link><br />Joining a team? Ask its administrator to grant access after you register.</p>}
       </div><footer className="auth-footer"><ShieldCheck size={15}/> {local ? 'Local test accounts are synthetic and exist only on your development API.' : 'Access follows your organization’s permissions.'}</footer>
     </main>
   </div>;

@@ -11,6 +11,7 @@ import {
   type Catalog, type CatalogItem, type IntakeEntry, type Measurement, type Parameter, type Run, type RunListing,
 } from '@/lib/cmo-api';
 import { DEMO_STEPS, demoCmo, isDemoCmo, resetDemo } from '@/lib/cmo-demo';
+import { useDemo } from '@/lib/demo-api';
 import { setReviewer, useReviewer } from '@/lib/reviewer';
 import { authMode } from '@/lib/auth';
 import { useOptionalCompanion } from '@/lib/companion-context';
@@ -147,6 +148,7 @@ function SplitReview({ plan, onCancel, onConfirm }: { plan: { groups: PlannedGro
 }
 
 function Start({ catalog, runs, onError, onCreated }: { catalog: Catalog | null; runs: RunListing[]; onError: (e: string) => void; onCreated: () => void }) {
+  const demoWorkspace = !!useDemo().demo;
   const [cmo, setCmo] = useState('');
   const [plan, setPlan] = useState<{ groups: PlannedGroup[]; files: Dropped[] } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -205,6 +207,10 @@ function Start({ catalog, runs, onError, onCreated }: { catalog: Catalog | null;
     <div className="space-y-10">
       <WorkspacePageHeader title="Deliveries" description="Check the files a CMO sends you. Every extracted value links back to its source." />
       <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
+        {demoWorkspace ? <section className="rounded-2xl border border-border-hairline bg-white p-7 text-sm leading-6 text-text-secondary">
+          <p className="font-medium text-ink">Demo workspaces use sample data</p>
+          <p className="mt-2">Uploads are turned off here so nothing of yours is ever sent. The sample deliveries below behave exactly like a real CMO’s files.</p>
+        </section> : <>
         <section className="space-y-4">
           <label className="block">
             <span className="text-[12px] font-medium uppercase tracking-wide text-text-tertiary">CMO</span>
@@ -224,6 +230,7 @@ function Start({ catalog, runs, onError, onCreated }: { catalog: Catalog | null;
           <input ref={folderInput} type="file" multiple className="hidden" aria-label="Delivery folder" {...{ webkitdirectory: '' }} onChange={e => void check(picked(e.target.files))} />
           <p className="text-center text-[12.5px] text-text-tertiary">or <button type="button" disabled={!!busy} onClick={() => folderInput.current?.click()} className="text-brand-teal hover:underline">choose a whole folder</button></p>
         </section>
+        </>}
         <DemoCard catalog={catalog} onError={onError} />
       </div>
       {mine.length > 0 && (

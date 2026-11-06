@@ -231,6 +231,9 @@ class EngineeringConversationService:
         text = request.text.strip()
         if not text:
             raise ValueError('describe the engineering problem or answer the pending question')
+        demo = getattr(self.p, 'demo', None)
+        if demo is not None:
+            demo.consume_message(ctx)  # demo workspaces: 20 messages each, a daily cap across all of them
         with self.p.store.transaction(ctx.actor_id) as tx:
             rec = self._thread(ctx, thread_id, tx)
             if rec.revision != request.expected_revision:

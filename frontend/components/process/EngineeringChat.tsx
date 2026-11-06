@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Archive, ArrowUp, BookOpen, PanelLeftClose, FlaskConical, History, MoreHorizontal, Pencil, Plus, RotateCcw, ChevronDown, Workflow, Check, Circle, Loader2, Paperclip, X, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { Archive, ArrowUp, BookOpen, Lightbulb, PanelLeftClose, FlaskConical, History, MoreHorizontal, Pencil, Plus, RotateCcw, ChevronDown, Workflow, Check, Circle, Loader2, Paperclip, X, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import { Markdown } from './Markdown';
+import { AnswerFeedback, ScenarioCards } from './DemoFeedback';
+import { CONTACT_URL, refreshDemo, useDemo } from '@/lib/demo-api';
+import { ProcessApiError } from '@/lib/process-api';
 import { QuestionCard } from './QuestionCard';
 import { SignalCard } from './SignalCard';
 import { InvestigationProposal } from './InvestigationProposal';
@@ -229,6 +232,25 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [demoConsent, setDemoConsent] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const { demo } = useDemo();
+  const scenarios = demo?.scenarios ?? [];
+  const [scenariosOpen, setScenariosOpen] = useState(false);
+  const [limitNote, setLimitNote] = useState('');
+  // ?scenarios=1 (from the demo start page): with no conversation the empty state already lists them; when an
+  // earlier conversation is restored, open the list once. The parameter is consumed so it never reopens.
+  const wantScenarios = useRef(false);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('scenarios') !== '1') return;
+    wantScenarios.current = true;
+    url.searchParams.delete('scenarios');
+    window.history.replaceState(null, '', url);
+  }, []);
+  useEffect(() => {
+    if (!wantScenarios.current || !thread) return;
+    wantScenarios.current = false;
+    if (thread.turns.length) setScenariosOpen(true);
+  }, [thread]);
   // Wide screens: the history panel can be hidden; the choice is remembered like the navigation's.
   const [historyHidden, setHistoryHiddenState] = useState(false);
   useEffect(() => { try { setHistoryHiddenState(localStorage.getItem('biodemo.history.v1') === 'hidden'); } catch { /* optional */ } }, []);
@@ -306,6 +328,7 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
   async function send(text = draft, enableDemo = false) {
     if (!text.trim() || busy || inFlight.current) return;
     inFlight.current = true;
+    wantScenarios.current = false; setScenariosOpen(false);
     const sentSelection = selection;
     setSending(true); setError('');
     try {
@@ -324,8 +347,12 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
       if (current.current === id) { adopt(data); setDraft(''); setAttachment(''); companionState?.removeDataset(); if (sentSelection) companionState?.clearSelection(sentSelection); }
       const updated = await processRequest<{ conversations: Recent[] }>('/v1/process-model/conversations');
       setRecent(updated.conversations);
+      if (demo) refreshDemo();
     } catch (e) {
-      setError(String(e));
+      if (e instanceof ProcessApiError && (e.status === 429 || e.status === 410)) {
+        setLimitNote(e.status === 410 ? 'This demo workspace has expired.' : (e.message || 'You’ve used this demo’s messages.'));
+        if (demo) refreshDemo();
+      } else setError(String(e));
       if (current.current) await open(current.current);
     } finally { inFlight.current = false; setSending(false); }
   }
@@ -406,20 +433,30 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
             className={action}><History size={15} /><span className={compact ? 'sr-only' : ''}>History</span></button>
           <button type="button" onClick={newConversation} className={action} aria-label="New conversation"><Plus size={16} /><span className={compact ? 'sr-only' : ''}>New</span></button>
         </span>
+        {!!scenarios.length && !!thread?.turns.length && <button type="button" onClick={() => setScenariosOpen(o => !o)} aria-expanded={scenariosOpen}
+          className={action}><Lightbulb size={15} /><span className={compact ? 'sr-only' : ''}>Scenarios</span></button>}
         {compact ? <p className="max-w-[190px] truncate text-xs text-text-tertiary" title={pageName}>{thread?.title || pageName}</p>
           : <>{companion ? <span className="companion-mark" aria-hidden /> : <FlaskConical size={20} className="text-brand-teal" />}<h1 className="truncate text-sm font-medium text-text-primary">{thread?.title || (companion ? 'Assistant' : 'Process engineering')}</h1></>}
       </div>
+      {scenariosOpen && !!scenarios.length && !!thread?.turns.length && <>
+        <button type="button" aria-label="Close scenarios" className="fixed inset-0 z-20 cursor-default" onClick={() => setScenariosOpen(false)} />
+        <div className="absolute left-0 top-full z-30 max-h-[70vh] w-[min(28rem,90vw)] overflow-y-auto rounded-card border border-border-hairline bg-canvas p-3 shadow-lg">
+          <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">Scenarios to try</p>
+          <ScenarioCards scenarios={scenarios} disabled={busy} onTry={prompt => { setScenariosOpen(false); void send(prompt); }} />
+        </div>
+      </>}
       {historyOpen && <>
         <button type="button" aria-label="Close history" className="fixed inset-0 z-20 cursor-default" onClick={() => setHistoryOpen(false)} />
         <div className="absolute left-0 top-full z-30 max-h-[70vh] w-72 overflow-y-auto rounded-card border border-border-hairline bg-surface p-2 shadow-lg">{history}</div>
       </>}
     </header>
-    {thread && <AssistantResponsibility key={thread.id} thread={thread} onChange={adopt} />}
+    {thread && !demo && <AssistantResponsibility key={thread.id} thread={thread} onChange={adopt} />}
 
     <div className="flex-1 pb-10">
-      {!thread?.turns.length && <section className={`mx-auto max-w-2xl ${compact ? 'pb-5 pt-8' : 'pb-8 pt-16 sm:pt-24'}`}>
-        <h2 className={`font-medium leading-tight tracking-tight text-text-primary ${compact ? 'text-2xl' : 'text-3xl sm:text-[38px]'}`}>{pending.length ? 'Ask about this delivery.' : selection ? 'Let’s look at this together.' : companion ? 'What are we working on?' : 'What process problem are you working on?'}</h2>
-        <p className="mt-4 max-w-lg text-sm leading-6 text-text-secondary">{pending.length ? 'The verified values, their batches and source files are attached below. Ask about trends, gaps or differences between batches.' : selection ? 'Your selection is attached below. Ask a question or describe what you’d like to do.' : companion ? 'Bring a question, explore an idea, or select something in your workspace. We’ll take it from there.' : 'Describe the decision you need to make. The agent will identify the evidence and models needed.'}</p>
+      {!thread?.turns.length && <section className={`mx-auto max-w-2xl ${compact ? 'pb-5 pt-8' : scenarios.length ? 'pb-6 pt-8' : 'pb-8 pt-16 sm:pt-24'}`}>
+        <h2 className={`font-medium leading-tight tracking-tight text-text-primary ${compact ? 'text-2xl' : 'text-3xl sm:text-[38px]'}`}>{pending.length ? 'Ask about this delivery.' : selection ? 'Let’s look at this together.' : scenarios.length ? 'Pick a scenario, or ask your own question.' : companion ? 'What are we working on?' : 'What process problem are you working on?'}</h2>
+        <p className="mt-4 max-w-lg text-sm leading-6 text-text-secondary">{pending.length ? 'The verified values, their batches and source files are attached below. Ask about trends, gaps or differences between batches.' : selection ? 'Your selection is attached below. Ask a question or describe what you’d like to do.' : scenarios.length ? 'This workspace has sample batch, lab and deviation data. Try a scenario written for your role, then tell us how realistic and useful it was.' : companion ? 'Bring a question, explore an idea, or select something in your workspace. We’ll take it from there.' : 'Describe the decision you need to make. The agent will identify the evidence and models needed.'}</p>
+        {!!scenarios.length && <div className="mt-6"><ScenarioCards scenarios={scenarios} disabled={busy} onTry={prompt => void send(prompt)} /></div>}
       </section>}
 
       <div role="log" aria-label="Engineering conversation" aria-live="polite" aria-relevant="additions text" className={thread?.turns.length ? 'space-y-8 py-6' : ''}>
@@ -441,6 +478,7 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
                 className="mt-2 inline-flex items-center gap-1.5 rounded-control bg-brand-teal px-3 py-1.5 font-medium text-white hover:bg-brand-teal-dark disabled:opacity-50">Run the remaining {turn.held_back.length}</button>}
             </div>}
             {turn.reply && !active(turn) && thread.mission_id && <CorrectAnswer key={`correct-${turn.id}`} missionId={thread.mission_id} />}
+            {demo && turn.reply && !active(turn) && <AnswerFeedback key={`feedback-${turn.id}`} turnId={turn.id} />}
             <WorkLog turn={turn} threadId={thread.id} running={active(turn)} />
             {!!turn.questions.length && (index === (thread?.turns.length ?? 0) - 1 && !active(turn)
               ? <QuestionCard key={`questions-${turn.id}`} questions={turn.questions} disabled={busy} onAnswer={text => void send(text)} />
@@ -456,6 +494,9 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
 
     <div className={`sticky bottom-0 z-10 pb-4 pt-2 ${compact ? 'bg-surface' : 'bg-canvas'}`}>
       {error && <p role="alert" className="mb-3 rounded-control bg-status-critical-bg p-3 text-xs text-status-critical">{error}</p>}
+      {limitNote && <p role="status" className="mb-3 rounded-control bg-status-warning-bg p-3 text-xs text-text-primary">{limitNote}{' '}
+        {CONTACT_URL ? <a href={CONTACT_URL} className="font-medium text-brand-teal underline">Talk to us to keep going</a> : 'Thanks for trying it.'}
+        {' · '}<Link href="/demo/" className="text-brand-teal underline">Start a new demo</Link></p>}
       {sourcesOpen && <div className="mb-3 rounded-card border border-border-hairline bg-surface p-3 text-xs"><label htmlFor="engineering-source" className="block mb-2 font-medium">Attach an existing input context (optional)</label><select id="engineering-source" className="w-full rounded-control border border-border-strong p-2" value={attachment} onChange={e => setAttachment(e.target.value)}><option value="">No additional context</option>{sources.map(s => <option key={s.id} value={s.id}>{s.id} · {s.audience.replaceAll('_', ' ')} · {s.provenance}</option>)}</select><label className="mt-3 flex items-center gap-2"><input type="checkbox" checked={demoConsent || !!thread?.demo_enabled} disabled={!!thread?.demo_enabled} onChange={e => setDemoConsent(e.target.checked)} />Allow demo examples in this conversation (published freeze-drying case, simulated PenSim and SMPL cases)</label>
         <p className="mb-2 mt-4 font-medium">Verified CMO deliveries</p>{published.length ? <ul className="space-y-1.5">{published.map(d => { const on = pending.some(p => p.id === d.id) || !!thread?.dataset_ids?.includes(d.id); return <li key={d.id}><button type="button" disabled={on} onClick={() => companionState?.attachDataset({ id: d.id, label: datasetLabel(d), measurements: d.measurements, batches: d.batches.length })} className="flex w-full items-center justify-between gap-3 rounded-control border border-border-hairline px-2.5 py-2 text-left hover:border-brand-teal disabled:opacity-60"><span className="truncate">{datasetLabel(d)} · {d.measurements.toLocaleString()} values · {d.batches.length} batches</span><span className="shrink-0 text-brand-teal">{on ? 'Attached' : 'Attach'}</span></button></li>; })}</ul> : <p className="text-text-tertiary">None yet. Open a verified delivery under <Link href="/cmo" className="underline">Deliveries</Link> and choose Ask the assistant.</p>}</div>}
       {!!thread?.dataset_ids?.length && <p className="mb-2 flex items-center gap-1.5 px-1 text-[11px] text-text-tertiary"><ShieldCheck size={13} className="text-brand-teal" />Using {thread.dataset_ids.length} verified {thread.dataset_ids.length === 1 ? 'delivery' : 'deliveries'} as evidence in this conversation</p>}
@@ -474,12 +515,14 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
       </form>
     </div>
     {!thread?.turns.length && <div className={`mx-auto w-full max-w-2xl ${compact ? 'pb-5' : 'pb-10 pt-4'}`}>
-      {companion && !compact && <div className="mb-6 grid gap-3 sm:grid-cols-2">
+      {companion && !compact && !scenarios.length && <div className="mb-6 grid gap-3 sm:grid-cols-2">
         <Link href="/workbench/AN-104" className="flex items-center justify-between border-b border-border-hairline py-3 text-xs text-text-secondary hover:text-brand-teal">Explore the sample workbench<ArrowUpRight size={14} /></Link>
         <Link href="/reviews/REV-01" className="flex items-center justify-between border-b border-border-hairline py-3 text-xs text-text-secondary hover:text-brand-teal">2 sample items awaiting review<ArrowUpRight size={14} /></Link>
       </div>}
+      {scenarios.length ? null : <>
       <p className="text-xs text-text-tertiary">Or start from an example <span className="text-text-muted">(published or simulated data)</span></p>
       <div className="mt-2 flex flex-wrap gap-2">{EXAMPLES.map(e => <button key={e.label} type="button" disabled={busy} onClick={() => void send(e.prompt, true)} className={`${action} border border-border-hairline`}><FlaskConical size={14} />{e.label}</button>)}</div>
+      </>}
     </div>}
     </div>
   </div>;

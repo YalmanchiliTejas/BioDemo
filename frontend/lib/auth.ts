@@ -52,7 +52,10 @@ export function supabase(): SupabaseClient {
 export async function authHeaders(): Promise<Record<string, string>> {
   if (authMode() !== 'supabase') {
     const session = localSession();
-    return session ? { 'X-Tenant-Id': session.tenant_id, 'X-Actor-Id': session.actor_id } : {};
+    if (!session) return {};
+    // Laptop demo visitors are anonymous; the development API recognises them by this header.
+    return { 'X-Tenant-Id': session.tenant_id, 'X-Actor-Id': session.actor_id,
+      ...(session.actor_id.startsWith('demo-visitor-') ? { 'X-Demo-Visitor': '1' } : {}) };
   }
   // getSession refreshes an expired access token when a refresh token is available.
   const { data, error } = await supabase().auth.getSession();
@@ -170,6 +173,29 @@ export async function signUp(email: string, password: string) {
   const message = plain(error, error?.status === 429 ? 'Too many requests. Wait a few minutes and try again.' : 'Account creation failed. Try again or contact your administrator.');
   if (message) throw new Error(message);
   return Boolean(data.session);
+}
+
+/** Demo workspaces: one click, no account. Supabase anonymous sign-in in production; on a laptop
+ *  (local test accounts) a generated local demo actor, which the development API accepts the same way. */
+export async function signInForDemo() {
+  if (authMode() === 'development') {
+    const current = localSession();
+    if (current?.actor_id.startsWith('demo-visitor-')) return;
+    const id = `demo-visitor-${Math.random().toString(36).slice(2, 10)}`;
+    setLocalSession({ tenant_id: 'demo-pending', actor_id: id, email: '', name: 'Demo visitor' });
+    return;
+  }
+  const { data } = await attempt(() => supabase().auth.getSession());
+  if (data.session) return; // already signed in (anonymous or not): the API decides whether a demo is allowed
+  const { error } = await attempt(() => supabase().auth.signInAnonymously());
+  const message = plain(error, 'The demo could not start. Try again in a moment.');
+  if (message) throw new Error(message);
+}
+
+/** Local demo sessions send the tenant in a header, so point it at the new demo workspace. */
+export function adoptLocalDemoTenant(tenant: string) {
+  const session = localSession();
+  if (session && authMode() === 'development') setLocalSession({ ...session, tenant_id: tenant });
 }
 
 export async function selectOrganization(id: string) {
