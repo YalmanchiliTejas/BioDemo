@@ -606,6 +606,9 @@ class Repository:
         header = (item['cmo'], item.get('name'), item.get('dataset'), item.get('condition'),
                   None if item.get('synthetic') is None else bool(item['synthetic']), item.get('disclosure'))
         with self.transaction() as tx:
+            if self.backend == 'postgresql':
+                # Concurrent uploads to one delivery run on different servers; serialise their appends here.
+                tx.execute('SELECT pg_advisory_xact_lock(hashtext(?))', ('cmo_delivery:' + tx.tenant + ':' + item['id'],))
             self._workspace(tx, item['cmo'])
             row = tx.fetchone('SELECT cmo, name, dataset, condition, synthetic, disclosure FROM cmo_deliveries WHERE tenant_id=? AND id=?',
                               (tx.tenant, item['id']))

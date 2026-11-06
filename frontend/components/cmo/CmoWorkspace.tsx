@@ -176,14 +176,18 @@ function Start({ catalog, runs, onError, onCreated }: { catalog: Catalog | null;
         const delivery = await postJson<CatalogItem>('/deliveries', { cmo: d.cmo, name: d.label });
         // The server sorts duplicates, clutter and unsupported files within each delivery.
         let next = 0, readable = 0;
-        // ponytail: 4 parallel uploads; the server serialises duplicate decisions under its delivery lock.
+        const failed: string[] = [];
+        // 4 parallel uploads; the server serialises appends to one delivery (database lock + retry).
+        // A failed file is reported by name and the rest carry on, instead of the whole batch stalling.
         await Promise.all(Array.from({ length: Math.min(4, d.files.length) }, async () => {
           while (next < d.files.length) {
             const { file, path } = d.files[next++];
-            readable = Math.max(readable, (await uploadFile(delivery.id, file, path)).files?.length ?? 0);
-            setBusy(`Uploaded ${++done} of ${total}`);
+            try { readable = Math.max(readable, (await uploadFile(delivery.id, file, path)).files?.length ?? 0); }
+            catch (e) { failed.push(`${path}: ${(e as Error).message}`); }
+            setBusy(`Uploaded ${++done} of ${total}${failed.length ? ` · ${failed.length} failed` : ''}`);
           }
         }));
+        if (failed.length) onError(`${failed.length} file${failed.length > 1 ? 's' : ''} in ${d.label} did not upload; the others were checked. To include ${failed.length > 1 ? 'them' : 'it'}, drop the folder again (it is checked as a new delivery). ${failed.join(' · ')}`);
         if (readable) last = (await postJson<{ id: string }>('/runs', { package_id: delivery.id })).id; else nothing.push(d.label);
       }
       if (nothing.length) onError(`Nothing to check in ${nothing.join(', ')}: it held only files that are not data. They were kept, not checked.`);

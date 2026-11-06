@@ -338,6 +338,15 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
         if len(data)>FILE_LIMIT: raise HTTPException(413,'Per-file upload limit is 64 MiB')
         try: entries=intake.expand(filename,bytes(data),ALLOWED_FILES)
         except (ValueError,zipfile.BadZipFile) as exc: raise HTTPException(400,str(exc)) from exc
+        # Parallel uploads may finish on different servers: if another file was appended between reading the
+        # delivery and saving it, re-read and decide again (duplicates/renames depend on what is already there).
+        for attempt in range(8):
+            try: return _append(delivery_id,folder,filename,entries)
+            except ValueError as exc:
+                if 'reordered' not in str(exc) or attempt == 7: raise HTTPException(400,str(exc)) from exc
+                time.sleep(0.05*(attempt+1))
+
+    def _append(delivery_id,folder,filename,entries):
         with lock:
             item=delivery(delivery_id)
             decided=intake.reconcile(entries,{f['path']:f['sha256'] for f in item['files']})
@@ -355,6 +364,7 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
                     if target.exists(): continue
                 else: continue
                 target.parent.mkdir(parents=True,exist_ok=True)
+                target.unlink(missing_ok=True)  # a retried append (see store_files) rewrites its own read-only copy
                 target.write_bytes(d['content']); target.chmod(0o400)
                 service.evidence.put(key,target)
                 if d['outcome'] in ('added','renamed'): added.append({'path':d['path'],'size':len(d['content']),'sha256':d['sha256']})
