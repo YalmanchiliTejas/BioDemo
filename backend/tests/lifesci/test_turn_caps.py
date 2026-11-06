@@ -14,7 +14,8 @@ BATCHES = ['CHO-001-R01', 'CHO-001-R02', 'CHO-002-R01', 'CHO-002-R02', 'CHO-003-
 def forecast(batch, **extra):
     return {'node_id': 'f_' + batch.lower().replace('-', '_'), 'task_kind': 'cho_dataset_forecast',
             'title': f'Monod forecast overlay for {batch}', 'depends_on': [],
-            'payload': {'batch': batch, 'cutoff_h': 72, 'dataset_id': 'cmo-verified-delivery:abc'}, **extra}
+            'payload': {'batch': batch, 'cutoff_h': 72, 'dataset_id': 'cmo-verified-delivery:abc',
+                        'rationale': 'User asked for overlays of every batch.'}, **extra}
 
 
 def decision(workflow, **extra):
@@ -48,3 +49,22 @@ def test_questions_alongside_numerical_work_are_still_refused():
 
 def test_planner_validation_accepts_the_trimmed_plan():
     EngineeringConversationService._validate_decision(decision([forecast(b) for b in BATCHES]))
+
+
+def test_wrong_field_names_go_back_to_the_planner_with_the_right_ones():
+    # Regression: batch_id / cutoff_hours / delivery_id passed planning and failed mid-run.
+    wrong = {'node_id': 'f1', 'task_kind': 'cho_dataset_forecast', 'title': 'Forecast for CHO-001-R01', 'depends_on': [],
+             'payload': {'batch_id': 'CHO-001-R01', 'cutoff_hours': 72, 'delivery_id': 'cmo-verified-delivery:abc'}}
+    with pytest.raises(ValueError, match='Use exactly these fields: dataset_id, batch, cutoff_h, rationale'):
+        EngineeringConversationService._validate_decision(decision([wrong]))
+
+
+def test_a_step_fed_by_an_earlier_step_is_checked_when_it_runs():
+    read = {'node_id': 'r1', 'task_kind': 'workspace_search', 'title': 'Find the delivery', 'depends_on': [],
+            'payload': {'query': 'CHO delivery'}}
+    fed = {'node_id': 'f1', 'task_kind': 'cho_dataset_forecast', 'title': 'Forecast for CHO-001-R01', 'depends_on': ['r1'],
+           'payload': {'dataset_id': {'$node': 'r1', 'path': ['id']}, 'batch': 'CHO-001-R01', 'rationale': 'Requested overlay.'}}
+    try:
+        EngineeringConversationService._validate_decision(decision([read, fed]))
+    except ValueError as exc:  # other planning rules may object to the binding, but not the input check
+        assert 'payload is invalid' not in str(exc)

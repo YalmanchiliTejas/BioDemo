@@ -9,6 +9,8 @@ import json
 from pathlib import Path
 from time import monotonic
 
+from pydantic import ValidationError
+
 from ..cmo_datasets import conversation_source, require_dataset
 from ..evidence import EvidenceRef
 from ..flows import node_order
@@ -676,6 +678,22 @@ class EngineeringConversationService:
                         raise ValueError(f'node {node.node_id}: {field} must bind path ["id"] from {producer.node_id}; {producer.task_kind} returns a direct record, not a plan_id/result_id wrapper')
                     if producer.task_kind not in producers:
                         raise ValueError(f'node {node.node_id}: {field} requires an output from {list(producers)}, not {producer.task_kind}')
+        # Check each step's inputs against its tool now, so a wrong field name goes back to the planner as a
+        # correction instead of failing mid-run. Steps fed by an earlier step's output are checked when they run.
+        def bound(value):
+            if isinstance(value, dict):
+                return '$node' in value or any(bound(v) for v in value.values())
+            return isinstance(value, list) and any(bound(v) for v in value)
+        for node in decision.workflow:
+            model = OPERATIONS.get(node.task_kind)
+            if model is None or bound(node.payload):
+                continue
+            try:
+                model.model_validate(node.payload)
+            except ValidationError as exc:
+                problems = '; '.join(f"{'.'.join(str(p) for p in e['loc']) or 'payload'}: {e['msg']}" for e in exc.errors()[:6])
+                raise ValueError(f'node {node.node_id}: {node.task_kind} payload is invalid ({problems}). '
+                                 f'Use exactly these fields: {", ".join(model.model_fields)}.') from None
 
     def _active_turn(self, ctx, turn, tx):
         self._mission_fence(ctx, turn, tx)

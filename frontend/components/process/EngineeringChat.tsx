@@ -126,7 +126,8 @@ function WorkLog({ turn, threadId, running }: { turn: Turn; threadId: string; ru
         {step.status === 'completed' ? <Check size={14} className="mt-0.5 shrink-0 text-status-success" /> : running && step.status !== 'blocked' ? <Loader2 size={14} className="mt-0.5 shrink-0 text-brand-teal motion-safe:animate-spin" /> : <Circle size={14} className={`mt-0.5 shrink-0 ${step.status === 'blocked' ? 'text-status-critical' : 'text-text-muted'}`} />}
         <div><p className="text-text-primary">{step.title}
           {step.status === 'completed' && seconds(step.started_at, step.ended_at) != null && <span className="ml-2 text-text-tertiary">{seconds(step.started_at, step.ended_at)!.toFixed(1)} s</span>}
-          {step.status !== 'completed' && <span className="ml-2 text-text-tertiary">{running && step === steps.find(x => x.status !== 'completed') ? 'working on this now' : step.status.replaceAll('_', ' ')}</span>}</p>
+          {step.status !== 'completed' && <span className="ml-2 text-text-tertiary">{running && step === steps.find(x => x.status !== 'completed') ? 'working on this now'
+            : !running && step.status === 'pending' && steps.some(x => x.status === 'blocked') ? 'not run (an earlier step stopped)' : step.status.replaceAll('_', ' ')}</span>}</p>
           {step.issues.map(issue => <p key={issue} className="mt-1 text-status-critical">{issue}</p>)}</div></li>)}</ol>}
       {!!reads.length && <div className="space-y-1 border-t border-border-hairline pt-3 first:border-0 first:pt-0"><p className="mb-1 font-medium text-text-secondary">Records checked</p>
         {reads.map(a => <WorkspaceArtifact key={a.id} threadId={threadId} artifact={a} />)}</div>}
