@@ -878,7 +878,15 @@ class EngineeringConversationService:
                     kind, title = 'bioprocess_forecast', f"{record['model']['title']} · {len(record['rows'])} operating plan{'s' * (len(record['rows']) != 1)}"
             elif name == 'cho_dataset_forecast':
                 if payload.dataset_id not in thread.get('dataset_ids', []):
-                    raise PermissionError('attach the verified delivery to this conversation before fitting a model to it')
+                    # A verified delivery the assistant found and this user may read is attached here, with access,
+                    # currency and verification basis re-checked now, instead of asking the user to attach it by hand.
+                    require_dataset(self.p, ctx, payload.dataset_id, thread['site_id'])
+                    with self.p.store.transaction(ctx.actor_id) as tx:
+                        self._active_turn(ctx, turn, tx)
+                        parent = self._thread(ctx, thread['id'], tx)
+                        tx.put(ctx.tenant_id, 'engineering_conversation', parent.id,
+                            {**parent.state, 'dataset_ids': list(dict.fromkeys([*parent.state.get('dataset_ids', []), payload.dataset_id]))[-5:]},
+                            expected_revision=parent.revision, action='attach_discovered_dataset')
                 record = self.p.bioprocess.cho_forecast(ctx, payload.dataset_id, payload.batch, payload.cutoff_h, thread['site_id'], [ref])
                 kind, title = 'bioprocess_cho_forecast', f"CHO growth and glucose forecast · {payload.batch} from {payload.cutoff_h:g} h"
             else:

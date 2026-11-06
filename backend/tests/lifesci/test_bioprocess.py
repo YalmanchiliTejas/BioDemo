@@ -127,13 +127,26 @@ def test_cho_model_is_fitted_to_an_attached_verified_delivery(env):
     assert record['inputs'][0]['id'] == dataset
 
 
-def test_cho_model_refuses_datasets_not_attached(env):
+def test_cho_model_attaches_a_readable_verified_delivery_the_assistant_found(env):
+    # Discovered, readable, current verified data is attached (access re-checked) instead of refused.
     p, ctx = env
     dataset = _verified_dataset(p, ctx)
     fake_planner(p, [{'reply': 'Fitting.', 'workflow': [
         node('fit', 'cho_dataset_forecast', {'dataset_id': dataset, 'batch': 'CHO-001-R01', 'rationale': 'Forecast growth'})]}])
     result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Forecast batch 1')
+    turn = result['turns'][0]
+    assert turn['status'] == 'completed', turn['issues']
+    assert p.engineering_conversations.get(ctx, result['id'])['dataset_ids'] == [dataset]
+
+
+def test_cho_model_still_refuses_data_the_user_cannot_read(env):
+    p, ctx = env
+    fake_planner(p, [{'reply': 'Fitting.', 'workflow': [
+        node('fit', 'cho_dataset_forecast', {'dataset_id': 'cmo-verified-delivery:not-yours', 'batch': 'CHO-001-R01',
+                                             'rationale': 'Forecast growth'})]}])
+    result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Forecast batch 1')
     assert result['turns'][0]['status'] == 'blocked' and not result['turns'][0]['artifacts']
+    assert p.engineering_conversations.get(ctx, result['id'])['dataset_ids'] == []
 
 
 @pytest.mark.skipif(not SimulatorWorker.from_env().status()['available'], reason='simulator environment not installed')
