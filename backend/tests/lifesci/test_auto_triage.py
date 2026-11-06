@@ -20,6 +20,13 @@ def p():
     return platform
 
 
+@pytest.fixture(autouse=True)
+def action_threshold(monkeypatch):
+    # These tests exercise triage on 'action' signals; the shipped default is 'critical' only (see the test below).
+    import src.lifesci.triage as triage_module
+    monkeypatch.setitem(triage_module.DEFAULTS, 'min_severity', 'action')
+
+
 @pytest.fixture
 def triage(p):
     reports, submitted = [], []
@@ -109,5 +116,11 @@ def test_settings_need_a_person_with_approve(p, triage):
         service.set_settings(ctx(p, 'olu'), 'NF1', {'paused': True})
     with pytest.raises(ValueError):
         service.set_settings(ctx(p, 'quinn'), 'NF1', {'min_severity': 'urgent'})
-    assert service.settings('T', 'NF1') == {'min_severity': 'action', 'daily_cap': 20, 'paused': False, 'site_id': 'NF1'}
+    assert service.settings('T', 'NF1') == {'min_severity': 'action', 'daily_cap': 5, 'paused': False, 'site_id': 'NF1'}
     assert p.store.read().list('T', TRIAGE) == []
+
+
+def test_shipped_default_only_triages_critical_signals():
+    import importlib, src.lifesci.triage as triage_module
+    defaults = importlib.reload(triage_module).DEFAULTS
+    assert defaults['min_severity'] == 'critical' and defaults['daily_cap'] == 5

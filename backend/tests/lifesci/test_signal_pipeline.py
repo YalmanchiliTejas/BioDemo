@@ -32,6 +32,7 @@ def inbox(p, who):
 
 
 def test_out_of_spec_value_alerts_qa_and_starts_triage_once(p):
+    p.triage.set_settings(ctx(p, 'qa1'), 'NF1', {'min_severity': 'action'})  # default triages critical only
     p.specifications.create(ctx(p, 'qa1'), site_id='NF1', parameter='DO [%]', unit='%', low=30, high=80,
                             critical_low=15, reason='Batch record v3')
     historian(p, 24, 1)
@@ -65,3 +66,12 @@ def test_escalation_alerts_again(p):
     assert signal['severity'] == 'critical'
     assert p.signals.get(ctx(p, 'qa1'), signal['signal_id'])['alerts']['severity'] == 'critical'
     assert len(inbox(p, 'qa1')) > first
+
+
+def test_default_threshold_alerts_but_does_not_triage_an_action_signal(p):
+    p.specifications.create(ctx(p, 'qa1'), site_id='NF1', parameter='DO [%]', unit='%', low=30, high=80,
+                            critical_low=15, reason='Batch record v3')
+    historian(p, 24, 1)
+    [signal] = p.signals.list(ctx(p, 'qa1'))
+    state = p.signals.get(ctx(p, 'qa1'), signal['signal_id'])
+    assert inbox(p, 'qa1') and state['triage']['status'] == 'skipped' and state['triage']['reason']

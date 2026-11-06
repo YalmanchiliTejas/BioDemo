@@ -67,6 +67,13 @@ def ev(seq, kind, agent=None, parent=None, **payload):
             'agent_id': agent, 'parent_id': parent, 'payload': payload}
 
 
+@pytest.fixture(autouse=True)
+def paid_plan(monkeypatch):
+    # Investigations are a paid feature; the test organization has it switched on.
+    monkeypatch.setenv('INVESTIGATIONS_ENABLED_TENANTS', 'T')
+    monkeypatch.delenv('INVESTIGATION_EXECUTOR', raising=False)
+
+
 @pytest.fixture
 def p():
     platform = Platform(RecordStore(), providers={})
@@ -100,8 +107,8 @@ def test_start_builds_pinned_snapshot_and_submits_with_defaults(p):
     assert run['status'] == 'submitted'
     job = job_of(p, run)
     snapshot = p.store.read().require('T', inv.KIND, run['run_id']).state['evidence_snapshot']
-    assert job['request']['sha256'] == snapshot['sha256'] and job['request']['max_tool_calls'] == 60
-    assert job['request']['timeout_seconds'] == 1200 and job['id'] == 'job-' + run['run_id']
+    assert job['request']['sha256'] == snapshot['sha256'] and job['request']['max_tool_calls'] == 30
+    assert job['request']['timeout_seconds'] == 600 and job['id'] == 'job-' + run['run_id']
     archive = zipfile.ZipFile(io.BytesIO(p.investigations.executor.uploads[snapshot['sha256']]))
     assert archive.namelist() == ['evidence/lims:B-001.csv']
     assert [i['id'] for i in snapshot['items']] == ['lims:B-001']
@@ -124,7 +131,7 @@ def test_only_people_with_permission_start_and_evidence_is_rechecked(p):
 
 
 def test_concurrency_cap_and_not_configured(p):
-    start(p); start(p)
+    start(p)  # one at a time by default (pre-revenue budget)
     with pytest.raises(ConflictError, match='already running'):
         start(p)
     p.investigations = inv.InvestigationService(p, config=None, executor=None)
@@ -193,7 +200,8 @@ def test_stop_cancels_and_later_events_are_ignored(p):
     assert p.investigations.events(ctx(p, 'ana'), run['run_id'])['events'] == []
 
 
-def test_valid_report_is_stored_for_review_and_invalid_one_is_refused(p):
+def test_valid_report_is_stored_for_review_and_invalid_one_is_refused(p, monkeypatch):
+    monkeypatch.setattr(inv, 'MAX_ACTIVE_PER_TENANT', 2)  # two runs side by side for this comparison
     good, bad = start(p), start(p)
     for run, sha in ((good, None), (bad, '0' * 64)):
         job = job_of(p, run)
@@ -332,3 +340,11 @@ def test_send_for_review_needs_a_case(p):
     p.investigations.get(ctx(p, 'ana'), run['run_id'])
     with pytest.raises(ValueError, match='case'):
         p.investigations.send_for_review(ctx(p, 'ana'), run['run_id'])
+
+
+def test_investigations_are_a_paid_feature_per_organization(p, monkeypatch):
+    monkeypatch.setenv('INVESTIGATIONS_ENABLED_TENANTS', 'someone-else')
+    with pytest.raises(ConflictError, match='paid plan'):
+        start(p)
+    monkeypatch.setenv('INVESTIGATIONS_ENABLED_TENANTS', '*')  # a demo machine
+    assert start(p)['status'] == 'submitted'

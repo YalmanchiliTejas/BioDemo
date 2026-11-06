@@ -13,7 +13,7 @@ from .roles import agent_context_for
 from .store import ConflictError
 
 SEVERITY = {'warning': 1, 'action': 2, 'critical': 3}
-DEFAULTS = {'min_severity': 'action', 'daily_cap': 20, 'paused': False}
+DEFAULTS = {'min_severity': 'critical', 'daily_cap': 5, 'paused': False}  # cost-conscious; admins raise per site
 SETTINGS, TRIAGE, USAGE = 'triage_settings', 'signal_triage', 'triage_usage'
 TERMINAL_TURN = {'completed': 'ready', 'needs_information': 'ready', 'blocked': 'failed',
                  'agent_unavailable': 'failed', 'cancelled': 'failed'}

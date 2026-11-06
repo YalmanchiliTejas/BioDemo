@@ -54,7 +54,7 @@ jobs:
           tests/test_entity_links.py tests/test_ingest_reuse.py tests/test_cmo_link_review.py
           tests/lifesci/test_workspace_links_search.py tests/lifesci/test_durable_rules.py tests/lifesci/test_case_cards.py
           tests/lifesci/test_investigation_runs.py tests/lifesci/test_conversation_management.py tests/test_cloud_investigation_events.py
-          tests/lifesci/test_deviation_signals.py tests/lifesci/test_alerts.py tests/lifesci/test_auto_triage.py tests/lifesci/test_capabilities.py tests/lifesci/test_signal_pipeline.py
+          tests/lifesci/test_deviation_signals.py tests/lifesci/test_alerts.py tests/lifesci/test_auto_triage.py tests/lifesci/test_capabilities.py tests/lifesci/test_signal_pipeline.py tests/lifesci/test_local_executor.py
       - name: Template lint
         run: pip install cfn-lint && cfn-lint deploy/aws/template.yaml deploy/aws/github-oidc.yaml
 
@@ -90,6 +90,7 @@ jobs:
           CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
           # Multi-agent investigations; empty keeps them "not configured". The signing key itself stays in Secrets Manager.
           INVESTIGATION_EXECUTOR_URL: ${{ vars.INVESTIGATION_EXECUTOR_URL }}
+          INVESTIGATIONS_ENABLED_TENANTS: ${{ vars.INVESTIGATIONS_ENABLED_TENANTS }}
           INVESTIGATION_EXECUTOR_AUDIENCE: ${{ vars.INVESTIGATION_EXECUTOR_AUDIENCE }}
           INVESTIGATION_EXECUTOR_TENANT: ${{ vars.INVESTIGATION_EXECUTOR_TENANT }}
           INVESTIGATION_EXECUTOR_PROJECT: ${{ vars.INVESTIGATION_EXECUTOR_PROJECT }}

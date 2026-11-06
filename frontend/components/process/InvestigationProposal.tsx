@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Play, Users } from 'lucide-react';
 import { processRequest } from '@/lib/process-api';
 import { cached } from '@/lib/cache';
-import { listRuns, notConfigured, startRun, type Run } from '@/lib/investigations-api';
+import { listRuns, notConfigured, notEntitled, startRun, type Run } from '@/lib/investigations-api';
 import { InvestigationCard } from './InvestigationCard';
 import type { ArtifactRef } from './AnalysisArtifact';
 
@@ -24,7 +24,7 @@ export function InvestigationProposal({ threadId, siteId, artifact }: { threadId
   const [proposal, setProposal] = useState<Proposal | null>(() => cached<Proposal>(path) ?? null);
   const [run, setRun] = useState<Run | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
-  const [state, setState] = useState<'idle' | 'starting' | 'unconfigured'>('idle');
+  const [state, setState] = useState<'idle' | 'starting' | 'unconfigured' | 'paid'>('idle');
   const [error, setError] = useState('');
   useEffect(() => {
     let alive = true;
@@ -39,15 +39,16 @@ export function InvestigationProposal({ threadId, siteId, artifact }: { threadId
 
   if (runId) return <InvestigationCard runId={runId} initial={run} />;
   const objective = proposal?.objective ?? artifact.title;
-  const calls = proposal?.budget?.max_tool_calls ?? proposal?.budget?.tool_calls_limit ?? 60;
-  const mins = proposal?.budget?.max_minutes ?? (proposal?.budget?.deadline_seconds ? Math.round(proposal.budget.deadline_seconds / 60) : 20);
+  const calls = proposal?.budget?.max_tool_calls ?? proposal?.budget?.tool_calls_limit ?? 30;
+  const mins = proposal?.budget?.max_minutes ?? (proposal?.budget?.deadline_seconds ? Math.round(proposal.budget.deadline_seconds / 60) : 10);
   async function start() {
     setState('starting'); setError('');
     try {
       const created = await startRun({ proposal_id: artifact.id, objective, site_id: proposal?.site_id ?? siteId, conversation_id: threadId, case_id: proposal?.case_id ?? null });
       setRun(created); setRunId(created.run_id);
     } catch (e) {
-      if (notConfigured(e)) setState('unconfigured');
+      if (notEntitled(e)) setState('paid');
+      else if (notConfigured(e)) setState('unconfigured');
       else { setError((e as Error).message); setState('idle'); }
     }
   }
@@ -60,7 +61,10 @@ export function InvestigationProposal({ threadId, siteId, artifact }: { threadId
       <div><dt className="text-text-tertiary">Limits</dt><dd className="mt-0.5 text-text-secondary">up to {calls} tool calls · {mins} min</dd></div>
       <div><dt className="text-text-tertiary">What you get</dt><dd className="mt-0.5 text-text-secondary">A cited report for review; nothing is changed in your systems</dd></div>
     </dl>
-    {state === 'unconfigured' ? <p role="status" className="mt-3 rounded-control bg-surface px-3 py-2 text-xs text-text-secondary">
+    {(state === 'paid' || (proposal as { entitled?: boolean } | null)?.entitled === false) ? <p role="status" className="mt-3 rounded-control bg-surface px-3 py-2 text-xs leading-5 text-text-secondary">
+      Multi-agent investigations, where several investigators work your evidence in parallel, are part of the paid plan. The assistant can still work through this step by step here.
+      {process.env.NEXT_PUBLIC_UPGRADE_URL && <> <a href={process.env.NEXT_PUBLIC_UPGRADE_URL} className="font-medium text-brand-teal underline">Talk to us about upgrading</a></>}</p>
+    : state === 'unconfigured' ? <p role="status" className="mt-3 rounded-control bg-surface px-3 py-2 text-xs text-text-secondary">
       Investigation execution isn’t set up for this workspace yet. An administrator needs to connect the investigation service; until then the assistant can still answer step by step here.</p>
     : <div className="mt-3 flex items-center justify-between gap-3">
       <p className="text-[11px] text-text-tertiary">Investigators work in parallel. You can watch them and stop at any time.</p>
