@@ -1,5 +1,28 @@
 # Turning on multi-agent investigations: step-by-step setup
 
+## Now: free laptop demo (no cloud setup)
+
+Multi-agent investigations (your RLM harness: a lead agent spawning investigator sub-agents) are a **paid feature**. In production they stay off, and the proposal card says they're part of the paid plan. For demos, run the whole product on your laptop:
+
+```bash
+backend/scripts/run_laptop_demo.sh      # then open http://127.0.0.1:5180/sign-in
+```
+
+What the script does:
+- It runs investigations in-process through the harness at `~/Desktop/prime-agent-bio`, with the same live investigator view as production.
+- It reads only model settings from `backend/.env.local` (`MODAL_PROXY_TOKEN`, model names, API keys). It deliberately doesn't load your database or Supabase settings, so a demo can never write to production data.
+- Demo data lives in `backend/.cache/laptop-demo.db`.
+- Sign in with a local test account (`src/lifesci/devaccounts.py`).
+- To demo: upload a sample delivery (`backend/scripts/make_sample_delivery.py`), ask the assistant for a full investigation of a deviation, and press Start.
+
+Defaults keep cost down: 30 tool calls, 10 minutes, one investigation at a time. Model usage goes through your own provider account.
+
+**Switching it on for a paying customer** means doing the server setup below, then adding their organization ID to the API setting `INVESTIGATIONS_ENABLED_TENANTS` (comma-separated). Nobody else sees the feature.
+
+---
+
+## Later: hosted investigations for paying customers
+
 This is the plain-language checklist for switching on investigations in production. The architecture is in [multi-agent-investigations.md](../architecture/multi-agent-investigations.md); the full security runbook for the DigitalOcean stack is [cloud-backend.md](../../backend/docs/security/cloud-backend.md). Nothing here is required for the rest of the product: until you finish, the app says "Investigation execution isn't set up for this workspace yet".
 
 ## What you're building, in one picture

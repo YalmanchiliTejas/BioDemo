@@ -47,6 +47,7 @@ export const runReport = (id: string) => call<Report>(`/v1/investigation-runs/${
 
 export const ACTIVE: RunStatus[] = ['queued', 'submitted', 'running', 'finalizing'];
 export const isActive = (s: RunStatus) => ACTIVE.includes(s);
+export const notEntitled = (e: unknown) => e instanceof InvestigationError && e.status === 409 && /paid plan/i.test(e.message);
 export const notConfigured = (e: unknown) => e instanceof InvestigationError && e.status === 409 && /not configured/i.test(e.message);
 
 export const STATUS_LABEL: Record<RunStatus, string> = {

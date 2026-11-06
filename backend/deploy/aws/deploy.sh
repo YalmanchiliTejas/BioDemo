@@ -87,7 +87,7 @@ names = {"ImageUri": "IMAGE", "FunctionName": "FUNCTION", "DatabaseUrl": "DATABA
          "RuntimeSchedule": "RUNTIME_SCHEDULE", "MemorySize": "MEMORY_SIZE", "ApiDomain": "API_DOMAIN",
          "CertificateArn": "CERTIFICATE_ARN", "MultiTenant": "LIFESCI_MULTI_TENANT",
          "ReservedConcurrency": "RESERVED_CONCURRENCY",
-         "InvestigationExecutorUrl": "INVESTIGATION_EXECUTOR_URL", "InvestigationExecutorAudience": "INVESTIGATION_EXECUTOR_AUDIENCE",
+         "InvestigationExecutorUrl": "INVESTIGATION_EXECUTOR_URL", "InvestigationsEnabledTenants": "INVESTIGATIONS_ENABLED_TENANTS", "InvestigationExecutorAudience": "INVESTIGATION_EXECUTOR_AUDIENCE",
          "InvestigationExecutorTenant": "INVESTIGATION_EXECUTOR_TENANT", "InvestigationExecutorProject": "INVESTIGATION_EXECUTOR_PROJECT",
          "InvestigationIssuer": "INVESTIGATION_ISSUER", "InvestigationSigningKeySecretArn": "INVESTIGATION_SIGNING_KEY_SECRET_ARN",
          "InvestigationSigningKeyId": "INVESTIGATION_SIGNING_KEY_ID"}

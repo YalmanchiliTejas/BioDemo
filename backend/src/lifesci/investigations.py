@@ -25,12 +25,13 @@ from .store import ConflictError
 KIND, EVENT, REPORT, PROPOSAL = 'investigation_run', 'investigation_event', 'investigation_report', 'investigation_proposal'
 ACTIVE = ('queued', 'submitted', 'running', 'finalizing')
 TERMINAL = ('awaiting_review', 'blocked', 'failed', 'cancelled')
-DEFAULT_BUDGET = {'max_tool_calls': 60, 'minutes': 20, 'max_tokens': None}
-MAX_ACTIVE_PER_TENANT = 2
+DEFAULT_BUDGET = {'max_tool_calls': 30, 'minutes': 10, 'max_tokens': None}  # pre-revenue defaults; raise per request
+MAX_ACTIVE_PER_TENANT = 1
 SNAPSHOT_LIMIT = 64 * 1024 * 1024
 SYNC_INTERVAL_S = 2.0
 REPORT_GRACE_S = 300
 NOT_CONFIGURED = 'Investigation execution is not configured'
+NOT_ENTITLED = 'Multi-agent investigations are available on the paid plan'
 EVENT_KINDS = ('phase', 'agent_started', 'agent_activity', 'agent_finished', 'allocation', 'subreport_saved', 'budget', 'error')
 
 
@@ -239,10 +240,21 @@ class InvestigationService:
         self.config = config if config is not None else ExecutorConfig.from_env()
         self.issuer = Issuer(self.config) if self.config else None
         self.executor = executor or (HttpExecutor(self.config, self.issuer) if self.config else None)
+        if self.executor is None:
+            # Laptop demo / development: run the RLM harness in-process (INVESTIGATION_EXECUTOR=local).
+            from .local_executor import local_executor_from_env
+            self.executor = local_executor_from_env()
 
     @property
     def configured(self) -> bool:
-        return self.executor is not None and self.config is not None
+        return self.executor is not None
+
+    @staticmethod
+    def entitled(tenant_id: str) -> bool:
+        """Multi-agent investigations are a paid feature, switched on per organization by the operator
+        (INVESTIGATIONS_ENABLED_TENANTS: comma-separated tenant ids, or * for a demo machine)."""
+        allowed = {t.strip() for t in os.environ.get('INVESTIGATIONS_ENABLED_TENANTS', '').split(',') if t.strip()}
+        return '*' in allowed or tenant_id in allowed
 
     # --- permissions ---------------------------------------------------------------
     @staticmethod
@@ -330,6 +342,8 @@ class InvestigationService:
     # --- start / stop --------------------------------------------------------------
     def start(self, ctx: AccessContext, request: dict[str, Any], *, extra_files: dict[str, bytes] | None = None) -> dict[str, Any]:
         self._person(ctx, 'starting an investigation')
+        if not self.entitled(ctx.tenant_id):
+            raise ConflictError(NOT_ENTITLED)
         if not self.configured:
             raise ConflictError(NOT_CONFIGURED)
         site_id = request.get('site_id') or 'NF1'
@@ -369,7 +383,7 @@ class InvestigationService:
                                        case_ids=[case_id] if case_id else [], record_refs=request.get('record_refs') or [],
                                        extra_files=extra_files)
         run_id = new_id('invrun')
-        project = self.config.project_for(ctx.tenant_id)
+        project = self.config.project_for(ctx.tenant_id) if self.config else 'investigation'
         now = _now()
         state = {'run_id': run_id, 'tenant_id': ctx.tenant_id, 'site_id': site_id, 'owner_id': ctx.actor_id,
                  'case_id': case_id, 'conversation_id': request.get('conversation_id') or (proposal.state['conversation_id'] if proposal else None),
@@ -627,7 +641,7 @@ class InvestigationService:
                  'turn_id': turn['id'], 'mission_id': thread.get('mission_id'), 'objective': objective, 'case_id': case_id,
                  'rationale': rationale, 'dataset_ids': list(thread.get('dataset_ids') or []),
                  'budget': {'max_tool_calls': DEFAULT_BUDGET['max_tool_calls'], 'minutes': DEFAULT_BUDGET['minutes']},
-                 'executor_configured': self.configured, 'run_id': None, 'proposed_by': ctx.actor_id,
+                 'executor_configured': self.configured, 'entitled': self.entitled(ctx.tenant_id), 'run_id': None, 'proposed_by': ctx.actor_id,
                  'proposed_by_kind': ctx.actor_kind, 'created_at': iso(_now())}
         if tx is not None:
             tx.put(ctx.tenant_id, PROPOSAL, pid, state, expected_revision=None, action='propose_investigation')
@@ -638,7 +652,7 @@ class InvestigationService:
 
     def proposal_view(self, ctx: AccessContext, proposal_id: str) -> dict[str, Any]:
         rec = self.p.store.read().require(ctx.tenant_id, PROPOSAL, proposal_id)
-        out = {**rec.state, 'revision': rec.revision, 'executor_configured': self.configured}
+        out = {**rec.state, 'revision': rec.revision, 'executor_configured': self.configured, 'entitled': self.entitled(ctx.tenant_id)}
         if rec.state.get('run_id'):
             try:
                 out['run'] = self.get(ctx, rec.state['run_id'], sync=False)
