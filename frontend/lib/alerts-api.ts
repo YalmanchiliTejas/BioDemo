@@ -1,7 +1,8 @@
 import { processRequest } from '@/lib/process-api';
 
 export type Severity = 'warning' | 'action' | 'critical';
-export type InboxItem = { inbox_id: string; signal_id: string; site_id: string | null; severity: Severity; kind?: string; title: string;
+// 'info' items are plain notifications (e.g. someone asking to read your assistant memory), not deviation signals.
+export type InboxItem = { inbox_id: string; signal_id?: string | null; site_id: string | null; severity: Severity | 'info'; kind?: string; title: string;
   rule: string; subject?: { kind?: string; id?: string } | null; link: string; created_at: string; read_at: string | null;
   updates: { kind: string; at: string; text: string }[] };
 export type ChannelKind = 'email' | 'slack' | 'teams';

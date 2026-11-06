@@ -274,9 +274,16 @@ def test_api_pdf_page_rendering_uses_original_hash_and_page_bounds(tmp_path,monk
     raw=tmp_path/'raw'; raw.mkdir()
     write_pdf(raw/'batch_record.pdf',['Page 1 of 1','Batch: LOCAL | Hour: 1 | pH [pH]: 7'])
     run=service.run(raw,'local'); m=run['measurements'][0]
-    monkeypatch.setenv('CMO_INGESTION_ROOT',str(runtime)); monkeypatch.delenv('CMO_API_TOKEN',raising=False)
-    app=FastAPI(); app.include_router(router(tmp_path)); client=TestClient(app)
+    monkeypatch.setenv('CMO_INGESTION_ROOT',str(runtime)); monkeypatch.delenv('CMO_API_TOKEN',raising=False); monkeypatch.setenv('CMO_ALLOW_UNAUTHENTICATED_TENANT_HEADER','1')
+    app=FastAPI(); app.include_router(router(tmp_path)); client=TestClient(app,headers={'X-Tenant-Id':'test-cdmo'})
     base=f'/api/cmo-ingestion/runs/{run["id"]}/pages/{m["source_id"]}'
     response=client.get(base+'/1')
     assert response.content.startswith(b'\x89PNG') and float(response.headers['x-page-height'])==640
     assert client.get(base+'/2').status_code==400
+
+
+@pytest.fixture(autouse=True)
+def bound_tenant():
+    """Service-level calls here run outside a request; bind a tenant explicitly (there is no default any more)."""
+    from src.manufacturing_data.cmo.persistence import tenant_scope
+    with tenant_scope('test-cdmo'): yield

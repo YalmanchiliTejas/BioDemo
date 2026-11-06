@@ -89,7 +89,7 @@ def test_wakeups_coalesce_without_dropping_events(env):
 def test_LS053_corrections_survive_compaction(env):
     w = env.m.activate(env.ctx("msat1"), env.mid, "w1")
     env.m.checkpoint(w, progress={}, findings=[{"finding_id": f"f{i}", "text": f"finding {i}"} for i in range(30)])
-    corr = env.m.record_correction(env.ctx("qa1"), env.mid, text="Run 12 temperature was a sensor fault",
+    corr = env.m.record_correction(env.ctx("msat1"), env.mid, text="Run 12 temperature was a sensor fault",
                                    source_ref={"kind": "evidence", "id": "HIST:run12"},
                                    claim_ref={"kind": "finding", "id": "f4"}, rejects_hypothesis="feed temperature drift")
     compacted = env.m.compact(env.ctx("msat1"), env.mid, keep_recent_findings=5)
@@ -156,7 +156,7 @@ def test_decisions_answered_only_by_named_role(env):
 def test_LS021_repeatable_obligation_reschedules(env):
     ob = env.m.add_obligation(env.ctx("msat1"), env.mid, description="shift summary", every_minutes=720,
                               due_at="2026-10-23T06:00:00+00:00", task_kind="short_summary")
-    out = env.m.complete_obligation(env.ctx("sup1"), env.mid, ob["obligation_id"],
+    out = env.m.complete_obligation(env.ctx("msat1"), env.mid, ob["obligation_id"],
                                     artifact_ref={"kind": "shift_summary", "id": "s1"})
     o = out["obligations"][0]
     assert o["status"] == "open" and o["due_at"] == "2026-10-23T18:00:00+00:00" and o["completions"]

@@ -18,6 +18,9 @@ from pathlib import Path
 
 from benchmarks.cmo_ingestion.evaluate import implementation_hash, score
 from src.manufacturing_data.cmo.pipeline import IngestionService
+from src.manufacturing_data.cmo.persistence import set_tenant
+
+set_tenant('benchmark')  # ponytail: stores are tenant-scoped; benchmarks run as one fixed tenant
 
 
 def quantiles(values):

@@ -369,3 +369,10 @@ def test_api_delivery_upload_auto_config_bulk_and_reprocess(tmp_path, monkeypatc
     url=f"/api/cmo-ingestion/runs/{gap['id']}/issues"
     assert client.post(url,json={'issue_id':missing['id'],'actor':'Parker'}).status_code==400
     assert client.post(url,json={'issue_id':missing['id'],'actor':'Parker','reason':'Sample not taken at hour 1'}).status_code==200
+
+
+@pytest.fixture(autouse=True)
+def bound_tenant():
+    """Service-level calls here run outside a request; bind a tenant explicitly (there is no default any more)."""
+    from src.manufacturing_data.cmo.persistence import tenant_scope
+    with tenant_scope('test-cdmo'): yield

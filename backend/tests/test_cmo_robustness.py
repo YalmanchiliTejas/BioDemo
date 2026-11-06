@@ -9,7 +9,9 @@ KNOWN_DEFECTS = {}
 
 @pytest.fixture(scope='module')
 def report(tmp_path_factory):
-    return {r['mutation']: r for r in run_harness(tmp_path_factory.mktemp('robustness'))['mutations']}
+    from src.manufacturing_data.cmo.persistence import tenant_scope
+    with tenant_scope('test-cdmo'):  # the harness drives the service directly; there is no default tenant
+        return {r['mutation']: r for r in run_harness(tmp_path_factory.mktemp('robustness'))['mutations']}
 
 
 @pytest.mark.parametrize('name', [
@@ -35,3 +37,4 @@ def test_header_respelling_is_unique_or_refused():
     for headers in (['BATCH', 'TIME (H)', 'TITER (G/L)', 'titer g/l'], ['BATCH', 'TIME (H)', 'Yield']):  # ambiguous, absent
         with pytest.raises(ValueError, match='absent source header'):
             m.respell(headers)[0].check(headers)
+

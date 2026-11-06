@@ -1,4 +1,4 @@
-import { Bell, Building2, SlidersHorizontal, Database, FlaskConical, FolderKanban, LayoutDashboard, MessageSquare, PackageCheck, Radar, ScrollText, UserRound, type LucideIcon } from 'lucide-react';
+import { Bell, Building2, Lock, SlidersHorizontal, Database, FlaskConical, FolderKanban, LayoutDashboard, MessageSquare, PackageCheck, Radar, ScrollText, UserRound, type LucideIcon } from 'lucide-react';
 
 /** One entry per destination; the sidebar, page breadcrumbs and quick find all read from this list. */
 export type NavItem = { label: string; href: string; icon: LucideIcon; description: string; guide?: string; keywords?: string };
@@ -25,6 +25,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Organization & team', href: '/settings/organization', icon: Building2, guide: 'organization', description: 'Members, roles and site access', keywords: 'members roles access admin' },
       { label: 'Alerts', href: '/settings/alerts', icon: Bell, description: 'Who hears about deviation signals, and where', keywords: 'alerts notifications slack teams email deviation signals routing' },
       { label: 'Specifications', href: '/settings/specifications', icon: SlidersHorizontal, description: 'Approved limits live data is checked against', keywords: 'specification limits spec range oos deviation alarm' },
+      { label: 'Memory & sharing', href: '/settings/memory', icon: Lock, description: 'Your private assistant memory and who may read it', keywords: 'memory privacy share access grant conversations corrections' },
       { label: 'Assistant rules', href: '/settings/assistant-rules', icon: ScrollText, description: 'Standing instructions the assistant always follows', keywords: 'rules memory instructions corrections preferences' },
       { label: 'My profile', href: '/settings/profile', icon: UserRound, guide: 'profile', description: 'Your name, sign-in and memberships', keywords: 'account password' },
     ],

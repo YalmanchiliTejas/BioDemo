@@ -27,6 +27,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Protocol
 
 from .identity import AccessContext, IdentityService
+from .memory import MemoryGrants
 from .ids import canonical_json, content_hash, iso, new_id, parse_iso, utc_now
 from .store import ConflictError, LeaseError, RecordStore, Transaction
 
@@ -75,6 +76,7 @@ class MissionService:
         self.store = store
         self.identity = identity
         self.scheduler = scheduler or InProcessScheduler()
+        self.memory = MemoryGrants(store, identity)
 
     # --- lifecycle ---------------------------------------------------------------
     def start_or_resume(self, ctx: AccessContext, *, objective: str, owner_id: str, scope: dict[str, Any],
@@ -84,7 +86,7 @@ class MissionService:
         if mission_id:
             rec = self.store.read().get(ctx.tenant_id, KIND, mission_id)
             if rec is not None:
-                self._require_access(ctx, rec.state)
+                self._require_access(ctx, rec.state, write=True)
                 return {**rec.state, "revision": rec.revision, "resumed": True}
         self.identity.require(ctx, "propose", KIND, site_id=(scope.get("site_ids") or [None])[0])
         mission_id = mission_id or new_id("msn")
@@ -105,7 +107,14 @@ class MissionService:
     def get(self, ctx: AccessContext, mission_id: str) -> dict[str, Any]:
         rec = self.store.read().require(ctx.tenant_id, KIND, mission_id)
         self._require_access(ctx, rec.state)
-        return {**rec.state, "revision": rec.revision, "updated_at": rec.updated_at}
+        return self._view(ctx, rec)
+
+    def _view(self, ctx: AccessContext, rec: Any) -> dict[str, Any]:
+        out = {**rec.state, "revision": rec.revision, "updated_at": rec.updated_at}
+        # A colleague reading under a 'conversations' grant sees corrections only with the 'corrections' scope.
+        if not self.memory.can_read(ctx, rec.state.get("owner_id", ""), "corrections"):
+            out.update(corrections=[], rejected_hypotheses=[])
+        return out
 
     def set_status(self, ctx: AccessContext, mission_id: str, status: str, reason: str) -> dict[str, Any]:
         if status not in (ACTIVE, PAUSED_BUDGET, BLOCKED, CANCELLED, ARCHIVED):
@@ -118,8 +127,9 @@ class MissionService:
         out = []
         for rec in self.store.read().list(ctx.tenant_id, KIND):
             sites = rec.state["scope"].get("site_ids") or [None]
-            if all(self.identity.check(ctx, "read", KIND, rec.id, site_id=site) for site in sites):
-                out.append({**rec.state, "revision": rec.revision, "updated_at": rec.updated_at})
+            if (all(self.identity.check(ctx, "read", KIND, rec.id, site_id=site) for site in sites)
+                    and self.memory.can_read(ctx, rec.state.get("owner_id", ""), "conversations")):
+                out.append(self._view(ctx, rec))
         out.sort(key=lambda m: m["updated_at"], reverse=True)
         return out[:limit]
 
@@ -214,9 +224,11 @@ class MissionService:
                          "answered_at": iso(utc_now())}
                 out.append(d)
             return {**s, "pending_decisions": out}
-        result = self._update(ctx, mission_id, change, action="answer_decision", event="mission.decision_answered")
+        # The decider (e.g. QA) answers the owner's question without gaining read access to the rest of their memory.
+        result = self._update(ctx, mission_id, change, action="answer_decision", event="mission.decision_answered",
+                              decider=True)
         self.scheduler.schedule_wakeup(ctx.tenant_id, mission_id, f"decision:{decision_id}")
-        return result
+        return {k: result[k] for k in ("mission_id", "pending_decisions", "revision")}
 
     def record_correction(self, ctx: AccessContext, mission_id: str, *, text: str, source_ref: dict[str, Any] | None,
                           claim_ref: dict[str, Any] | None, rejects_hypothesis: str | None = None) -> dict[str, Any]:
@@ -241,7 +253,8 @@ class MissionService:
             raise PermissionError("corrections are carried only for their own owner")
         out = [{**c, "mission_id": rec.id}
                for rec in self.store.read().list(ctx.tenant_id, KIND, lambda s: s.get("owner_id") == owner_id)
-               if rec.id != exclude_mission_id for c in rec.state.get("corrections", [])]
+               if rec.id != exclude_mission_id for c in rec.state.get("corrections", [])
+               if c.get("by") in (owner_id, f"agent:{owner_id}")]
         out.sort(key=lambda c: c.get("at", ""), reverse=True)
         return out[:limit]
 
@@ -288,7 +301,7 @@ class MissionService:
         """Admit a single coordinator. A replaced worker's token becomes stale immediately."""
         with self.store.transaction(ctx.actor_id) as tx:
             rec = tx.require(ctx.tenant_id, KIND, mission_id)
-            self._require_access(ctx, rec.state, tx)
+            self._require_access(ctx, rec.state, tx, write=True)
             if rec.state["status"] in (CANCELLED, ARCHIVED):
                 raise ValueError(f"mission is {rec.state['status']}")
             token = tx.acquire_lease(ctx.tenant_id, KIND, mission_id, worker_id, ttl_seconds)
@@ -430,7 +443,7 @@ class MissionService:
 
         with self.store.transaction(ctx.actor_id) as tx:
             rec = tx.require(ctx.tenant_id, KIND, mission_id)
-            self._require_access(ctx, rec.state, tx)
+            self._require_access(ctx, rec.state, tx, write=True)
             new = change(rec.state)
             if new is rec.state:
                 return {**rec.state, "revision": rec.revision}
@@ -463,16 +476,26 @@ class MissionService:
     def _head_seq(self, tenant_id: str) -> int:
         return self.store.head_seq(tenant_id)
 
-    def _require_access(self, ctx: AccessContext, state: dict[str, Any], tx: Transaction | None = None) -> None:
+    def _require_access(self, ctx: AccessContext, state: dict[str, Any], tx: Transaction | None = None,
+                        write: bool = False) -> None:
         sites = state["scope"].get("site_ids") or [None]
         for site in sites:
             self.identity.require(ctx, "read", KIND, state["mission_id"], site_id=site, tx=tx)
+        # A mission is its owner's memory: colleagues read only under a grant, and never write.
+        if write:
+            self.memory.require_owner_write(ctx, state.get("owner_id", ""))
+        else:
+            self.memory.require_read(ctx, state.get("owner_id", ""), "conversations")
 
     def _update(self, ctx: AccessContext, mission_id: str, change: Callable[[dict[str, Any]], dict[str, Any]], *,
-                action: str, event: str | None = None) -> dict[str, Any]:
+                action: str, event: str | None = None, decider: bool = False) -> dict[str, Any]:
         with self.store.transaction(ctx.actor_id) as tx:
             rec = tx.require(ctx.tenant_id, KIND, mission_id)
-            self._require_access(ctx, rec.state, tx)
+            if decider:  # the change itself checks the decider's role
+                for site in rec.state["scope"].get("site_ids") or [None]:
+                    self.identity.require(ctx, "read", KIND, mission_id, site_id=site, tx=tx)
+            else:
+                self._require_access(ctx, rec.state, tx, write=True)
             out = tx.put(ctx.tenant_id, KIND, mission_id, change(rec.state), expected_revision=rec.revision,
                          action=action, event_type=event, event_payload={"mission_id": mission_id})
         return {**out.state, "revision": out.revision}

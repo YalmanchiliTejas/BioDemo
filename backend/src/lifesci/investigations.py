@@ -20,10 +20,12 @@ from typing import Any, Protocol
 
 from .identity import AccessContext, AuthorizationError, Decision
 from .ids import iso, new_id, utc_now
+from .memory import INSTRUCTION_SOURCE
 from .store import ConflictError
 
 KIND, EVENT, REPORT, PROPOSAL = 'investigation_run', 'investigation_event', 'investigation_report', 'investigation_proposal'
 ACTIVE = ('queued', 'submitted', 'running', 'finalizing')
+SNAPSHOT_KINDS = ('case', 'batch', 'sample', 'procedure_instance', 'claim', 'proposal', 'evidence')
 TERMINAL = ('awaiting_review', 'blocked', 'failed', 'cancelled')
 DEFAULT_BUDGET = {'max_tool_calls': 30, 'minutes': 10, 'max_tokens': None}  # pre-revenue defaults; raise per request
 MAX_ACTIVE_PER_TENANT = 1
@@ -265,9 +267,19 @@ class InvestigationService:
     def _readable(self, ctx: AccessContext, state: dict[str, Any]) -> bool:
         if state['tenant_id'] != ctx.tenant_id:
             return False
-        if state['owner_id'] == (ctx.delegated_from or ctx.actor_id):
+        if self._memory_readable(ctx, state):
             return True
-        return bool(state.get('case_id')) and bool(self.p.identity.check(ctx, 'read', 'case', state['case_id'], site_id=state['site_id']))
+        # Case readers see a run only once its owner sent it for review; until then it is the owner's memory.
+        return bool(state.get('case_id') and state.get('review_package_id')) and bool(self.p.identity.check(ctx, 'read', 'case', state['case_id'], site_id=state['site_id']))
+
+    def _memory_readable(self, ctx: AccessContext, state: dict[str, Any]) -> bool:
+        return self.p.memory.can_read(ctx, state['owner_id'], 'conversations')
+
+    def _view_for(self, ctx: AccessContext, state: dict[str, Any]) -> dict[str, Any]:
+        out = self.view(state)
+        if not self._memory_readable(ctx, state):
+            out['objective'] = None  # the objective is the owner's own words
+        return out
 
     def _run(self, ctx: AccessContext, run_id: str):
         rec = self.p.store.read().require(ctx.tenant_id, KIND, run_id)
@@ -308,18 +320,22 @@ class InvestigationService:
             kind, ident = str(ref.get('kind', '')), str(ref.get('id', ''))
             if not re.fullmatch(r'[a-z_]{1,64}', kind) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,160}', ident):
                 raise ValueError('invalid record reference')
+            if kind not in SNAPSHOT_KINDS:
+                raise ValueError(f'investigations can include only {", ".join(SNAPSHOT_KINDS)} records')
+            rec = self.p.store.read().require(ctx.tenant_id, kind, ident)
+            # Process records of this site only: never private conversation memory, never another site's data.
+            if rec.state.get('site_id') != site_id:
+                raise PermissionError('record belongs to another site')
+            if kind == 'evidence' and rec.state.get('source_system') == INSTRUCTION_SOURCE:
+                raise PermissionError('private conversation instructions cannot be sent to an investigation')
             if kind == 'evidence':
-                rec = self.p.store.read().require(ctx.tenant_id, 'evidence', ident)
                 self.p.identity.require(ctx, 'read', 'evidence', ident, site_id=rec.state.get('site_id'))
                 media = str(rec.state.get('media_type') or '')
                 suffix = {'application/json': '.json', 'text/csv': '.csv', 'application/pdf': '.pdf'}.get(media, '.txt')
                 add(f'evidence/{ident}{suffix}', self.p.evidence.original(ctx, ident, rec.revision), kind=kind, id=ident,
                     revision=rec.revision)
             else:
-                rec = self.p.store.read().require(ctx.tenant_id, kind, ident)
                 self.p.identity.require(ctx, 'read', kind, ident, site_id=rec.state.get('site_id'))
-                if rec.state.get('site_id') not in (None, site_id):
-                    raise PermissionError('record belongs to another site')
                 add(f'records/{kind}-{ident}.json', json.dumps(rec.state, sort_keys=True, default=str).encode(),
                     kind=kind, id=ident, revision=rec.revision)
         for name, content in sorted((extra_files or {}).items()):
@@ -565,7 +581,7 @@ class InvestigationService:
             'report_available': bool(state.get('report_ref'))}
 
     def get(self, ctx: AccessContext, run_id: str, *, sync: bool = True) -> dict[str, Any]:
-        return self.view(self.sync(ctx, run_id) if sync else self._run(ctx, run_id).state)
+        return self._view_for(ctx, self.sync(ctx, run_id) if sync else self._run(ctx, run_id).state)
 
     def events(self, ctx: AccessContext, run_id: str, after: int = 0) -> dict[str, Any]:
         self._run(ctx, run_id)
@@ -576,7 +592,7 @@ class InvestigationService:
         rows = [r.state for r in self.p.store.read().list(ctx.tenant_id, KIND)
                 if (not case_id or r.state.get('case_id') == case_id)
                 and (not conversation_id or r.state.get('conversation_id') == conversation_id)]
-        return [self.view(s) for s in sorted(rows, key=lambda s: s['created_at'], reverse=True) if self._readable(ctx, s)][:50]
+        return [self._view_for(ctx, s) for s in sorted(rows, key=lambda s: s['created_at'], reverse=True) if self._readable(ctx, s)][:50]
 
     def report(self, ctx: AccessContext, run_id: str) -> dict[str, Any]:
         run = self._run(ctx, run_id)
@@ -590,6 +606,8 @@ class InvestigationService:
         self._person(ctx, 'sending an investigation for QA review')
         rec = self._run(ctx, run_id)
         state = rec.state
+        if state['owner_id'] != ctx.actor_id:
+            raise PermissionError('only the person who started this investigation can send it for review')
         if state['status'] != 'awaiting_review':
             raise ConflictError('only a finished investigation with a validated report can be sent for review')
         if not state.get('case_id'):

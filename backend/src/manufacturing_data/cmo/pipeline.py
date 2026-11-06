@@ -30,8 +30,8 @@ from ..verification import verify_originals
 from ...ingestion.verification import validate_measurement, validate_collection
 from . import quality
 from .classify import by_content, by_filename
-from .evidence import evidence_store, original_key, restore
-from .persistence import repository
+from .evidence import evidence_store, legacy_original_key, original_key, restore
+from .persistence import repository, tenant_segment
 from .providers import ClairicProvider, Provider, Unavailable
 from .schema import Classification, Extraction, Mapping, TYPES, VOCAB, draft_mapping, header_parts, key, normalize, time_key
 
@@ -272,7 +272,7 @@ class IngestionService:
             if queued['status'] not in {'queued','running'}: raise ValueError(f"Run {run['id']} was already processed")
             run['started_at']=queued['started_at']
             run.update({k:queued[k] for k in ('package_id','delivery_name','disclosure') if queued[k] is not None})
-        store=self._seeded_store(self.root/'stores'/run['id'],supersedes,package_ref)
+        store=self._seeded_store(self.root/'stores'/tenant_segment()/run['id'],supersedes,package_ref)
         run['store']=str(store.root)
         def stage(name,state='running'):
             if run['stages'] and run['stages'][-1]['state']=='running':
@@ -307,7 +307,7 @@ class IngestionService:
             sources={s['id']:s for s in store.visible_sources(scopes=(cmo,))}
             for source in sources.values():
                 suffix=Path(source['path']).suffix.lower()
-                self.evidence.put(original_key(source['sha256'],suffix),store.originals/source['sha256'][:2]/(source['sha256']+suffix))
+                self.evidence.put(original_key(source['sha256'],suffix,tenant_segment()),store.originals/source['sha256'][:2]/(source['sha256']+suffix))
             grouped=defaultdict(list)
             for obs in observations: grouped[obs['source_id']].append(obs)
             routes={r['path']:r for r in ingestion['routes']}
@@ -731,10 +731,12 @@ class IngestionService:
         run=run or self.get(run_id); doc=next((d for d in run['documents'] if d['source_id']==source_id),None)
         if not doc: raise KeyError('Unknown source')
         suffix=Path(doc['path']).suffix.lower()
-        path=self.root/'stores'/run['id']/'originals'/doc['sha256'][:2]/(doc['sha256']+suffix)
+        path=self.root/'stores'/tenant_segment()/run['id']/'originals'/doc['sha256'][:2]/(doc['sha256']+suffix)
         if run.get('store') and not path.exists():
             path=Path(run['store'])/'originals'/doc['sha256'][:2]/(doc['sha256']+suffix)
-        return restore(self.evidence,original_key(doc['sha256'],suffix),path,doc['sha256']),doc
+        # The run was read under this tenant, so it owns this hash: a pre-tenant original may be read back.
+        return restore(self.evidence,original_key(doc['sha256'],suffix,tenant_segment()),path,doc['sha256'],
+                       legacy=[legacy_original_key(doc['sha256'],suffix)]),doc
 
     def export(self,run_id,*,format='csv',wide=False):
         run=self.get(run_id)

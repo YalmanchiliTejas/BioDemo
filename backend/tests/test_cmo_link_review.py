@@ -89,7 +89,7 @@ def test_links_rebuild_when_this_server_lacks_the_parsed_store(client_and_run, t
     import shutil
     client, ident = client_and_run
     before = client.get(f'/api/cmo-ingestion/runs/{ident}/links').json()
-    shutil.rmtree(tmp_path/'runtime'/'stores'/ident)  # as on a different Lambda instance
+    shutil.rmtree(tmp_path/'runtime'/'stores'/'demo-cdmo'/ident)  # as on a different Lambda instance
     after = client.get(f'/api/cmo-ingestion/runs/{ident}/links').json()
     assert after['rebuilt_from_originals'] is True
     assert {l['link_id'] for l in after['links']} == {l['link_id'] for l in before['links']}

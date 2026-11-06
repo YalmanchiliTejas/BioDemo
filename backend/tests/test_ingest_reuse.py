@@ -4,8 +4,17 @@ from __future__ import annotations
 import csv
 import shutil
 
+import pytest
+
 from src.manufacturing_data import ManufacturingStore, ingest_package
+from src.manufacturing_data.cmo.persistence import tenant_scope
 from src.manufacturing_data.cmo.pipeline import IngestionService
+
+
+@pytest.fixture(autouse=True)
+def tenant():
+    with tenant_scope('acme'):
+        yield
 
 
 def delivery(folder):

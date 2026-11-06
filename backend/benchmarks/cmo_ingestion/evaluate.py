@@ -13,6 +13,9 @@ from collections import defaultdict
 from pathlib import Path
 
 from src.manufacturing_data.cmo.pipeline import IngestionService
+from src.manufacturing_data.cmo.persistence import set_tenant
+
+set_tenant('benchmark')  # ponytail: stores are tenant-scoped; benchmarks run as one fixed tenant
 
 TARGETS={'field_recall':0.98,'auto_accepted_value_accuracy':0.99,'auto_acceptance_rate':0.8,'human_minutes_max':15}
 

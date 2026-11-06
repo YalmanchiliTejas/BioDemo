@@ -256,3 +256,10 @@ def test_clairic_unit_boundary_expansion_uses_only_adjacent_source(monkeypatch):
     start,end=field.source_spans['measurement_label']
     assert state[start:end]==field.header and result.reviews
     assert field.confidence['measurement_label']==.99
+
+
+@pytest.fixture(autouse=True)
+def bound_tenant():
+    """Service-level calls here run outside a request; bind a tenant explicitly (there is no default any more)."""
+    from src.manufacturing_data.cmo.persistence import tenant_scope
+    with tenant_scope('test-cdmo'): yield

@@ -108,8 +108,20 @@ export async function signIn(email: string, password: string) {
   if (message) throw new Error(message);
 }
 
+/** Per-person data kept in this browser; removed on sign-out so the next person starts clean.
+ *  UI preferences (navigation, history panel, tutorial progress, chosen organization per user) are kept. */
+function clearPersonalStorage() {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('biodemo.engineering.conversation.') || ['mos.context.v1', 'cmo.reviewer', 'cmo.last'].includes(key)) localStorage.removeItem(key);
+    }
+    for (const key of ['mos.agent.v1', 'cmo.demoCmo', 'cmo.apiToken', 'mos.onboarding.goal', 'mos.onboarding.timezone']) sessionStorage.removeItem(key);
+  } catch { /* storage unavailable */ }
+}
+
 export async function signOut() {
   clearCache();
+  clearPersonalStorage();
   if (authMode() !== 'supabase') { setLocalSession(null); return; }
   const { error } = await attempt(() => supabase().auth.signOut());
   if (error) throw new Error('Sign-out failed. Try again.');

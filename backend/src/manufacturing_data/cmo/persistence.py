@@ -23,6 +23,7 @@ import contextvars
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -45,17 +46,35 @@ def default_tenant():
 
 
 def current_tenant():
-    return _tenant.get() or default_tenant()
+    """The tenant bound to this request or job. Never a fallback: unbound work must not land in someone's workspace."""
+    tenant = _tenant.get()
+    if not tenant: raise RuntimeError('No CMO tenant is bound to this request or job')
+    return tenant
+
+
+_SEGMENT = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}')
+
+
+def tenant_segment():
+    """The current tenant as one safe path segment / storage-key component (no '/', '..', or empty)."""
+    tenant = current_tenant()
+    if not _SEGMENT.fullmatch(tenant): raise ValueError('Tenant identifier is not a safe path segment')
+    return tenant
+
+
+def _require(tenant):
+    if not tenant: raise RuntimeError('A CMO tenant must be named explicitly')
+    return tenant
 
 
 def set_tenant(tenant):
     """Bind the tenant for the rest of the current context (request or task)."""
-    _tenant.set(tenant or default_tenant())
+    _tenant.set(_require(tenant))
 
 
 @contextmanager
 def tenant_scope(tenant):
-    token = _tenant.set(tenant or default_tenant())
+    token = _tenant.set(_require(tenant))
     try: yield
     finally: _tenant.reset(token)
 

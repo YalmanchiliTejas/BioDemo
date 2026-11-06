@@ -26,6 +26,9 @@ from openpyxl import Workbook, load_workbook
 
 from src.manufacturing_data.cmo import quality
 from src.manufacturing_data.cmo.pipeline import IngestionService
+from src.manufacturing_data.cmo.persistence import set_tenant
+
+set_tenant('benchmark')  # ponytail: stores are tenant-scoped; benchmarks run as one fixed tenant
 from src.manufacturing_data.cmo.schema import normalize
 
 CMO = 'robustness-cmo'

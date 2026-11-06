@@ -144,7 +144,26 @@ class EngineeringConversationService:
         return self.get(ctx, thread_id)
 
     def get(self, ctx, thread_id):
-        rec = self._thread(ctx, thread_id)
+        return self._view(ctx, self._thread(ctx, thread_id))
+
+    def shared_list(self, ctx, owner_id):
+        """Another person's conversations, read-only, under their 'conversations' grant."""
+        self.p.memory.require_read(ctx, owner_id, 'conversations')
+        out = [{'id': r.id, 'title': r.state['title'], 'updated_at': r.updated_at}
+               for r in self.p.store.read().list(ctx.tenant_id, 'engineering_conversation')
+               if r.state['owner_id'] == owner_id and not r.state.get('archived')
+               and self.p.identity.check(ctx, 'propose', 'physical_analysis_plan', site_id=r.state['site_id'])]
+        return sorted(out, key=lambda r: r['updated_at'], reverse=True)[:100]
+
+    def shared_get(self, ctx, owner_id, thread_id):
+        self.p.memory.require_read(ctx, owner_id, 'conversations')
+        rec = self.p.store.read().require(ctx.tenant_id, 'engineering_conversation', thread_id)
+        if rec.state['owner_id'] != owner_id:
+            raise KeyError(thread_id)
+        self.p.identity.require(ctx, 'propose', 'physical_analysis_plan', site_id=rec.state['site_id'])
+        return {**self._view(ctx, rec), 'read_only': True, 'shared_by': owner_id}
+
+    def _view(self, ctx, rec):
         turns = []
         for tid in rec.state['turn_ids']:
             turn = deepcopy(self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', tid).state)
@@ -220,11 +239,19 @@ class EngineeringConversationService:
                     continue
                 try:
                     self.p.identity.validate_refs(ctx, [{'kind': kind, 'id': rec.id, 'revision': rec.revision, 'site_id': site_id}])
-                except (PermissionError, ValueError):
+                    self._memory_inputs_readable(ctx, rec.state)
+                except (PermissionError, ValueError, KeyError):
                     continue
                 out.append({'id': rec.id, 'kind': kind, 'audience': rec.state['workspace']['audience'],
                     'provenance': rec.state['input_bundle']['observation_provenance'], 'updated_at': rec.updated_at})
         return sorted(out, key=lambda s: s['updated_at'], reverse=True)[:20]
+
+    def _memory_inputs_readable(self, ctx, state):
+        """A what-if built from someone's conversation is part of their memory: its inputs carry their instruction."""
+        for ref in state.get('inputs') or []:
+            rec = self.p.store.read().get(ctx.tenant_id, ref['kind'], ref['id'])
+            if rec is not None:
+                self.p.memory.require_record(ctx, ref['kind'], rec.state)
 
     def enqueue(self, ctx, thread_id, request):
         request = MessageIn.model_validate(request)
@@ -376,7 +403,9 @@ class EngineeringConversationService:
                 return correction
             except (PermissionError, ValueError, KeyError):
                 return {'correction_id': correction['correction_id'], 'status': 'source_unavailable; inspect current authorized evidence'}
-        corrections = [checked(c) for c in mission['corrections']]
+        # Only the owner's own corrections steer their assistant; nobody else's text reaches this prompt.
+        owner = thread['owner_id']
+        corrections = [checked(c) for c in mission['corrections'] if c.get('by') in (owner, f'agent:{owner}')]
         visible_corrections = {c['correction_id'] for c in corrections if 'text' in c}
         # Corrections outlive the conversation they were made in; rules are always given in full, never retrieved.
         earlier_corrections = [checked(c) for c in self.p.missions.owner_corrections(
