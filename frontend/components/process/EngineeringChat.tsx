@@ -38,7 +38,7 @@ function GroundingNote({ g }: { g: Grounding }) {
     </ul>
   </details>;
 }
-type Turn = { origin?: string; triage_signal_id?: string | null; responsibility_objective?: string; display_context?: DisplayContext | null; id: string; user_text: string; status: string; reply: string | null; questions: string[]; system_message?: string; issues: string[]; artifacts: ArtifactRef[]; steps?: Step[]; elapsed_seconds?: number; basis_status?: string; grounding?: Grounding | null; context_used?: ContextUsed | null; gateway_runs: { route?: { unqualified?: boolean } | null; [key: string]: unknown }[] };
+type Turn = { origin?: string; triage_signal_id?: string | null; responsibility_objective?: string; display_context?: DisplayContext | null; id: string; user_text: string; status: string; reply: string | null; questions: string[]; system_message?: string; issues: string[]; artifacts: ArtifactRef[]; steps?: Step[]; elapsed_seconds?: number; basis_status?: string; grounding?: Grounding | null; context_used?: ContextUsed | null; held_back?: string[]; gateway_runs: { route?: { unqualified?: boolean } | null; [key: string]: unknown }[] };
 type ContextUsed = { rules: { rule_id: string; scope: string; text: string }[]; corrections: { correction_id: string; text: string }[]; earlier_corrections: { correction_id: string; text: string }[] };
 type Thread = { id: string; site_id?: string; mission_id?: string; revision: number; title: string; turns: Turn[]; turn_ids: string[]; demo_enabled: boolean; source_ids: string[]; dataset_ids?: string[]; responsibility?: Responsibility | null; mission_status?: string };
 type PublishedDataset = { id: string; cmo: string; delivery_name: string | null; measurements: number; batches: string[] };
@@ -434,6 +434,11 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
             </> : turn.reply && <Markdown text={turn.reply} />}
             {turn.grounding && turn.reply && <GroundingNote g={turn.grounding} />}
             <DrewOn turn={turn} />
+            {!!turn.held_back?.length && !active(turn) && <div className="mt-3 rounded-card border border-border-hairline bg-surface px-4 py-3 text-xs">
+              <p className="text-text-secondary">Not run this turn (a turn runs at most three of these): {turn.held_back.join(' · ')}</p>
+              {index === (thread?.turns.length ?? 0) - 1 && <button type="button" disabled={busy} onClick={() => void send(`Please run the remaining steps: ${turn.held_back!.join('; ')}`)}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-control bg-brand-teal px-3 py-1.5 font-medium text-white hover:bg-brand-teal-dark disabled:opacity-50">Run the remaining {turn.held_back.length}</button>}
+            </div>}
             {turn.reply && !active(turn) && thread.mission_id && <CorrectAnswer key={`correct-${turn.id}`} missionId={thread.mission_id} />}
             <WorkLog turn={turn} threadId={thread.id} running={active(turn)} />
             {!!turn.questions.length && (index === (thread?.turns.length ?? 0) - 1 && !active(turn)
