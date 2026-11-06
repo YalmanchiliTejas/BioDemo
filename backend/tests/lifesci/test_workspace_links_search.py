@@ -77,3 +77,12 @@ def test_search_modes_validate_their_inputs():
         WorkspaceSearch(mode='similar_cases')
     assert WorkspaceSearch(mode='links', record_kind='batch', record_id='B-001').mode == 'links'
     assert WorkspaceSearch().mode == 'search'
+
+
+def test_links_for_a_batch_with_no_record_find_records_that_name_it(plant):
+    # Demo B-117 exists only inside other records; asking for its links must not stop the turn.
+    p, ctx, thread = plant
+    result = p.engineering_conversations.workspace.links(ctx, thread, kind='batch', record_id='B-117')
+    assert result['target'] is None and 'no batch record B-117' in result['target_missing'] and result['records'] == []
+    p.cases.add_timeline_event(ctx, 'DEV-9', '2024-03-02T00:00:00+00:00', 'DO below 30 % in B-117')
+    assert 'DEV-9' in by_id(p.engineering_conversations.workspace.links(ctx, thread, kind='batch', record_id='B-117'))

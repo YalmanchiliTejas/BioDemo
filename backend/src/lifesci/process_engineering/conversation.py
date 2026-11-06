@@ -16,7 +16,7 @@ from ..evidence import EvidenceRef
 from ..flows import node_order
 from ..gateway import TaskRequest
 from ..ids import iso, new_id, utc_now
-from ..store import ConflictError, LeaseError
+from ..store import ConflictError, LeaseError, NotFoundError
 from .conversation_schemas import (BioForecast, ChatDecision, ChatPipelineSpec, ChoForecast, Compare, ConversationIn, ConversationUpdate,
     DemoCase, DemoInputs, MessageIn, PlanId, ResultId, Variant, WorkspaceSearch, WorkspaceRead, WorkspaceProposal,
     WorkspaceRuleProposal, WorkspaceInvestigationProposal)
@@ -790,14 +790,21 @@ class EngineeringConversationService:
                     result = self.workspace.search(ctx, thread, kinds=payload.kinds, query=payload.query, limit=payload.limit)
                     title = 'Workspace search'
                 else:
-                    result = self.workspace.read(ctx, thread, **payload.model_dump())
-                    title = f'{payload.kind} · {payload.record_id}'
+                    try:
+                        result = self.workspace.read(ctx, thread, **payload.model_dump())
+                        title = f'{payload.kind} · {payload.record_id}'
+                    except NotFoundError:
+                        # A guessed ID that doesn't exist is an answer ("no such record"), not a reason to stop the other reads.
+                        result = {'not_found': {'kind': payload.kind, 'id': payload.record_id},
+                                  'note': f'There is no {payload.kind} record {payload.record_id} in this workspace. '
+                                          'Search for the identifier to find records that mention it.'}
+                        title = f'Not found · {payload.kind} {payload.record_id}'
                 # The source read may take time. Recheck cancellation, persist,
                 # and attach in one transaction after the read has completed.
                 with self.p.store.transaction(ctx.actor_id) as tx:
                     self._active_turn(ctx, turn, tx)
                     record = self.workspace.save_result(ctx, thread, turn, result, title)
-                    if name == 'workspace_read' and payload.kind in ('physical_analysis_context', 'process_simulation'):
+                    if name == 'workspace_read' and 'not_found' not in result and payload.kind in ('physical_analysis_context', 'process_simulation'):
                         self.analysis._source(ctx, payload.record_id, 0)
                         parent = self._thread(ctx, thread['id'], tx)
                         tx.put(ctx.tenant_id, 'engineering_conversation', parent.id,

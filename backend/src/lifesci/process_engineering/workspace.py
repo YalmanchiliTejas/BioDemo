@@ -9,6 +9,7 @@ import re
 from ...manufacturing_data.knowledge import canonical
 from ..evidence import STATUS_CURRENT, EvidenceRef
 from ..ids import iso, parse_iso
+from ..store import NotFoundError
 
 KINDS = ('case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
          'proposal', 'physical_analysis_context', 'process_simulation', 'engineering_chat_turn', 'deviation_signal')
@@ -263,9 +264,15 @@ class WorkspaceTools:
         A shared identifier says the records mention the same ID, not that one caused the other."""
         if kind not in KINDS or kind == 'engineering_chat_turn':
             raise ValueError('links apply to workspace process records')
-        target = self.p.store.read().require(ctx.tenant_id, kind, record_id)
-        target_ref = self._authorize(ctx, thread, target)
-        mine = _identifiers(target.state, FIELDS[kind])
+        target = self.p.store.read().get(ctx.tenant_id, kind, record_id)
+        if target is None:
+            # No such record (e.g. a batch named only inside other records): find records that name the identifier.
+            target_ref, mine = None, _identifiers({f'{kind}_id': record_id}, (f'{kind}_id',))
+            if not mine:
+                raise NotFoundError(f'{kind}:{record_id}')
+        else:
+            target_ref = self._authorize(ctx, thread, target)
+            mine = _identifiers(target.state, FIELDS[kind])
         found, searched = [], 0
         for rec, ref in self._authorized(ctx, thread, [k for k in KINDS if k != 'engineering_chat_turn']):
             if (rec.kind, rec.id) == (kind, record_id):
@@ -283,7 +290,9 @@ class WorkspaceTools:
         found.sort(key=lambda r: (-sum(s['status'] == 'extracted' for s in r['shared_identifiers']),
                                   -len(r['shared_identifiers']), r['id']))
         # 'target', not 'record': a link list is discovery, not an inspection of the target's content.
-        return {'target': target_ref, 'identifiers': [{'canonical': k, **v} for k, v in sorted(mine.items())],
+        missing = {} if target else {'target_missing': f'There is no {kind} record {record_id} in this workspace; '
+                                     f'these are records that name {record_id}.'}
+        return {**missing, 'target': target_ref, 'identifiers': [{'canonical': k, **v} for k, v in sorted(mine.items())],
                 'records': found[:limit], 'matching_count': len(found), 'truncated': len(found) > limit,
                 'records_searched': searched,
                 'coverage': f'Searched {searched} authorized process records at this site; records you cannot access, '
