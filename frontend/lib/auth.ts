@@ -177,6 +177,10 @@ export async function signUp(email: string, password: string) {
 
 /** Demo workspaces: one click, no account. Supabase anonymous sign-in in production; on a laptop
  *  (local test accounts) a generated local demo actor, which the development API accepts the same way. */
+export class DemoSignedInError extends Error {
+  constructor(public email: string) { super(`You're signed in as ${email}. The demo runs in a separate, anonymous workspace.`); }
+}
+
 export async function signInForDemo() {
   if (authMode() === 'development') {
     const current = localSession();
@@ -186,8 +190,13 @@ export async function signInForDemo() {
     return;
   }
   const { data } = await attempt(() => supabase().auth.getSession());
-  if (data.session) return; // already signed in (anonymous or not): the API decides whether a demo is allowed
+  const user = data.session?.user;
+  if (user?.is_anonymous) return; // a returning demo visitor keeps their workspace
+  // A real account never gets a demo tenant; say so instead of failing at the API.
+  if (user) throw new DemoSignedInError(user.email ?? 'an account');
   const { error } = await attempt(() => supabase().auth.signInAnonymously());
+  if (error && /anonymous sign-ins are disabled/i.test(error.message ?? ''))
+    throw new Error('Demo sign-in isn’t switched on for this site yet (Supabase anonymous sign-ins are disabled).');
   const message = plain(error, 'The demo could not start. Try again in a moment.');
   if (message) throw new Error(message);
 }
