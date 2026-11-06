@@ -661,3 +661,15 @@ def test_final_planning_round_must_answer_instead_of_reading():
     with pytest.raises(ValueError, match='final planning call'):
         S._validate_decision(read, final=True)
     S._validate_decision({'reply': 'Answer.', 'workflow': []}, final=True)
+
+
+def test_a_read_of_a_record_that_does_not_exist_does_not_stop_the_other_reads(env):
+    # Live demo: one guessed ID stopped 6 independent reads and forced slow replanning.
+    p, ctx = env
+    p.cases.open(ctx, 'REAL-1', 'priya', 'quinn', 'NF1')
+    fake_planner(p, [
+        {'reply': 'Reading both.', 'workflow': [node('ghost', 'workspace_read', {'kind': 'case', 'record_id': 'NOPE-9', 'revision': 1}),
+                                                node('real', 'workspace_read', {'kind': 'case', 'record_id': 'REAL-1', 'revision': 1})]},
+        {'reply': 'NOPE-9 does not exist; REAL-1 is open with no timeline yet.'}])
+    turn = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Compare NOPE-9 and REAL-1')['turns'][-1]
+    assert turn['status'] == 'completed' and turn['planning_calls_admitted'] == 2 and len(turn['artifacts']) == 2
