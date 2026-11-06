@@ -41,25 +41,35 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
     def assess(result_id: str, ctx=Depends(ctx_dep), key: str | None = Header(None, alias="Idempotency-Key")):
         return idempotent(ctx, key, f"physical-agent-assessment:{result_id}", {}, lambda: service.interpret(ctx, result_id))
 
-    from .conversation_schemas import ConversationIn, MessageIn, WatchIn
+    from .conversation_schemas import ConversationIn, ConversationUpdate, MessageIn, WatchIn
     conversations = p.engineering_conversations
     tasks = app.state.tasks
 
     def turn_task(payload):
         # Rebuilt from stored role assignments, so revoked access also stops queued work.
-        ctx = p.identity.context_for(payload['tenant'], payload['actor'], actor_kind=payload['actor_kind'],
-                                     partner_org_id=payload.get('partner_org_id'))
+        if payload.get('delegated_from'):
+            # Background work (e.g. signal triage) runs as the agent on behalf of its owner; rebuild that delegation.
+            from ..roles import agent_context_for
+            ctx = agent_context_for(p.identity.context_for(payload['tenant'], payload['delegated_from']), p.identity)
+        else:
+            ctx = p.identity.context_for(payload['tenant'], payload['actor'], actor_kind=payload['actor_kind'],
+                                         partner_org_id=payload.get('partner_org_id'))
         return conversations.run_turn(ctx, payload['thread_id'], payload['turn_id'])
 
     tasks.register('engineering_turn', turn_task)
 
     def queue_turn(ctx, thread_id, turn_id):
         tasks.submit('engineering_turn', {'tenant': ctx.tenant_id, 'actor': ctx.actor_id, 'actor_kind': ctx.actor_kind,
-                                          'partner_org_id': ctx.partner_org_id, 'thread_id': thread_id, 'turn_id': turn_id})
+                                          'partner_org_id': ctx.partner_org_id, 'thread_id': thread_id, 'turn_id': turn_id,
+                                          'delegated_from': ctx.delegated_from})
+
+    # Signal triage turns go through the same task runner (asynchronous on Lambda), never inline in a request.
+    if getattr(p, 'triage', None) is not None:
+        p.triage.submit_turn = queue_turn
 
     @app.get('/v1/process-model/conversations')
-    def list_conversations(ctx=Depends(ctx_dep)):
-        return {'conversations': conversations.list_for(ctx)}
+    def list_conversations(archived: bool = False, ctx=Depends(ctx_dep)):
+        return {'conversations': conversations.list_for(ctx, archived=archived)}
 
     @app.post('/v1/process-model/conversations')
     def new_conversation(body: ConversationIn, ctx=Depends(ctx_dep), key: str | None = Header(None, alias='Idempotency-Key')):
@@ -72,6 +82,10 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
     @app.get('/v1/process-model/conversations/{thread_id}')
     def get_conversation(thread_id: str, ctx=Depends(ctx_dep)):
         return conversations.get(ctx, thread_id)
+
+    @app.post('/v1/process-model/conversations/{thread_id}/update')
+    def update_conversation(thread_id: str, body: ConversationUpdate, ctx=Depends(ctx_dep)):
+        return conversations.update(ctx, thread_id, body)
 
     @app.post('/v1/process-model/conversations/{thread_id}/responsibility')
     def configure_responsibility(thread_id: str, body: WatchIn, ctx=Depends(ctx_dep)):

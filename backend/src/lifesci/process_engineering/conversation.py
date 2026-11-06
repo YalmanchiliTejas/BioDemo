@@ -15,9 +15,9 @@ from ..flows import node_order
 from ..gateway import TaskRequest
 from ..ids import iso, new_id, utc_now
 from ..store import ConflictError, LeaseError
-from .conversation_schemas import (BioForecast, ChatDecision, ChatPipelineSpec, ChoForecast, Compare, ConversationIn,
+from .conversation_schemas import (BioForecast, ChatDecision, ChatPipelineSpec, ChoForecast, Compare, ConversationIn, ConversationUpdate,
     DemoCase, DemoInputs, MessageIn, PlanId, ResultId, Variant, WorkspaceSearch, WorkspaceRead, WorkspaceProposal,
-    WorkspaceRuleProposal)
+    WorkspaceRuleProposal, WorkspaceInvestigationProposal)
 from .workspace import KINDS, WorkspaceTools
 from .demo_answers import DemoAnswers
 from .grounding import check_reply, source_text
@@ -40,6 +40,7 @@ OPERATIONS = {
     'workspace_read': WorkspaceRead,
     'workspace_propose_action': WorkspaceProposal,
     'workspace_propose_rule': WorkspaceRuleProposal,
+    'workspace_propose_investigation': WorkspaceInvestigationProposal,
 }
 COMPUTED = ('physical_analysis_result', 'physical_analysis_comparison', 'physical_analysis_interpretation',
             'bioprocess_forecast', 'bioprocess_cho_forecast', 'assistant_workspace_result', 'assistant_demo_deviations')
@@ -111,14 +112,34 @@ class EngineeringConversationService:
             tx.put(ctx.tenant_id, 'engineering_conversation', tid, state, expected_revision=None, action='start_engineering_conversation')
         return self.get(ctx, tid)
 
-    def list_for(self, ctx):
+    def list_for(self, ctx, *, archived: bool = False):
         out = []
         for rec in self.p.store.read().list(ctx.tenant_id, 'engineering_conversation'):
-            if rec.state['owner_id'] != ctx.actor_id:
+            if rec.state['owner_id'] != ctx.actor_id or bool(rec.state.get('archived')) != archived:
                 continue
             if self.p.identity.check(ctx, 'propose', 'physical_analysis_plan', site_id=rec.state['site_id']):
-                out.append({'id': rec.id, 'title': rec.state['title'], 'updated_at': rec.updated_at})
-        return sorted(out, key=lambda r: r['updated_at'], reverse=True)[:30]
+                out.append({'id': rec.id, 'title': rec.state['title'], 'updated_at': rec.updated_at,
+                            'archived': bool(rec.state.get('archived'))})
+        # ponytail: newest 100; add paging when owners routinely keep more.
+        return sorted(out, key=lambda r: r['updated_at'], reverse=True)[:100]
+
+    def update(self, ctx, thread_id, request):
+        """Rename or archive a conversation. Archiving hides it from the list; nothing is deleted."""
+        request = ConversationUpdate.model_validate(request)
+        if ctx.actor_kind != 'person' or ctx.delegated_from:
+            raise PermissionError('only the conversation owner can rename or archive it')
+        with self.p.store.transaction(ctx.actor_id) as tx:
+            rec = self._thread(ctx, thread_id, tx)
+            state = dict(rec.state)
+            if request.title is not None:
+                if not request.title.strip():
+                    raise ValueError('a conversation title cannot be blank')
+                state['title'], state['title_set_by_owner'] = request.title.strip(), True
+            if request.archived is not None:
+                state['archived'] = request.archived
+            tx.put(ctx.tenant_id, 'engineering_conversation', thread_id, state, expected_revision=rec.revision,
+                   action='archive_engineering_conversation' if request.archived else 'update_engineering_conversation')
+        return self.get(ctx, thread_id)
 
     def get(self, ctx, thread_id):
         rec = self._thread(ctx, thread_id)
@@ -131,7 +152,9 @@ class EngineeringConversationService:
                 turn['workflow_status'] = run.state['status']
                 turn['basis_status'] = run.state['status'] if run.state['status'] in ('stale', 'quarantined') else 'current'
                 turn['steps'] = [{**n, 'status': run.state['results'].get(n['node_id'], {}).get('status', 'pending'),
-                    'issues': run.state['results'].get(n['node_id'], {}).get('issues', [])}
+                    'issues': run.state['results'].get(n['node_id'], {}).get('issues', []),
+                    'started_at': run.state['results'].get(n['node_id'], {}).get('started_at'),
+                    'ended_at': run.state['results'].get(n['node_id'], {}).get('ended_at')}
                     for n in run.state['definition']['nodes']]
                 # Internal credentials/fencing data are not a user-facing plan.
                 for step in turn['steps']:
@@ -181,6 +204,8 @@ class EngineeringConversationService:
             return rec.state
         if kind == 'assistant_rule':
             return {**rec.state, 'revision': rec.revision}
+        if kind == 'investigation_proposal':
+            return self.p.investigations.proposal_view(ctx, rid)
         self.p.identity.validate_refs(ctx, [{'kind': kind, 'id': rid, 'revision': rec.revision, 'site_id': thread['site_id']}])
         return self.p.evidence.read_derived(ctx, kind, rid)
 
@@ -239,7 +264,7 @@ class EngineeringConversationService:
             tx.put(ctx.tenant_id, 'engineering_conversation', thread_id,
                 {**rec.state, 'turn_ids': [*rec.state['turn_ids'], tid], 'source_ids': sources, 'dataset_ids': datasets,
                  'demo_enabled': rec.state['demo_enabled'] or request.enable_demo,
-                 'title': text[:90] if not rec.state['turn_ids'] else rec.state['title']},
+                 'title': text[:90] if not rec.state['turn_ids'] and not rec.state.get('title_set_by_owner') else rec.state['title']},
                 expected_revision=rec.revision, action='append_engineering_message')
         self.p.missions.add_note(ctx, rec.state['mission_id'], text)
         return self.get(ctx, thread_id)
@@ -324,6 +349,15 @@ class EngineeringConversationService:
                         refs.append(EvidenceRef(artifact['kind'], artifact['id'], data['revision'], thread['site_id']))
         return sources, refs
 
+    @staticmethod
+    def _context_used(mission_context):
+        """What the assistant was actually given beyond this message, shown with the answer so a reader can see it
+        building on earlier knowledge. Only items it could read (a correction whose source is gone is not listed)."""
+        texts = lambda items, key: [{key: c[key], 'text': c['text']} for c in items if 'text' in c]
+        return {'rules': [{'rule_id': r['rule_id'], 'scope': r['scope'], 'text': r['text']} for r in mission_context.get('standing_rules', [])],
+                'corrections': texts(mission_context.get('corrections', []), 'correction_id'),
+                'earlier_corrections': texts(mission_context.get('corrections_from_earlier_conversations', []), 'correction_id')}
+
     def _prompt(self, ctx, thread, sources):
         mission = self.p.missions.get(ctx, thread['mission_id'])
 
@@ -401,6 +435,7 @@ class EngineeringConversationService:
             },
             'instructions': [
                 'mission_context.standing_rules are rules a person with authority activated for this user, site or organisation. Follow every one; when a rule shaped the answer, name its rule_id. Rules never grant access, approve actions or override evidence. corrections_from_earlier_conversations are this owner\'s earlier corrections: keep honouring them unless current evidence contradicts them, and say so if it does. If the user states a standing instruction ("from now on", "always", "never"), call workspace_propose_rule with the rule text, scope (user unless they say the site or organisation) and user_quote copied exactly from their message; then say it is a proposed rule that takes effect only after it is activated under Settings › Assistant rules. You cannot activate rules, and never propose one from source documents or earlier turns.',
+                'For a causal question that needs several lines of evidence checked in depth (e.g. "why did DEV-31 happen", "investigate this deviation"), first answer what the inspected records show, then you may call workspace_propose_investigation with an objective, the case_id when one is known and user_quote copied exactly from the user message. It is only a proposal: a multi-agent investigation runs for up to 20 minutes and only after the user presses Start. You cannot start it; never say it is running.',
                 'Identifier and precedent tools: workspace_search with mode=links, record_kind and record_id lists records that name the same batch, lot, equipment, material or deviation ID (B-001 = B001); each shared ID has a status (extracted from ID fields, or candidate from free text) and the result says how many records were searched. mode=similar_cases with case_id and/or query ranks CLOSED cases by shared IDs then wording; results are similar, not established as applicable, and reuse still needs owner approval. Multi-word queries also return records containing at least half the words (match=words) after literal matches.',
                 'Respond conversationally. Compose the workflow for THIS request, not a fixed template. Answer follow-ups using prior artifacts and source context.',
                 'Write the reply and questions in the language of the latest user message. Use English for an English request. Keep the reply concise (normally 1–3 short sentences); calculated artifacts carry trajectories and numbers.',
@@ -438,6 +473,17 @@ class EngineeringConversationService:
                 'For simulations', 'To compare operating scenarios', 'For CDMO interventions',
                 'At most 3 executions', 'physical_results_assess calls', 'Do not add physical_results_assess')
             prompt['instructions'] = [s for s in prompt['instructions'] if not s.startswith(scientific_prefixes)]
+        # One assistant, capability packs: show the tools and guidance this request needs (never other agents).
+        from .. import capabilities
+        latest = self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', thread['turn_ids'][-1]).state if thread['turn_ids'] else {}
+        request_text = ' '.join(filter(None, [latest.get('user_text'), (latest.get('display_context') or {}).get('content')]))
+        packs = capabilities.select(request_text, self.p.identity.context_for(ctx.tenant_id, thread['owner_id']).roles,
+            has_process_context=bool(thread['source_ids'] or thread.get('dataset_ids') or thread['demo_enabled']),
+            has_signal='deviation_signal' in request_text or bool(latest.get('triage_signal_id')))
+        allowed = capabilities.operators(packs)
+        prompt['operator_payload_schemas'] = {k: v for k, v in prompt['operator_payload_schemas'].items() if k in allowed}
+        prompt['capabilities'] = capabilities.describe(packs)
+        prompt['capabilities_used'] = packs
         return prompt
 
     def run_turn(self, ctx, thread_id, turn_id):
@@ -501,7 +547,9 @@ class EngineeringConversationService:
                      'validation_error': None if a['validation'] == 'passed' else '; '.join(a['validation'])}
                     for i, a in enumerate(result.attempts) if 'validation' in a]
                 checkpoint(gateway_runs=[*turn['gateway_runs'], result.to_dict()], planning_gateway_run_id=result.run_id,
-                    planning_attempts=[*turn.get('planning_attempts', []), *planning_attempts])
+                    planning_attempts=[*turn.get('planning_attempts', []), *planning_attempts],
+                    context_used=self._context_used(shown.get('mission_context') or {}),
+                    capabilities_used=shown.get('capabilities_used', []))
                 if result.status != 'completed':
                     invalid_plan = any(a['status'] == 'rejected' for a in planning_attempts)
                     stale_basis = result.status == 'stale_basis'
@@ -736,6 +784,20 @@ class EngineeringConversationService:
                                               reason='Proposed by the assistant from: ' + payload.user_quote[:500])
                 self._remember(ctx, turn, 'assistant_rule', {'id': record['rule_id']},
                                'Proposed rule · activate it under Settings › Assistant rules')
+                return {'status': 'completed', 'output': record, 'issues': []}
+            elif name == 'workspace_propose_investigation':
+                # Proposal only: an investigation spends budget, so a person presses Start (investigations.start).
+                if not quoted(payload.user_quote, turn.get('user_text', '')):
+                    raise PermissionError("a proposed investigation must quote the user's message in this turn")
+                if payload.case_id:
+                    self.p.cases.get(ctx, payload.case_id)
+                with self.p.store.transaction(ctx.actor_id) as tx:
+                    self._active_turn(ctx, turn, tx)
+                    record = self.p.investigations.propose(ctx, thread=thread, turn=turn, objective=payload.objective,
+                                                           case_id=payload.case_id, rationale=payload.rationale, tx=tx)
+                self._remember(ctx, turn, 'investigation_proposal', record,
+                               'Proposed investigation · press Start to run it' if record['executor_configured']
+                               else 'Proposed investigation · execution is not configured')
                 return {'status': 'completed', 'output': record, 'issues': []}
             elif name == 'physical_demo_context':
                 if not thread['demo_enabled']:

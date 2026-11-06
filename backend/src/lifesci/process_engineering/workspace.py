@@ -11,8 +11,11 @@ from ..evidence import STATUS_CURRENT, EvidenceRef
 from ..ids import iso, parse_iso
 
 KINDS = ('case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
-         'proposal', 'physical_analysis_context', 'process_simulation', 'engineering_chat_turn')
+         'proposal', 'physical_analysis_context', 'process_simulation', 'engineering_chat_turn', 'deviation_signal')
 FIELDS = {
+    # Deviation signals are detections, not deviations: a person decides whether a case is opened.
+    'deviation_signal': ('signal_id', 'kind', 'severity', 'rule', 'parameter', 'value', 'unit', 'limit', 'spec_ref',
+                         'subject', 'source', 'status', 'occurrences', 'first_at', 'last_at', 'case_id', 'triage'),
     'case': ('case_id', 'status', 'opened_at', 'owner_id', 'qa_reviewer_id', 'timeline', 'procedure_refs'),
     'batch': ('batch_id', 'status', 'product', 'recipe_id', 'equipment_id', 'started_at', 'completed_at'),
     'sample': ('sample_id', 'status', 'batch_id', 'results', 'collected_at'),
@@ -100,7 +103,8 @@ class WorkspaceTools:
 
     def _summary(self, rec, ref):
         s = rec.state
-        time_key = 'opened_at' if rec.kind == 'case' else 'event_time' if rec.kind == 'evidence' else 'created_at'
+        time_key = ('opened_at' if rec.kind == 'case' else 'event_time' if rec.kind == 'evidence'
+                    else 'first_at' if rec.kind == 'deviation_signal' else 'created_at')
         stamp = s.get(time_key)
         try:
             parsed = parse_iso(stamp) if stamp else None
@@ -108,7 +112,8 @@ class WorkspaceTools:
         except (TypeError, ValueError):
             timestamp = None
         return {**ref, 'status': s.get('status'), 'time': timestamp, 'time_basis': time_key,
-            'label': str(s.get('case_id') or s.get('source_record_id') or s.get('user_text') or rec.id)[:180],
+            'label': str((f"{s.get('severity', '')} signal · {s.get('rule', '')}" if rec.kind == 'deviation_signal' else None)
+                         or s.get('case_id') or s.get('source_record_id') or s.get('user_text') or rec.id)[:180],
             'classification': 'saved_conversation_not_verified_finding' if rec.kind == 'engineering_chat_turn'
                 else s.get('metadata', {}).get('classification'),
             'timeline_events': len(s.get('timeline', [])) if rec.kind == 'case' else None}

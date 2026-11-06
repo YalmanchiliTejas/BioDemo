@@ -98,6 +98,8 @@ class FermentationService:
         from .benchmark import attempt
         self.p.identity.require(ctx,'propose','physical_analysis_plan',site_id=site_id)
         public=project(case_id)
+        # Stays on the in-process path: the executor image does not yet expose the fermentation_transfer
+        # calculation tool or this task's calibrated prompt, so moving it would weaken the assessment.
         # Only calibration-side inputs reach Prime. UI validation outputs are deliberately not forwarded.
         directory=Path('.cache/fermentation-prime')/content_hash({'tenant':ctx.tenant_id,'actor':ctx.actor_id,'site':site_id})
         directory.mkdir(parents=True,exist_ok=True)

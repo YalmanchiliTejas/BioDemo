@@ -23,7 +23,15 @@ export default function AssistantRulesPage() {
   const [error, setError] = useState('');
   const [text, setText] = useState('');
   const [scope, setScope] = useState<Rule['scope']>('user');
-  const [site, setSite] = useState('');
+  const mySites = workspace.organization?.site_ids ?? [];
+  const [site, setSite] = useState(mySites[0] ?? '');
+  const [knownSites, setKnownSites] = useState<string[]>([]);
+  useEffect(() => {
+    if (mySites.length) return;
+    processRequest<{ sites: Record<string, unknown> }>('/v1/network/sites')
+      .then(r => setKnownSites(Object.keys(r.sites).filter(s => s !== 'unassigned').sort())).catch(() => setKnownSites([]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mySites.join(',')]);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -61,7 +69,10 @@ export default function AssistantRulesPage() {
               {(Object.keys(SCOPE) as Rule['scope'][]).map(s => <option key={s} value={s}>{SCOPE[s]}</option>)}
             </select></label>
           {scope === 'site' && <label className="text-[13px] font-medium">Site
-            <input required value={site} onChange={e => setSite(e.target.value)} className="ml-2 h-9 rounded border border-border-hairline px-2 text-[13px]" /></label>}
+            {mySites.length
+              ? <select required value={site} onChange={e => setSite(e.target.value)} className="ml-2 h-9 rounded border border-border-hairline px-2 text-[13px]">{mySites.map(s => <option key={s} value={s}>{s}</option>)}</select>
+              : <><input required list="rule-sites" value={site} onChange={e => setSite(e.target.value)} placeholder="Site ID" className="ml-2 h-9 rounded border border-border-hairline px-2 text-[13px]" />
+                  <datalist id="rule-sites">{knownSites.map(s => <option key={s} value={s} />)}</datalist></>}</label>}
           <Button type="submit" variant="primary" disabled={busy || !text.trim()}>Propose rule</Button>
         </div>
       </form>

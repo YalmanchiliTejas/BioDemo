@@ -16,6 +16,7 @@ from psycopg.types.json import Jsonb
 from .api import input_key
 from .crypto import master_key, object_key, spaces_client, unseal
 from .store import Store
+from src.prime_runtime.investigation_events import parse_line
 
 
 def container_limits():
@@ -24,7 +25,10 @@ def container_limits():
             "tmpfs": {"/tmp": "rw,nosuid,nodev,size=1073741824,uid=10001,gid=10001,mode=0700"},
             "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"],
             "mem_limit": "2g", "nano_cpus": 2_000_000_000, "pids_limit": 128, "init": True,
-            "log_config": LogConfig(type="none"), "restart_policy": {"Name": "no"},
+            # The agent sends only allow-listed progress events to stdout (stderr stays on its tmpfs);
+            # a small bounded local log lets the dispatcher read them. Removed with the container.
+            "log_config": LogConfig(type="local", config={"max-size": "10m", "max-file": "1"}),
+            "restart_policy": {"Name": "no"},
             "ulimits": [Ulimit(name="core", soft=0, hard=0)]}
 
 
@@ -83,6 +87,38 @@ class Dispatcher:
         return self.engine.containers.create(
             self.config["image"], name=name, command=["python", "-m", "src.cloud_backend.agent"],
             environment=environment, network=name, labels={"biodemo.job": job["id"]}, **container_limits())
+
+    @staticmethod
+    def _stamp(value):
+        from datetime import datetime
+        text = value.decode() if isinstance(value, bytes) else value
+        head, _, fraction = text.rstrip("Z").partition(".")
+        return datetime.fromisoformat(head + ("." + fraction[:6] if fraction else "") + "+00:00").timestamp()
+
+    def ingest(self, job, container):
+        """Copy allow-listed progress lines into cloud_job_events. Anything else is dropped unread."""
+        since = job.get("log_since") or 0
+        raw = container.logs(stdout=True, stderr=False, timestamps=True, since=int(since))
+        events, last = [], since
+        for line in raw.splitlines():
+            stamp, _, body = line.partition(b" ")
+            try:
+                last = max(last, self._stamp(stamp))
+            except ValueError:
+                continue
+            event = parse_line(body)
+            if event is not None:
+                events.append(event)
+        if events or last != since:
+            # Re-reads at the one-second `since` boundary are deduplicated by (job, attempt, local_seq).
+            self.store.append_events(job["id"], job["fence"], job["attempt"], events, log_since=last)
+            job["log_since"] = last
+
+    def _ingest_quietly(self, job, container):
+        try:
+            self.ingest(job, container)
+        except Exception:
+            print(json.dumps({"event": "job_event_ingest_failed", "job_id": job["id"]}), flush=True)
 
     def cleanup(self, job):
         container = self.container(job)
@@ -148,7 +184,9 @@ class Dispatcher:
             container.start()
             return
         if container.status in ("running", "restarting"):
+            self._ingest_quietly(job, container)
             return
+        self._ingest_quietly(job, container)
         success = container.attrs["State"].get("ExitCode") == 0
         key, version = None, None
         if success:

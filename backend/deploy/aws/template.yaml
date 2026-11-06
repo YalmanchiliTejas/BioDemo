@@ -42,6 +42,30 @@ Parameters:
   LlmModel:
     Type: String
     Default: zai-org/GLM-5.3
+  InvestigationExecutorUrl:
+    Type: String
+    Default: ""
+    Description: HTTPS base URL of the investigation executor (cloud_backend). Empty disables multi-agent investigations.
+  InvestigationExecutorAudience:
+    Type: String
+    Default: ""
+  InvestigationExecutorTenant:
+    Type: String
+    Default: ""
+  InvestigationExecutorProject:
+    Type: String
+    Default: ""
+  InvestigationIssuer:
+    Type: String
+    Default: ""
+    Description: Issuer the executor trusts, e.g. https://api.example.com (JWKS at /.well-known/investigation-jwks.json)
+  InvestigationSigningKeySecretArn:
+    Type: String
+    Default: ""
+    Description: Secrets Manager ARN holding the RS256 private key PEM (kept out of the 4 KB Lambda environment)
+  InvestigationSigningKeyId:
+    Type: String
+    Default: investigation-1
   AllowUnqualifiedRoutes:
     Type: String
     Default: "1"
@@ -91,6 +115,7 @@ Parameters:
 Conditions:
   HasReservedConcurrency: !Not [!Equals [!Ref ReservedConcurrency, "0"]]
   HasModal: !Not [!Equals [!Ref ModalProxyToken, ""]]
+  HasInvestigationKey: !Not [!Equals [!Ref InvestigationSigningKeySecretArn, ""]]
   HasDomain: !And
     - !Not [!Equals [!Ref ApiDomain, ""]]
     - !Not [!Equals [!Ref CertificateArn, ""]]
@@ -132,8 +157,22 @@ Resources:
           MODAL_BASE_URL: !Ref ModalBaseUrl
           MODAL_PROXY_TOKEN: !Ref ModalProxyToken
           LIFESCI_ALLOW_UNQUALIFIED_ROUTES: !Ref AllowUnqualifiedRoutes
+          INVESTIGATION_EXECUTOR_URL: !Ref InvestigationExecutorUrl
+          INVESTIGATION_EXECUTOR_AUDIENCE: !Ref InvestigationExecutorAudience
+          INVESTIGATION_EXECUTOR_TENANT: !Ref InvestigationExecutorTenant
+          INVESTIGATION_EXECUTOR_PROJECT: !Ref InvestigationExecutorProject
+          INVESTIGATION_ISSUER: !Ref InvestigationIssuer
+          INVESTIGATION_SIGNING_KEY_SECRET_ARN: !Ref InvestigationSigningKeySecretArn
+          INVESTIGATION_SIGNING_KEY_ID: !Ref InvestigationSigningKeyId
       Policies:
         - Statement:
+            - !If
+              - HasInvestigationKey
+              - Sid: ReadInvestigationSigningKey
+                Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref InvestigationSigningKeySecretArn
+              - !Ref AWS::NoValue
             - Sid: RunOwnBackgroundTasks
               Effect: Allow
               Action: lambda:InvokeFunction

@@ -170,6 +170,15 @@ def install_cmo_api(p, app: FastAPI, ctx_dep) -> None:
                                content=dataset_content(payload), media_type="application/json", site_id=body.site_id,
                                event_time=payload.get("completed_at"), source_revision=body.run_id,
                                mapping_version="verified-cmo-1", metadata=meta)
+        signals = getattr(p, "signals", None)
+        if signals is not None:
+            try:  # verified CMO values against approved specifications; a detection failure never blocks publication
+                signals.check_delivery_measurements(ctx.tenant_id, site_id=body.site_id, measurements=[
+                    {"parameter": m["parameter"], "value": m.get("value"), "unit": m.get("unit"), "batch_id": m.get("batch")}
+                    for m in payload["measurements"]],
+                    delivery_ref={"kind": "evidence", "id": ev["evidence_id"], "revision": ev["revision"], "site_id": body.site_id})
+            except Exception:
+                log.exception("Specification check of delivery %s failed", body.run_id)
         return listing(p.store.read().require(ctx.tenant_id, "evidence", ev["evidence_id"]))
 
     @app.post("/v1/cmo-documents", status_code=201)

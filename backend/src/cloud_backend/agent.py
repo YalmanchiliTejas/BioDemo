@@ -45,8 +45,21 @@ def execute(manifest, work):
                                                workflow=workflow, scope=manifest["scope"])
     harness.timeout_seconds = max(1, int(manifest["deadline"] - time.time() - 15))
     harness.max_tool_calls = manifest["max_tool_calls"]
+    emitter = progress()
+    max_tokens = manifest.get("max_tokens")
+
+    def on_event(raw):
+        emitter.sdk(raw)
+        if max_tokens and emitter.total_tokens > max_tokens:
+            emitter.emit("error", {"code": "token_cap_exceeded"}, agent_id="lead")
+            harness.abort()
+    harness.on_event = on_event
+    harness.on_bridge_event = lambda kind, payload, depth, key: emitter.bridge(kind, payload, depth=depth, key=key)
+    emitter.set_phase("planning")
+    emitter.emit("agent_started", {"depth": 0, "status": "running", "question": manifest["objective"]}, agent_id="lead")
     result = harness.run(incident_id=manifest["id"], problem=manifest["objective"],
                          new_evidence_ids=[], as_of=manifest["as_of"])
+    emitter.emit("agent_finished", {"depth": 0, "status": "done"}, agent_id="lead")
     data = json.dumps({"run_id": manifest["id"], "input_sha256": manifest["sha256"],
                        "input_version_id": manifest["version_id"], "as_of": manifest["as_of"],
                        "review_status": "requires_human_review", "report": result}, default=str).encode()
@@ -58,8 +71,24 @@ def execute(manifest, work):
             raise RuntimeError("Result persistence failed")
 
 
+_EMITTER = None
+
+
+def progress():
+    """One emitter per container; events go to stdout, the only stream the dispatcher reads."""
+    global _EMITTER
+    if _EMITTER is None:
+        from src.prime_runtime.investigation_events import EventEmitter
+        _EMITTER = EventEmitter(lambda event: print(json.dumps(event, separators=(",", ":")), flush=True))
+    return _EMITTER
+
+
 def main():
     os.umask(0o077)
+    # Container logs are read by the dispatcher: keep stderr (warnings, tracebacks that may quote
+    # data) on the ephemeral disk so stdout carries only allow-listed events.
+    error_log = os.open("/tmp/agent.stderr", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    os.dup2(error_log, 2)
     # The task has no IAM role. No control-plane DSN or admin secrets may be injected.
     if any(os.getenv(k) for k in ("DATABASE_URL", "AWS_ACCESS_KEY_ID", "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")):
         raise RuntimeError("Agent task must not receive infrastructure credentials")
@@ -73,7 +102,7 @@ def main():
             execute(manifest, Path(folder))
     except Exception:
         # Do not send document contents or provider errors to shared task logs.
-        print('{"event":"agent_failed"}', flush=True)
+        progress().emit("error", {"code": "agent_failed"}, agent_id="lead")
         raise SystemExit(1)
 
 

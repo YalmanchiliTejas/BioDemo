@@ -1,4 +1,4 @@
-import { Building2, Database, FlaskConical, FolderKanban, LayoutDashboard, MessageSquare, PackageCheck, ScrollText, UserRound, type LucideIcon } from 'lucide-react';
+import { Bell, Building2, SlidersHorizontal, Database, FlaskConical, FolderKanban, LayoutDashboard, MessageSquare, PackageCheck, Radar, ScrollText, UserRound, type LucideIcon } from 'lucide-react';
 
 /** One entry per destination; the sidebar, page breadcrumbs and quick find all read from this list. */
 export type NavItem = { label: string; href: string; icon: LucideIcon; description: string; guide?: string; keywords?: string };
@@ -9,6 +9,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'work', label: 'Work', items: [
       { label: 'Overview', href: '/dashboard', icon: LayoutDashboard, guide: 'dashboard', description: 'Status, recent deliveries and what needs attention', keywords: 'dashboard home status' },
       { label: 'Workspaces', href: '/workspaces', icon: FolderKanban, description: 'Saved results, charts, source records and review steps', keywords: 'results investigation deviation schedule data tables actions' },
+      { label: 'Signals', href: '/signals', icon: Radar, description: 'Possible deviations detected from your data, triaged by the assistant', keywords: 'deviation alert excursion oos out of spec trend triage' },
       { label: 'Deliveries', href: '/cmo', icon: PackageCheck, guide: 'deliveries', description: 'Check CMO files against their original sources', keywords: 'cmo cdmo upload verify batch coa export' },
       { label: 'Assistant', href: '/home', icon: MessageSquare, guide: 'assistant', description: 'Ask a question with the evidence you choose', keywords: 'chat ask companion question' },
     ],
@@ -22,6 +23,8 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'settings', label: 'Settings', items: [
       { label: 'Data connections', href: '/sources', icon: Database, guide: 'connections', description: 'Connect source systems and manage collection', keywords: 'sources connectors deltav pi veeva labware sap' },
       { label: 'Organization & team', href: '/settings/organization', icon: Building2, guide: 'organization', description: 'Members, roles and site access', keywords: 'members roles access admin' },
+      { label: 'Alerts', href: '/settings/alerts', icon: Bell, description: 'Who hears about deviation signals, and where', keywords: 'alerts notifications slack teams email deviation signals routing' },
+      { label: 'Specifications', href: '/settings/specifications', icon: SlidersHorizontal, description: 'Approved limits live data is checked against', keywords: 'specification limits spec range oos deviation alarm' },
       { label: 'Assistant rules', href: '/settings/assistant-rules', icon: ScrollText, description: 'Standing instructions the assistant always follows', keywords: 'rules memory instructions corrections preferences' },
       { label: 'My profile', href: '/settings/profile', icon: UserRound, guide: 'profile', description: 'Your name, sign-in and memberships', keywords: 'account password' },
     ],

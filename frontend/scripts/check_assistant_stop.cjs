@@ -77,10 +77,10 @@ async function fixture(browser) {
     return clone(threads[id]);
   };
   const open = async id => {
-    const menu = chat.locator('summary').filter({ hasText: 'Conversations' });
-    await menu.click();
-    await chat.getByRole('button', { name: `Stop fixture ${id}`, exact: true }).click();
-    await menu.click();
+    // History is a left sidebar on wide screens and a drawer in the compact companion.
+    const nav = chat.getByRole('navigation', { name: 'Conversation history' });
+    if (!(await nav.isVisible())) await chat.getByRole('button', { name: 'Conversation history', exact: true }).click();
+    await nav.getByRole('button', { name: `Stop fixture ${id}`, exact: true }).click();
     await chat.getByText(`Review fixture ${id}`, { exact: true }).waitFor();
   };
   const verify = () => {

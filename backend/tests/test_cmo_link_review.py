@@ -94,3 +94,36 @@ def test_links_rebuild_when_this_server_lacks_the_parsed_store(client_and_run, t
     assert after['rebuilt_from_originals'] is True
     assert {l['link_id'] for l in after['links']} == {l['link_id'] for l in before['links']}
     assert client.get(f'/api/cmo-ingestion/runs/{ident}/links').json()['rebuilt_from_originals'] is False
+
+
+def test_links_connect_a_new_delivery_to_the_cmos_earlier_ones(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from src.manufacturing_data.cmo.api import router
+    for name in ['OPENAI_API_KEY', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_AUTH_TOKEN', 'SUPABASE_URL', 'CMO_DATABASE_URL']:
+        monkeypatch.delenv(name, raising=False)
+    packages = tmp_path/'packages'
+    month1, month2 = packages/'m1'/'raw', packages/'m2'/'raw'
+    month1.mkdir(parents=True); month2.mkdir(parents=True)
+    (month1/'bioreactor.csv').write_text('batch_id,equipment_id,elapsed_h,temperature [degC]\nB-001,BR-03,0,35\n')
+    (month2/'deviations.csv').write_text('deviation_id,equipment_id,description\nDEV-38,BR-03,foaming again\n')
+    entry = lambda ident, path: {'id': ident, 'dataset': 'x', 'condition': 'unseen', 'cmo': 'api', 'synthetic': False,
+                                 'disclosure': 'Test fixture only', 'files': [{'path': path}]}
+    (packages/'catalog.json').write_text(json.dumps([entry('m1', 'bioreactor.csv'), entry('m2', 'deviations.csv')]))
+    monkeypatch.setenv('CMO_INGESTION_ROOT', str(tmp_path/'runtime')); monkeypatch.setenv('CMO_PACKAGES_ROOT', str(packages))
+    monkeypatch.setenv('CMO_API_TOKEN', 't')
+    app = FastAPI(); app.include_router(router(tmp_path)); client = TestClient(app); client.headers['X-CMO-Token'] = 't'
+
+    def run(package):
+        ident = client.post('/api/cmo-ingestion/runs', json={'package_id': package, 'configuration': 'preview'}).json()['id']
+        for _ in range(200):
+            state = client.get('/api/cmo-ingestion/runs/'+ident).json()
+            if state['status'] not in {'queued', 'running'}: break
+            time.sleep(.02)
+        return ident
+    run('m1'); second = run('m2')
+    graph = client.get(f'/api/cmo-ingestion/runs/{second}/links', params={'entity_id': 'DEV-38', 'hops': 2}).json()
+    assert 'B-001' in graph['entities'], graph  # month-1 batch reached through shared equipment BR-03
+    assert len(graph['deliveries']) == 2
+    month1_link = next(l for l in graph['links'] if {l['a'], l['b']} == {'B-001', 'BR-03'})
+    assert month1_link['evidence'] and all(e['delivery'] for e in month1_link['evidence'])

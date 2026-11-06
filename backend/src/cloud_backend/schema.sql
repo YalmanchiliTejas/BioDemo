@@ -10,6 +10,16 @@ CREATE TABLE IF NOT EXISTS cloud_jobs (
     UNIQUE (tenant, project, idempotency_key)
 );
 CREATE INDEX IF NOT EXISTS cloud_jobs_pending ON cloud_jobs (state, created);
+-- Docker log position for live progress ingestion (seconds since epoch of the last read line).
+ALTER TABLE cloud_jobs ADD COLUMN IF NOT EXISTS log_since double precision;
+-- Allow-listed, metadata-only progress events (docs/architecture/multi-agent-investigations.md §12.1).
+CREATE TABLE IF NOT EXISTS cloud_job_events (
+    seq bigint GENERATED ALWAYS AS IDENTITY, job_id text NOT NULL REFERENCES cloud_jobs (id),
+    attempt integer NOT NULL, local_seq integer NOT NULL, at timestamptz NOT NULL, kind text NOT NULL,
+    agent_id text, parent_id text, payload jsonb NOT NULL DEFAULT '{}',
+    PRIMARY KEY (job_id, attempt, local_seq)
+);
+CREATE INDEX IF NOT EXISTS cloud_job_events_read ON cloud_job_events (job_id, seq);
 CREATE TABLE IF NOT EXISTS cloud_audit (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     occurred double precision NOT NULL, tenant text NOT NULL, project text NOT NULL,

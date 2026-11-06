@@ -53,6 +53,8 @@ jobs:
           tests/lifesci/test_connector_products.py
           tests/test_entity_links.py tests/test_ingest_reuse.py tests/test_cmo_link_review.py
           tests/lifesci/test_workspace_links_search.py tests/lifesci/test_durable_rules.py tests/lifesci/test_case_cards.py
+          tests/lifesci/test_investigation_runs.py tests/lifesci/test_conversation_management.py tests/test_cloud_investigation_events.py
+          tests/lifesci/test_deviation_signals.py tests/lifesci/test_alerts.py tests/lifesci/test_auto_triage.py tests/lifesci/test_capabilities.py tests/lifesci/test_signal_pipeline.py
       - name: Template lint
         run: pip install cfn-lint && cfn-lint deploy/aws/template.yaml deploy/aws/github-oidc.yaml
 
@@ -86,6 +88,14 @@ jobs:
           LIFESCI_ALLOW_UNQUALIFIED_ROUTES: ${{ vars.LIFESCI_ALLOW_UNQUALIFIED_ROUTES }}
           API_DOMAIN: ${{ vars.API_DOMAIN }}
           CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
+          # Multi-agent investigations; empty keeps them "not configured". The signing key itself stays in Secrets Manager.
+          INVESTIGATION_EXECUTOR_URL: ${{ vars.INVESTIGATION_EXECUTOR_URL }}
+          INVESTIGATION_EXECUTOR_AUDIENCE: ${{ vars.INVESTIGATION_EXECUTOR_AUDIENCE }}
+          INVESTIGATION_EXECUTOR_TENANT: ${{ vars.INVESTIGATION_EXECUTOR_TENANT }}
+          INVESTIGATION_EXECUTOR_PROJECT: ${{ vars.INVESTIGATION_EXECUTOR_PROJECT }}
+          INVESTIGATION_ISSUER: ${{ vars.INVESTIGATION_ISSUER }}
+          INVESTIGATION_SIGNING_KEY_SECRET_ARN: ${{ vars.INVESTIGATION_SIGNING_KEY_SECRET_ARN }}
+          INVESTIGATION_SIGNING_KEY_ID: ${{ vars.INVESTIGATION_SIGNING_KEY_ID }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           MODAL_PROXY_TOKEN: ${{ secrets.MODAL_PROXY_TOKEN }}

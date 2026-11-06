@@ -12,10 +12,16 @@ Operator = Literal['physical_demo_context', 'physical_context_variant', 'physica
     'physical_pipeline_execute', 'physical_results_compare', 'physical_results_assess',
     'physical_analysis_review', 'physical_model_adapter_propose',
     'bioprocess_demo_case', 'bioprocess_forecast', 'cho_dataset_forecast',
-    'workspace_search', 'workspace_read', 'workspace_propose_action', 'workspace_propose_rule']
+    'workspace_search', 'workspace_read', 'workspace_propose_action', 'workspace_propose_rule',
+    'workspace_propose_investigation']
 
 class ConversationIn(StrictModel):
     site_id: str = Field(default='NF1', min_length=1, max_length=100)
+
+class ConversationUpdate(StrictModel):
+    title: str | None = Field(default=None, min_length=1, max_length=90)
+    archived: bool | None = None
+
 
 class DisplayContext(StrictModel):
     """Untrusted user-supplied display content, distinct from authorized sources."""
@@ -72,7 +78,7 @@ class ChatDecision(StrictModel):
         return self
 
 WorkspaceKind = Literal['case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
-    'proposal', 'physical_analysis_context', 'process_simulation', 'engineering_chat_turn']
+    'proposal', 'physical_analysis_context', 'process_simulation', 'engineering_chat_turn', 'deviation_signal']
 
 class WorkspaceSearch(StrictModel):
     """mode=search: records by kind and query. mode=links: records sharing an identifier with record_kind/record_id.
@@ -123,6 +129,14 @@ class WorkspaceRuleProposal(StrictModel):
     text: str = Field(min_length=3, max_length=2000)
     scope: Literal['user', 'site', 'org'] = 'user'
     # The user's own words, copied exactly from this turn's message: rules come from the user, never from sources.
+    user_quote: str = Field(min_length=3, max_length=2000)
+
+class WorkspaceInvestigationProposal(StrictModel):
+    """A full multi-agent investigation the user asked for, saved as a PROPOSAL; only a person can start it."""
+    objective: str = Field(min_length=3, max_length=2000)
+    case_id: str | None = Field(default=None, max_length=160)
+    rationale: str = Field(default='', max_length=1000)
+    # The user's own words from this turn: an investigation spends budget, so it must come from the user.
     user_quote: str = Field(min_length=3, max_length=2000)
 
 class WatchIn(StrictModel):
