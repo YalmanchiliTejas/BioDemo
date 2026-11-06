@@ -1,7 +1,7 @@
 """Conversation decisions are typed data, never executable solver programs."""
 from typing import Any, Literal
 from datetime import datetime
-from pydantic import Field, model_validator
+from pydantic import Field, PrivateAttr, model_validator
 from .schemas import PipelineSpec, StrictModel
 
 class ChatPipelineSpec(PipelineSpec):
@@ -60,6 +60,26 @@ class ChatDecision(StrictModel):
     claims: list[ReplyClaim] = Field(default_factory=list, max_length=8)
     workflow: list[WorkflowNode] = Field(default_factory=list, max_length=10)
     continue_after_workflow: bool = False
+    # Steps over a per-turn cap, held back by the host (titles), offered to the user as one click.
+    _held_back: list[str] = PrivateAttr(default_factory=list)
+
+    def _hold_over_cap(self, kinds, limit, message):
+        """Run the first `limit` steps of these kinds and hold the rest, instead of rejecting a sound plan.
+        Refused (the old error) only when a step that would run depends on one held back."""
+        capped = [n for n in self.workflow if n.task_kind in kinds]
+        if len(capped) <= limit:
+            return
+        held = {n.node_id for n in capped[limit:]}
+
+        def binds(value):
+            if isinstance(value, dict):
+                return value.get('$node') in held or any(binds(v) for v in value.values())
+            return isinstance(value, list) and any(binds(v) for v in value)
+        kept = [n for n in self.workflow if n.node_id not in held]
+        if any(held & set(n.depends_on) or binds(n.payload) for n in kept):
+            raise ValueError(message)
+        self.workflow = kept
+        self._held_back = [*self._held_back, *(n.title for n in capped[limit:])]
 
     @model_validator(mode='after')
     def clarify_or_execute(self):
@@ -69,10 +89,8 @@ class ChatDecision(StrictModel):
             raise ValueError('ask for missing information before running a workflow')
         if self.continue_after_workflow and not self.workflow:
             raise ValueError('continuation requires tool work')
-        if sum(n.task_kind == 'physical_pipeline_execute' for n in self.workflow) > 3:
-            raise ValueError('at most three numerical analyses per conversational turn')
-        if sum(n.task_kind in ('bioprocess_forecast', 'cho_dataset_forecast') for n in self.workflow) > 3:
-            raise ValueError('at most three bioprocess forecasts per conversational turn')
+        self._hold_over_cap(('physical_pipeline_execute',), 3, 'at most three numerical analyses per conversational turn')
+        self._hold_over_cap(('bioprocess_forecast', 'cho_dataset_forecast'), 3, 'at most three bioprocess forecasts per conversational turn')
         if sum(n.task_kind == 'physical_results_assess' for n in self.workflow) > 1:
             raise ValueError('at most one agent interpretation per conversational turn')
         return self
