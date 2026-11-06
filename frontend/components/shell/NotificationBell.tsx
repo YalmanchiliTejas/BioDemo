@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { Bell } from 'lucide-react';
 import { inbox, markRead, SEVERITY_LABEL, type InboxItem } from '@/lib/alerts-api';
 
-const DOT: Record<InboxItem['severity'], string> = { warning: 'bg-amber-400', action: 'bg-orange-500', critical: 'bg-red-600' };
+const DOT: Record<InboxItem['severity'], string> = { warning: 'bg-amber-400', action: 'bg-orange-500', critical: 'bg-red-600', info: 'bg-brand-teal' };
+const LABEL: Record<InboxItem['severity'], string> = { ...SEVERITY_LABEL, info: 'Request' };
 const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); };
 
 /** Deviation-signal alerts for the signed-in person. Polls every 30 s; a signal is for review, not a confirmed deviation. */
@@ -40,11 +41,11 @@ export function NotificationBell() {
       <ul className="max-h-[420px] overflow-y-auto">{data?.items.map(item => <li key={item.inbox_id}>
         <Link href={item.link} onClick={() => void read(item)} className={`block rounded-md px-3 py-2.5 hover:bg-surface-secondary ${item.read_at ? '' : 'bg-brand-teal-light/30'}`}>
           <span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-text-tertiary">
-            <span className={`h-2 w-2 rounded-full ${DOT[item.severity]}`} aria-hidden />{SEVERITY_LABEL[item.severity]}{item.site_id ? ` · ${item.site_id}` : ''}</span>
+            <span className={`h-2 w-2 rounded-full ${DOT[item.severity]}`} aria-hidden />{LABEL[item.severity]}{item.site_id ? ` · ${item.site_id}` : ''}</span>
           <span className="mt-1 block text-[13px] font-medium text-text-primary">{item.subject?.id ? `${item.subject.kind ?? ''} ${item.subject.id}`.trim() : item.title}</span>
           <span className="mt-0.5 block text-xs text-text-secondary">{item.rule}</span>
           {item.updates.map(u => <span key={u.at} className="mt-1 block text-xs text-brand-teal">{u.text}</span>)}
-          <span className="mt-1 block text-[11px] text-text-tertiary">{when(item.created_at)} · signal for review, not a confirmed deviation</span>
+          <span className="mt-1 block text-[11px] text-text-tertiary">{when(item.created_at)}{item.signal_id ? ' · signal for review, not a confirmed deviation' : ''}</span>
         </Link></li>)}</ul>
     </div>}
   </div>;

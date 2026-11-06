@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from .container import Platform
 from .identity import AccessContext, AuthorizationError
 from .ids import content_hash
+from .memory import MemoryAccessDenied, principal
 from .store import ConflictError, CrossTenantError, LeaseError, NotFoundError
 
 API_VERSION = "v1"
@@ -97,6 +98,24 @@ class CorrectionIn(BaseModel):
 
 class AnswerIn(BaseModel):
     answer: str
+
+class MemoryRequestIn(BaseModel):
+    owner_email: str = Field(min_length=3, max_length=320)
+    scopes: list[str] = Field(min_length=1, max_length=3)
+    reason: str = Field(min_length=1, max_length=1000)
+    days: int = Field(30, ge=1, le=90)
+
+
+class MemoryDecisionIn(BaseModel):
+    days: int | None = Field(None, ge=1, le=90)
+    reason: str = Field("", max_length=1000)
+
+
+# Evidence that only the platform itself writes: a person's chat instructions and verified CMO deliveries.
+RESERVED_SOURCES = ("engineering-user-instruction", "verified-source-snapshot")
+HIDDEN_KINDS = ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization",
+                "organization_member", "account_organizations", "connector_credential", "memory_grant", "alert_inbox")
+
 
 class NoteIn(BaseModel):
     body: str = Field(min_length=1, max_length=4000)
@@ -371,6 +390,8 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/evidence", status_code=201)
     def ingest(body: EvidenceIn, ctx: AccessContext = Depends(ctx_dep),
                idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
+        if body.source_system in RESERVED_SOURCES or body.source_system.startswith("cmo-"):
+            raise HTTPException(403, "this source is written only by the platform")
         return idempotent(ctx, idem, "evidence", body.model_dump(), lambda: platform.evidence.ingest(
             ctx, source_system=body.source_system, source_record_id=body.source_record_id,
             content=body.content_text.encode(), media_type=body.media_type, site_id=body.site_id,
@@ -379,7 +400,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.get(f"/{API_VERSION}/records/{{kind}}")
     def list_records(kind: str, cursor: str | None = None, limit: int = 50,
                      ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
-        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization", "organization_member", "account_organizations", "connector_credential"):
+        if kind in HIDDEN_KINDS:
             raise HTTPException(404, "not a public record kind")
         limit = max(1, min(limit, 200))
         tx = platform.store.read()
@@ -390,7 +411,8 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
             if kind == "transfer_package" and not any(platform.identity.check(ctx, "read", kind, r.id, site_id=r.state[s])
                                                        for s in ("sending_site", "receiving_site")):
                 continue
-            if platform.identity.check(ctx, "read", kind, r.id, site_id=r.state.get("site_id")):
+            if (platform.identity.check(ctx, "read", kind, r.id, site_id=r.state.get("site_id"))
+                    and platform.memory.readable(ctx, kind, r.state)):
                 if "inputs" in r.state:
                     try:
                         platform.evidence.read_derived(ctx, kind, r.id)
@@ -404,13 +426,15 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
 
     @app.get(f"/{API_VERSION}/records/{{kind}}/{{record_id:path}}")
     def get_record(kind: str, record_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
-        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization", "organization_member", "account_organizations", "connector_credential"):
+        if kind in HIDDEN_KINDS:
             raise HTTPException(404, "not a public record kind")
         rec = platform.store.read().require(ctx.tenant_id, kind, record_id)
         if kind == "transfer_package" and not any(platform.identity.check(ctx, "read", kind, rec.id, site_id=rec.state[s])
                                                    for s in ("sending_site", "receiving_site")):
             raise HTTPException(403, "transfer outside actor site scope")
         platform.identity.require(ctx, "read", kind, record_id, site_id=rec.state.get("site_id"))
+        if not platform.memory.readable(ctx, kind, rec.state):
+            raise MemoryAccessDenied()
         if rec.state.get("inputs") is not None:
             return platform.evidence.read_derived(ctx, kind, record_id)
         return {"id": rec.id, "revision": rec.revision, "state": rec.state,
@@ -459,6 +483,8 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/missions", status_code=201)
     def start_mission(body: MissionIn, ctx: AccessContext = Depends(ctx_dep),
                       idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
+        if body.owner_id != principal(ctx):
+            raise HTTPException(403, "a mission is started for yourself")
         return idempotent(ctx, idem, "missions", body.model_dump(),
                           lambda: platform.missions.start_or_resume(ctx, **body.model_dump()))
 
@@ -498,7 +524,8 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
 
     @app.get(f"/{API_VERSION}/missions/{{mission_id}}/proposals")
     def mission_proposals(mission_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
-        platform.missions.get(ctx, mission_id)  # authorization on the mission
+        # Proposals are organization records with their own approvers (e.g. QA), not the mission owner's memory:
+        # each one is authorized by itself, exactly as GET /proposals?mission_id= does.
         tx = platform.store.read()
         items = [_proposal_view(tx, r, ctx) for r in tx.find(ctx.tenant_id, "proposal", "mission_id", mission_id)
                  if platform.identity.check(ctx, "read", "proposal", r.id, site_id=r.state.get("site_id"))]
@@ -522,6 +549,67 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/missions/{{mission_id}}/corrections", status_code=201)
     def correct(mission_id: str, body: CorrectionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
         return platform.missions.record_correction(ctx, mission_id, **body.model_dump())
+
+    # --- memory sharing: a colleague reads someone's assistant memory only under their approved grant --------
+    def _emails(tenant: str) -> dict[str, str]:
+        return {r.id: r.state.get("email") for r in platform.store.read().list(tenant, "organization_member")}
+
+    def _grant_view(g: dict[str, Any], emails: dict[str, str]) -> dict[str, Any]:
+        return {**g, "owner_email": emails.get(g["owner_id"]), "grantee_email": emails.get(g["grantee_id"])}
+
+    @app.get(f"/{API_VERSION}/memory-grants")
+    def list_memory_grants(ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        emails, grants = _emails(ctx.tenant_id), platform.memory.list_for(ctx)
+        return {k: [_grant_view(g, emails) for g in v] for k, v in grants.items()}
+
+    @app.post(f"/{API_VERSION}/memory-grants", status_code=201)
+    def request_memory_grant(body: MemoryRequestIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        emails = _emails(ctx.tenant_id)  # this organization's members only
+        owner = next((i for i, e in emails.items() if (e or "").lower() == body.owner_email.strip().lower()), None)
+        if owner is None:
+            raise HTTPException(404, "No member with that email in this organization")
+        grant = platform.memory.request(ctx, owner_id=owner, scopes=body.scopes, reason=body.reason, days=body.days)
+        alerts = getattr(platform, "alerts", None)
+        if alerts is not None:
+            who = emails.get(ctx.actor_id) or ctx.actor_id
+            alerts.notify(ctx.tenant_id, owner, key=grant["grant_id"], kind="memory_request",
+                          title=f"{who} asks to read your assistant memory ({', '.join(grant['scopes'])})",
+                          link="/settings/?tab=memory")
+        return _grant_view(grant, emails)
+
+    @app.post(f"/{API_VERSION}/memory-grants/{{grant_id}}/approve")
+    def approve_memory_grant(grant_id: str, body: MemoryDecisionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return _grant_view(platform.memory.approve(ctx, grant_id, days=body.days, reason=body.reason), _emails(ctx.tenant_id))
+
+    @app.post(f"/{API_VERSION}/memory-grants/{{grant_id}}/deny")
+    def deny_memory_grant(grant_id: str, body: MemoryDecisionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return _grant_view(platform.memory.deny(ctx, grant_id, reason=body.reason), _emails(ctx.tenant_id))
+
+    @app.post(f"/{API_VERSION}/memory-grants/{{grant_id}}/revoke")
+    def revoke_memory_grant(grant_id: str, body: MemoryDecisionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return _grant_view(platform.memory.revoke(ctx, grant_id, reason=body.reason), _emails(ctx.tenant_id))
+
+    @app.get(f"/{API_VERSION}/memory/{{owner_id}}/conversations")
+    def shared_conversations(owner_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return {"conversations": platform.engineering_conversations.shared_list(ctx, owner_id)}
+
+    @app.get(f"/{API_VERSION}/memory/{{owner_id}}/conversations/{{thread_id}}")
+    def shared_conversation(owner_id: str, thread_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.engineering_conversations.shared_get(ctx, owner_id, thread_id)
+
+    @app.get(f"/{API_VERSION}/memory/{{owner_id}}/corrections")
+    def shared_corrections(owner_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        platform.memory.require_read(ctx, owner_id, "corrections")
+        out = [{**c, "mission_id": r.id} for r in platform.store.read().list(ctx.tenant_id, "mission")
+               if r.state.get("owner_id") == owner_id for c in r.state.get("corrections", [])
+               if c.get("by") in (owner_id, f"agent:{owner_id}")]
+        return {"corrections": sorted(out, key=lambda c: c.get("at", ""), reverse=True)}
+
+    @app.get(f"/{API_VERSION}/memory/{{owner_id}}/rules")
+    def shared_rules(owner_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        platform.memory.require_read(ctx, owner_id, "rules")
+        return {"rules": [{**r.state, "revision": r.revision} for r in platform.store.read().list(ctx.tenant_id, "assistant_rule")
+                          if r.state.get("scope") == "user" and r.state.get("owner_id") == owner_id]}
 
     @app.get(f"/{API_VERSION}/assistant-rules")
     def list_rules(site_id: str | None = None, status: str | None = None,

@@ -101,6 +101,7 @@ def _cmo_app(root, monkeypatch, tasks):
                  'CMO_API_TOKEN', 'LIFESCI_DATABASE_URL']:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv('CMO_INGESTION_ROOT', str(root))
+    monkeypatch.setenv('CMO_ALLOW_UNAUTHENTICATED_TENANT_HEADER', '1')  # standalone router, no token
     monkeypatch.setenv('CMO_PACKAGES_ROOT', str(root / 'none'))
     monkeypatch.setenv('CMO_DEMO_ROOT', str(root / 'none'))
     app = FastAPI()
@@ -181,7 +182,7 @@ def test_large_files_upload_through_storage(tmp_path, monkeypatch):
     storage.objects[pending] = b'batch_id,elapsed_h,pH [pH]\nB,0,7\n'  # what the browser PUT
     item = client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/uploads/{begun['upload_id']}/complete").json()
     assert [f['path'] for f in item['files']] == ['lot.csv'] and pending not in storage.objects
-    assert f"deliveries/{delivery['id']}/lot.csv" in storage.objects
+    assert f"deliveries/lambda-tenant/{delivery['id']}/lot.csv" in storage.objects
     forged = begun['upload_id'].split('-')[0] + '-Li4vZXRjL3Bhc3N3ZA'  # "../etc/passwd"
     assert client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/uploads/{forged}/complete").status_code in (400, 404, 410)
 

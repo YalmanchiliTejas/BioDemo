@@ -8,6 +8,7 @@ import io
 import json
 import os
 import re
+import shutil
 import threading
 import time
 import uuid
@@ -22,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from . import intake, quality
 from .evidence import restore
-from .persistence import current_tenant, set_tenant, tenant_scope
+from .persistence import current_tenant, default_tenant, set_tenant, tenant_scope, tenant_segment
 from .pipeline import CONFIGURATIONS, IngestionService, digest, hosted_inference_approved, utc
 from .schema import VOCAB
 
@@ -158,9 +159,15 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
     request_actor = ContextVar('cmo_request_actor', default=None)
     def recorded_actor(proposed):
         return request_actor.get() or proposed
+    def safe_tenant():
+        try: tenant_segment()
+        except ValueError as exc: raise HTTPException(400,str(exc)) from exc
     if tenant_dependency is None:
         async def authorize(x_cmo_token: str | None = Header(default=None),x_tenant_id: str | None = Header(default=None)):
-            check_token(x_cmo_token); set_tenant(x_tenant_id)
+            # Without a token anyone could name any tenant in a header: refuse unless explicitly in local development.
+            if not os.getenv('CMO_API_TOKEN') and os.getenv('CMO_ALLOW_UNAUTHENTICATED_TENANT_HEADER')!='1':
+                raise HTTPException(401,'CMO_API_TOKEN is not configured; this standalone API is closed')
+            check_token(x_cmo_token); set_tenant(x_tenant_id or default_tenant()); safe_tenant()
     else:
         async def authorize(request: Request, x_cmo_token: str | None = Header(default=None),ctx=Depends(tenant_dependency)):
             check_token(x_cmo_token)
@@ -179,7 +186,7 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
                 # Demo visitors work on our synthetic sample data; nothing of theirs is uploaded or stored.
                 raise HTTPException(403, 'Demo workspaces use sample data')
             request_actor.set(ctx.actor_id)
-            set_tenant(ctx.tenant_id)
+            set_tenant(ctx.tenant_id); safe_tenant()
     api=APIRouter(prefix='/api/cmo-ingestion',dependencies=[Depends(authorize)])
     root=Path(os.getenv('CMO_INGESTION_ROOT',str(repository/'.cache'/'cmo-ingestion')))
     packages=Path(os.getenv('CMO_PACKAGES_ROOT',str(repository/'benchmarks'/'cmo_ingestion'/'generated')))
@@ -220,14 +227,17 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
         except FileNotFoundError as exc: raise HTTPException(410,str(exc)) from exc
         except (ValueError,PermissionError) as exc: raise HTTPException(400,str(exc)) from exc
 
+    def area(name):
+        """This tenant's local folder for one kind of file (uploads, deliveries, set_aside, stores, pending)."""
+        return root/name/tenant_segment()
+
     def catalog():
         entries=[]
         for folder in [demo,packages]:
             if (folder/'catalog.json').exists():
                 entries.extend({**entry,'kind':'sample','root':str(folder)} for entry in json.loads((folder/'catalog.json').read_text())
                                if not any(e['id']==entry['id'] for e in entries))
-        uploads=root/'uploads'
-        for file in sorted(uploads.glob('*/delivery.json')):
+        for file in sorted(area('uploads').glob('*/delivery.json')):
             entries.append({'kind':'upload',**json.loads(file.read_text())})
         entries.extend({'kind':'delivery',**item} for item in service.repo.deliveries())
         return entries
@@ -237,17 +247,27 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
 
     def delivery_folder(ident):
         if not ident.startswith('delivery-') or Path(ident).name!=ident: raise ValueError('Invalid delivery ID')
-        return root/'deliveries'/ident
+        return area('deliveries')/ident
+
+    def restore_delivery_file(package_id,folder,file):
+        """Tenant-keyed original, else (deliveries stored before keys carried the tenant) the old key or local
+        folder. The fallback is reached only for a delivery read from this tenant's own records, so it proves ownership."""
+        legacy=root/'deliveries'/package_id/file['path']; target=folder/file['path']
+        if not target.exists() and legacy.is_file():
+            target.parent.mkdir(parents=True,exist_ok=True); shutil.copyfile(legacy,target)
+        restore(service.evidence,f"deliveries/{tenant_segment()}/{package_id}/{file['path']}",target,file['sha256'],
+                legacy=[f"deliveries/{package_id}/{file['path']}"])
 
     def find(package_id):
         item=next((i for i in catalog() if i['id']==package_id),None)
         if not item: raise KeyError('Unknown package')
         if item.get('kind')=='delivery':
             folder=delivery_folder(package_id)
-            for file in item['files']:
-                restore(service.evidence,f"deliveries/{package_id}/{file['path']}",folder/file['path'],file['sha256'])
+            for file in item['files']: restore_delivery_file(package_id,folder,file)
             return item,folder
-        if package_id.startswith('upload-'): path=root/'uploads'/package_id/'raw.zip'
+        if package_id.startswith('upload-'):
+            if Path(package_id).name!=package_id: raise ValueError('Invalid package ID')
+            path=area('uploads')/package_id/'raw.zip'
         else:
             if Path(package_id).name!=package_id: raise ValueError('Invalid package ID')
             path=Path(item.get('root',packages))/package_id/'raw'
@@ -361,11 +381,11 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
             added=[]
             for d in decided:
                 if d['outcome'] in ('added','renamed'):
-                    target=folder/d['path']; key=f"deliveries/{delivery_id}/{d['path']}"
+                    target=folder/d['path']; key=f"deliveries/{tenant_segment()}/{delivery_id}/{d['path']}"
                 elif d['outcome'] in ('set_aside','unreadable'):
                     # Kept as evidence beside, never inside, the folder the checks read.
                     rel=f"{d['sha256'][:12]}/{d['path']}"
-                    target=root/'set_aside'/delivery_id/rel; key=f'set_aside/{delivery_id}/{rel}'
+                    target=area('set_aside')/delivery_id/rel; key=f'set_aside/{tenant_segment()}/{delivery_id}/{rel}'
                     if target.exists(): continue
                 else: continue
                 target.parent.mkdir(parents=True,exist_ok=True)
@@ -396,7 +416,7 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
     def pending_key(delivery_id,upload_id):
         if not re.fullmatch(r'[0-9a-f]{32}-[A-Za-z0-9_-]{1,820}',upload_id): raise HTTPException(400,'Invalid upload ID')
         delivery_folder(delivery_id)
-        return f'uploads/{current_tenant()}/{delivery_id}/{upload_id}'
+        return f'uploads/{tenant_segment()}/{delivery_id}/{upload_id}'
 
     def upload_filename(upload_id):
         encoded=upload_id.split('-',1)[1]
@@ -420,7 +440,7 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
     @api.post('/deliveries/{delivery_id}/uploads/{upload_id}/complete')
     def complete_upload(delivery_id:str,upload_id:str):
         key=pending_key(delivery_id,upload_id)
-        local=root/'pending'/uuid.uuid4().hex
+        local=area('pending')/uuid.uuid4().hex
         try:
             guard(lambda:service.evidence.get(key,local))
             if local.stat().st_size>FILE_LIMIT: raise HTTPException(413,'Per-file upload limit is 64 MiB')
@@ -504,7 +524,7 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
         instances), so a missing store is rebuilt here from the retained delivery originals."""
         from ..ingest import ingest_package
         from ..store import ManufacturingStore
-        target=Path(run.get('store') or root/'stores'/run['id'])
+        target=Path(run.get('store') or area('stores')/run['id'])
         if (target/'metadata.sqlite').is_file(): return ManufacturingStore(target),False
         if not run.get('package_ref'): raise HTTPException(409,'This run has no retained delivery to rebuild links from')
         with link_store_guard: lock=link_store_locks.setdefault(run['id'],threading.Lock())
@@ -658,7 +678,7 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
                     if p.is_absolute() or '..' in p.parts or '\\' in member.filename: raise ValueError('Unsafe ZIP path')
                     if not member.is_dir() and p.suffix.lower() not in allowed: raise ValueError('Unsupported ZIP file type')
         except (ValueError,zipfile.BadZipFile) as exc: raise HTTPException(400,str(exc)) from exc
-        ident='upload-'+uuid.uuid4().hex; folder=root/'uploads'/ident; folder.mkdir(parents=True)
+        ident='upload-'+uuid.uuid4().hex; folder=area('uploads')/ident; folder.mkdir(parents=True)
         (folder/'raw.zip').write_bytes(data)
         # Uploaded data is not implicitly approved for hosted inference.
         item={'id':ident,'dataset':dataset,'condition':'uploaded','cmo':dataset+'-upload',

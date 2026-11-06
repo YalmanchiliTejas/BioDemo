@@ -257,6 +257,22 @@ class AlertService:
             return 0
         return 1
 
+    def notify(self, tenant: str, person: str, *, key: str, kind: str, title: str, link: str) -> int:
+        """A plain in-app notification (not a signal), e.g. someone asking to read your assistant memory."""
+        iid = 'inbox_' + _key(tenant, key, kind, person)
+        try:
+            with self.p.store.transaction('notifier') as tx:
+                if tx.get(tenant, INBOX, iid) is not None:
+                    return 0
+                tx.put(tenant, INBOX, iid, {'inbox_id': iid, 'recipient_id': person, 'signal_id': None, 'site_id': None,
+                    'severity': 'info', 'kind': kind, 'title': title, 'rule': '', 'subject': None, 'link': link,
+                    'created_at': iso(utc_now()), 'read_at': None, 'updates': []},
+                    expected_revision=None, action='notify', event_type='notification.inbox',
+                    event_payload={'inbox_id': iid, 'recipient_id': person})
+        except ConflictError:
+            return 0
+        return 1
+
     def _record(self, tenant: str, signal_id: str, sent: int, severity: str | None = None) -> None:
         for _ in range(3):  # the signal may be updated concurrently by detection or triage
             try:

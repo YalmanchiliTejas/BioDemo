@@ -83,6 +83,9 @@ class Platform:
         self.network = NetworkService(s, self.identity)
         self.transfers = TransferService(s, self.identity)
         self.cases = CaseService(s, self.identity)
+        # Per-user assistant memory: owner-only unless the owner granted read access (src/lifesci/memory.py).
+        from .memory import MemoryGrants
+        self.memory = MemoryGrants(s, self.identity)
         self.packages = PackageService(s, self.identity, self.evidence, self.signatures)
         self.artifacts = ArtifactService(s, self.identity, self.evidence)
         registry = default_registry()

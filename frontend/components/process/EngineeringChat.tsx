@@ -6,6 +6,7 @@ import { Archive, ArrowUp, BookOpen, Lightbulb, PanelLeftClose, FlaskConical, Hi
 import { Markdown } from './Markdown';
 import { AnswerFeedback, ScenarioCards } from './DemoFeedback';
 import { CONTACT_URL, refreshDemo, useDemo } from '@/lib/demo-api';
+import { useWorkspace } from '@/lib/workspace-context';
 import { ProcessApiError } from '@/lib/process-api';
 import { QuestionCard } from './QuestionCard';
 import { SignalCard } from './SignalCard';
@@ -48,7 +49,8 @@ type PublishedDataset = { id: string; cmo: string; delivery_name: string | null;
 const datasetLabel = (d: PublishedDataset) => d.delivery_name ?? d.cmo;
 type Recent = { id: string; title: string; updated_at?: string; archived?: boolean };
 type Source = { id: string; audience: string; provenance: string };
-const storageKey = 'biodemo.engineering.conversation.v1';
+// The last open conversation is remembered per workspace: conversations belong to one organization.
+const conversationKey = (userId?: string | null, organizationId?: string | null) => `biodemo.engineering.conversation.v1:${userId ?? 'none'}:${organizationId ?? 'none'}`;
 const EXAMPLES = [
   { label: 'Freeze-drying transfer', prompt: 'Use the published and reconstructed freeze-drying example. Assess transferring the source process to the receiving equipment, choose an appropriate registered model, simulate current conditions, and show constraints with charts and a 3D vial review. Clearly distinguish published values from assumptions.' },
   { label: 'Penicillin batch decision', prompt: 'Use the simulated PenSim demo case NC-03ce17b48c95. We are 60 h into the batch and air is limited to 1.0×. Which operating plan should we run for the rest of the batch, and what will penicillin and dissolved oxygen look like?' },
@@ -217,6 +219,8 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
   const pathname = usePathname().replace(/\/$/, '');
   const pageName = SCREENS.find(s => s.href === pathname)?.title ?? 'Current workspace';
   // Last known data renders immediately on navigation; the mount effect refetches it.
+  const workspaceState = useWorkspace();
+  const storageKey = conversationKey(workspaceState.user?.id ?? workspaceState.account?.actor_id, workspaceState.organization?.id);
   const [thread, setThread] = useState<Thread | null>(() => {
     try { const saved = localStorage.getItem(storageKey); return saved ? cached<Thread>(`/v1/process-model/conversations/${saved}`) ?? null : null; }
     catch { return null; }
@@ -279,7 +283,16 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
     try {
       const data = await processRequest<Thread>(`/v1/process-model/conversations/${id}`);
       if (current.current === id) adopt(data);
-    } catch (e) { if (current.current === id) setError(String(e)); }
+    } catch (e) {
+      if (current.current !== id) return;
+      if (e instanceof ProcessApiError && e.status === 404) {
+        // Remembered from another workspace or already removed: start fresh instead of showing an error.
+        current.current = null; setThread(null);
+        try { if (localStorage.getItem(storageKey) === id) localStorage.removeItem(storageKey); } catch { /* optional */ }
+        return;
+      }
+      setError(String(e));
+    }
   }
   useEffect(() => {
     let saved: string | null = null;

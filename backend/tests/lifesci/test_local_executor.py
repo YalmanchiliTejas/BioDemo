@@ -26,10 +26,10 @@ def fake_runner(events=3, fail=False, gate=None):
     return run
 
 
-def wait(executor, job_id, states=('succeeded', 'failed', 'cancelled')):
+def wait(executor, job_id, states=('succeeded', 'failed', 'cancelled'), project='p'):
     for _ in range(200):
-        if executor.job('p', job_id)['state'] in states:
-            return executor.job('p', job_id)
+        if executor.job(project, job_id)['state'] in states:
+            return executor.job(project, job_id)
         time.sleep(0.01)
     raise AssertionError('job did not finish')
 
@@ -105,7 +105,8 @@ def test_platform_drives_a_local_investigation_to_review(tmp_path, monkeypatch):
     p.investigations = inv.InvestigationService(p, config=None, executor=ex)
     run = p.investigations.start(ctx, {'objective': 'Why did DEV-31 foam?', 'site_id': 'NF1',
                                        'record_refs': [{'kind': 'evidence', 'id': 'lims:B-001'}]})
-    wait(ex, run['run_id'])
+    executor = p.store.read().require('T', 'investigation_run', run['run_id']).state['executor']
+    wait(ex, executor['job_id'], project=executor['project'])
     view = p.investigations.sync(ctx, run['run_id'], force=True)
     view = p.investigations.get(ctx, run['run_id'])
     assert view['status'] == 'awaiting_review'

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, ClipboardCheck, FlaskConical, Gauge, Loader2, Workflow } from 'lucide-react';
 import { BrandMark } from '@/components/shell/BrandMark';
-import { adoptLocalDemoTenant, selectOrganization, signInAvailable, signInForDemo } from '@/lib/auth';
+import { adoptLocalDemoTenant, DemoSignedInError, selectOrganization, signInAvailable, signInForDemo, signOut } from '@/lib/auth';
 import { CONTACT_URL, startDemo, type Persona } from '@/lib/demo-api';
 import { ProcessApiError } from '@/lib/process-api';
 
@@ -23,10 +23,11 @@ export default function DemoStartPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [capacity, setCapacity] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
 
   async function start() {
     if (!persona || !accepted) return;
-    setBusy(true); setError(''); setCapacity(false);
+    setBusy(true); setError(''); setCapacity(false); setSignedIn(false);
     try {
       await signInForDemo();
       const workspace = await startDemo(persona);
@@ -36,6 +37,7 @@ export default function DemoStartPage() {
       window.location.assign('/home/?scenarios=1');
     } catch (e) {
       if (e instanceof ProcessApiError && (e.status === 429 || e.status === 503)) setCapacity(true);
+      if (e instanceof DemoSignedInError) setSignedIn(true);
       setError((e as Error).message || 'The demo could not start. Try again in a moment.');
       setBusy(false);
     }
@@ -64,7 +66,9 @@ export default function DemoStartPage() {
       </label>
 
       {error && <div role="alert" className="mt-5 max-w-3xl rounded-lg bg-status-critical-bg px-4 py-3 text-sm text-text-primary">{error}
-        {capacity && CONTACT_URL && <> <a href={CONTACT_URL} className="font-medium text-brand-teal underline">Talk to us</a> and we’ll set one up for you.</>}</div>}
+        {capacity && CONTACT_URL && <> <a href={CONTACT_URL} className="font-medium text-brand-teal underline">Talk to us</a> and we’ll set one up for you.</>}
+        {signedIn && <div className="mt-2"><button type="button" disabled={busy} onClick={async () => { await signOut().catch(() => undefined); await start(); }}
+          className="font-medium text-brand-teal underline">Sign out and start the demo</button> <span className="text-text-secondary">or open this page in a private window.</span></div>}</div>}
       {!signInAvailable() && <p className="mt-5 text-sm text-text-secondary">Demo workspaces aren’t available on this deployment.</p>}
 
       <div className="mt-6 flex flex-wrap items-center gap-4">
@@ -72,6 +76,7 @@ export default function DemoStartPage() {
           {busy ? <><Loader2 className="h-4 w-4 animate-spin" />Preparing your workspace…</> : <>Start the demo<ArrowRight className="h-4 w-4" /></>}</button>
         <Link href="/demo/tour/" className="text-sm text-text-secondary underline-offset-2 hover:underline">Prefer a guided tour without the assistant?</Link>
       </div>
+      {!busy && (!persona || !accepted) && <p className="mt-3 text-[13px] text-text-tertiary">{!persona ? 'Choose your role above' : 'Tick the box above'} to start.</p>}
     </div>
   </main>;
 }

@@ -92,9 +92,13 @@ class LocalExecutor:
     def submit(self, project: str, idempotency_key: str, job: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
             try:
-                return self._read(idempotency_key)
+                existing = self._read(idempotency_key)
             except KeyError:
-                pass
+                existing = None
+            if existing is not None:
+                if existing.get("project") != project:
+                    raise ValueError("job id already used by another project")
+                return existing
             record = {"id": idempotency_key, "project": project, "state": "queued", "manifest": job,
                       "created_at": time.time(), "error": None}
             self._write(record)
@@ -105,12 +109,19 @@ class LocalExecutor:
         thread.start()
         return record
 
-    def job(self, project: str, job_id: str) -> dict[str, Any]:
+    def _owned(self, project: str, job_id: str) -> dict[str, Any]:
+        """A job is visible only to the project (organization) that submitted it."""
         job = self._read(job_id)
+        if job.get("project") != project:
+            raise KeyError("No such job")
+        return job
+
+    def job(self, project: str, job_id: str) -> dict[str, Any]:
+        job = self._owned(project, job_id)
         return {k: job[k] for k in ("id", "state", "error", "created_at")}
 
     def events(self, project: str, job_id: str, after: int) -> dict[str, Any]:
-        self._read(job_id)
+        self._owned(project, job_id)
         path = self._job_dir(job_id) / "events.jsonl"
         lines = path.read_text().splitlines() if path.is_file() else []
         out = []
@@ -123,7 +134,7 @@ class LocalExecutor:
         return {"events": out, "next": out[-1]["seq"] if out else after}
 
     def cancel(self, project: str, job_id: str) -> dict[str, Any]:
-        self._read(job_id)
+        self._owned(project, job_id)
         self._cancel.get(job_id, threading.Event()).set()
         self._transition(job_id, state="cancelled")
         harness = self._harness.get(job_id)
@@ -132,6 +143,7 @@ class LocalExecutor:
         return {"id": job_id, "state": self._read_raw(job_id)["state"]}
 
     def result(self, project: str, job_id: str) -> dict[str, Any]:
+        self._owned(project, job_id)
         path = self._job_dir(job_id) / "result.json"
         if not path.is_file():
             raise KeyError("No result")

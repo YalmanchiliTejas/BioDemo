@@ -89,13 +89,24 @@ def evidence_store():
     return LocalEvidence()
 
 
-def original_key(sha256, suffix):
+def original_key(sha256, suffix, tenant):
+    return f'originals/{tenant}/{sha256[:2]}/{sha256}{suffix.lower()}'
+
+
+def legacy_original_key(sha256, suffix):
+    """Pre-tenant key. Read only for a document listed in the caller's own tenant-scoped run record."""
     return f'originals/{sha256[:2]}/{sha256}{suffix.lower()}'
 
 
-def restore(store, key, destination, expected_sha256):
-    """Return a verified local path, restoring from durable storage if needed."""
-    destination=Path(destination)
-    if not destination.exists(): store.get(key,destination)
+def restore(store, key, destination, expected_sha256, *, legacy=()):
+    """Return a verified local path, restoring from durable storage if needed.
+
+    ``legacy`` keys (written before keys carried the tenant) are tried after ``key``; callers pass them only when a
+    tenant-scoped database record already proves the current tenant owns the file. Bytes are re-hashed either way."""
+    destination=Path(destination); keys=[key,*legacy]
+    while not destination.exists():
+        try: store.get(keys.pop(0),destination)
+        except FileNotFoundError:
+            if not keys: raise
     if sha256_file(destination)!=expected_sha256: raise IntegrityError('Source integrity failed')
     return destination
