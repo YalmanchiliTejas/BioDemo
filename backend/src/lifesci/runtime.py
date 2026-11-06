@@ -140,6 +140,12 @@ class Runtime:
                 investigations.sync_active(lambda tenant, owner: self.platform.identity.context_for(tenant, owner))
             except Exception:
                 log.exception("Investigation sync deferred to the next tick")
+        demo = getattr(self.platform, "demo", None)
+        if demo is not None:
+            try:
+                demo.tick()  # snapshot demo conversations into the corpus; expire 24 h workspaces
+            except Exception:
+                log.exception("Demo workspace upkeep deferred to the next tick")
         followup = getattr(self.platform, "signal_followup", None)
         if followup is not None:
             try:

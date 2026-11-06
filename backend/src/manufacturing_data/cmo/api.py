@@ -174,6 +174,10 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
                 if path.endswith('/export'): action = 'export'
                 if '/reviews' in path or path.endswith('/issues'): action = 'approve'
                 permission_check(ctx, action)
+            if ctx.tenant_id.startswith('demo_') and request.method == 'POST' and (
+                    '/deliveries' in request.url.path or request.url.path.endswith('/upload')):
+                # Demo visitors work on our synthetic sample data; nothing of theirs is uploaded or stored.
+                raise HTTPException(403, 'Demo workspaces use sample data')
             request_actor.set(ctx.actor_id)
             set_tenant(ctx.tenant_id)
     api=APIRouter(prefix='/api/cmo-ingestion',dependencies=[Depends(authorize)])
@@ -265,6 +269,7 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
 
     def launch(item,path,configuration,*,supersedes=None,cmo=None):
         if configuration not in CONFIGURATIONS: raise HTTPException(400,'Unknown configuration')
+        if current_tenant().startswith('demo_'): configuration='preview'  # demo runs never call hosted models
         run_id=uuid.uuid4().hex
         service.queue(run_id,cmo or item['cmo'],configuration,synthetic=item.get('synthetic',False),approved=approved_for(item),
                       package_ref=item['id'],details={'disclosure':item.get('disclosure'),'delivery_name':item.get('name')})

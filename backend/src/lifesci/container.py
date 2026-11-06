@@ -131,6 +131,8 @@ class Platform:
         self.triage = TriageService(self, report=report_triage)
         register_signal_listeners(self)
         s.subscribe(self.signal_followup.on_event)
+        from .demo import DemoService
+        self.demo = DemoService(self)
         from .fermentation.service import FermentationService
         self.fermentation = FermentationService(self)
         from .collab import RemoteSessionService

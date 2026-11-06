@@ -105,6 +105,15 @@ def supabase_resolver(platform: Any, verifier: SupabaseVerifier | None = None) -
     def resolve(request: Any) -> Any:
         claims = verifier.verify(request.headers.get("authorization"))
         tenant = verifier.tenant
+        requested = request.headers.get("x-organization-id")
+        if requested and requested.startswith("demo_"):
+            # Demo workspaces exist in every deployment mode; membership is still required.
+            from .organizations import OrganizationService
+            if requested not in {o["id"] for o in OrganizationService(platform.store, platform.identity).organizations(claims["sub"])}:
+                raise HTTPException(403, "No active membership in this organization")
+            return platform.identity.context_for(requested, claims["sub"])
+        if claims.get("is_anonymous") is True:
+            raise HTTPException(403, "Demo visitors can only use their demo workspace")
         if os.environ.get("LIFESCI_MULTI_TENANT") == "1":
             from .organizations import OrganizationService
             service = OrganizationService(platform.store, platform.identity, verifier.tenant)

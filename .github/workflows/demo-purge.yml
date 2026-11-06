@@ -1,0 +1,38 @@
+# Daily physical deletion of expired demo workspaces (24 h) and demo corpus entries older than 90 days.
+# Needs repository secret LIFESCI_MIGRATION_DATABASE_URL (schema owner): append-only tables can only be
+# purged by the owner. See docs/product/demo-workspaces.md.
+name: Demo purge
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-purge
+  cancel-in-progress: false
+
+jobs:
+  purge:
+    runs-on: ubuntu-24.04
+    environment: production
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/deploy/aws/requirements.txt
+      - run: pip install -r deploy/aws/requirements.txt
+      - name: Delete expired demo workspaces and old corpus entries
+        env:
+          LIFESCI_MIGRATION_DATABASE_URL: ${{ secrets.LIFESCI_MIGRATION_DATABASE_URL }}
+        run: |
+          test -n "$LIFESCI_MIGRATION_DATABASE_URL" || { echo "Set the LIFESCI_MIGRATION_DATABASE_URL secret"; exit 1; }
+          python -m src.lifesci demo-purge

@@ -254,14 +254,30 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     origins = os.environ.get("LIFESCI_CORS_ORIGINS", "http://127.0.0.1:5180,http://localhost:5180" if auth_mode == "development_headers" else "")
     if origins:
         app.add_middleware(CORSMiddleware, allow_origins=origins.split(","), allow_methods=["GET", "POST"],
-                           allow_headers=["Authorization", "Content-Type", "X-Tenant-Id", "X-Actor-Id", "Idempotency-Key", "X-CMO-Token", "X-Organization-Id"],
+                           allow_headers=["Authorization", "Content-Type", "X-Tenant-Id", "X-Actor-Id", "Idempotency-Key", "X-CMO-Token", "X-Organization-Id", "X-Demo-Visitor"],
                            expose_headers=["X-Package-Complete", "X-Open-Issues", "X-Values-Pending", "X-Page-Width",
                                            "X-Page-Height", "X-Page-Count"])
 
     def ctx_dep(request: Request) -> AccessContext:
+        requested = request.headers.get("x-organization-id") or request.headers.get("x-tenant-id")
+        demo = getattr(platform, "demo", None)
+        if demo is not None and requested and requested.startswith("demo_") and demo.expired(requested):
+            raise HTTPException(410, "This demo workspace has expired. Start a new one, or talk to us.")
         ctx = resolver(request)
         platform.runtime.track(ctx.tenant_id)
         return ctx
+
+    def demo_visitor(request: Request) -> str:
+        """Only anonymous demo sign-ins may create demo workspaces; real accounts never get one."""
+        verifier = getattr(resolver, "verifier", None)
+        if verifier is not None:
+            claims = verifier.verify(request.headers.get("authorization"))
+            if claims.get("is_anonymous") is not True:
+                raise HTTPException(403, "Demo workspaces are for demo visitors; you are signed in with an organization account")
+            return claims["sub"]
+        if auth_mode == "development_headers" and request.headers.get("x-demo-visitor") == "1" and request.headers.get("x-actor-id"):
+            return request.headers["x-actor-id"]
+        raise HTTPException(403, "Demo workspaces are not available on this deployment")
 
     @app.exception_handler(AuthorizationError)
     async def _auth(_: Request, exc: AuthorizationError):  # noqa: ANN202
@@ -270,6 +286,12 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.exception_handler(PermissionError)
     async def _perm(_: Request, exc: PermissionError):  # noqa: ANN202
         return JSONResponse({"error": "forbidden", "detail": str(exc)}, status_code=403)
+
+    from .demo import DemoLimit
+
+    @app.exception_handler(DemoLimit)
+    async def _demo_limit(_: Request, exc: DemoLimit):  # noqa: ANN202
+        return JSONResponse({"error": "limit_reached", "detail": str(exc)}, status_code=429)
 
     @app.exception_handler(ConflictError)
     async def _conflict(_: Request, exc: ConflictError):  # noqa: ANN202
@@ -310,6 +332,13 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
                 tx.put(ctx.tenant_id, "idempotency", rid, {"request_hash": digest, "response": response},
                        expected_revision=None, action="idempotency")
         return response
+
+    from .demo import DemoExpired, demo_routes
+    demo_routes(app, platform, ctx_dep, demo_visitor)
+
+    @app.exception_handler(DemoExpired)
+    async def _demo_expired(_: Request, __: DemoExpired):  # noqa: ANN202
+        return JSONResponse({"error": "expired", "detail": "This demo workspace has expired. Start a new one, or talk to us."}, status_code=410)
 
     from .signals import signal_routes
     from .alerts import alert_routes
