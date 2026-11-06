@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Archive, ArrowUp, BookOpen, FlaskConical, History, MoreHorizontal, Pencil, Plus, RotateCcw, ChevronDown, Workflow, Check, Circle, Loader2, Paperclip, X, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { Archive, ArrowUp, BookOpen, PanelLeftClose, FlaskConical, History, MoreHorizontal, Pencil, Plus, RotateCcw, ChevronDown, Workflow, Check, Circle, Loader2, Paperclip, X, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import { Markdown } from './Markdown';
 import { QuestionCard } from './QuestionCard';
 import { SignalCard } from './SignalCard';
@@ -228,6 +228,17 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [demoConsent, setDemoConsent] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Wide screens: the history panel can be hidden; the choice is remembered like the navigation's.
+  const [historyHidden, setHistoryHiddenState] = useState(false);
+  useEffect(() => { try { setHistoryHiddenState(localStorage.getItem('biodemo.history.v1') === 'hidden'); } catch { /* optional */ } }, []);
+  const setHistoryHidden = (hidden: boolean) => {
+    setHistoryHiddenState(hidden);
+    try { localStorage.setItem('biodemo.history.v1', hidden ? 'hidden' : 'shown'); } catch { /* optional */ }
+  };
+  const toggleHistory = () => {
+    if (!compact && historyHidden && window.matchMedia('(min-width: 768px)').matches) setHistoryHidden(false);
+    else setHistoryOpen(o => !o);
+  };
   const current = useRef<string | null>(null);
   const inFlight = useRef(false);
   const end = useRef<HTMLDivElement>(null);
@@ -381,12 +392,16 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
   const history = <ConversationList recent={recent} currentId={thread?.id ?? null} actions={listActions} />;
 
   return <div className={`flex w-full ${compact ? 'min-h-full' : 'min-h-[calc(100dvh-7rem)]'}`} data-testid="engineering-chat">
-    {!compact && <aside className="sticky top-0 hidden max-h-[calc(100dvh-7rem)] w-64 shrink-0 self-start border-r border-border-hairline py-4 pl-2 pr-3 md:block">{history}</aside>}
+    {!compact && !historyHidden && <aside className="sticky top-0 hidden max-h-[calc(100dvh-7rem)] w-64 shrink-0 self-start border-r border-border-hairline py-4 pl-2 pr-3 md:flex md:flex-col">
+      <button type="button" onClick={() => setHistoryHidden(true)} aria-label="Hide conversation history" title="Hide conversation history"
+        className="mb-2 flex items-center gap-1.5 self-end rounded-control px-2 py-1 text-[11px] text-text-tertiary hover:bg-surface-secondary hover:text-text-secondary"><PanelLeftClose size={14} />Hide</button>
+      <div className="min-h-0 flex-1">{history}</div>
+    </aside>}
     <div className={`mx-auto flex w-full min-w-0 flex-col ${compact ? 'px-4' : 'max-w-4xl px-2 sm:px-8'}`}>
-    <header className={`relative flex items-center justify-between gap-3 py-3 ${compact ? 'sticky top-0 z-20 bg-surface' : ''}`}>
+    <header className={`sticky z-20 flex items-center justify-between gap-3 py-3 ${compact ? 'top-0 bg-surface' : '-top-7 bg-canvas'}`}>
       <div className="flex min-w-0 items-center gap-2">
-        <span className={`flex items-center ${compact ? '' : 'md:hidden'}`}>
-          <button type="button" onClick={() => setHistoryOpen(o => !o)} aria-expanded={historyOpen} aria-label="Conversation history"
+        <span className={`flex items-center ${compact || historyHidden ? '' : 'md:hidden'}`}>
+          <button type="button" onClick={toggleHistory} aria-expanded={historyOpen || (!compact && !historyHidden)} aria-label="Conversation history"
             className={action}><History size={15} /><span className={compact ? 'sr-only' : ''}>History</span></button>
           <button type="button" onClick={newConversation} className={action} aria-label="New conversation"><Plus size={16} /><span className={compact ? 'sr-only' : ''}>New</span></button>
         </span>
