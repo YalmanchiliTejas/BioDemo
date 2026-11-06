@@ -179,3 +179,25 @@ def test_demo_at_capacity_is_429_not_a_conflict(api, monkeypatch):
     monkeypatch.setattr(demo_module, 'GLOBAL_DAILY', 0)
     response = start(api, 'anon-capacity')
     assert response.status_code == 429 and 'capacity' in response.json()['detail']
+
+
+def test_the_process_engineer_do_drop_plan_runs_every_step_in_a_demo_workspace(p):
+    """Replays the 8-step plan that stuck live (2026-11-06): non-record IDs and guessed revisions must not stop it."""
+    from tests.lifesci.test_engineering_conversation import fake_planner, node
+    t = p.demo.provision('anon-pe', 'process_engineer', True)['tenant_id']
+    ctx = p.identity.context_for(t, 'anon-pe')
+    search = lambda q: {'mode': 'search', 'query': q}
+    steps = [node('read_dev31', 'workspace_read', {'kind': 'case', 'record_id': 'DEV-31', 'revision': 1}),
+             node('mentions_dev31', 'workspace_search', search('DEV-31')),
+             node('links_b117', 'workspace_search', {'mode': 'links', 'record_kind': 'batch', 'record_id': 'B-117'}),
+             node('mentions_br07', 'workspace_search', search('BR-07')),
+             node('mentions_do', 'workspace_search', search('dissolved oxygen')),
+             node('similar_b117', 'workspace_search', {'mode': 'similar_cases', 'case_id': 'B-117', 'query': 'DO below 30 % foaming'}),
+             node('read_dev19', 'workspace_read', {'kind': 'case', 'record_id': 'DEV-19', 'revision': 1}),
+             node('read_dev12', 'workspace_read', {'kind': 'batch', 'record_id': 'DEV-12', 'revision': 1})]
+    fake_planner(p, [{'reply': 'Looking into B-117.', 'workflow': steps}, {'reply': 'DO fell in B-117 on BR-07; see DEV-31.'}])
+    thread = p.engineering_conversations.create(ctx, {'site_id': 'NF1'})
+    queued = p.engineering_conversations.enqueue(ctx, thread['id'], {'text': 'DO fell below 30 % in B-117', 'expected_revision': thread['revision']})
+    turn = p.engineering_conversations.run_turn(ctx, thread['id'], queued['turn_ids'][-1])['turns'][-1]
+    assert turn['status'] == 'completed', turn['issues']
+    assert turn['planning_calls_admitted'] == 2 and len(turn['artifacts']) == len(steps)

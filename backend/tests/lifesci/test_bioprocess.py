@@ -154,3 +154,15 @@ def test_real_experiment_model_runs_in_its_worker():
     out = SimulatorWorker.from_env().forward(packet(PENSIM_CASE), 'lean_low_gas')
     assert set(out['predictions']) == set(packet(PENSIM_CASE)['forecast_fields'])
     assert out['operating_consequences']['feasible'] in (True, False)
+
+
+def test_cho_forecast_accepts_the_run_id_written_differently_and_lists_runs_when_unknown():
+    params = [.03, .002, .4, 2.5, .004]
+    rows = [{'id': f'{b}-{t}-{f}', 'batch': f'CHO-00{b}-R01', 'time': f'{t:.2f}', 'parameter': f, 'value': float(v * (1e6 if f == 'viable_cell_density' else 1)),
+             'unit': u, 'status': 'auto_accepted'}
+            for b, (x0, g0) in enumerate([(.4, 6.), (.5, 5.5), (.45, 6.2), (.42, 5.8)])
+            for t, (x, g) in zip(range(0, 121, 12), cho.integrate(params, np.array([x0, g0]), 0, list(range(0, 121, 12))))
+            for f, v, u in (('viable_cell_density', x, 'cells/mL'), ('glucose', g, 'g/L'))]
+    assert cho.forecast({'measurements': rows}, 'cho001-r01', 60.)['batch'] == 'CHO-001-R01'
+    with pytest.raises(ValueError, match='runs with data: CHO-000-R01'):
+        cho.forecast({'measurements': rows}, 'CHO-001', 60.)

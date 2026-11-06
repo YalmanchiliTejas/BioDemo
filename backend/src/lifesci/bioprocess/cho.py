@@ -132,8 +132,12 @@ def fit(training: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
 
 def forecast(dataset: dict[str, Any], batch: str, cutoff_h: float = 72., horizon_h: float = 120.) -> dict[str, Any]:
     data = series(dataset['measurements'], horizon_h)
+    if batch not in data:  # same ID written differently (cho-003-r01, CHO003-R01); leading zeros still count
+        key = lambda b: ''.join(c for c in str(b).casefold() if c.isalnum())
+        batch = next((b for b in data if key(b) == key(batch)), batch)
     if batch not in data:
-        raise ValueError(f'batch {batch} has no viable cell density or glucose readings up to {horizon_h:g} h')
+        raise ValueError(f'batch {batch} has no viable cell density or glucose readings up to {horizon_h:g} h; '
+                         f'runs with data: {", ".join(sorted(data))}')
     model = fit({b: rows for b, rows in data.items() if b != batch})
     params = list(model['parameters'].values())
     rows = data[batch]
