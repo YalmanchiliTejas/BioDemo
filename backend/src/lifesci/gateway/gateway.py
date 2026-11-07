@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
 from ..identity import AccessContext, IdentityService
@@ -189,6 +189,53 @@ class ModelGateway:
         status = "blocked" if not any(a.get("ok") for a in attempts) else "unresolved"
         return self._finish(req, run_id, started, status, None, route, attempts, total_cost, issues)
 
+    # --- native tool-calling chat ------------------------------------------------------------
+    def converse(self, req: TaskRequest, messages: list[dict[str, Any]], tools: list[dict[str, Any]],
+                 tool_choice: str = 'auto') -> TaskResult:
+        """One model step of a tool loop: same routing, budget, retries, breaker and audit trace as run().
+        Output: {'content': str, 'tool_calls': [{'id', 'name', 'arguments'}]}. No caching: each step is live."""
+        started = utc_now()
+        run_id = new_id("run")
+        ctx = req.ctx
+        if req.inputs:
+            decision = self.identity.check_derived(ctx, req.inputs)
+            if not decision:
+                return self._finish(req, run_id, started, "denied", None, None, [], 0.0, [decision.reason])
+        transcript = json.dumps(messages, ensure_ascii=False, default=str)
+        req = replace(req, prompt=transcript)  # the audit trace hashes exactly what the model was shown
+        try:
+            route = self.router.route(req.task_kind, ambiguity=req.ambiguity, needs_tools=True,
+                                      context_tokens=self._estimate_tokens(transcript), unavailable=self.unavailable,
+                                      suggested_risk=req.suggested_risk)
+        except RoutingError as exc:
+            return self._finish(req, run_id, started, "blocked" if self.unavailable else "unresolved", None, None, [], 0.0, [str(exc)])
+        profile = route.profile
+        policy = self.registry.policies.get(req.task_kind)
+        max_out = policy.max_output_tokens if policy else 4000
+        try:
+            reservation = self.budgets.reserve(ctx.tenant_id, self._scopes(req), profile.cost(self._estimate_tokens(transcript), max_out))
+        except BudgetExceeded as exc:
+            return self._finish(req, run_id, started, "budget_exhausted", None, route, [], 0.0, [str(exc)])
+        if not hasattr(self.providers.get(profile.provider), 'chat'):
+            self.budgets.settle(ctx.tenant_id, reservation, 0.0)
+            return self._finish(req, run_id, started, "blocked", None, route, [], 0.0,
+                                [f"provider {profile.provider} does not support tool calls"])
+        completion, attempts = self._call_with_retries(
+            profile, req.system, transcript, max_out, req.timeout_s, max_attempts=req.max_provider_calls,
+            invoke=lambda provider, budget: provider.chat(model=profile.model, messages=messages, tools=tools,
+                                                          tool_choice=tool_choice, max_output_tokens=budget,
+                                                          timeout_s=req.timeout_s))
+        cost = profile.cost(completion.input_tokens, completion.output_tokens, completion.cached_tokens) if completion else 0.0
+        self.budgets.settle(ctx.tenant_id, reservation, cost)
+        if completion is None:
+            if not attempts or attempts[-1].get('error_kind') not in ('bad_request', 'output_limit'):
+                self.mark_unavailable(profile.profile_id)
+            return self._finish(req, run_id, started, "blocked", None, route, attempts, cost,
+                                [a['error'] for a in attempts if a.get('error')][-2:])
+        output = {'content': completion.text, 'tool_calls': [dict(c) for c in completion.tool_calls]}
+        attempts[-1]['tool_calls'] = [c['name'] for c in output['tool_calls']]
+        return self._finish(req, run_id, started, "completed", output, route, attempts, cost, [])
+
     # --- deterministic --------------------------------------------------------------------
     def _run_deterministic(self, req: TaskRequest, run_id: str, started: Any, route: RouteDecision) -> TaskResult:
         entry = self.handlers.get(req.task_kind)
@@ -208,7 +255,8 @@ class ModelGateway:
 
     # --- provider calls -------------------------------------------------------------------
     def _call_with_retries(self, profile: ModelProfile, system: str, prompt: str, max_out: int,
-                           timeout_s: float, *, max_attempts: int | None = None) -> tuple[Completion | None, list[dict[str, Any]]]:
+                           timeout_s: float, *, max_attempts: int | None = None,
+                           invoke: Callable[[Any, int], Completion] | None = None) -> tuple[Completion | None, list[dict[str, Any]]]:
         provider = self.providers.get(profile.provider)
         log: list[dict[str, Any]] = []
         if provider is None:
@@ -218,8 +266,9 @@ class ModelGateway:
         for attempt in range(min(self.max_retries + 1, max_attempts) if max_attempts is not None else self.max_retries + 1):
             t0 = time.perf_counter()
             try:
-                c = provider.complete(model=profile.model, system=system, prompt=prompt,
-                                      max_output_tokens=budget, timeout_s=timeout_s)
+                c = (invoke(provider, budget) if invoke else
+                     provider.complete(model=profile.model, system=system, prompt=prompt,
+                                       max_output_tokens=budget, timeout_s=timeout_s))
                 log.append({"profile_id": profile.profile_id, "model": profile.model, "model_version": profile.version,
                             "ok": True, "attempt": attempt, "input_tokens": c.input_tokens,
                             "output_tokens": c.output_tokens, "cached_tokens": c.cached_tokens,

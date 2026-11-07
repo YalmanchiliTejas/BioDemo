@@ -181,8 +181,9 @@ def test_demo_at_capacity_is_429_not_a_conflict(api, monkeypatch):
     assert response.status_code == 429 and 'capacity' in response.json()['detail']
 
 
-def test_the_process_engineer_do_drop_plan_runs_every_step_in_a_demo_workspace(p):
+def test_the_process_engineer_do_drop_plan_runs_every_step_in_a_demo_workspace(p, monkeypatch):
     """Replays the 8-step plan that stuck live (2026-11-06): non-record IDs and guessed revisions must not stop it."""
+    monkeypatch.setenv('ASSISTANT_LOOP', 'planner')  # a planner-path replay; demo workspaces default to the tool loop
     from tests.lifesci.test_engineering_conversation import fake_planner, node
     t = p.demo.provision('anon-pe', 'process_engineer', True)['tenant_id']
     ctx = p.identity.context_for(t, 'anon-pe')
