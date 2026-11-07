@@ -33,7 +33,7 @@ export const NAV_GROUPS: NavGroup[] = [
 ];
 
 // Demo visitors have no systems to connect, team to manage or account to edit.
-const DEMO_HIDDEN = new Set(['/sources', '/settings/organization', '/settings/alerts', '/settings/memory', '/settings/profile']);
+const DEMO_HIDDEN = new Set(['/sources', '/settings/organization', '/settings/alerts', '/settings/profile']);  // memory is worth showing
 export const navGroups = (demo: boolean): NavGroup[] =>
   demo ? NAV_GROUPS.map(group => ({ ...group, items: group.items.filter(item => !DEMO_HIDDEN.has(item.href)) })) : NAV_GROUPS;
 
