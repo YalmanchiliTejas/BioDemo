@@ -8,6 +8,7 @@ import re
 
 from ...manufacturing_data.knowledge import canonical
 from ..evidence import STATUS_CURRENT, EvidenceRef
+from ..cmo_datasets import CLASSIFICATION as DATASET, summarize
 from ..ids import iso, parse_iso
 
 KINDS = ('case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
@@ -16,7 +17,7 @@ FIELDS = {
     # Deviation signals are detections, not deviations: a person decides whether a case is opened.
     'deviation_signal': ('signal_id', 'kind', 'severity', 'rule', 'parameter', 'value', 'unit', 'limit', 'spec_ref',
                          'subject', 'source', 'status', 'occurrences', 'first_at', 'last_at', 'case_id', 'triage'),
-    'case': ('case_id', 'status', 'opened_at', 'owner_id', 'qa_reviewer_id', 'timeline', 'procedure_refs'),
+    'case': ('case_id', 'status', 'opened_at', 'owner_id', 'qa_reviewer_id', 'timeline', 'procedure_refs', 'closure'),
     'batch': ('batch_id', 'status', 'product', 'recipe_id', 'equipment_id', 'started_at', 'completed_at'),
     'sample': ('sample_id', 'status', 'batch_id', 'results', 'collected_at'),
     'procedure_instance': ('instance_id', 'status', 'batch_id', 'procedure_id', 'steps'),
@@ -207,9 +208,13 @@ class WorkspaceTools:
             if rec.state.get('media_type', '').startswith(('text/', 'application/json')):
                 # Paginate originals without silently treating a partial export as complete.
                 raw = self.p.evidence.original(ctx, record_id).decode('utf-8', errors='replace')
-                data['original'] = raw[offset:offset + max_chars]
+                if offset == 0 and (rec.state.get('metadata') or {}).get('classification') == DATASET:
+                    # A delivery is thousands of rows: lead with every run's summary, page raw rows only if needed.
+                    data['dataset_summary'] = summarize(json.loads(raw))
+                page = 4000 if 'dataset_summary' in data else max_chars
+                data['original'] = raw[offset:offset + page]
                 data['original_characters'] = len(raw)
-                data['next_offset'] = offset + max_chars if len(raw) > offset + max_chars else None
+                data['next_offset'] = offset + page if len(raw) > offset + page else None
         encoded = json.dumps(data, ensure_ascii=False, default=str)
         if len(encoded) > max_chars * 2:
             data = {'excerpt': encoded[:max_chars * 2], 'truncated': True,

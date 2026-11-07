@@ -94,6 +94,7 @@ def summarize(data: dict[str, Any], *, sample_rows: int = 40) -> dict[str, Any]:
     return {
         "measurement_count": len(rows), "batches": sorted(per_batch), "parameters": parameters, "per_batch": batches,
         "coverage": data.get("coverage"), "guarantee_holds": data["guarantee"]["holds"],
+        "guarantee_checks": [{k: c.get(k) for k in ("label", "passed")} for c in data["guarantee"].get("checks", [])],
         "example_rows": [{"batch": m["batch"], "time_h": _hours(m["time"]), "parameter": m["parameter"],
                           "value": m["value"], "unit": m["unit"], "source": _source_label(m.get("source"))}
                          for m in rows[:sample_rows]],

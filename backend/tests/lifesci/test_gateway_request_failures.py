@@ -27,11 +27,12 @@ def gateway():
 def test_request_failure_does_not_block_next_healthy_request(gateway, kind):
     gw, provider, ctx = gateway
     model = gw.registry.profiles['anthropic-haiku'].model
+    tries = 2 if kind == 'output_limit' else 1  # an exhausted output budget gets one more sample
     provider.scripts[model] = [ProviderError('This request cannot produce an answer',
-        retryable=False, kind=kind), json.dumps({'summary': 'Healthy request answered', 'source_refs': []})]
+        retryable=False, kind=kind)] * tries + [json.dumps({'summary': 'Healthy request answered', 'source_refs': []})]
     first = gw.run(TaskRequest('short_summary', ctx, prompt='Request exceeding its limits', use_cache=False))
     assert first.status == 'blocked' and first.output is None
-    assert len(first.attempts) == 1 and first.attempts[0]['error_kind'] == kind
+    assert len(first.attempts) == tries and first.attempts[0]['error_kind'] == kind
     second = gw.run(TaskRequest('short_summary', ctx, prompt='Unrelated smaller request', use_cache=False))
     assert second.status == 'completed', second.issues
     assert second.output['summary'] == 'Healthy request answered'
@@ -70,3 +71,12 @@ def test_modal_empty_length_response_is_a_request_output_limit(monkeypatch):
     assert raised.value.kind == 'output_limit'
     assert raised.value.retryable is False
     assert 'Private reasoning' not in str(raised.value)
+
+
+def test_an_exhausted_output_budget_is_sampled_once_more(gateway):
+    gw, provider, ctx = gateway
+    model = gw.registry.profiles['anthropic-haiku'].model
+    provider.scripts[model] = [ProviderError('no answer content', retryable=False, kind='output_limit'),
+                               json.dumps({'summary': 'Answered on the second sample', 'source_refs': []})]
+    result = gw.run(TaskRequest('short_summary', ctx, prompt='Long reasoning', use_cache=False))
+    assert result.status == 'completed' and len(result.attempts) == 2

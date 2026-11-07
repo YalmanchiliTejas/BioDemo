@@ -448,7 +448,8 @@ class EngineeringConversationService:
                 self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', tid).state['user_text'][:1000] for tid in thread['turn_ids'][:-12][-8:]],
             'history_retrieval': {'older_turn_count': max(0, len(thread['turn_ids']) - 12),
                 'note': 'Earlier instruction excerpts are limited to eight at 1000 characters each. Search engineering_chat_turn to recover full authorized history; durable mission corrections above are preserved.'},
-            'authorized_sources': sources, 'site_id': thread['site_id'],
+            'authorized_sources': sources, 'site_id': thread['site_id'], 'current_user_id': thread['owner_id'],
+            'user_roles': sorted(self.p.identity.context_for(ctx.tenant_id, thread['owner_id']).roles),
             'workspace_index': self.workspace.search(ctx, thread, kinds=['case'], limit=20),
             'saved_work_index': self.workspace.search(ctx, thread, kinds=['engineering_chat_turn'], limit=10),
             'workspace_capabilities': {'record_kinds': list(KINDS),
@@ -472,6 +473,8 @@ class EngineeringConversationService:
                 'For a causal question that needs several lines of evidence checked in depth (e.g. "why did DEV-31 happen", "investigate this deviation"), first answer what the inspected records show, then you may call workspace_propose_investigation with an objective, the case_id when one is known and user_quote copied exactly from the user message. It is only a proposal: a multi-agent investigation runs for up to 20 minutes and only after the user presses Start. You cannot start it; never say it is running.',
                 'Identifier and precedent tools: workspace_search with mode=links, record_kind and record_id lists records that name the same batch, lot, equipment, material or deviation ID (B-001 = B001); each shared ID has a status (extracted from ID fields, or candidate from free text) and the result says how many records were searched. mode=similar_cases with case_id and/or query ranks CLOSED cases by shared IDs then wording; results are similar, not established as applicable, and reuse still needs owner approval. Multi-word queries also return records containing at least half the words (match=words) after literal matches.',
                 'Respond conversationally. Compose the workflow for THIS request, not a fixed template. Answer follow-ups using prior artifacts and source context.',
+                'Questions: ask only when you cannot give a useful answer without the person\'s input, and ask at most one (two only if both block the answer). Never ask permission to do what the user already asked for: do it in this turn (read more, page a source, run the analysis). Do not end with offers such as "Would you like me to…"; if a next step would help, state it in one sentence of the reply. Missing records are unknowns to state in the reply, not questions to ask.',
+                'Audience: write for user_roles (an executive wants plain language and decisions; an engineer wants mechanisms and numbers). Never show internal identifiers: person IDs, specification, signal or run IDs, revision numbers, field names. Use case, batch, lot and equipment numbers. current_user_id is the person you are talking to: call them "you"; name other people by role.',
                 'Write the reply and questions in the language of the latest user message. Use English for an English request. Keep the reply concise (normally 1–3 short sentences); calculated artifacts carry trajectories and numbers.',
                 'Record identifiers and workflow node identifiers are different. An attached phys_ source is a literal simulation_id/source_id, never an executed dependency. Prior result/plan IDs are literals too. Only nodes declared in this response may appear in depends_on or $node.',
                 'Do not add physical_results_assess as a prerequisite to a requested review proposal unless interpretation was explicitly requested and its route is available. A physical_analysis_review node can depend directly on the completed physical_pipeline_execute node.',
@@ -516,6 +519,11 @@ class EngineeringConversationService:
             has_signal='deviation_signal' in request_text or bool(latest.get('triage_signal_id')))
         allowed = capabilities.operators(packs)
         prompt['operator_payload_schemas'] = {k: v for k, v in prompt['operator_payload_schemas'].items() if k in allowed}
+        if not self.p.investigations.entitled(ctx.tenant_id):
+            # A paid feature that is off here: don't show the tool or let the assistant offer it.
+            prompt['operator_payload_schemas'].pop('workspace_propose_investigation', None)
+            prompt['instructions'] = [s for s in prompt['instructions'] if not s.startswith('For a causal question')]
+            prompt['instructions'].append('Multi-agent investigations are not available in this workspace; never offer or mention them.')
         prompt['capabilities'] = capabilities.describe(packs)
         prompt['capabilities_used'] = packs
         return prompt
@@ -587,8 +595,10 @@ class EngineeringConversationService:
                 if result.status != 'completed':
                     invalid_plan = any(a['status'] == 'rejected' for a in planning_attempts)
                     stale_basis = result.status == 'stale_basis'
+                    # Keep the provider's reason (e.g. output budget exhausted, timeout) so a failure is diagnosable.
+                    reasons = result.issues or [a['error'] for a in result.attempts if a.get('error')][-2:]
                     checkpoint(status='blocked' if invalid_plan or stale_basis else 'agent_unavailable',
-                        issues=result.issues, reply=None,
+                        issues=reasons, reply=None,
                         system_message='The assistant could not construct a valid analysis plan after the allowed correction. No simulation has run; inspect the execution record or refine the request.' if invalid_plan else
                             'Supporting evidence changed while the assistant was working, so its answer was withheld. Your message is saved; retry to use the current evidence.' if stale_basis else
                             'The engineering assistant is unavailable. Your message is saved; no workflow or simulation has run. Retry when the model connection is available.')

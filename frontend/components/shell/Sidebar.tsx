@@ -5,10 +5,12 @@ import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { useWorkspace } from '@/lib/workspace-context';
-import { NAV_GROUPS, locate } from '@/lib/navigation';
+import { navGroups, locate } from '@/lib/navigation';
+import { useDemo } from '@/lib/demo-api';
 import { BrandMark } from './BrandMark';
 
 export function Sidebar() {
+  const { demo } = useDemo();
   const path = usePathname();
   const { collapsed, setCollapsed, mobileOpen, setMobileOpen } = useWorkspace();
   const sidebar = useRef<HTMLElement>(null);
@@ -35,7 +37,7 @@ export function Sidebar() {
     <aside ref={sidebar} id="workspace-navigation" className={`workspace-sidebar ${collapsed ? 'is-collapsed' : ''} ${mobileOpen ? 'is-open' : ''}`} role={mobileOpen ? 'dialog' : undefined} aria-modal={mobileOpen || undefined} aria-label="Workspace navigation">
       <div className="sidebar-brand"><BrandMark href="/dashboard/" label={!collapsed || mobileOpen} /><button type="button" className="chrome-icon mobile-only" aria-label="Close navigation" onClick={dismiss}><X size={18} /></button></div>
       <nav aria-label="Primary" className="sidebar-nav">
-        {NAV_GROUPS.map(group => <div className={`sidebar-group ${group.id === 'settings' ? 'sidebar-group-end' : ''}`} key={group.id}>
+        {navGroups(!!demo).map(group => <div className={`sidebar-group ${group.id === 'settings' ? 'sidebar-group-end' : ''}`} key={group.id}>
           <h2>{group.label}</h2>
           {group.items.map(item => <Link key={item.href} href={`${item.href}/`} data-guide={item.guide} title={collapsed ? item.label : undefined} aria-current={active === item.href ? 'page' : undefined}><item.icon size={16} strokeWidth={1.75} /><span>{item.label}</span></Link>)}
         </div>)}

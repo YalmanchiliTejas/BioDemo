@@ -31,10 +31,16 @@ def prompt_for(p, who, text):
     return p.engineering_conversations._prompt(p.identity.context_for('T', who), {**thread, 'turn_ids': [tid]}, [])
 
 
-def test_planner_shows_only_chosen_packs_and_records_them():
+def test_planner_shows_only_chosen_packs_and_records_them(monkeypatch):
     p = Platform(RecordStore(), providers={})
     p.identity.assign_role('T', 'quinn', 'qa', site_id='NF1')
-    shown = prompt_for(p, 'quinn', 'Triage deviation signal SIG-1 on batch B-001')
+    triage = 'Triage deviation signal SIG-1 on batch B-001'
+    monkeypatch.delenv('INVESTIGATIONS_ENABLED_TENANTS', raising=False)
+    off = prompt_for(p, 'quinn', triage)  # a paid feature: neither the tool nor an offer where it is off
+    assert 'workspace_propose_investigation' not in off['operator_payload_schemas']
+    assert any('not available in this workspace' in i for i in off['instructions'])
+    monkeypatch.setenv('INVESTIGATIONS_ENABLED_TENANTS', 'T')
+    shown = prompt_for(p, 'quinn', triage)
     assert shown['capabilities_used'] == ['core', 'quality']
     assert 'workspace_propose_investigation' in shown['operator_payload_schemas']
     assert not any(k.startswith('physical_') for k in shown['operator_payload_schemas'])

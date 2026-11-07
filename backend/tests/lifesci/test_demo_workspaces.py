@@ -201,3 +201,57 @@ def test_the_process_engineer_do_drop_plan_runs_every_step_in_a_demo_workspace(p
     turn = p.engineering_conversations.run_turn(ctx, thread['id'], queued['turn_ids'][-1])['turns'][-1]
     assert turn['status'] == 'completed', turn['issues']
     assert turn['planning_calls_admitted'] == 2 and len(turn['artifacts']) == len(steps)
+
+
+def test_demo_data_answers_what_the_live_e2e_run_found_missing(p):
+    """2026-11-07 e2e on sievance.com: the assistant called the seed untrustworthy, saw 1 of 6 runs, couldn't read
+    closure conclusions, explained 'opened != occurred' every time, and offered a feature that is off in demos."""
+    import json as _json
+    t = p.demo.provision('anon-e2e', 'msat', True)['tenant_id']
+    ctx = p.identity.context_for(t, 'anon-e2e')
+    thread = p.engineering_conversations.create(ctx, {'site_id': 'NF1'})
+    ws = p.engineering_conversations.workspace
+    rec = p.store.read().require(t, 'evidence', 'cmo-verified-delivery:demo-september')
+    data = _json.loads(p.evidence.original(ctx, rec.id))
+    assert len(data['measurements'][0]['source_sha256']) == 64 and len(data['guarantee']['checks']) == 2
+    read = ws.read(ctx, thread, kind='evidence', record_id=rec.id, revision=rec.revision)['record']['data']
+    assert len(read['dataset_summary']['batches']) == 6 and len(read['original']) <= 4000
+    dev12 = ws.read(ctx, thread, kind='case', record_id='DEV-12', revision=p.store.read().require(t, 'case', 'DEV-12').revision)
+    assert 'pump AF-2 seal worn' in dev12['record']['data']['closure']['root_cause']
+    assert p.store.read().require(t, 'case', 'DEV-31').state['opened_at'].startswith('2026-11-03')
+    assert p.store.read().require(t, 'batch', 'B-117').state['equipment_id'] == 'BR-07'
+    assert 'ERP:LOT-L-8812' in {r['id'] for r in ws.links(ctx, thread, kind='batch', record_id='L-8812')['records']}
+    p.engineering_conversations.enqueue(ctx, thread['id'], {'text': 'Is this delivery trustworthy?', 'expected_revision': thread['revision']})
+    prompt = p.engineering_conversations._prompt(ctx, p.engineering_conversations._thread(ctx, thread['id']).state, [])
+    assert 'workspace_propose_investigation' not in prompt['operator_payload_schemas']
+    assert prompt['current_user_id'] == 'anon-e2e' and prompt['user_roles'] == ['msat']
+
+
+@pytest.mark.parametrize('persona', sorted(PERSONA_ROLES))
+def test_no_lookup_the_assistant_can_plausibly_make_stops_a_turn(p, persona):
+    """Every workspace tool on every demo record and on every ID in the scenarios, tried as every kind."""
+    from src.lifesci.demo_scenarios import SCENARIOS
+    from src.lifesci.process_engineering.workspace import ID_PATTERN, KINDS
+    from src.lifesci.store import NotFoundError
+    t = p.demo.provision(f'anon-{persona}', persona, True)['tenant_id']
+    ctx = p.identity.context_for(t, f'anon-{persona}')
+    thread = p.engineering_conversations.create(ctx, {'site_id': 'NF1'})
+    ws = p.engineering_conversations.workspace
+    kinds = [k for k in KINDS if k != 'engineering_chat_turn']
+    records = [(k, r.id, r.revision) for k in kinds for r in p.store.read().list(t, k)]
+    texts = [s['prompt'] + ' ' + s['situation'] for s in SCENARIOS if s['persona'] == persona]
+    ids = {m for text in texts for m in ID_PATTERN.findall(text)} | {i for _, i, _ in records}
+    for k, i, rev in records:
+        ws.read(ctx, thread, kind=k, record_id=i, revision=1)  # guessed revision
+        ws.links(ctx, thread, kind=k, record_id=i)
+    for i in sorted(ids):
+        for k in kinds:
+            try:
+                ws.read(ctx, thread, kind=k, record_id=i, revision=1)
+            except NotFoundError:
+                pass  # the conversation turns this into a "not found" result
+            ws.links(ctx, thread, kind=k, record_id=i)
+        ws.similar_cases(ctx, thread, case_id=i)
+    for text in texts:
+        ws.search(ctx, thread, kinds=[], query=text[:200])
+        ws.similar_cases(ctx, thread, text=text[:200])
