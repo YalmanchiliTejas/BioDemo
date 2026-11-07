@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { SettingsFrame } from '@/components/shell/SettingsFrame';
+import { AssistantMemoryPanel } from '@/components/memory/AssistantMemoryPanel';
 import { Button, Pill, table, type Tone } from '@/components/ui';
 import { approveGrant, denyGrant, formatDate, listGrants, requestAccess, revokeGrant, SCOPE_LABEL,
   type Grant, type Grants, type MemoryScope } from '@/lib/memory-api';
@@ -44,10 +45,12 @@ export default function MemorySharingPage() {
   const given = grants.shared_with_me.filter(g => ['active', 'requested'].includes(g.status));
   const past = [...grants.shared_by_me, ...grants.shared_with_me].filter(g => ['denied', 'revoked', 'expired'].includes(g.status));
 
-  return <SettingsFrame title="Memory & sharing" description="Your assistant memory is private to you: your conversations and the messages in them, the corrections you made, and your personal rules. Nobody else can read it — not administrators, and not other people's assistants — unless you approve a request here. Access is read-only, time-limited, and you can revoke it at any time.">
+  return <SettingsFrame title="Memory & sharing" description="Your assistant memory is private to you: your conversations and the messages in them, the notes your assistant kept, the corrections you made, and your personal rules. Nobody else can read it — not administrators, and not other people's assistants — unless you approve a request here. Access is read-only, time-limited, and you can revoke it at any time.">
     {error && <div role="alert" className="workspace-alert">{error}</div>}
 
-    <section className="workspace-panel">
+    <AssistantMemoryPanel />
+
+    <section className="workspace-panel mt-4">
       <h2 className="px-4 pt-4 text-[14px] font-medium">Requests waiting for you</h2>
       {waiting.length ? <div className={table.wrap}><table className={table.root}>
         <thead><tr>{['Colleague', 'Wants to read', 'Why', 'For', ''].map(h => <th key={h} className={table.th}>{h}</th>)}</tr></thead>

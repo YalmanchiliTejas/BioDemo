@@ -35,6 +35,10 @@ Parameters:
   ModalBaseUrl:
     Type: String
     Default: ""
+  ModalEmbeddingsUrl:
+    Type: String
+    Default: "https://gauntlet--biodemo-embeddings.us-east.modal.run"
+    Description: Embedding service for assistant memory recall (backend/deploy/modal/embeddings_app.py)
   ModalProxyToken:
     Type: String
     NoEcho: true
@@ -160,6 +164,7 @@ Resources:
           LIFESCI_LLM_MODEL: !If [HasModal, !Ref LlmModel, !Ref AWS::NoValue]
           MODAL_BASE_URL: !Ref ModalBaseUrl
           MODAL_PROXY_TOKEN: !Ref ModalProxyToken
+          MODAL_EMBEDDINGS_URL: !Ref ModalEmbeddingsUrl
           LIFESCI_ALLOW_UNQUALIFIED_ROUTES: !Ref AllowUnqualifiedRoutes
           INVESTIGATION_EXECUTOR_URL: !Ref InvestigationExecutorUrl
           INVESTIGATIONS_ENABLED_TENANTS: !Ref InvestigationsEnabledTenants

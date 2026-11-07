@@ -86,6 +86,9 @@ class Platform:
         # Per-user assistant memory: owner-only unless the owner granted read access (src/lifesci/memory.py).
         from .memory import MemoryGrants
         self.memory = MemoryGrants(s, self.identity)
+        from . import embeddings
+        from .agent_memory import AgentMemory
+        self.agent_memory = AgentMemory(self, embeddings.from_env())
         self.packages = PackageService(s, self.identity, self.evidence, self.signatures)
         self.artifacts = ArtifactService(s, self.identity, self.evidence)
         registry = default_registry()

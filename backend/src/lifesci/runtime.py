@@ -146,6 +146,12 @@ class Runtime:
                 demo.tick()  # snapshot demo conversations into the corpus; expire 24 h workspaces
             except Exception:
                 log.exception("Demo workspace upkeep deferred to the next tick")
+        memory = getattr(self.platform, "agent_memory", None)
+        if memory is not None:
+            try:
+                memory.tick(tenants)  # consolidate ("dream") owners with new activity; idle owners cost nothing
+            except Exception:
+                log.exception("Memory consolidation deferred to the next tick")
         followup = getattr(self.platform, "signal_followup", None)
         if followup is not None:
             try:

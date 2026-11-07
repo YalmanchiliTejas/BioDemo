@@ -611,6 +611,36 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
         return {"rules": [{**r.state, "revision": r.revision} for r in platform.store.read().list(ctx.tenant_id, "assistant_rule")
                           if r.state.get("scope") == "user" and r.state.get("owner_id") == owner_id]}
 
+    # --- the assistant's own memory (agent_memory.py): owner's notes, entity pages, consolidation ---
+    @app.get(f"/{API_VERSION}/assistant-memory")
+    def my_memory(ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        me = principal(ctx)
+        state = platform.store.read().get(ctx.tenant_id, "memory_state", me)
+        return {"notes": platform.agent_memory.notes(ctx), "pages": platform.agent_memory.pages(ctx),
+                "index": platform.agent_memory.index(ctx, me),
+                "last_consolidated_at": state.state.get("last_dream_at") if state else None,
+                "last_report": state.state.get("last_report") if state else None,
+                "rule_suggestions": state.state.get("rule_suggestions", []) if state else [],
+                "semantic_search": platform.agent_memory.embedder is not None}
+
+    @app.get(f"/{API_VERSION}/memory/{{owner_id}}/notes")
+    def shared_notes(owner_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return {"notes": platform.agent_memory.notes(ctx, owner_id), "pages": platform.agent_memory.pages(ctx, owner_id)}
+
+    class NoteStatusIn(BaseModel):
+        status: str
+        reason: str = ""
+
+    @app.post(f"/{API_VERSION}/assistant-memory/notes/{{note_id}}/status")
+    def note_status(note_id: str, body: NoteStatusIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.agent_memory.set_status(ctx, note_id, body.status, body.reason)
+
+    @app.post(f"/{API_VERSION}/assistant-memory/consolidate")
+    def consolidate(ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        if ctx.actor_kind != "person" or ctx.delegated_from:
+            raise PermissionError("only the person can consolidate their memory")
+        return platform.agent_memory.dream(ctx.tenant_id, ctx.actor_id)
+
     @app.get(f"/{API_VERSION}/assistant-rules")
     def list_rules(site_id: str | None = None, status: str | None = None,
                    ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
