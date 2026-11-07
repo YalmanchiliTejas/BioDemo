@@ -111,7 +111,13 @@ def check_reply(reply, claims, sources, *, support_texts=()):
     derived |= calculated
     unsupported_numbers = sorted(reply_numbers - traced - calculated)
     verified = sum(r['verified'] for r in results)
-    if not results and not unsupported_numbers:
+    # Statements contradicted by their own numbers ("the last three below 30 %" over 44, 33, 24 %): the most serious
+    # finding, so it takes precedence and is always shown.
+    from .comparisons import check as contradictions_in
+    contradictions = contradictions_in(reply)
+    if contradictions:
+        status = 'contradicted'
+    elif not results and not unsupported_numbers:
         status = 'no_claims'
     elif verified == len(results) and not unsupported_numbers:
         status = 'grounded'
@@ -119,7 +125,7 @@ def check_reply(reply, claims, sources, *, support_texts=()):
         status = 'partially_grounded'
     else:
         status = 'ungrounded'
-    return {'status': status, 'claims': results, 'unsupported_numbers': unsupported_numbers,
+    return {'status': status, 'claims': results, 'unsupported_numbers': unsupported_numbers, 'contradictions': contradictions,
             'derived_numbers': sorted(derived & reply_numbers),
             'method': 'verbatim quote in inspected source + number provenance; not semantic support'}
 
@@ -153,4 +159,6 @@ if __name__ == '__main__':
     # A calculated number counts only when its inputs are in the answer; otherwise almost any number would pass.
     assert check_reply('Viability fell 83.08 points.', [], fc)['unsupported_numbers'] == [83.08]
     assert check_reply('Viable density 9,626,667 cells/mL.', [], {'S': 'vcd 9626667'})['status'] == 'no_claims'
+    wrong = check_reply('DO read 61 %, 44 %, 33 %, 24 % (the last three below a 30 % limit).', [], {'H': '61 44 33 24 30'})
+    assert wrong['status'] == 'contradicted' and wrong['contradictions'][0]['but'] == '44 %, 33 %, 24 %', wrong
     print('ok')

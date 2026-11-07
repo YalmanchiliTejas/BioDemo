@@ -25,18 +25,22 @@ import { AssistantResponsibility, type Responsibility } from './AssistantRespons
 
 type Step = { node_id: string; title: string; task_kind: string; depends_on: string[]; status: string; issues: string[]; started_at?: string | null; ended_at?: string | null };
 const seconds = (a?: string | null, b?: string | null) => a && b ? Math.max(0, (new Date(b).getTime() - new Date(a).getTime()) / 1000) : null;
-type Grounding = { status: string; unsupported_numbers?: number[]; derived_numbers?: number[]; claims?: { text: string; kind?: string; source_id: string; quote: string; verified: boolean; problem: string | null }[] };
+type Contradiction = { statement: string; says: string; but: string };
+type Grounding = { status: string; unsupported_numbers?: number[]; derived_numbers?: number[]; contradictions?: Contradiction[]; claims?: { text: string; kind?: string; source_id: string; quote: string; verified: boolean; problem: string | null }[] };
 // Host-verified provenance of the reply's factual statements (quote exists in an inspected source).
 function GroundingNote({ g }: { g: Grounding }) {
   if (g.status === 'no_claims') return null;
   const claims = g.claims ?? [], unverified = claims.filter(c => !c.verified), numbers = g.unsupported_numbers ?? [];
+  const contradictions = g.contradictions ?? [];
   const ok = g.status === 'grounded';
   const label = g.status === 'evaluation_unavailable' ? 'Source check unavailable for this reply'
+    : contradictions.length ? `${contradictions.length} statement${contradictions.length === 1 ? ' contradicts its' : 's contradict their'} own numbers — check before relying on this answer`
     : ok ? `${claims.length} statement${claims.length === 1 ? '' : 's'} traced to inspected sources`
     : `${unverified.length + numbers.length} item${unverified.length + numbers.length === 1 ? '' : 's'} not traced to an inspected source — verify before relying on ${unverified.length + numbers.length === 1 ? 'it' : 'them'}`;
-  return <details className={`mt-3 text-xs ${ok ? 'text-text-tertiary' : 'rounded-control bg-status-warning-bg px-3 py-2 text-text-secondary'}`}>
-    <summary className="cursor-pointer">{label}</summary>
+  return <details open={contradictions.length > 0} className={`mt-3 text-xs ${ok ? 'text-text-tertiary' : contradictions.length ? 'rounded-control bg-status-critical-bg px-3 py-2 text-text-primary' : 'rounded-control bg-status-warning-bg px-3 py-2 text-text-secondary'}`}>
+    <summary className="cursor-pointer font-medium">{label}</summary>
     <ul className="mt-2 space-y-2">
+      {contradictions.map((c, i) => <li key={`x${i}`}><span className="text-status-critical">Says {c.says}, but the values are {c.but}</span><br /><span className="text-text-tertiary">“{c.statement}”</span></li>)}
       {claims.map((c, i) => <li key={i}><span className={c.verified ? 'text-status-success' : 'text-status-warning'}>{c.verified ? 'Quoted' : 'Not found'}{c.kind === 'derived' ? ' · calculated' : ''}</span> · {c.text}<br /><span className="text-text-tertiary">“{c.quote}” — {c.source_id}</span></li>)}
       {numbers.map(n => <li key={n}><span className="text-status-warning">Number not in any inspected source</span> · {n}</li>)}
     </ul>
