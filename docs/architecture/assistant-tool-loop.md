@@ -57,6 +57,21 @@ Lambda, no new infrastructure).
 Rollout: `ASSISTANT_LOOP=tools|planner`, per deployment; demo workspaces first. Both loops share tools, persistence and
 grounding, so they can be compared on the same scenarios. The planner is removed once the tool loop passes.
 
+## Memory and context
+
+Earlier work is loaded on demand, not re-sent. Always in context (small, and required for correctness): the question, the
+last two exchanges (clipped; needed for follow-ups), the person's standing rules and corrections. Indexed: the rest of
+the conversation (question, answer start, result titles and ids). Loaded by the model when the question needs it:
+`open_result` (any earlier result of this conversation, re-checked for access and staleness) and `recall`
+(relevance-ranked search of the person's earlier conversations and memory others shared with them, under the existing
+privacy checks; saved like any search). Within a turn, once the transcript passes ~25k tokens, older tool results become
+pointers to their saved artifacts (reloadable); if even that does not fit, the assistant answers with what it has. The
+audit trail and grounding read the saved artifacts, never the transcript, so compaction loses nothing for verification.
+
+Measured (real model, one 5-turn conversation plus a new one asking about it): input stayed 8k–19k tokens per call;
+"how did that forecast do" and "back to the issue from the start" reloaded the right earlier results (10 s, 4 s); the new
+conversation recalled and read the earlier answer (8 s). All answers correct against the seed.
+
 ## Alternatives
 
 | Option | Benefit | Cost |

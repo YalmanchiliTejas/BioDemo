@@ -138,3 +138,65 @@ def test_the_model_sees_a_forecast_summary_not_a_truncated_trajectory(env):
     seen = json.loads(fake.calls[1]['messages'][-1]['content'])
     assert {'fit', 'holdout_errors', 'holdout_comparison'} <= set(seen) and 'trajectory' not in seen
     assert 'training_fit' in seen['fit']
+
+
+def converse(p, ctx, thread_id, script, text):
+    fake = fake_planner(p, [])
+    fake.scripts[p.gateway.registry.profiles['anthropic-opus'].model] = list(script)
+    thread = p.engineering_conversations.get(ctx, thread_id)
+    return send(p, ctx, thread, text)['turns'][-1], fake
+
+
+def test_only_recent_turns_are_loaded_older_ones_are_an_index(env):
+    p, ctx = env
+    tid = p.engineering_conversations.create(ctx, {})['id']
+    for i in range(4):
+        converse(p, ctx, tid, [f'Answer {i}: ' + 'detail ' * 300], f'Question {i}')
+    _, fake = converse(p, ctx, tid, ['Fine.'], 'Question 4')
+    context = fake.calls[0]['messages'][1]['content']
+    assert 'Answer 3' in context and 'Answer 2' in context  # the last two exchanges, for follow-ups
+    # the two recent answers (clipped at 2,000 chars, ~285 words each) plus ~22 per older index line, not 300 per answer
+    assert context.count('detail') < 2 * 290 + 2 * 25
+    assert '"earlier_turns_index"' in context and 'Question 0' in context
+
+
+def test_an_earlier_result_is_reloaded_on_demand(env):
+    p, ctx = env
+    tid = p.engineering_conversations.create(ctx, {})['id']
+    first, _ = converse(p, ctx, tid, [{'tool_calls': [call('workspace_read', kind='case', record_id='DEV-77', revision=revision(p))]},
+                                      'DEV-77 noted.'], 'Read DEV-77')
+    result_id = first['artifacts'][0]['id']
+    turn, fake = converse(p, ctx, tid, [{'tool_calls': [call('open_result', result_id=result_id)]}, 'Reloaded.'], 'What did DEV-77 say again?')
+    assert turn['steps'][0]['status'] == 'completed' and 'B-200' in fake.calls[1]['messages'][-1]['content']
+    bad, _ = converse(p, ctx, tid, [{'tool_calls': [call('open_result', result_id='assi_not_here')]}, 'No.'], 'Open something else')
+    assert bad['steps'][0]['status'] == 'blocked'
+
+
+def test_recall_finds_your_past_conversations_never_someone_elses_private_memory(env):
+    p, ctx = env
+    mine = p.engineering_conversations.create(ctx, {})['id']
+    converse(p, ctx, mine, ['The antifoam pump seal was the cause.'], 'Why did the antifoam pump fail?')
+    p.identity.assign_role(TENANT, 'quinn2', 'engineering', site_id='NF1')
+    other = p.identity.context_for(TENANT, 'quinn2')
+    theirs = p.engineering_conversations.create(other, {})['id']
+    converse(p, other, theirs, ['Private: antifoam supplier dispute.'], 'Antifoam supplier dispute notes')
+    turn, fake = converse(p, ctx, p.engineering_conversations.create(ctx, {})['id'],
+                          [{'tool_calls': [call('recall', query='antifoam pump')]}, 'Found it.'], 'What did we find about antifoam?')
+    seen = fake.calls[1]['messages'][-1]['content']
+    assert turn['steps'][0]['status'] == 'completed' and 'antifoam pump' in seen
+    assert 'supplier dispute' not in seen  # another person's memory needs their grant
+
+
+def test_large_transcripts_turn_old_results_into_pointers_and_never_overflow(env, monkeypatch):
+    p, ctx = env
+    monkeypatch.setattr(tool_loop, 'CONTEXT_CHARS', 7000)
+    monkeypatch.setattr(tool_loop, 'HARD_CHARS', 10**9)
+    read = {'tool_calls': [call('workspace_read', kind='case', record_id='DEV-77', revision=revision(p))]}
+    turn, fake = run(p, ctx, [read] * 6 + ['Done.'])
+    last = fake.calls[-1]['messages']
+    tool_contents = [m['content'] for m in last if m['role'] == 'tool']
+    assert any(c.startswith('{"cleared"') and 'open_result' in c for c in tool_contents[:-4])
+    assert not any(c.startswith('{"cleared"') for c in tool_contents[-4:])  # recent results stay whole
+    monkeypatch.setattr(tool_loop, 'HARD_CHARS', 7000)  # even pointers don't fit: answer now, don't overflow
+    turn, fake = run(p, ctx, [read] * 3 + ['Answered with what fits.'])
+    assert turn['status'] == 'completed' and fake.calls[-1]['tool_choice'] == 'none'
