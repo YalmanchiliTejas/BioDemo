@@ -80,3 +80,4 @@ def test_an_exhausted_output_budget_is_sampled_once_more(gateway):
                                json.dumps({'summary': 'Answered on the second sample', 'source_refs': []})]
     result = gw.run(TaskRequest('short_summary', ctx, prompt='Long reasoning', use_cache=False))
     assert result.status == 'completed' and len(result.attempts) == 2
+    assert provider.calls[1]['max_output_tokens'] == 48_000  # more room to finish reasoning

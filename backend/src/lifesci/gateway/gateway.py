@@ -214,11 +214,12 @@ class ModelGateway:
         if provider is None:
             log.append({"profile_id": profile.profile_id, "ok": False, "error": "provider not configured"})
             return None, log
+        budget = max_out
         for attempt in range(min(self.max_retries + 1, max_attempts) if max_attempts is not None else self.max_retries + 1):
             t0 = time.perf_counter()
             try:
                 c = provider.complete(model=profile.model, system=system, prompt=prompt,
-                                      max_output_tokens=max_out, timeout_s=timeout_s)
+                                      max_output_tokens=budget, timeout_s=timeout_s)
                 log.append({"profile_id": profile.profile_id, "model": profile.model, "model_version": profile.version,
                             "ok": True, "attempt": attempt, "input_tokens": c.input_tokens,
                             "output_tokens": c.output_tokens, "cached_tokens": c.cached_tokens,
@@ -229,10 +230,13 @@ class ModelGateway:
             except ProviderError as exc:
                 log.append({"profile_id": profile.profile_id, "model": profile.model, "ok": False,
                             "attempt": attempt, "error": str(exc), "error_kind": exc.kind})
-                # Reasoning models sometimes spend the whole output budget thinking; a second sample at the same
-                # settings usually answers. (A lower-effort retry was measured and rejected: wrong answers.)
+                # Reasoning models sometimes spend the whole output budget thinking (seen live on answer rounds):
+                # sample once more with a larger budget. A lower-effort retry was measured and rejected (wrong answers).
                 if not exc.retryable and not (exc.kind == 'output_limit' and attempt == 0):
                     break
+                if exc.kind == 'output_limit':
+                    # ponytail: 1.5x the 32k reasoning floor; an endpoint that refuses the size fails as before.
+                    budget = int(max(budget, 32_000) * 1.5)
                 if self.backoff_s:
                     time.sleep(self.backoff_s * (2 ** attempt))
         return None, log

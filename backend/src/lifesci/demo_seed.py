@@ -25,9 +25,11 @@ NOTE = 'SYNTHETIC demo data'
 
 
 def _verified_dataset() -> tuple[bytes, dict[str, Any]]:
-    rows, digest = [], hashlib.sha256(LIMS.read_bytes()).hexdigest()
+    rows, digest, cells, samples = [], hashlib.sha256(LIMS.read_bytes()).hexdigest(), 0, 0
     with LIMS.open(encoding='utf-8') as stream:
         for line, record in enumerate(csv.DictReader(stream), start=2):
+            cells += sum(1 for v in record.values() if (v or '').strip())
+            samples += 1
             for column, (parameter, unit) in COLUMNS.items():
                 raw = (record.get(column) or '').strip()
                 if not raw:
@@ -38,6 +40,8 @@ def _verified_dataset() -> tuple[bytes, dict[str, Any]]:
                              'source': {'path': LIMS.name, 'row': line}, 'source_sha256': digest})
     content = json.dumps({'schema_version': 'platform-verified-cmo-1', 'run_id': 'demo-september', 'synthetic': True,
                           'cmo': 'Northfield Biologics (synthetic)', 'delivery_name': 'September (synthetic sample)',
+                          'coverage': {'elements': cells, 'measurement': len(rows), 'identifier': 3 * samples,  # batch, sample, time
+                                       'ignored': cells - len(rows) - 3 * samples, 'flagged': 0, 'unaccounted': 0},
                           'guarantee': {'holds': True, 'checks': [
                               {'id': 'content_accounted', 'label': 'Every source cell and text line is converted, ignored by a confirmed rule, or flagged', 'passed': True},
                               {'id': 'auto_acceptance_rule', 'label': 'Values accepted without review come only from a confirmed mapping, match the original byte-for-byte and pass every check', 'passed': True}]}, 'measurements': rows}, sort_keys=True).encode()

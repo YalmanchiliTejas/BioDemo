@@ -48,7 +48,7 @@ class FakeProvider:
 
     def complete(self, *, model: str, system: str, prompt: str, max_output_tokens: int,
                  timeout_s: float) -> Completion:
-        self.calls.append({"model": model, "prompt": prompt})
+        self.calls.append({"model": model, "prompt": prompt, "max_output_tokens": max_output_tokens})
         queue = self.scripts.get(model)
         if queue:
             item = queue.pop(0)

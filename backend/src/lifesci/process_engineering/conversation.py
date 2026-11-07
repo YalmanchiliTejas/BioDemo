@@ -681,9 +681,11 @@ class EngineeringConversationService:
         decision = ChatDecision.model_validate(output)
         # A read requested on the last round runs but is never interpreted, so the user sees
         # "I'll read it now" as the answer. Force the answer instead.
-        if final and decision.workflow and all(n.task_kind in ('workspace_search', 'workspace_read') for n in decision.workflow):
+        # Any work planned on the last round (reads, forecasts) leaves no round to interpret it: the turn ends with
+        # "I'll run…" or "planning call limit reached". Force the answer from what is already done.
+        if final and decision.workflow:
             raise ValueError('This is the final planning call: return an empty workflow and answer now from the evidence '
-                             'already inspected, naming anything you could not read.')
+                             'and results already in the conversation, naming anything you could not read or run.')
         cls._validate_workflow(decision)
 
     @staticmethod
