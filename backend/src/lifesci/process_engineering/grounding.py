@@ -18,8 +18,44 @@ def _norm(text):
     return ' '.join(str(text).split()).casefold()
 
 
+THOUSANDS = re.compile(r'(?<=\d),(?=\d{3}(?!\d))')
+# Displayed values often change unit scale: cells/mL vs million cells/mL, mg vs g, a fraction vs a percent.
+SCALES = (1.0, 1e-6, 1e-3, 1e3, 1e6, 100.0, 0.01)
+
+
 def _numbers(text):
-    return {float(m) for m in NUMBER.findall(str(text))}
+    return {float(m) for m in NUMBER.findall(THOUSANDS.sub('', str(text)))}
+
+
+def _shown(text):
+    """Reply numbers as written, with the precision they claim (5.41 claims two decimals)."""
+    out = []
+    for m in NUMBER.findall(THOUSANDS.sub('', str(text))):
+        digits = m.lower().split('e')[0]
+        decimals = len(digits.split('.')[1]) if '.' in digits else 0
+        out.append((float(m), 0.5 * 10 ** -decimals + 1e-9 * abs(float(m))))
+    return out
+
+
+def _traced(value, tolerance, allowed_sorted):
+    """A source value that rounds to the shown value, directly or at a common unit scale."""
+    from bisect import bisect_left
+    for scale in SCALES:
+        target, tol = value / scale, tolerance / scale
+        i = bisect_left(allowed_sorted, target - tol)
+        if i < len(allowed_sorted) and allowed_sorted[i] <= target + tol:
+            return True
+    return False
+
+
+def _arithmetic(value, tolerance, operands):
+    """A difference, sum, ratio, product or percent change of two traced numbers in the same reply."""
+    for a in operands:
+        for b in operands:
+            candidates = [a - b, a + b, a * b] + ([a / b, (a - b) / b * 100] if b else [])
+            if any(abs(abs(c) - value) <= tolerance for c in candidates):
+                return True
+    return False
 
 
 def source_text(record):
@@ -63,9 +99,17 @@ def check_reply(reply, claims, sources, *, support_texts=()):
     for r in results:
         if r.get('kind') == 'derived' and r['verified']:
             derived |= _numbers(r['text']) - allowed
-    # ponytail: exact float match on parsed numbers; no unit-aware arithmetic check.
-    reply_numbers = _numbers(reply)
-    unsupported_numbers = sorted(reply_numbers - allowed - derived)
+    # Numbers are traced as a reviewer would: a source value that rounds to the shown precision, possibly at a
+    # common unit scale (live: correct forecast values like 5.41 g/L for 5.4113 were all flagged by exact matching).
+    # A difference/ratio/percent change of traced numbers is shown as calculated, not as untraced.
+    allowed_sorted = sorted(allowed)
+    shown = _shown(reply)
+    reply_numbers = {v for v, _ in shown}
+    traced = {v for v, tol in shown if v in allowed or v in derived or _traced(v, tol, allowed_sorted)}
+    operands = [v for v in traced if v not in UNIT_FACTORS]
+    calculated = {v for v, tol in shown if v not in traced and _arithmetic(v, tol, operands)}
+    derived |= calculated
+    unsupported_numbers = sorted(reply_numbers - traced - calculated)
     verified = sum(r['verified'] for r in results)
     if not results and not unsupported_numbers:
         status = 'no_claims'
@@ -101,4 +145,12 @@ if __name__ == '__main__':
     conv = check_reply('2500 mg/L is 2.5 g/L.', [{'text': '2500 mg/L equals 2.5 g/L', 'kind': 'derived',
                        'source_id': 'E1', 'quote': 'Assay result 2500 mg/L'}], src)
     assert conv['status'] == 'grounded' and conv['derived_numbers'] == [2.5], conv
+    fc = {'F': '{"predicted": 5.411283, "measured": 3133333.33, "viability": [89.25, 6.17], "ks": 0.0027853}'}
+    live = check_reply('Glucose 5.41 g/L; cells 3.13 million cells/mL; Ks 0.0028; viability fell from 89.25 % to 6.17 %, '
+                       'a drop of 83.08 points.', [], fc)
+    assert live['status'] == 'no_claims' and live['derived_numbers'] == [83.08], live
+    assert check_reply('Glucose 5.45 g/L.', [], fc)['unsupported_numbers'] == [5.45]  # rounding is not a licence
+    # A calculated number counts only when its inputs are in the answer; otherwise almost any number would pass.
+    assert check_reply('Viability fell 83.08 points.', [], fc)['unsupported_numbers'] == [83.08]
+    assert check_reply('Viable density 9,626,667 cells/mL.', [], {'S': 'vcd 9626667'})['status'] == 'no_claims'
     print('ok')
