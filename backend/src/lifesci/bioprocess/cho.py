@@ -126,8 +126,19 @@ def fit(training: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
     best = min(fits, key=lambda f: f.cost)
     params = np.exp(best.x)
     at_bound = [NAMES[i] for i, v in enumerate(params) if np.isclose(v, BOUNDS[0][i], rtol=1e-3) or np.isclose(v, BOUNDS[1][i], rtol=1e-3)]
+    per_run = {}
+    for b, rows in sorted(usable.items()):
+        start, state = _initial(rows)
+        rows = [r for r in rows if r['time_h'] >= start]
+        times = sorted({r['time_h'] for r in rows})
+        pred = dict(zip(times, integrate(params, state, start, times)))
+        per_run[b] = {f: {'readings': len(c), 'mean_absolute_error': fmean(c), 'unit': UNITS[f]}
+                      for f in FIELDS if (c := [abs(float(pred[r['time_h']][FIELDS.index(f)]) - r['value']) for r in rows if r['field'] == f])}
     return {'parameters': dict(zip(NAMES, params.tolist())), 'training_batches': sorted(usable),
-            'optimizer_converged': bool(best.success), 'cost': float(best.cost), 'parameters_at_bounds': at_bound}
+            'optimizer_converged': bool(best.success), 'cost': float(best.cost), 'parameters_at_bounds': at_bound,
+            # In-sample: how closely the fitted model reproduces each run it was fitted to, from that run's first reading.
+            'training_fit': per_run,
+            'training_fit_basis': 'fit error on the runs the model was fitted to (in-sample), not a forecast test'}
 
 
 def forecast(dataset: dict[str, Any], batch: str, cutoff_h: float = 72., horizon_h: float = 120.) -> dict[str, Any]:
