@@ -229,7 +229,9 @@ class ModelGateway:
             except ProviderError as exc:
                 log.append({"profile_id": profile.profile_id, "model": profile.model, "ok": False,
                             "attempt": attempt, "error": str(exc), "error_kind": exc.kind})
-                if not exc.retryable:
+                # Reasoning models sometimes spend the whole output budget thinking; a second sample at the same
+                # settings usually answers. (A lower-effort retry was measured and rejected: wrong answers.)
+                if not exc.retryable and not (exc.kind == 'output_limit' and attempt == 0):
                     break
                 if self.backoff_s:
                     time.sleep(self.backoff_s * (2 ** attempt))

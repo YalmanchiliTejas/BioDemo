@@ -24,7 +24,7 @@ export function TopHeader({ onSearch }: { onSearch: () => void }) {
   const [error, setError] = useState('');
   const container = useRef<HTMLElement>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
-  const name = String(workspace.user?.user_metadata?.full_name || workspace.email?.split('@')[0] || reviewer || 'Your account');
+  const name = demo ? 'Demo visitor' : String(workspace.user?.user_metadata?.full_name || workspace.email?.split('@')[0] || reviewer || 'Your account');
   const initials = name.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
   const organizationName = workspace.organization?.name ?? (workspace.mode === 'development' ? 'Development workspace' : workspace.loadingAccount ? 'Loading…' : 'Select organization');
   useEffect(() => { if (workspace.email) setReviewer(workspace.email); }, [workspace.email]);

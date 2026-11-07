@@ -32,6 +32,11 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+// Demo visitors have no systems to connect, team to manage or account to edit.
+const DEMO_HIDDEN = new Set(['/sources', '/settings/organization', '/settings/alerts', '/settings/memory', '/settings/profile']);
+export const navGroups = (demo: boolean): NavGroup[] =>
+  demo ? NAV_GROUPS.map(group => ({ ...group, items: group.items.filter(item => !DEMO_HIDDEN.has(item.href)) })) : NAV_GROUPS;
+
 const clean = (path: string) => path.replace(/\/$/, '') || '/';
 
 /** The group and destination that own a path, if it is part of the navigation. */

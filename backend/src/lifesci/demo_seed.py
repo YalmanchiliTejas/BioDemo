@@ -10,6 +10,7 @@ Auto-triage is paused by the caller before this runs, so signals never start a m
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -24,7 +25,7 @@ NOTE = 'SYNTHETIC demo data'
 
 
 def _verified_dataset() -> tuple[bytes, dict[str, Any]]:
-    rows = []
+    rows, digest = [], hashlib.sha256(LIMS.read_bytes()).hexdigest()
     with LIMS.open(encoding='utf-8') as stream:
         for line, record in enumerate(csv.DictReader(stream), start=2):
             for column, (parameter, unit) in COLUMNS.items():
@@ -34,10 +35,12 @@ def _verified_dataset() -> tuple[bytes, dict[str, Any]]:
                 rows.append({'id': f"{record['Sample ID']}-{parameter}", 'source_id': 'lims-september', 'batch': record['Batch'],
                              'time': record['Time (h)'], 'parameter': parameter, 'value': float(raw), 'unit': unit,
                              'value_raw': raw, 'unit_raw': unit, 'status': 'auto_accepted',
-                             'source': {'path': LIMS.name, 'row': line}, 'source_sha256': 'synthetic-sample'})
+                             'source': {'path': LIMS.name, 'row': line}, 'source_sha256': digest})
     content = json.dumps({'schema_version': 'platform-verified-cmo-1', 'run_id': 'demo-september', 'synthetic': True,
                           'cmo': 'Northfield Biologics (synthetic)', 'delivery_name': 'September (synthetic sample)',
-                          'guarantee': {'holds': True, 'checks': []}, 'measurements': rows}, sort_keys=True).encode()
+                          'guarantee': {'holds': True, 'checks': [
+                              {'id': 'content_accounted', 'label': 'Every source cell and text line is converted, ignored by a confirmed rule, or flagged', 'passed': True},
+                              {'id': 'auto_acceptance_rule', 'label': 'Values accepted without review come only from a confirmed mapping, match the original byte-for-byte and pass every check', 'passed': True}]}, 'measurements': rows}, sort_keys=True).encode()
     meta = {'classification': 'verified_cmo_dataset', 'cmo': 'Northfield Biologics (synthetic)', 'synthetic': True,
             'delivery_name': 'September (synthetic sample)', 'measurements': len(rows),
             'batches': sorted({r['batch'] for r in rows}), 'parameters': sorted({r['parameter'] for r in rows})}
@@ -68,9 +71,12 @@ def seed(platform: Any, tenant: str, visitor: str, persona: str) -> dict[str, An
         platform.cases.add_timeline_event(qa, case_id, when, f'{story} ({NOTE})')
         revision = platform.cases.get(qa, case_id)['revision']
         platform.cases.close(qa, case_id, expected_revision=revision, **closure)
+        _backdate(platform, tenant, case_id, when)
     platform.cases.open(qa, 'DEV-31', visitor, SEED_QA, SITE)
     platform.cases.add_timeline_event(qa, 'DEV-31', '2026-11-03T04:10:00+00:00',
                                       f'Foaming at 4 h in B-117 on BR-07; DO below 30 %; antifoam lot L-8812 in use. ({NOTE})')
+    _backdate(platform, tenant, 'DEV-31', '2026-11-03T04:10:00+00:00')
+    _batch_context(platform, tenant, qa)
 
     # A DO limit and historian readings: the 24 % reading raises an `action` signal.
     platform.specifications.create(qa, site_id=SITE, parameter='DO [%]', unit='%', low=30, high=80, critical_low=15,
@@ -89,3 +95,39 @@ def seed(platform: Any, tenant: str, visitor: str, persona: str) -> dict[str, An
                                                                      'batch_id': 'B-117', 'equipment_id': 'BR-07',
                                                                      'description': 'Foaming at 4 h; DO below 30 % (synthetic)'}})
     return {'dataset_id': dataset['evidence_id'], 'cases': ['DEV-12', 'DEV-19', 'DEV-31'], 'site_id': SITE, 'persona': persona}
+
+
+def _backdate(platform: Any, tenant: str, case_id: str, occurred: str) -> None:
+    """Seeded cases were opened when they happened, not when the demo was created (else every answer explains the gap)."""
+    with platform.store.transaction('demo-seed') as tx:
+        rec = tx.require(tenant, 'case', case_id)
+        state = {**rec.state, 'opened_at': occurred}
+        if state.get('closure'):
+            state['closure'] = {**state['closure'], 'closed_at': occurred[:8] + '28T12:00:00+00:00'}
+        tx.put(tenant, 'case', case_id, state, expected_revision=rec.revision, action='demo_seed_backdate')
+
+
+# What an engineer checks after a DO drop: the batch, the antifoam lot, pump maintenance, probe calibration, dosing.
+# Together they point at the new lot (like DEV-19), not the pump (DEV-12) or the probe.
+CONTEXT = [
+    ('ERP', 'LOT-L-8812', '2026-10-28T09:00:00+00:00', {'lot': 'L-8812', 'material': 'Antifoam C emulsion'},
+     'Antifoam lot L-8812 received 2026-10-28 (supplier Silco). First issued to batch B-117 on 2026-11-03. '
+     'Previous lot on BR-07 was L-8801, used in B-104 to B-116 with no foaming recorded.'),
+    ('CMMS', 'PM-AF-2-2026-11', '2026-11-01T10:00:00+00:00', {'equipment_id': 'AF-2'},
+     'Antifoam pump AF-2 (BR-07) preventive maintenance 2026-11-01: seal inspected, no wear; flow check 98 % of nominal. Pass.'),
+    ('CMMS', 'CAL-DO-BR-07-2026-10', '2026-10-30T14:00:00+00:00', {'equipment_id': 'BR-07'},
+     'DO probe on BR-07 calibrated 2026-10-30 (two-point: zero and air saturation). Post-calibration bump test passed.'),
+    ('HISTORIAN', 'BR-07-AF-DOSING-B-117', '2026-11-03T04:00:00+00:00', {'batch_id': 'B-117', 'equipment_id': 'BR-07'},
+     'B-117 antifoam dosing (AF-2, automatic on foam sensor): 02:10 2 mL, 03:05 3 mL, 03:40 foam-level alarm, 03:50 5 mL. '
+     'Agitation 180 rpm and air sparge 0.5 L/min unchanged 00:00-04:30.'),
+]
+
+
+def _batch_context(platform: Any, tenant: str, qa: Any) -> None:
+    with platform.store.transaction('demo-seed') as tx:
+        tx.put(tenant, 'batch', 'B-117', {'batch_id': 'B-117', 'status': 'in_progress', 'product': 'mAb-7 (synthetic)',
+               'recipe_id': 'RCP-CHO-12', 'equipment_id': 'BR-07', 'started_at': '2026-11-03T00:10:00+00:00',
+               'site_id': SITE, 'synthetic': True}, expected_revision=None, action='demo_seed')
+    for system, record_id, when, ids, text in CONTEXT:
+        platform.evidence.ingest(qa, source_system=system, source_record_id=record_id, content=f'{text} ({NOTE})'.encode(),
+                                 media_type='text/plain', site_id=SITE, event_time=when, metadata={'synthetic': True, **ids})

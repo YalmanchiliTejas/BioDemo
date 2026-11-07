@@ -166,3 +166,16 @@ def test_cho_forecast_accepts_the_run_id_written_differently_and_lists_runs_when
     assert cho.forecast({'measurements': rows}, 'cho001-r01', 60.)['batch'] == 'CHO-001-R01'
     with pytest.raises(ValueError, match='runs with data: CHO-000-R01'):
         cho.forecast({'measurements': rows}, 'CHO-001', 60.)
+
+
+def test_cho_forecast_reports_how_closely_the_model_fits_each_other_run():
+    params = [.03, .002, .4, 2.5, .004]
+    rows = [{'id': f'{b}-{t}-{f}', 'batch': f'CHO-00{b}-R01', 'time': f'{t:.2f}', 'parameter': f,
+             'value': float(v * (1e6 if f == 'viable_cell_density' else 1)), 'unit': u, 'status': 'auto_accepted'}
+            for b, (x0, g0) in enumerate([(.4, 6.), (.5, 5.5), (.45, 6.2), (.42, 5.8)])
+            for t, (x, g) in zip(range(0, 121, 12), cho.integrate(params, np.array([x0, g0]), 0, list(range(0, 121, 12))))
+            for f, v, u in (('viable_cell_density', x, 'cells/mL'), ('glucose', g, 'g/L'))]
+    fit = cho.forecast({'measurements': rows}, 'CHO-001-R01', 72.)['fit']
+    assert sorted(fit['training_fit']) == ['CHO-000-R01', 'CHO-002-R01', 'CHO-003-R01']  # every other run, not the forecast one
+    assert all(e['glucose']['mean_absolute_error'] < .2 and e['glucose']['readings'] == 11 for e in fit['training_fit'].values())
+    assert 'in-sample' in fit['training_fit_basis']
