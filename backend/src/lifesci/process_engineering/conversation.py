@@ -22,6 +22,7 @@ from .conversation_schemas import (BioForecast, ChatDecision, ChatPipelineSpec, 
     WorkspaceRuleProposal, WorkspaceInvestigationProposal)
 from .workspace import KINDS, WorkspaceTools
 from .demo_answers import DemoAnswers
+from . import tool_loop
 from .grounding import check_reply, source_text
 from .schemas import AdapterProposalIn
 
@@ -85,6 +86,7 @@ class EngineeringConversationService:
         self.analysis = platform.process_models.analysis
         self.workspace = WorkspaceTools(platform)
         self.demo_answers = DemoAnswers(self)
+        self.tool_loop = tool_loop.ToolLoop(self)
         digest = hashlib.sha256(b''.join(Path(__file__).with_name(name).read_bytes() for name in
             ('conversation.py', 'conversation_schemas.py', 'workspace.py'))).hexdigest()
         for name in OPERATIONS:
@@ -168,7 +170,9 @@ class EngineeringConversationService:
         for tid in rec.state['turn_ids']:
             turn = deepcopy(self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', tid).state)
             display_flow_id = turn.get('flow_run_id') or next(iter(reversed(turn.get('flow_run_ids', []))), None)
-            if display_flow_id:
+            if turn.get('tool_steps'):  # tool loop: each call is a step, shown as it happens
+                turn['steps'] = turn['tool_steps']
+            if display_flow_id and not turn.get('tool_steps'):
                 run = self.p.store.read().require(ctx.tenant_id, 'data_flow_run', display_flow_id)
                 turn['workflow_status'] = run.state['status']
                 turn['basis_status'] = run.state['status'] if run.state['status'] in ('stale', 'quarantined') else 'current'
@@ -567,6 +571,9 @@ class EngineeringConversationService:
                 if demo is not None:
                     checkpoint(**demo)
                     return self.get(ctx, thread_id)
+            if tool_loop.enabled(ctx) and not turn['flow_run_id']:
+                self.tool_loop.run(ctx, thread, turn_id, checkpoint)
+                return self.get(ctx, thread_id)
             if not turn['flow_run_id']:
                 admitted = turn.get('planning_calls_admitted', 0)
                 if admitted >= 3:
@@ -681,9 +688,11 @@ class EngineeringConversationService:
         decision = ChatDecision.model_validate(output)
         # A read requested on the last round runs but is never interpreted, so the user sees
         # "I'll read it now" as the answer. Force the answer instead.
-        if final and decision.workflow and all(n.task_kind in ('workspace_search', 'workspace_read') for n in decision.workflow):
+        # Any work planned on the last round (reads, forecasts) leaves no round to interpret it: the turn ends with
+        # "I'll run…" or "planning call limit reached". Force the answer from what is already done.
+        if final and decision.workflow:
             raise ValueError('This is the final planning call: return an empty workflow and answer now from the evidence '
-                             'already inspected, naming anything you could not read.')
+                             'and results already in the conversation, naming anything you could not read or run.')
         cls._validate_workflow(decision)
 
     @staticmethod

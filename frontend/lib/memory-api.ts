@@ -36,3 +36,28 @@ export const formatDate = (iso?: string | null) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 };
+
+// The assistant's own memory (backend/src/lifesci/agent_memory.py): notes with sources, entity pages, consolidation.
+export type NoteKind = 'lesson' | 'decision' | 'preference' | 'open_thread' | 'warning';
+export type NoteBasis = 'observed' | 'calculated' | 'user_stated' | 'inferred';
+export type MemoryNote = {
+  id: string; text: string; kind: NoteKind; basis: NoteBasis; origin: 'assistant' | 'dreaming';
+  status: 'active' | 'stale' | 'superseded' | 'forgotten' | 'wrong'; stale_because: string[];
+  sources: { kind: string; id: string; revision?: number }[]; entities: string[]; site_id: string;
+  conversation_id: string; created_at: string; updated_at: string;
+};
+export type MemoryPage = { page_id: string; entity: string; note_ids: string[]; summary: string; updated_at: string };
+export type AssistantMemory = {
+  notes: MemoryNote[]; pages: MemoryPage[]; index: { id: string }[]; last_consolidated_at: string | null;
+  last_report: Record<string, number | string> | null; rule_suggestions: { note_id: string; text: string }[]; semantic_search: boolean;
+};
+export const NOTE_KIND_LABEL: Record<NoteKind, string> = {
+  lesson: 'Lesson', decision: 'Decision', preference: 'Preference', open_thread: 'Open thread', warning: 'Warning' };
+export const BASIS_LABEL: Record<NoteBasis, string> = {
+  observed: 'seen in records', calculated: 'calculated', user_stated: 'you said', inferred: 'the assistant’s interpretation' };
+export const assistantMemory = () => processRequest<AssistantMemory>('/v1/assistant-memory');
+export const setNoteStatus = (id: string, status: 'forgotten' | 'wrong' | 'active', reason = '') =>
+  processRequest<MemoryNote>(`/v1/assistant-memory/notes/${encodeURIComponent(id)}/status`, { status, reason });
+export const consolidateMemory = () => processRequest<Record<string, number>>('/v1/assistant-memory/consolidate', {});
+export const proposeSiteRule = (text: string, siteId: string) =>
+  processRequest<unknown>('/v1/assistant-rules', { scope: 'site', text, site_id: siteId, reason: 'Suggested from assistant memory' });

@@ -81,7 +81,7 @@ import json, os, sys
 names = {"ImageUri": "IMAGE", "FunctionName": "FUNCTION", "DatabaseUrl": "DATABASE_URL", "SupabaseUrl": "SUPABASE_URL",
          "SupabaseServiceRoleKey": "SUPABASE_SERVICE_ROLE_KEY", "DeploymentTenant": "DEPLOYMENT_TENANT",
          "CorsOrigins": "CORS_ORIGINS", "StorageBucket": "CMO_STORAGE_BUCKET", "ModalBaseUrl": "MODAL_BASE_URL",
-         "ModalProxyToken": "MODAL_PROXY_TOKEN", "LlmModel": "LIFESCI_LLM_MODEL",
+         "ModalProxyToken": "MODAL_PROXY_TOKEN", "ModalEmbeddingsUrl": "MODAL_EMBEDDINGS_URL", "LlmModel": "LIFESCI_LLM_MODEL",
          "AllowUnqualifiedRoutes": "LIFESCI_ALLOW_UNQUALIFIED_ROUTES", "SupabaseJwtSecret": "SUPABASE_JWT_SECRET",
          "ConnectorCredentialKey": "LIFESCI_CONNECTOR_KEY",
          "RuntimeSchedule": "RUNTIME_SCHEDULE", "MemorySize": "MEMORY_SIZE", "ApiDomain": "API_DOMAIN",

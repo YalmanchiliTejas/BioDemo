@@ -1,0 +1,45 @@
+{
+  "about": "Recall test set: earlier answers and notes from the demo's topics, and questions re-asked in different words. gold = the item a correct recall must return. Written 2026-11-07; extend with real (anonymised) conversations.",
+  "turns": [
+    {"id": "t-do", "q": "DO fell below 30 % in batch B-117 on BR-07. What could explain it?", "a": "Dissolved oxygen slid from 61 % to 24 % over 01:00-04:00 while antifoam dosing escalated; first use of antifoam lot L-8812 is the clearest change; probe calibration and pump maintenance were in order."},
+    {"id": "t-probe", "q": "Could the DO probe itself be the problem?", "a": "Unlikely: the BR-07 probe passed a two-point calibration and bump test on 30 Oct, and the decline was smooth rather than a step."},
+    {"id": "t-forecast", "q": "Forecast viable cell density and glucose for CHO-003-R01 from 72 h.", "a": "The Monod model projects viable cells rising to about 8.1 million cells/mL by 114.5 h and glucose falling to 2.3 g/L; mean absolute error after the cutoff was 1.09 million cells/mL and 0.46 g/L."},
+    {"id": "t-compare", "q": "Compare viability across the six runs in the September delivery.", "a": "CHO-003-R02 collapsed between 114.5 h and 142 h (89 % to 6 %) while its sister run stayed healthy; four of six runs ended near zero viability at the last samples."},
+    {"id": "t-trust", "q": "Is the September CMO delivery trustworthy?", "a": "All 804 source cells were accounted for and every accepted value matched the original file byte for byte; that proves faithful conversion, not that the process was in control."},
+    {"id": "t-dev12", "q": "Have we seen foaming on BR-07 before?", "a": "Yes: DEV-12 in June (worn antifoam pump AF-2 seal, dosing lagged foam onset; seal replaced) and DEV-19 in August (new antifoam lot L-8790, root cause not established)."},
+    {"id": "t-qa-package", "q": "What would QA need to review DEV-31?", "a": "The QMS record, the DO trend, the antifoam dosing log, the probe calibration and the lot history are on file; missing are product-impact data, the executed SOP record and the L-8812 certificate of analysis."},
+    {"id": "t-risk", "q": "Which open deviations are highest risk, and who owns them?", "a": "DEV-31 is the only open deviation; you own it with the QA lead as reviewer; it repeats a foaming pattern on BR-07."},
+    {"id": "t-transfer", "q": "What would you check before transferring this process to a larger bioreactor?", "a": "Resolve the foaming and low-oxygen issue on BR-07 first, since foaming worsens at higher superficial gas velocity; characterise run-to-run variability; document agitation and sparge settings."},
+    {"id": "t-units", "q": "Show glucose in g/L please, not mmol/L.", "a": "Noted: glucose will be reported in g/L."},
+    {"id": "t-lactate", "q": "Which run had the highest lactate?", "a": "CHO-003-R02 reached 2.707 g/L lactate at 142 h, the delivery maximum, while glucose was not exhausted."},
+    {"id": "t-capa", "q": "What CAPA came out of DEV-12?", "a": "The AF-2 pump seal was replaced and AF-2 was added to monthly preventive maintenance; no foaming recurred in the next six batches."}
+  ],
+  "notes": [
+    {"id": "n-lot", "text": "Antifoam lot L-8812 was first used in B-117; new antifoam lots preceded both DO dips on BR-07 (DEV-19, DEV-31). Check the lot CoA first next time.", "kind": "lesson"},
+    {"id": "n-units", "text": "The person wants glucose reported in g/L, never mmol/L.", "kind": "preference"},
+    {"id": "n-forecast-trap", "text": "The CHO Monod model under-predicts glucose consumption mid-run (89-95 h); do not trust its glucose forecast for feed timing.", "kind": "warning"},
+    {"id": "n-open-coa", "text": "Open thread: the supplier certificate of analysis for lot L-8812 has not been received; follow up before closing DEV-31.", "kind": "open_thread"}
+  ],
+  "queries": [
+    {"q": "why did oxygen drop in that bioreactor run last week?", "gold": ["t-do", "n-lot"]},
+    {"q": "was the oxygen sensor faulty?", "gold": ["t-probe"]},
+    {"q": "how far off was the growth prediction?", "gold": ["t-forecast", "n-forecast-trap"]},
+    {"q": "which culture died early in the September batch set?", "gold": ["t-compare"]},
+    {"q": "can we rely on the contract manufacturer's numbers?", "gold": ["t-trust"]},
+    {"q": "earlier foam problems on that reactor", "gold": ["t-dev12"]},
+    {"q": "what documents are still missing for the quality review?", "gold": ["t-qa-package", "n-open-coa"]},
+    {"q": "who is responsible for the worst open issue?", "gold": ["t-risk"]},
+    {"q": "scale-up readiness checklist", "gold": ["t-transfer"]},
+    {"q": "what units does she prefer for sugar?", "gold": ["n-units", "t-units"]},
+    {"q": "metabolite accumulation in the runs", "gold": ["t-lactate"]},
+    {"q": "corrective action after the pump seal issue", "gold": ["t-capa", "t-dev12"]},
+    {"q": "is the antifoam supplier paperwork in?", "gold": ["n-open-coa"]},
+    {"q": "should I time feeds off the model's sugar curve?", "gold": ["n-forecast-trap"]},
+    {"q": "B-117", "gold": ["t-do", "n-lot"]},
+    {"q": "L-8812", "gold": ["n-lot", "n-open-coa"]},
+    {"q": "viability crash", "gold": ["t-compare"]},
+    {"q": "calibration of the DO electrode", "gold": ["t-probe"]},
+    {"q": "what did we decide about reporting units", "gold": ["n-units", "t-units"]},
+    {"q": "anything I need to chase before closing the deviation?", "gold": ["n-open-coa", "t-qa-package"]}
+  ]
+}

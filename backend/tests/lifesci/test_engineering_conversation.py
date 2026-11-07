@@ -658,6 +658,10 @@ def test_final_planning_round_must_answer_instead_of_reading():
     S._validate_decision(read)  # earlier rounds may read
     with pytest.raises(ValueError, match='final planning call'):
         S._validate_decision(read, final=True)
+    forecast = {'reply': "I'll backtest two more runs.", 'workflow': [node('fit', 'cho_dataset_forecast',
+                {'dataset_id': 'd', 'batch': 'B', 'cutoff_h': 72, 'rationale': 'Backtest another run'})]}
+    with pytest.raises(ValueError, match='final planning call'):  # live: the turn ended "planning call limit reached"
+        S._validate_decision(forecast, final=True)
     S._validate_decision({'reply': 'Answer.', 'workflow': []}, final=True)
 
 

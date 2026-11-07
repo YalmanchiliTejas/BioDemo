@@ -64,7 +64,10 @@ def _source_label(source: dict[str, Any] | None) -> str:
     return str(source.get("path", ""))
 
 
-def summarize(data: dict[str, Any], *, sample_rows: int = 40) -> dict[str, Any]:
+SERIES_MAX = 3000  # ponytail: beyond this, page the raw rows; a per-run downsample would be the upgrade
+
+
+def summarize(data: dict[str, Any], *, sample_rows: int = 40, series: bool = False) -> dict[str, Any]:
     """A bounded, model-readable view of the dataset. Full values stay in the evidence record."""
     rows = data["measurements"]
     by_param: dict[str, list[dict[str, Any]]] = {}
@@ -91,7 +94,15 @@ def summarize(data: dict[str, Any], *, sample_rows: int = 40) -> dict[str, Any]:
                                     "first": {"time_h": _hours(ordered[0]["time"]), "value": ordered[0]["value"]},
                                     "last": {"time_h": _hours(ordered[-1]["time"]), "value": ordered[-1]["value"]},
                                     "min": min(values) if values else None, "max": max(values) if values else None}
+    extra: dict[str, Any] = {}
+    if series and len(rows) <= SERIES_MAX:
+        # Every value as [time_h, value] per run and parameter: answers "when did it diverge" without paging raw rows.
+        extra["series"] = {b: {name: [[_hours(m["time"]), m["value"]] for m in sorted(items, key=lambda m: _hours(m["time"]) or 0.0)]
+                               for name, items in params.items()} for b, params in sorted(per_batch.items())}
+        extra["series_units"] = {p["parameter"]: p["unit"] for p in parameters}
+        sample_rows = min(sample_rows, 5)  # the series carries the values; a few rows show source citations
     return {
+        **extra,
         "measurement_count": len(rows), "batches": sorted(per_batch), "parameters": parameters, "per_batch": batches,
         "coverage": data.get("coverage"), "guarantee_holds": data["guarantee"]["holds"],
         "guarantee_checks": [{k: c.get(k) for k in ("label", "passed")} for c in data["guarantee"].get("checks", [])],

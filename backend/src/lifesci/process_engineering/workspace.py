@@ -210,8 +210,9 @@ class WorkspaceTools:
                 raw = self.p.evidence.original(ctx, record_id).decode('utf-8', errors='replace')
                 if offset == 0 and (rec.state.get('metadata') or {}).get('classification') == DATASET:
                     # A delivery is thousands of rows: lead with every run's summary, page raw rows only if needed.
-                    data['dataset_summary'] = summarize(json.loads(raw))
-                page = 4000 if 'dataset_summary' in data else max_chars
+                    data['dataset_summary'] = summarize(json.loads(raw), series=True)
+                # With the summary and its full series, a short raw sample shows the format; page on for more.
+                page = 1000 if 'dataset_summary' in data else max_chars
                 data['original'] = raw[offset:offset + page]
                 data['original_characters'] = len(raw)
                 data['next_offset'] = offset + page if len(raw) > offset + page else None

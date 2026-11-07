@@ -29,6 +29,8 @@ class Completion:
     provider_request_id: str | None = None
     provider_cost_usd: float | None = None
     latency_ms: float = 0.0
+    # Native tool calls from chat(): [{'id', 'name', 'arguments' (JSON text)}]; empty for plain completions.
+    tool_calls: tuple = ()
 
 
 class Provider(Protocol):
@@ -48,7 +50,7 @@ class FakeProvider:
 
     def complete(self, *, model: str, system: str, prompt: str, max_output_tokens: int,
                  timeout_s: float) -> Completion:
-        self.calls.append({"model": model, "prompt": prompt})
+        self.calls.append({"model": model, "prompt": prompt, "max_output_tokens": max_output_tokens})
         queue = self.scripts.get(model)
         if queue:
             item = queue.pop(0)
@@ -60,6 +62,26 @@ class FakeProvider:
         else:
             raise ProviderError(f"no scripted response for {model}", retryable=False, kind="unavailable")
         return Completion(text, max(len(system + prompt) // 4, 1), max(len(text) // 4, 1))
+
+    def chat(self, *, model: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]], tool_choice: str,
+             max_output_tokens: int, timeout_s: float) -> Completion:
+        """Scripted turns: a str (final text), {'content', 'tool_calls': [{'name', 'arguments': dict}]}, or an Exception."""
+        import json as _json
+        self.calls.append({"model": model, "messages": [dict(m) for m in messages], "tools": [t["function"]["name"] for t in tools],
+                           "tool_choice": tool_choice, "max_output_tokens": max_output_tokens})
+        queue = self.scripts.get(model)
+        if not queue:
+            raise ProviderError(f"no scripted response for {model}", retryable=False, kind="unavailable")
+        item = queue.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        if isinstance(item, str):
+            item = {"content": item}
+        calls = () if tool_choice == "none" else tuple(
+            {"id": f"call_{len(self.calls)}_{i}", "name": c["name"], "arguments": _json.dumps(c.get("arguments", {}))}
+            for i, c in enumerate(item.get("tool_calls", [])))
+        text = item.get("content") or ""
+        return Completion(text, max(len(_json.dumps(messages)) // 4, 1), max(len(text) // 4, 1), tool_calls=calls)
 
 
 class _HTTPProvider:
@@ -221,3 +243,29 @@ class ModalProvider(_HTTPProvider):
         return Completion(content, int(usage.get("prompt_tokens", 0) or 0),
                           int(usage.get("completion_tokens", 0) or 0), cached, data.get("id"), None,
                           (time.perf_counter() - start) * 1000)
+
+    def chat(self, *, model: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]], tool_choice: str,
+             max_output_tokens: int, timeout_s: float) -> Completion:
+        """OpenAI-compatible chat with native tool calls (vLLM serving GLM supports them)."""
+        self._check_configuration()
+        start = time.perf_counter()
+        body: dict[str, Any] = {"model": model, "max_tokens": max(max_output_tokens, self._min_max_tokens), "messages": messages}
+        if tools:
+            body.update(tools=tools, tool_choice=tool_choice)
+        # Tool-loop steps are small: honour the caller's timeout (the planner's floor is for one huge call).
+        data = self._post("/chat/completions", body, {"Authorization": f"Bearer {self._key}"}, timeout_s)
+        choice = (data.get("choices") or [{}])[0]
+        message = choice.get("message") or {}
+        calls = tuple({"id": c.get("id") or f"call_{i}", "name": (c.get("function") or {}).get("name", ""),
+                       "arguments": (c.get("function") or {}).get("arguments") or "{}"}
+                      for i, c in enumerate(message.get("tool_calls") or []))
+        content = message.get("content") or ""
+        if not calls and not content.strip():
+            reason = choice.get("finish_reason")
+            hint = " (output token budget exhausted, likely by reasoning)" if reason == "length" else ""
+            raise ProviderError(f"modal returned no answer content{hint}; finish_reason={reason}",
+                                retryable=False, kind="output_limit" if reason == "length" else "error")
+        usage = data.get("usage") or {}
+        cached = int((usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0) or 0)
+        return Completion(content, int(usage.get("prompt_tokens", 0) or 0), int(usage.get("completion_tokens", 0) or 0),
+                          cached, data.get("id"), None, (time.perf_counter() - start) * 1000, calls)

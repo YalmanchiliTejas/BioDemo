@@ -43,6 +43,8 @@ def owner_of(store, tenant_id: str, kind: str, state: dict[str, Any]) -> tuple[s
         return _conversation_owner(store, tenant_id, state.get('conversation_id')), 'conversations'
     if kind == 'mission':
         return state.get('owner_id', ''), 'conversations'
+    if kind in ('memory_note', 'memory_page', 'memory_vector', 'memory_state'):  # the assistant's own notes (agent_memory.py)
+        return state.get('owner_id', ''), 'conversations'
     if kind == 'assistant_rule':
         return (state.get('owner_id') or '', 'rules') if state.get('scope') == 'user' else None
     if kind == 'evidence' and state.get('source_system') == INSTRUCTION_SOURCE:

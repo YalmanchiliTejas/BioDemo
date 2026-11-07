@@ -181,8 +181,9 @@ def test_demo_at_capacity_is_429_not_a_conflict(api, monkeypatch):
     assert response.status_code == 429 and 'capacity' in response.json()['detail']
 
 
-def test_the_process_engineer_do_drop_plan_runs_every_step_in_a_demo_workspace(p):
+def test_the_process_engineer_do_drop_plan_runs_every_step_in_a_demo_workspace(p, monkeypatch):
     """Replays the 8-step plan that stuck live (2026-11-06): non-record IDs and guessed revisions must not stop it."""
+    monkeypatch.setenv('ASSISTANT_LOOP', 'planner')  # a planner-path replay; demo workspaces default to the tool loop
     from tests.lifesci.test_engineering_conversation import fake_planner, node
     t = p.demo.provision('anon-pe', 'process_engineer', True)['tenant_id']
     ctx = p.identity.context_for(t, 'anon-pe')
@@ -215,7 +216,7 @@ def test_demo_data_answers_what_the_live_e2e_run_found_missing(p):
     data = _json.loads(p.evidence.original(ctx, rec.id))
     assert len(data['measurements'][0]['source_sha256']) == 64 and len(data['guarantee']['checks']) == 2
     read = ws.read(ctx, thread, kind='evidence', record_id=rec.id, revision=rec.revision)['record']['data']
-    assert len(read['dataset_summary']['batches']) == 6 and len(read['original']) <= 4000
+    assert len(read['dataset_summary']['batches']) == 6 and len(read['original']) <= 1000 and read['dataset_summary']['series']
     dev12 = ws.read(ctx, thread, kind='case', record_id='DEV-12', revision=p.store.read().require(t, 'case', 'DEV-12').revision)
     assert 'pump AF-2 seal worn' in dev12['record']['data']['closure']['root_cause']
     assert p.store.read().require(t, 'case', 'DEV-31').state['opened_at'].startswith('2026-11-03')
@@ -255,3 +256,17 @@ def test_no_lookup_the_assistant_can_plausibly_make_stops_a_turn(p, persona):
     for text in texts:
         ws.search(ctx, thread, kinds=[], query=text[:200])
         ws.similar_cases(ctx, thread, text=text[:200])
+
+
+def test_the_model_sees_the_whole_delivery_summary_with_every_value(p):
+    """Live 2026-11-07: the summary exceeded the per-result cap, so the model saw it truncated and paged raw JSON
+    ten times (358 s). The summary carries every value as a series and fits."""
+    from src.lifesci.process_engineering.tool_loop import _for_model
+    t = p.demo.provision('anon-cap', 'msat', True)['tenant_id']
+    ctx = p.identity.context_for(t, 'anon-cap')
+    thread = p.engineering_conversations.create(ctx, {'site_id': 'NF1'})
+    rec = p.store.read().require(t, 'evidence', 'cmo-verified-delivery:demo-september')
+    shown = _for_model(p.engineering_conversations.workspace.read(ctx, thread, kind='evidence', record_id=rec.id, revision=rec.revision))
+    assert 'truncated' not in shown[-300:]
+    series = json.loads(shown)['record']['data']['dataset_summary']['series']
+    assert sum(len(v) for runs in series.values() for v in runs.values()) == 306
