@@ -107,8 +107,7 @@ def test_workspace_search_private_threads_and_stale_revision_boundaries(env):
     assert 'PRIVATE-SENTINEL' not in json.dumps(found)
     with pytest.raises(PermissionError):
         tools.read(ctx, thread, kind='engineering_chat_turn', record_id=secret['turn_ids'][-1], revision=1)
-    with pytest.raises(ValueError, match='changed'):
-        tools.read(ctx, thread, kind='case', record_id='visible', revision=99)
+    assert 'current revision' in tools.read(ctx, thread, kind='case', record_id='visible', revision=99)['revision_note']
     # Even a valid-looking explicit id cannot bypass site or tenant boundaries.
     with p.store.transaction('fixture') as tx:
         tx.put(TENANT, 'case', 'other-site', {'site_id': 'NF2', 'opened_at': '2026-11-02T12:00:00Z'}, expected_revision=None, action='fixture')
@@ -253,18 +252,17 @@ def test_stop_during_model_call_does_not_commit_plan_or_execute_tools(env, monke
     assert not p.store.read().list(TENANT, 'data_flow_run')
 
 
-def test_stale_workspace_read_is_observed_and_replanned_with_current_revision(env):
+def test_out_of_date_revision_reads_the_current_record_without_replanning(env):
+    # A guessed or stale revision used to block the step and cost a full re-plan.
     p, ctx = env
     p.cases.open(ctx, 'STALE-READ', 'priya', 'quinn', 'NF1')
     fake_planner(p, [
         {'reply': 'Inspecting a case.', 'workflow': [node('read', 'workspace_read', {'kind': 'case', 'record_id': 'STALE-READ', 'revision': 99})]},
-        {'reply': 'Using its current revision.', 'workflow': [node('read', 'workspace_read', {'kind': 'case', 'record_id': 'STALE-READ', 'revision': 1})]},
         {'reply': 'The case has no timeline evidence yet; cause is unknown.'}])
-    result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Inspect the latest case')
-    turn = result['turns'][-1]
-    assert turn['status'] == 'completed' and turn['planning_calls_admitted'] == 3
-    assert len(turn['artifacts']) == 1 and not turn['issues']
-    assert p.store.read().require(TENANT, 'data_flow_run', turn['flow_run_ids'][0]).state['status'] == 'blocked'
+    turn = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Inspect the latest case')['turns'][-1]
+    assert turn['status'] == 'completed' and turn['planning_calls_admitted'] == 2 and len(turn['artifacts']) == 1
+    saved = p.store.read().require(TENANT, 'assistant_workspace_result', turn['artifacts'][0]['id']).state
+    assert 'current revision 1' in saved['revision_note'] and saved['record']['revision'] == 1
 
 
 def test_event_batch_limit_retains_records_not_in_the_agent_envelope(env):
