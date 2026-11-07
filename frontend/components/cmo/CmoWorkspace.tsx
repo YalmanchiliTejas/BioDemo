@@ -88,7 +88,7 @@ function DemoCard({ catalog, onError }: { catalog: Catalog | null; onError: (e: 
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className={eyebrow}>Sample deliveries</p>
-          <h2 className="mt-3 font-display text-[24px] font-light tracking-tight text-ink">Three months of deliveries from one CMO</h2>
+          <h2 className="mt-3 font-display text-[24px] font-light tracking-tight text-ink">Three months of deliveries from one CDMO</h2>
         </div>
         {runs.length > 0 && <button onClick={() => { resetDemo(); void load(); }} className="flex items-center gap-1 text-[12px] text-text-tertiary hover:text-ink" title="Start again with a fresh workspace"><RotateCcw className="h-3.5 w-3.5" />Restart</button>}
       </div>
@@ -110,12 +110,12 @@ function DemoCard({ catalog, onError }: { catalog: Catalog | null; onError: (e: 
           );
         })}
       </ol>
-      <p className="mt-4 text-[12px] leading-relaxed text-text-tertiary">Data: 24 CHO bioreactor runs, Zenodo 20829178 (CC BY 4.0). The CMO is fictional.</p>
+      <p className="mt-4 text-[12px] leading-relaxed text-text-tertiary">Data: 24 CHO bioreactor runs, Zenodo 20829178 (CC BY 4.0). The CDMO is fictional.</p>
     </section>
   );
 }
 
-/** The proposed split, editable: rename a group's CMO, merge groups, or keep everything together. */
+/** The proposed split, editable: rename a group's CDMO, merge groups, or keep everything together. */
 function SplitReview({ plan, onCancel, onConfirm }: { plan: { groups: PlannedGroup[]; files: Dropped[] }; onCancel: () => void; onConfirm: (groups: PlannedGroup[]) => void }) {
   const [groups, setGroups] = useState(plan.groups);
   const relabel = (g: PlannedGroup) => ({ ...g, label: `${g.cmo} · ${monthLabel(g.month)}` });
@@ -124,12 +124,12 @@ function SplitReview({ plan, onCancel, onConfirm }: { plan: { groups: PlannedGro
     <WorkspacePageHeader title="Deliveries" description="" />
     <div className="max-w-3xl">
       <h2 className="font-display text-[26px] font-light tracking-tight text-ink">This looks like {groups.length} separate deliveries</h2>
-      <p className="mt-2 text-[13.5px] leading-6 text-text-secondary">Grouped by CMO and month from the folder and file names. Check the names, merge anything that belongs together, then upload. Nothing has been uploaded yet.</p>
+      <p className="mt-2 text-[13.5px] leading-6 text-text-secondary">Grouped by CDMO and month from the folder and file names. Check the names, merge anything that belongs together, then upload. Nothing has been uploaded yet.</p>
     </div>
     <ul className="space-y-3">{groups.map(g => <li key={g.key} className="flex flex-wrap items-start gap-4 rounded-card bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
       <div className="min-w-0 flex-1">
-        <label className="block text-[12px] text-text-tertiary">CMO
-          <input value={g.cmo} aria-label={`CMO for ${g.label}`} onChange={e => setGroups(all => all.map(o => o.key === g.key ? relabel({ ...o, cmo: e.target.value }) : o))}
+        <label className="block text-[12px] text-text-tertiary">CDMO
+          <input value={g.cmo} aria-label={`CDMO for ${g.label}`} onChange={e => setGroups(all => all.map(o => o.key === g.key ? relabel({ ...o, cmo: e.target.value }) : o))}
             className="mt-1 block h-9 w-full max-w-xs rounded-control border border-border-strong px-3 text-[14px] text-ink" /></label>
         <p className="mt-3 text-[14px] font-medium text-ink">{g.label} <span className="font-normal text-text-tertiary">· {g.paths.length} {g.paths.length === 1 ? 'file' : 'files'}</span></p>
         <p className="mt-1 truncate font-mono text-[12px] text-text-tertiary" title={g.paths.join('\n')}>{g.paths.slice(0, 3).join(' · ')}{g.paths.length > 3 ? ' …' : ''}</p>
@@ -159,11 +159,11 @@ function Start({ catalog, runs, onError, onCreated }: { catalog: Catalog | null;
 
   async function check(files: Dropped[]) {
     if (!files.length) return;
-    if (!cmo.trim()) { onError('Enter the CMO name first, then add the files.'); return; }
+    if (!cmo.trim()) { onError('Enter the CDMO name first, then add the files.'); return; }
     onError(''); localStorage.setItem(LAST_CMO, cmo.trim());
     const known = (catalog?.cmos ?? []).filter(c => !c.includes('· demo'));
     const groups = planDump(files.map(f => f.path), [...new Set([...known, cmo.trim()])], cmo.trim());
-    // More than one CMO or month: show the proposed split first; nothing is uploaded until confirmed.
+    // More than one CDMO or month: show the proposed split first; nothing is uploaded until confirmed.
     if (groups.length > 1) { setPlan({ groups, files }); return; }
     await upload([{ cmo: cmo.trim(), label: `${cmo.trim()} · ${new Date().toLocaleDateString()}`, files }], true);
   }
@@ -205,16 +205,16 @@ function Start({ catalog, runs, onError, onCreated }: { catalog: Catalog | null;
   const mine = runs.filter(r => !r.superseded_by && !isDemoCmo(r.cmo) && !r.cmo.includes('· demo '));
   return (
     <div className="space-y-10">
-      <WorkspacePageHeader title="Deliveries" description="Check the files a CMO sends you. Every extracted value links back to its source." />
+      <WorkspacePageHeader title="Deliveries" description="Check the files a CDMO sends you. Every extracted value links back to its source." />
       <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
         {demoWorkspace ? <section className="rounded-2xl border border-border-hairline bg-white p-7 text-sm leading-6 text-text-secondary">
           <p className="font-medium text-ink">Demo workspaces use sample data</p>
-          <p className="mt-2">Uploads are turned off here so nothing of yours is ever sent. The sample deliveries below behave exactly like a real CMO’s files.</p>
+          <p className="mt-2">Uploads are turned off here so nothing of yours is ever sent. The sample deliveries below behave exactly like a real CDMO’s files.</p>
         </section> : <>
         <section className="space-y-4">
           <label className="block">
-            <span className="text-[12px] font-medium uppercase tracking-wide text-text-tertiary">CMO</span>
-            <input list="cmo-names" value={cmo} onChange={e => setCmo(e.target.value)} placeholder="e.g. Acme Biologics" aria-label="CMO name"
+            <span className="text-[12px] font-medium uppercase tracking-wide text-text-tertiary">CDMO</span>
+            <input list="cmo-names" value={cmo} onChange={e => setCmo(e.target.value)} placeholder="e.g. Acme Biologics" aria-label="CDMO name"
               className="mt-2 h-11 w-full rounded-[3px] border border-border-strong bg-white px-3 text-[15px] focus:border-brand-teal focus:outline-none" />
             <datalist id="cmo-names">{catalog?.cmos.filter(c => !c.includes('· demo')).map(c => <option key={c} value={c} />)}</datalist>
           </label>
@@ -223,7 +223,7 @@ function Start({ catalog, runs, onError, onCreated }: { catalog: Catalog | null;
             className={cn('flex h-[260px] w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed text-center transition-colors',
               dragging ? 'border-brand-teal bg-brand-teal-light/50' : 'border-border-strong bg-white hover:border-brand-teal')}>
             {busy ? <><Loader2 className="h-6 w-6 animate-spin text-brand-teal" /><span className="text-[14px]">{busy}</span></>
-              : <><Upload className="h-6 w-6 text-brand-teal" strokeWidth={1.5} /><span className="font-display text-[20px] font-light text-ink">Drop everything the CMO sent</span>
+              : <><Upload className="h-6 w-6 text-brand-teal" strokeWidth={1.5} /><span className="font-display text-[20px] font-light text-ink">Drop everything the CDMO sent</span>
                 <span className="max-w-sm text-[13px] text-text-tertiary">Files, folders, ZIPs or emails, exactly as received. Attachments are pulled out, and duplicates and nested ZIPs are sorted for you. You’ll see anything that was set aside.</span></>}
           </button>
           <input ref={input} type="file" multiple className="hidden" aria-label="Delivery files" onChange={e => void check(picked(e.target.files))} />
@@ -365,8 +365,8 @@ function ShareDocuments({ runId, packageId, entries }: { runId: string; packageI
   }
   return <div className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-brand-teal-light/50 px-5 py-4 text-[13px]">
     <p className="max-w-2xl text-text-secondary">{pending
-      ? <>This delivery has <strong className="text-ink">{documents.length} {documents.length === 1 ? 'document' : 'documents'}</strong> (emails, notes or reports). Share them so the assistant can use them for deviations and investigations. They’ll be marked as unverified CMO correspondence.</>
-      : <><strong className="text-ink">{shared.length} {shared.length === 1 ? 'document' : 'documents'} shared with the assistant</strong>, marked as unverified CMO correspondence.</>}</p>
+      ? <>This delivery has <strong className="text-ink">{documents.length} {documents.length === 1 ? 'document' : 'documents'}</strong> (emails, notes or reports). Share them so the assistant can use them for deviations and investigations. They’ll be marked as unverified CDMO correspondence.</>
+      : <><strong className="text-ink">{shared.length} {shared.length === 1 ? 'document' : 'documents'} shared with the assistant</strong>, marked as unverified CDMO correspondence.</>}</p>
     {pending ? <button type="button" disabled={busy} onClick={() => void share()} className="inline-flex items-center gap-2 rounded-control bg-brand-teal px-4 py-2 font-medium text-white disabled:opacity-60">{busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Share with assistant</button>
       : <Link href="/home/" className="font-medium text-brand-teal hover:underline">Ask the assistant →</Link>}
     {error && <p role="alert" className="w-full text-status-critical">{error}</p>}

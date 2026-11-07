@@ -14,7 +14,7 @@ export const NAV: NavSection[] = [
       { label: 'Home', href: '/home', icon: Home },
       { label: 'Workspaces', href: '/workspaces', icon: FolderKanban },
       { label: 'Sources', href: '/sources', icon: Database },
-      { label: 'CMO deliveries', href: '/cmo', icon: PackageCheck },
+      { label: 'CDMO deliveries', href: '/cmo', icon: PackageCheck },
     ],
   },
   {
@@ -64,7 +64,7 @@ export const SETTINGS_NAV: NavItem = { label: 'Settings & Governance', href: '/s
 export const SCREENS: Array<{ id: string; href: string; title: string; keywords?: string }> = [
   { id: 'DASHBOARD', href: '/dashboard', title: 'Workspace dashboard', keywords: 'status recent deliveries tutorial connections' },
   { id: 'PROCESS-SIMULATION', href: '/process-simulation', title: 'Predictive process engineering', keywords: 'freeze drying lyophilization transfer CDMO simulation' },
-  { id: 'CMO-01', href: '/cmo', title: 'CMO deliveries · verify and aggregate', keywords: 'CMO CDMO upload ingestion aggregate filter verify export batch CoA' },
+  { id: 'CMO-01', href: '/cmo', title: 'CDMO deliveries · review and aggregate', keywords: 'cmo cdmo upload ingestion aggregate filter verify export batch CoA' },
   { id: 'AUTH-01', href: '/sign-in', title: 'Sign in / workspace access' },
   { id: 'ONB-01', href: '/onboarding/start', title: 'Fast start · choose data source' },
   { id: 'ONB-02', href: '/onboarding/mapping', title: 'Data intake & entity mapping' },

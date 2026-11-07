@@ -11,7 +11,7 @@ export type DisplayContext = {
   content: string;
 };
 
-/** A verified CMO delivery published as platform evidence; the assistant receives its values server-side. */
+/** A verified CDMO delivery published as platform evidence; the assistant receives its values server-side. */
 export type AttachedDataset = { id: string; label: string; measurements: number; batches: number };
 
 type CompanionState = {

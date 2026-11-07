@@ -1,11 +1,11 @@
 'use client';
 
-/** Guided demo on the public CHO dataset. Each browser session gets its own CMO
+/** Guided demo on the public CHO dataset. Each browser session gets its own CDMO
  * workspace, so formats confirmed by one visitor never carry into another's demo. */
 const KEY = 'cmo.demoCmo';
 
 export const DEMO_STEPS = [
-  { packageId: 'cho-calibration', month: 'September', title: 'First delivery', body: 'New CMO, new formats. Confirm how 4 files are read, once.' },
+  { packageId: 'cho-calibration', month: 'September', title: 'First delivery', body: 'New CDMO, new formats. Confirm how 4 files are read, once.' },
   { packageId: 'cho-returning', month: 'October', title: 'Same formats', body: 'Recognised from September. Values verify without column decisions.' },
   { packageId: 'cho-changed', month: 'November', title: 'Layout changed', body: 'Renamed and new columns, a conflicting lab result and a missing certificate.' },
 ] as const;
@@ -23,7 +23,7 @@ export function isDemoCmo(cmo?: string) {
   return !!cmo && typeof window !== 'undefined' && sessionStorage.getItem(KEY) === cmo;
 }
 
-/** The random demo tag keeps sample runs apart; people should only see the CMO's name. */
+/** The random demo tag keeps sample runs apart; people should only see the CDMO's name. */
 export const cmoName = (cmo: string) => cmo.replace(/ · demo \w+$/, '');
 
 export function resetDemo() { sessionStorage.removeItem(KEY); }

@@ -21,7 +21,7 @@ function describe(issue: Issue & { members?: string[] }) {
   switch (issue.rule_code) {
     case 'UNACCOUNTED_CONTENT': return [`${plural(issue.count ?? issue.lines?.length ?? 1, 'line')} in ${issue.path} not turned into data`, 'Read them so nothing is missed.'];
     case 'BATCH_DOCUMENT_MISSING': return [`Batch ${issue.batch} has no ${issue.doc_type?.replace(/_/g, ' ')}`, 'Other batches in this delivery have one.'];
-    case 'EXPECTED_DOCUMENT_MISSING': return [`No ${issue.doc_type?.replace(/_/g, ' ')} in this delivery`, 'The last verified delivery from this CMO had one.'];
+    case 'EXPECTED_DOCUMENT_MISSING': return [`No ${issue.doc_type?.replace(/_/g, ' ')} in this delivery`, 'The last verified delivery from this CDMO had one.'];
     case 'EXPECTED_PARAMETER_MISSING': return [`${parameterLabel(issue.parameter ?? '')} is missing`, 'It was reported in the last verified delivery.'];
     case 'MISSING_PAGE': return [`${issue.path} is missing pages`, `${issue.actual_pages} of ${issue.expected_pages} pages delivered.`];
     case 'DUPLICATE_CONFLICT': return [`Conflicting ${parameterLabel(issue.parameter ?? '')} for batch ${issue.batch} at ${issue.time} h`, where];

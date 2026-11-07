@@ -23,7 +23,7 @@ export const SEVERITY_TONE: Record<Severity, Tone> = { warning: 'warning', actio
 export const SEVERITY_RANK: Record<Severity, number> = { warning: 1, action: 2, critical: 3 };
 export const KIND_LABEL: Record<string, string> = {
   step_exception: 'Step out of limit', lab_oos: 'Lab result out of specification', spec_excursion: 'Outside specification',
-  trend: 'Early-warning trend', qms_deviation: 'Deviation recorded in QMS', delivery_excursion: 'CMO value outside specification',
+  trend: 'Early-warning trend', qms_deviation: 'Deviation recorded in QMS', delivery_excursion: 'CDMO value outside specification',
 };
 
 export function listSignals(q: { site_id?: string; status?: string; min_severity?: string } = {}) {

@@ -19,7 +19,7 @@ export function QuickFind({ open, onClose, onGuide, onAssistant }: { open: boole
   const results = useMemo<Result[]>(() => {
     const go = (href: string) => () => router.push(`${href}/`);
     const all: Result[] = [
-      { id: 'new-delivery', group: 'Actions', label: 'Check a new delivery', detail: 'Upload CMO files as received', icon: Plus, terms: 'upload new delivery cmo files', run: go('/cmo') },
+      { id: 'new-delivery', group: 'Actions', label: 'Check a new delivery', detail: 'Upload CDMO files as received', icon: Plus, terms: 'upload new delivery cmo files', run: go('/cmo') },
       { id: 'ask', group: 'Actions', label: 'Ask the assistant', detail: 'Open the companion beside this page', icon: MessageSquare, terms: 'ask chat question companion', run: onAssistant },
       { id: 'guide', group: 'Actions', label: 'Open the workspace guide', detail: 'Short topics, at your pace', icon: HelpCircle, terms: 'help guide tour tutorial', run: onGuide },
       ...navGroups(!!demo).flatMap(group => group.items.map(item => ({ id: item.href, group: 'Pages', label: item.label, detail: `${group.label} · ${item.description}`, icon: item.icon, terms: `${item.label} ${group.label} ${item.description} ${item.keywords ?? ''}`, run: go(item.href) }))),

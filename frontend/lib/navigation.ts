@@ -10,7 +10,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Overview', href: '/dashboard', icon: LayoutDashboard, guide: 'dashboard', description: 'Status, recent deliveries and what needs attention', keywords: 'dashboard home status' },
       { label: 'Workspaces', href: '/workspaces', icon: FolderKanban, description: 'Saved results, charts, source records and review steps', keywords: 'results investigation deviation schedule data tables actions' },
       { label: 'Signals', href: '/signals', icon: Radar, description: 'Possible deviations detected from your data, triaged by the assistant', keywords: 'deviation alert excursion oos out of spec trend triage' },
-      { label: 'Deliveries', href: '/cmo', icon: PackageCheck, guide: 'deliveries', description: 'Check CMO files against their original sources', keywords: 'cmo cdmo upload verify batch coa export' },
+      { label: 'Deliveries', href: '/cmo', icon: PackageCheck, guide: 'deliveries', description: 'Check CDMO files against their original sources', keywords: 'cmo cdmo upload verify batch coa export' },
       { label: 'Assistant', href: '/home', icon: MessageSquare, guide: 'assistant', description: 'Ask a question with the evidence you choose', keywords: 'chat ask companion question' },
     ],
   },

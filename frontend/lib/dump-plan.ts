@@ -1,9 +1,9 @@
 /**
- * Propose how a dropped dump splits into deliveries, by CMO and month, from folder and file names.
+ * Propose how a dropped dump splits into deliveries, by CDMO and month, from folder and file names.
  *
- * Folders describe how the CMO organised the dump, so a month in a folder name wins over a date in a
- * file name inside it. Only CMO names already known in this workspace split by CMO: unknown folder
- * names are usually file types ("CoAs", "LIMS"), not CMOs. The person always confirms or edits the plan.
+ * Folders describe how the CDMO organised the dump, so a month in a folder name wins over a date in a
+ * file name inside it. Only CDMO names already known in this workspace split by CDMO: unknown folder
+ * names are usually file types ("CoAs", "LIMS"), not CDMOs. The person always confirms or edits the plan.
  * ponytail: names only; reading dates from inside files (email Date, CoA headers) is the upgrade path.
  */
 export type PlannedGroup = { key: string; cmo: string; month: string | null; label: string; paths: string[] };
@@ -54,12 +54,12 @@ export function planDump(paths: string[], knownCmos: string[], fallbackCmo: stri
     const match = list.filter(o => o.cmo === g.cmo && o.month?.endsWith(`-${g.month}`));
     if (match.length === 1) { match[0].paths.push(...g.paths); g.paths = []; }
   }
-  // Undated files (a cover letter at the top) belong to the CMO's only dated delivery, if it has one.
+  // Undated files (a cover letter at the top) belong to the CDMO's only dated delivery, if it has one.
   for (const g of list.filter(g => !g.month)) {
     const dated = list.filter(o => o.cmo === g.cmo && o.month && o.paths.length);
     if (dated.length === 1) { dated[0].paths.push(...g.paths); g.paths = []; }
   }
-  // A group of only non-data files (a README) cannot be checked alone: it joins the CMO's first delivery.
+  // A group of only non-data files (a README) cannot be checked alone: it joins the CDMO's first delivery.
   for (const g of list.filter(g => g.paths.length && !g.paths.some(p => CHECKABLE.test(p)))) {
     const home = list.find(o => o !== g && o.cmo === g.cmo && o.paths.some(p => CHECKABLE.test(p))) ?? list.find(o => o !== g && o.paths.some(p => CHECKABLE.test(p)));
     if (home) { home.paths.push(...g.paths); g.paths = []; }

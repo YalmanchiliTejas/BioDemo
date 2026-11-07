@@ -21,7 +21,7 @@ function webglAvailable() {
   }
 }
 
-const LABEL = 'Rendered biologics facility: a goods-receipt bay with CMO deliveries, a control room with MES, LIMS and historian screens, jacketed bioreactors with a control skid and feed pump, a QC bench with a biosafety cabinet, a production freeze dryer and a glass-walled review office.';
+const LABEL = 'Rendered biologics facility: a goods-receipt bay with CDMO deliveries, a control room with MES, LIMS and historian screens, jacketed bioreactors with a control skid and feed pump, a QC bench with a biosafety cabinet, a production freeze dryer and a glass-walled review office.';
 
 export const LabStage = forwardRef<StageHandle, { initial: View; still?: boolean; anchor?: number; className?: string }>(function LabStage({ initial, still = false, anchor, className }, ref) {
   const [mode, setMode] = useState<'loading' | 'webgl' | 'svg'>('loading');
