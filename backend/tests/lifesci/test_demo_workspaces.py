@@ -299,3 +299,26 @@ def test_the_improvement_corpus_keeps_what_the_harness_needs(p, monkeypatch):
     roles = [m['role'] for m in saved['model_transcript']]
     assert roles[0] == 'user' and 'tool' in roles and roles[-1] == 'assistant'
     assert item['memory_notes'][0]['kind'] == 'open_thread'
+
+
+def test_the_minute_tick_never_rereads_conversations_when_nothing_is_new(p, monkeypatch):
+    """Live 2026-11-07: per-minute scans re-read every conversation of every workspace (~2.6 MB a minute for three
+    visitors; 19 GB of database egress in nine days). Answers are now snapshotted and memory marked as they finish."""
+    from tests.lifesci.test_engineering_conversation import fake_planner
+    monkeypatch.delenv('ASSISTANT_LOOP', raising=False)
+    t = p.demo.provision('anon-quiet', 'qa', True)['tenant_id']
+    ctx = p.identity.context_for(t, 'anon-quiet')
+    fake = fake_planner(p, [])
+    fake.scripts[p.gateway.registry.profiles['anthropic-opus'].model] = ['DEV-31 is already open.']
+    thread = p.engineering_conversations.create(ctx, {'site_id': 'NF1'})
+    queued = p.engineering_conversations.enqueue(ctx, thread['id'], {'text': 'Triage DEV-31', 'expected_revision': thread['revision']})
+    p.engineering_conversations.run_turn(ctx, thread['id'], queued['turn_ids'][-1])
+    assert p.store.read().get(CORPUS, 'demo_transcript', f"{t}:{thread['id']}") is not None  # snapshotted on finish, no scan
+    assert p.agent_memory.due(t) == ['anon-quiet']  # activity marked on finish
+    p.runtime.track(t)
+    p.runtime.tick()  # consolidates once
+    kinds = []
+    real = p.store._db.fetchall
+    monkeypatch.setattr(p.store._db, 'fetchall', lambda sql, params=(): kinds.append(params[1] if len(params) > 1 else sql) or real(sql, params))
+    p.runtime.tick()  # nothing new since
+    assert 'engineering_chat_turn' not in kinds and 'memory_vector' not in kinds and 'assistant_workspace_result' not in kinds

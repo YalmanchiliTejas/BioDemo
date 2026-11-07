@@ -6,6 +6,7 @@ module stores conversation context, not an alternative agent/tool-loop harness.
 from copy import deepcopy
 import hashlib
 import json
+import logging
 from pathlib import Path
 from time import monotonic
 
@@ -648,7 +649,21 @@ class EngineeringConversationService:
                 tx.check_lease(ctx.tenant_id, 'engineering_chat_turn', turn_id, worker, token)
                 self._update_turn(ctx, turn_id, elapsed_seconds=round(elapsed_before + monotonic()-started, 3))
                 tx.expire_lease(ctx.tenant_id, 'engineering_chat_turn', turn_id)
+            self._after_turn(ctx, thread, turn_id)
         return self.run_turn(ctx, thread_id, turn_id) if continue_round else self.get(ctx, thread_id)
+
+    def _after_turn(self, ctx, thread, turn_id):
+        """Work that follows a finished answer, done once here instead of by scanning every minute (live: the
+        per-minute scans read every conversation of every workspace, ~2.6 MB a minute for three demo visitors)."""
+        status = self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', turn_id).state.get('status')
+        if status not in ('completed', 'needs_information'):
+            return
+        for step in (lambda: self.p.agent_memory.mark_active(ctx.tenant_id, thread['owner_id']),
+                     lambda: self.p.demo.snapshot_workspace(ctx.tenant_id, thread['id']) if ctx.tenant_id.startswith('demo_') else None):
+            try:
+                step()
+            except Exception:  # never fail an answer over bookkeeping; expiry takes a final full snapshot
+                logging.getLogger(__name__).exception('post-answer bookkeeping deferred')
 
     def _grounding(self, ctx, thread, sources, decision, mission=None):
         """Check a final reply against everything the assistant was actually shown."""

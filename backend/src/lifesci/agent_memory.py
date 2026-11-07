@@ -102,6 +102,7 @@ class AgentMemory:
                 out = tx.put(ctx.tenant_id, NOTE, state['note_id'], state, expected_revision=None, action='remember',
                              event_type='memory.noted', event_payload={'note_id': state['note_id'], 'owner_id': owner})
         self._index(ctx.tenant_id, owner, NOTE, out.state['note_id'], out.state['text'], thread['site_id'])
+        self.mark_active(ctx.tenant_id, owner)
         return self._view(ctx, out.state, out.revision)
 
     def set_status(self, ctx, note_id: str, status: str, reason: str = '') -> dict[str, Any]:
@@ -312,27 +313,30 @@ class AgentMemory:
                 'note': 'Earlier answers and notes are interpretations: re-check the underlying records before relying on them.'}
 
     # --- dreaming: offline consolidation -------------------------------------------------------------
+    def mark_active(self, tenant, owner) -> None:
+        """Note new activity (a finished answer, a new note) so consolidation finds the owner without scanning."""
+        if not owner:
+            return
+        now = iso(utc_now())
+        with self.p.store.transaction('memory-activity') as tx:
+            cur = tx.get(tenant, STATE, owner)
+            tx.put(tenant, STATE, owner, {**(cur.state if cur else {'owner_id': owner}), 'active_at': now},
+                   expected_revision=cur.revision if cur else None, action='memory_activity')
+
     def due(self, tenant) -> list[str]:
-        """Owners with new completed turns or notes since their last consolidation (and not consolidated recently)."""
+        """Owners with activity since their last consolidation, not consolidated in the last few minutes. Reads only the
+        small per-owner state records (live: scanning every turn and note each minute was most of our database egress)."""
         from datetime import timedelta
         from .ids import parse_iso
-        owners = {r.id: r.state.get('owner_id', '') for r in self.p.store.read().list(tenant, 'engineering_conversation')}
-        latest: dict[str, str] = {}
-        for r in self.p.store.read().list(tenant, 'engineering_chat_turn'):
-            if r.state.get('status') in ('completed', 'needs_information'):
-                o = owners.get(r.state.get('conversation_id'), '')
-                latest[o] = max(latest.get(o, ''), r.updated_at)
-        for r in self.p.store.read().list(tenant, NOTE):
-            latest[r.state['owner_id']] = max(latest.get(r.state['owner_id'], ''), r.state['updated_at'])
         out = []
-        for owner, when in latest.items():
-            st = self.p.store.read().get(tenant, STATE, owner)
-            last = st.state.get('last_dream_at') if st else None
-            if owner and (last is None or (when > last and utc_now() - parse_iso(last) >= timedelta(minutes=DREAM_EVERY_MINUTES))):
-                out.append(owner)
+        for r in self.p.store.read().list(tenant, STATE):
+            active, last = r.state.get('active_at'), r.state.get('last_dream_at')
+            if active and (last is None or (active > last and utc_now() - parse_iso(last) >= timedelta(minutes=DREAM_EVERY_MINUTES))):
+                out.append(r.id)
         return out
 
     def dream(self, tenant, owner, *, use_model=True) -> dict[str, Any]:
+        started = iso(utc_now())  # activity during this pass stays newer than last_dream_at, so it is not lost
         ctx = self.p.identity.context_for(tenant, owner)
         st = self.p.store.read().get(tenant, STATE, owner)
         since = (st.state.get('last_dream_at') if st else None) or ''
@@ -375,7 +379,7 @@ class AgentMemory:
                        if n['kind'] in ('preference', 'lesson') and n.get('uses', 0) >= RULE_AFTER_USES][:5]
         with self.p.store.transaction('memory-dreaming') as tx:
             cur = tx.get(tenant, STATE, owner)
-            tx.put(tenant, STATE, owner, {**(cur.state if cur else {}), 'owner_id': owner, 'last_dream_at': now,
+            tx.put(tenant, STATE, owner, {**(cur.state if cur else {}), 'owner_id': owner, 'last_dream_at': started,
                    'promoted': promoted, 'rule_suggestions': suggestions, 'last_report': report},
                    expected_revision=cur.revision if cur else None, action='dream')
         return report

@@ -202,7 +202,7 @@ class DemoService:
         except (PermissionError, AttributeError):
             return []
 
-    def snapshot_workspace(self, tenant: str) -> int:
+    def snapshot_workspace(self, tenant: str, conversation_id: str | None = None) -> int:
         """Copy completed demo conversations into the corpus (idempotent per turn)."""
         entry = self._entry(tenant)
         if entry is None:
@@ -211,7 +211,9 @@ class DemoService:
         if not owner.roles:
             return 0
         done, fresh = set(entry.get('snapshotted_turns', [])), []
-        for rec in self.p.store.read().list(tenant, 'engineering_conversation'):
+        convs = ([self.p.store.read().require(tenant, 'engineering_conversation', conversation_id)] if conversation_id
+                 else self.p.store.read().list(tenant, 'engineering_conversation'))
+        for rec in convs:
             thread = self.p.engineering_conversations.get(owner, rec.id)
             turns = [self._turn(t, tenant) for t in thread['turns'] if t.get('status') not in ('queued', 'running')]
             new = [t['id'] for t in turns if t['id'] not in done]
@@ -237,9 +239,9 @@ class DemoService:
     def tick(self) -> None:
         for rec in self.p.store.read().list(CONTROL, 'demo_workspace', lambda s: s.get('status') == 'active'):
             tenant = rec.id
-            self.snapshot_workspace(tenant)
             if parse_iso(rec.state['expires_at']) > utc_now():
-                continue
+                continue  # answers are snapshotted as they finish (conversation._after_turn), not by a scan each minute
+            self.snapshot_workspace(tenant)  # final full snapshot catches anything a failed hook missed
             # Expired: last snapshot is taken above, then the visitor loses access. Rows are deleted by demo-purge.
             self.p.identity.revoke_role(tenant, rec.state['owner'], PERSONA_ROLES[rec.state['persona']], by='demo',
                                         reason='demo workspace expired')
