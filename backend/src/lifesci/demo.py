@@ -176,17 +176,31 @@ class DemoService:
         if rec is None:
             return None
         thread = self.p.engineering_conversations.get(ctx, rec.state['conversation_id'])
-        return next((self._turn(t) for t in thread['turns'] if t['id'] == turn_id), None)
+        return next((self._turn(t, ctx.tenant_id) for t in thread['turns'] if t['id'] == turn_id), None)
 
-    @staticmethod
-    def _turn(turn: dict[str, Any]) -> dict[str, Any]:
+    def _turn(self, turn: dict[str, Any], tenant: str | None = None) -> dict[str, Any]:
         keep = ('id', 'user_text', 'status', 'reply', 'questions', 'claims', 'grounding', 'steps', 'issues', 'held_back',
-                'capabilities_used', 'context_used', 'elapsed_seconds', 'system_message', 'origin')
+                'capabilities_used', 'context_used', 'elapsed_seconds', 'system_message', 'origin', 'harness')
         out = {k: turn.get(k) for k in keep}
+        out['harness'] = out['harness'] or 'planner'
+        # Which scenario the visitor tried (a "Try it" sends the scenario's prompt verbatim), for per-scenario results.
+        out['scenario_id'] = next((s['scenario_id'] for s in demo_scenarios.SCENARIOS
+                                   if s['prompt'].strip() == (turn.get('user_text') or '').strip()), None)
+        if tenant:  # what the model saw, for replaying the turn (kept only in demo workspaces)
+            raw = self.p.store.read().get(tenant, 'engineering_chat_turn', turn['id'])
+            out['model_transcript'] = raw.state.get('_transcript') if raw else None
         out['artifacts'] = [{'kind': a.get('kind'), 'title': a.get('title')} for a in turn.get('artifacts', [])]
         out['gateway_runs'] = [{k: r.get(k) for k in ('run_id', 'status', 'route', 'attempts', 'issues', 'cost_usd')}
                                for r in turn.get('gateway_runs', [])]
         return out
+
+    def _memory(self, owner_ctx) -> list[dict[str, Any]]:
+        """What the assistant chose to remember for this visitor (including retired notes), to judge memory quality."""
+        try:
+            return [{k: n.get(k) for k in ('id', 'text', 'kind', 'basis', 'status', 'origin', 'sources', 'created_at', 'history')}
+                    for n in self.p.agent_memory.notes(owner_ctx)]
+        except (PermissionError, AttributeError):
+            return []
 
     def snapshot_workspace(self, tenant: str) -> int:
         """Copy completed demo conversations into the corpus (idempotent per turn)."""
@@ -199,15 +213,17 @@ class DemoService:
         done, fresh = set(entry.get('snapshotted_turns', [])), []
         for rec in self.p.store.read().list(tenant, 'engineering_conversation'):
             thread = self.p.engineering_conversations.get(owner, rec.id)
-            turns = [self._turn(t) for t in thread['turns'] if t.get('status') not in ('queued', 'running')]
+            turns = [self._turn(t, tenant) for t in thread['turns'] if t.get('status') not in ('queued', 'running')]
             new = [t['id'] for t in turns if t['id'] not in done]
             if not new:
                 continue
+            notes = self._memory(owner)  # read before the write transaction opens
             with self.p.store.transaction('demo') as tx:
                 key = f'{tenant}:{rec.id}'
                 current = tx.get(CORPUS, 'demo_transcript', key)
                 tx.put(CORPUS, 'demo_transcript', key, {'tenant_id': tenant, 'persona': entry['persona'], 'visitor': entry['owner'],
-                       'conversation_id': rec.id, 'title': thread.get('title'), 'captured_at': iso(utc_now()), 'turns': turns},
+                       'conversation_id': rec.id, 'title': thread.get('title'), 'captured_at': iso(utc_now()), 'turns': turns,
+                       'memory_notes': notes},
                        expected_revision=current.revision if current else None, action='snapshot_demo_transcript')
             fresh.extend(new)
         if fresh:

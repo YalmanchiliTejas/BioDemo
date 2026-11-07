@@ -270,3 +270,32 @@ def test_the_model_sees_the_whole_delivery_summary_with_every_value(p):
     assert 'truncated' not in shown[-300:]
     series = json.loads(shown)['record']['data']['dataset_summary']['series']
     assert sum(len(v) for runs in series.values() for v in runs.values()) == 306
+
+
+def test_the_improvement_corpus_keeps_what_the_harness_needs(p, monkeypatch):
+    """Per demo turn: what the model saw (to replay it), harness version, scenario, steps, and the visitor's notes."""
+    from src.lifesci.demo_scenarios import SCENARIOS
+    from tests.lifesci.test_engineering_conversation import fake_planner
+    monkeypatch.delenv('ASSISTANT_LOOP', raising=False)  # demo workspaces use the tool loop by default
+    t = p.demo.provision('anon-corpus', 'qa', True)['tenant_id']
+    ctx = p.identity.context_for(t, 'anon-corpus')
+    prompt = next(s for s in SCENARIOS if s['scenario_id'] == 'qa-triage')['prompt']
+    fake = fake_planner(p, [])
+    dev31 = p.store.read().require(t, 'case', 'DEV-31').revision
+    fake.scripts[p.gateway.registry.profiles['anthropic-opus'].model] = [
+        {'tool_calls': [{'name': 'workspace_read', 'arguments': {'kind': 'case', 'record_id': 'DEV-31', 'revision': dev31}}]},
+        {'tool_calls': [{'name': 'remember', 'arguments': {'text': 'DEV-31 is open; triage continues in the case.', 'kind': 'open_thread',
+                                                           'basis': 'observed', 'sources': [{'kind': 'case', 'id': 'DEV-31'}]}}]},
+        'DEV-31 already exists; no new case is needed.']
+    thread = p.engineering_conversations.create(ctx, {'site_id': 'NF1'})
+    queued = p.engineering_conversations.enqueue(ctx, thread['id'], {'text': prompt, 'expected_revision': thread['revision']})
+    turn = p.engineering_conversations.run_turn(ctx, thread['id'], queued['turn_ids'][-1])['turns'][-1]
+    assert turn['status'] == 'completed' and '_transcript' not in turn  # never sent to the browser
+    p.demo.snapshot_workspace(t)
+    item = p.store.read().require(CORPUS, 'demo_transcript', f"{t}:{thread['id']}").state
+    saved = item['turns'][0]
+    assert saved['harness'] == 'tool-loop-v1' and saved['scenario_id'] == 'qa-triage'
+    assert [s['task_kind'] for s in saved['steps']] == ['workspace_read', 'remember']
+    roles = [m['role'] for m in saved['model_transcript']]
+    assert roles[0] == 'user' and 'tool' in roles and roles[-1] == 'assistant'
+    assert item['memory_notes'][0]['kind'] == 'open_thread'

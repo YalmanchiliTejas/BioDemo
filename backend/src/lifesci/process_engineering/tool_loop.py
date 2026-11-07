@@ -116,6 +116,20 @@ def title(name: str, args: dict[str, Any]) -> str:
 HIDDEN = {'basis_hash', 'stale_reasons', 'source_refs', 'produced_by', 'inputs', 'trust', 'revision_history', 'audit'}
 
 
+HARNESS = 'tool-loop-v1'  # recorded on every turn, so the corpus can compare harness and prompt versions
+TRANSCRIPT_CHARS = 200_000
+
+
+def _bounded_transcript(messages):
+    """The model's view of the turn, minus the fixed system prompt (versioned by HARNESS), within a size bound."""
+    out, size = [], 0
+    for m in messages[1:]:
+        content = m.get('content') or ''
+        size += len(content)
+        out.append({**m, 'content': content if size <= TRANSCRIPT_CHARS else content[:500] + ' … [cut for size]'})
+    return out
+
+
 DRAFT_CHARS = 400
 
 
@@ -291,7 +305,8 @@ class ToolLoop:
             content = (result.output['content'] or '').strip()
             calls = result.output['tool_calls'] if not last_call else []
             if not calls:
-                self._finish(ctx, thread, turn_id, checkpoint, _with_draft(draft, content), [], shown, sources)
+                messages.append({'role': 'assistant', 'content': content})
+                self._finish(ctx, thread, turn_id, checkpoint, _with_draft(draft, content), [], shown, sources, messages)
                 return
             # Text beside a tool call is usually narration ("let me check…"), but a model may write the whole answer and
             # then call remember (live: the visitor saw only "…the four items above"). Keep such text as the draft.
@@ -310,7 +325,7 @@ class ToolLoop:
                     error = None
                 if call['name'] == ASK and not error:
                     messages.append({'role': 'tool', 'tool_call_id': call['id'], 'content': '{"status": "asked"}'})
-                    self._finish(ctx, thread, turn_id, checkpoint, _with_draft(draft, content), [str(args.get('question', '')).strip()], shown, sources)
+                    self._finish(ctx, thread, turn_id, checkpoint, _with_draft(draft, content), [str(args.get('question', '')).strip()], shown, sources, messages)
                     return
                 step = {'node_id': call['id'], 'task_kind': call['name'], 'title': title(call['name'], args), 'depends_on': [],
                         'payload': args, 'status': 'running', 'issues': [], 'started_at': iso(utc_now()), 'ended_at': None}
@@ -356,13 +371,16 @@ class ToolLoop:
                 checkpoint(tool_steps=steps, _loop={'messages': messages, 'model_calls': model_calls, 'draft': draft,
                                                    'seconds': monotonic() - started})
 
-    def _finish(self, ctx, thread, turn_id, checkpoint, reply, questions, shown, sources) -> None:
+    def _finish(self, ctx, thread, turn_id, checkpoint, reply, questions, shown, sources, messages=None) -> None:
         from .conversation_schemas import ChatDecision
         reply = reply or ('' if questions else 'I could not produce an answer from the available records.')
         decision = ChatDecision.model_validate({'reply': (reply or questions[0] or '-')[:4000], 'questions': questions[:4], 'workflow': []})
         thread = self.s._thread(ctx, thread['id']).state
         grounding = self.s._grounding_or_unavailable(ctx, thread, sources, decision, shown.get('mission_context'))
-        checkpoint(reply=reply or None, questions=questions, grounding=grounding, _loop=None,
+        # Demo workspaces keep what the model actually saw (synthetic data) so the improvement corpus can replay a turn;
+        # customers' turns don't keep this working copy. Never shown in the UI (private field).
+        keep = {'_transcript': _bounded_transcript(messages)} if ctx.tenant_id.startswith('demo_') and messages else {}
+        checkpoint(reply=reply or None, questions=questions, grounding=grounding, _loop=None, harness=HARNESS, **keep,
                    status='needs_information' if questions else 'completed', system_message=None, issues=[])
         if reply:  # searchable by meaning from now on; the tick catches up if the embedding service is down
             user_text = self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', turn_id).state.get('user_text', '')
