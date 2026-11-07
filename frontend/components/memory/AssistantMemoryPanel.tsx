@@ -6,6 +6,8 @@ import { Button, Pill, type Tone } from '@/components/ui';
 import { assistantMemory, BASIS_LABEL, consolidateMemory, formatDate, NOTE_KIND_LABEL, proposeSiteRule, setNoteStatus,
   type AssistantMemory, type MemoryNote } from '@/lib/memory-api';
 
+// People see record names, not system IDs such as sig_01M6… (those identify a signal to software, not to a person).
+const source = (s: { kind: string; id: string }) => `${s.kind.replace(/_/g, ' ')}${/^[a-z]+_[0-9A-Z]{16,}$/.test(s.id) ? '' : ` ${s.id}`}`;
 const STATUS_TONE: Record<MemoryNote['status'], Tone> = { active: 'success', stale: 'warning', superseded: 'muted', forgotten: 'muted', wrong: 'muted' };
 
 /** What the assistant remembers for you: its notes (each with the records it rests on), entity pages, and controls. */
@@ -52,7 +54,7 @@ export function AssistantMemoryPanel() {
       </div>
       <p className="mt-1 text-[13.5px] text-text-primary">{n.text}</p>
       {n.status === 'stale' && <p className="mt-1 text-[12px] text-amber-700">{n.stale_because.join('; ')}. The assistant re-checks the records before relying on it.</p>}
-      {!!n.sources.length && <p className="mt-1 text-[12px] text-text-tertiary">Based on {n.sources.map(s => `${s.kind.replace(/_/g, ' ')} ${s.id}`).join(', ')}</p>}
+      {!!n.sources.length && <p className="mt-1 text-[12px] text-text-tertiary">Based on {n.sources.map(source).join(', ')}</p>}
       <div className="mt-2 flex gap-2">
         <Link href={`/home/?conversation=${encodeURIComponent(n.conversation_id)}`} className="text-[12px] text-brand-teal underline">From this conversation</Link>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => void act(() => setNoteStatus(n.id, 'wrong', 'Marked wrong by owner'), 'Marked wrong. The assistant will not use it.')}>This is wrong</Button>

@@ -42,6 +42,7 @@ Memory:
 - Loaded every turn: the last two exchanges of this conversation, an index of its earlier turns, the person's standing rules and corrections, and memory_index (your most useful notes for this person). Nothing else from the past is loaded.
 - When the question touches earlier work or something you may have learned before, look it up: recall searches by meaning across your notes, entity pages and the person's earlier conversations (and memory others shared with them); open_memory opens a note or entity page; open_result reloads an earlier result of this conversation. Never guess what earlier work said.
 - Notes and earlier answers are interpretations, not records. A note marked stale has sources that changed: re-check the records before relying on it.
+- Call remember before you write your answer; your answer goes in your final message.
 - Use remember for what the records will not tell you next time: a validated lesson and how it was established, a decision the person made, their stated preference, an open thread, a trap or dead end. Do not save record values (the records keep them). Cite the records you read as sources; use basis user_stated for what the person told you, inferred for your interpretation. Save little, and only what will matter again.
 
 Answering:
@@ -113,6 +114,18 @@ def title(name: str, args: dict[str, Any]) -> str:
 
 # Provenance bookkeeping the host keeps; the model needs the content and the id (to cite or pass on), not these.
 HIDDEN = {'basis_hash', 'stale_reasons', 'source_refs', 'produced_by', 'inputs', 'trust', 'revision_history', 'audit'}
+
+
+DRAFT_CHARS = 400
+
+
+def _with_draft(draft: str, final: str) -> str:
+    """The answer the person sees: an answer drafted before a remember call, plus anything the final message adds."""
+    if not draft or draft in final:
+        return final
+    if not final or final in draft:
+        return draft
+    return f'{draft}\n\n{final}'
 
 
 def _for_model(output: Any) -> str:
@@ -249,6 +262,7 @@ class ToolLoop:
                     messages.append({'role': 'tool', 'tool_call_id': call['id'],
                                      'content': '{"error": "interrupted before it ran; call again if still needed"}'})
         steps = list(turn.get('tool_steps') or [])
+        draft = log.get('draft', '')
         model_calls, tool_calls = log.get('model_calls', 0), len(steps)
         started = monotonic() - log.get('seconds', 0.)
         checkpoint(context_used=self.s._context_used(shown.get('mission_context') or {}),
@@ -277,8 +291,12 @@ class ToolLoop:
             content = (result.output['content'] or '').strip()
             calls = result.output['tool_calls'] if not last_call else []
             if not calls:
-                self._finish(ctx, thread, turn_id, checkpoint, content, [], shown, sources)
+                self._finish(ctx, thread, turn_id, checkpoint, _with_draft(draft, content), [], shown, sources)
                 return
+            # Text beside a tool call is usually narration ("let me check…"), but a model may write the whole answer and
+            # then call remember (live: the visitor saw only "…the four items above"). Keep such text as the draft.
+            if content and (all(c['name'] == REMEMBER for c in calls) or len(content) >= DRAFT_CHARS):
+                draft = content
             messages.append({'role': 'assistant', 'content': content or None, 'tool_calls': [
                 {'id': c['id'], 'type': 'function', 'function': {'name': c['name'], 'arguments': c['arguments']}} for c in calls]})
             for call in calls:
@@ -292,7 +310,7 @@ class ToolLoop:
                     error = None
                 if call['name'] == ASK and not error:
                     messages.append({'role': 'tool', 'tool_call_id': call['id'], 'content': '{"status": "asked"}'})
-                    self._finish(ctx, thread, turn_id, checkpoint, content, [str(args.get('question', '')).strip()], shown, sources)
+                    self._finish(ctx, thread, turn_id, checkpoint, _with_draft(draft, content), [str(args.get('question', '')).strip()], shown, sources)
                     return
                 step = {'node_id': call['id'], 'task_kind': call['name'], 'title': title(call['name'], args), 'depends_on': [],
                         'payload': args, 'status': 'running', 'issues': [], 'started_at': iso(utc_now()), 'ended_at': None}
@@ -335,7 +353,7 @@ class ToolLoop:
                 steps.append(step)
                 tool_calls += 1
                 messages.append({'role': 'tool', 'tool_call_id': call['id'], 'content': _for_model(shown_result)})
-                checkpoint(tool_steps=steps, _loop={'messages': messages, 'model_calls': model_calls,
+                checkpoint(tool_steps=steps, _loop={'messages': messages, 'model_calls': model_calls, 'draft': draft,
                                                    'seconds': monotonic() - started})
 
     def _finish(self, ctx, thread, turn_id, checkpoint, reply, questions, shown, sources) -> None:

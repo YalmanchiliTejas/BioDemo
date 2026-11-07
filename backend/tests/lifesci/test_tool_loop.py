@@ -200,3 +200,21 @@ def test_large_transcripts_turn_old_results_into_pointers_and_never_overflow(env
     monkeypatch.setattr(tool_loop, 'HARD_CHARS', 7000)  # even pointers don't fit: answer now, don't overflow
     turn, fake = run(p, ctx, [read] * 3 + ['Answered with what fits.'])
     assert turn['status'] == 'completed' and fake.calls[-1]['tool_choice'] == 'none'
+
+
+def test_an_answer_written_beside_a_remember_call_is_not_lost(env):
+    """Live 2026-11-07: the triage was written beside a remember call, and the person saw only the closing recap."""
+    p, ctx = env
+    answer = 'DEV-77: foaming at 4 h in B-200 and DO fell to 25 %. ' + 'Evidence and next steps follow. ' * 20
+    turn, _ = run(p, ctx, [{'tool_calls': [read_case := call('workspace_read', kind='case', record_id='DEV-77', revision=revision(p))]},
+                           {'content': answer, 'tool_calls': [call('remember', text='DEV-77 foaming coincided with the DO drop.',
+                                                                    kind='open_thread', basis='inferred', sources=[{'kind': 'case', 'id': 'DEV-77'}])]},
+                           'Saved to memory. The items above are what I would request first.'])
+    assert turn['reply'].startswith('DEV-77: foaming') and turn['reply'].endswith('request first.')
+
+
+def test_narration_beside_a_lookup_is_not_shown_as_the_answer(env):
+    p, ctx = env
+    turn, _ = run(p, ctx, [{'content': 'Let me check the case.', 'tool_calls': [call('workspace_read', kind='case', record_id='DEV-77', revision=revision(p))]},
+                           'DEV-77 records foaming in B-200.'])
+    assert turn['reply'] == 'DEV-77 records foaming in B-200.'
