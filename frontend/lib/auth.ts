@@ -193,7 +193,7 @@ export class DemoSignedInError extends Error {
   constructor(public email: string) { super(`You're signed in as ${email}. The demo runs in a separate, anonymous workspace.`); }
 }
 
-export async function signInForDemo() {
+export async function signInForDemo(captchaToken?: string) {
   if (authMode() === 'development') {
     const current = localSession();
     if (current?.actor_id.startsWith('demo-visitor-')) return;
@@ -206,7 +206,10 @@ export async function signInForDemo() {
   if (user?.is_anonymous) return; // a returning demo visitor keeps their workspace
   // A real account never gets a demo tenant; say so instead of failing at the API.
   if (user) throw new DemoSignedInError(user.email ?? 'an account');
-  const { error } = await attempt(() => supabase().auth.signInAnonymously());
+  // With CAPTCHA on in Supabase (Attack Protection), anonymous sign-in needs the Turnstile token from the demo page.
+  const { error } = await attempt(() => supabase().auth.signInAnonymously(captchaToken ? { options: { captchaToken } } : undefined));
+  if (error && /captcha/i.test(error.message ?? ''))
+    throw new Error('The bot check didn’t go through. Wait a moment for it to finish, then press Start again.');
   if (error && /anonymous sign-ins are disabled/i.test(error.message ?? ''))
     throw new Error('Demo sign-in isn’t switched on for this site yet (Supabase anonymous sign-ins are disabled).');
   const message = plain(error, 'The demo could not start. Try again in a moment.');
