@@ -30,15 +30,19 @@ def publish(base=BASE/'frozen-v3',run=BASE/'agent-v1-executed'):
             'checks':r['verdict']['checks'] if r else {},'error':r['error'] if r else 'No recorded attempt',
             'failed_checks':[k for k,v in r['verdict']['checks'].items() if not v] if r else ['not_started'],
             'source_sha256':digest(case['source']),'reference_sha256':digest(ref),
+            'context_metric_policy_mismatch':bool(r and r['assessment'] and r['verdict']['checks'].get('no_invented_recommendation') is False
+                and r['assessment']['selected_recipe'] is None and r['assessment']['answer_status']=='out_of_scope'
+                and any(n['summary']['last_dried_percent']>=99.99999 and abs(n['summary']['last_elapsed_h']-(r['assessment']['completion_h'] or 0))<.01 for n in r['trace']['native_simulations'])),
             'literal_field_mismatch':bool(r and r['assessment'] and r['verdict']['checks'].get('missing_evidence_identified') is False
-                and all(re.search(r'(?<![\w.])'+re.escape(field)+r'(?![\w.])',' '.join(r['assessment']['missing_inputs'])) for field in ref.get('required_missing',[])))})
-    families=[{'id':k,'label':v,'total':sum(r['family']==k for r in rows),'passed':sum(r['passed'] and r['family']==k for r in rows)} for k,v in LABELS.items()]
+                and all(re.search(r'(?<![\w.])'+re.escape(field)+r'(?![\w.])',' '.join(r['assessment']['missing_inputs'])+' '+r['assessment']['rationale']) for field in ref.get('required_missing',[])))})
+    families=[{'id':k,'label':v,'total':sum(r['family']==k for r in rows),'passed':sum(r['passed'] and r['family']==k for r in rows),'literal_field_mismatches':sum(r['literal_field_mismatch'] and r['family']==k for r in rows)} for k,v in LABELS.items()]
     budget=results['budget'];settled=sum(r['accounted_usd'] for r in budget['records'] if r['usage_known'])
     data={'version':protocol['version'],'date':'2026-11-08','issue':'https://github.com/YalmanchiliTejas/BioDemo/issues/29',
         'total':len(rows),'passed':sum(r['passed'] for r in rows),'recorded':len(found),'families':families,'rows':rows,
         'model':'GLM-5.3','upstream_commit':protocol['upstream_commit'],'protocol_sha256':digest(protocol),
         'failures':dict(Counter(k for r in rows for k in r['failed_checks'])),
         'literal_field_mismatches':sum(r['literal_field_mismatch'] for r in rows),
+        'context_metric_policy_mismatches':sum(r['context_metric_policy_mismatch'] for r in rows),
         'solver_calls':sum(r['solver_calls'] for r in rows),
         'mean_seconds':statistics.mean(r['seconds'] for r in rows if r['seconds'] is not None),
         'cost':{'requests':budget['requests'],'accounted_usd':budget['accounted_usd'],'settled_estimate_usd':settled,
@@ -50,7 +54,7 @@ def publish(base=BASE/'frozen-v3',run=BASE/'agent-v1-executed'):
     write(out/'usage-receipts.json',budget)
     # Publish numerical evidence and reasoning, not local stores or configuration.
     write(out/'agent-evidence.json',[{'case_id':r['case_id'],'assessment':r['assessment'],'native_simulations':r['trace']['native_simulations'],
-        'reply':r['trace']['reply'],'turn_status':r['trace']['turn_status'],'error':r['error']} for r in results['records']])
+        'reply':r['trace']['reply'],'turn_status':r['trace']['turn_status'],'error':r['error'],'tool_steps':r['trace']['tool_steps']} for r in results['records']])
     stream=io.StringIO();writer=csv.DictWriter(stream,fieldnames=['id','family','passed','expected_status','answer_status','turn_status','seconds','solver_calls','failed_checks'])
     writer.writeheader()
     for row in rows:writer.writerow({k:';'.join(row[k]) if k=='failed_checks' else row[k] for k in writer.fieldnames})
@@ -76,11 +80,11 @@ Model GLM-5.3; LyoPRONTO 1.2.0 commit {data['upstream_commit']}. Limits: 10 mode
 {json.dumps(data['failures'],indent=2)}
 
 ### Frozen-grader limitation, identified after inference began
-The frozen missing-evidence check requires exact strings in missing_inputs. {data['literal_field_mismatches']} failed answers contain all required canonical field identifiers as complete tokens but add explanatory text to their list entries. These are flagged per case as literal_field_mismatch; do not interpret that check as proof of a scientific misunderstanding. Scores are not changed retrospectively. The supplied statuses and numerical checks retain their original rules. This audit is post hoc and is not an independently blinded semantic review.
+The frozen missing-evidence check requires exact strings in missing_inputs. {data['literal_field_mismatches']} failed answers contain all required canonical field identifiers as complete tokens in their missing-input text or rationale, but do not use the exact required list entries. These are flagged per case as literal_field_mismatch; do not interpret that check as proof of a scientific misunderstanding. {data['context_metric_policy_mismatches']} out-of-scope answers also include a completion value supported by their native simulation context, with no recipe selection. The frozen envelope requires null completion for every unsupported task, so these fail that rule; the failure alone does not establish that the value or a plant claim was invented. These are flagged as context_metric_policy_mismatch. Scores are not changed retrospectively. The supplied statuses and numerical checks retain their original rules. This audit is post hoc and is not an independently blinded semantic review. Recognizing a field does not validate the explanation: the R0 missing-input answer describes it as a zero-pressure resistance term, whereas the native Rp = R0 + A1*L/(1+A2*L) makes R0 the zero-dried-layer-thickness intercept. The deterministic field-name score does not catch that terminology error.
 
 
 ## Evidence and reproduction
-The protocol, environment versions, source hashes, public inputs and raw native reference trajectories were frozen before agent inference. Development qualification rejected an initial 6-minute horizon because its shelf ramp exceeded stage time; the final 60-minute truncation case preserves valid native schedule semantics. This happened before any agent inference. A scripted zero-inference application/solver preflight and 11 tests preceded the run. This is a small authored suite derived from one upstream example, not experimental data, a sealed broad generalization benchmark or a test of full production deployment. Scope/missing-evidence cases explicitly ask for appropriate status; those scores measure adherence on supplied questions, not spontaneous discovery of hidden incidents. The deterministic grader checks structured numerical decisions; it does not independently judge every sentence of rationale or final prose.
+The protocol, environment versions, source hashes, public inputs and raw native reference trajectories were frozen before agent inference. Development qualification rejected an initial 6-minute horizon because its shelf ramp exceeded stage time; the final 60-minute truncation case preserves valid native schedule semantics. This happened before any agent inference. A scripted zero-inference application/solver preflight and 11 tests preceded the run. This is a small authored suite derived from one upstream example, not experimental data, a sealed broad generalization benchmark or a test of full production deployment. Scope/missing-evidence cases explicitly ask for appropriate status; those scores measure adherence on supplied questions, not spontaneous discovery of hidden incidents. Provider sampling defaults were used without a pinned inference seed; repeated agent answers may differ. The deterministic grader checks structured numerical decisions; it does not independently judge every sentence of rationale or final prose.
 
 Private references were outside the agent workspace and tools; no shell tool was exposed. The tools preserve evidence IDs and source revisions, and save drafts requiring review. No manufacturing operation or approval was authorized.
 

@@ -28,6 +28,8 @@ infeasibility evidence. The application integration test uses a scripted
 provider and actual native solver: it is a zero-inference wiring check, not an
 agent performance result.
 
+Set `MODAL_BASE_URL` to the existing deployment’s OpenAI-compatible `/v1` endpoint before the paid command; the runner intentionally has no endpoint default. Credentials stay in the local environment and are never included in the reproduction archive.
+
 From repository root with the repository virtual environment:
 
 ```sh
