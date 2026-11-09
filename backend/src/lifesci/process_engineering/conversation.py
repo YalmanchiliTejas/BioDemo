@@ -26,9 +26,18 @@ from .demo_answers import DemoAnswers
 from . import tool_loop
 from .grounding import check_reply, source_text
 from .schemas import AdapterProposalIn
+from .library_schemas import ConfigurationIn,DatasetIn,LibraryPipelineSpec,LibraryPlanId,LibraryCatalogIn,LibraryReadIn,LibraryContextId,ModelExtensionIn
 
 VERSION = 'engineering-conversation-7'
 OPERATIONS = {
+    'model_library_catalog': LibraryCatalogIn,
+    'model_library_configure': ConfigurationIn,
+    'model_library_import_runs': DatasetIn,
+    'model_library_prepare': LibraryPipelineSpec,
+    'model_library_execute': LibraryPlanId,
+    'model_library_read': LibraryReadIn,
+    'model_library_refresh': LibraryContextId,
+    'model_library_propose_extension': ModelExtensionIn,
     'physical_demo_context': DemoInputs,
     'physical_context_variant': Variant,
     'physical_pipeline_prepare': ChatPipelineSpec,
@@ -49,8 +58,11 @@ OPERATIONS = {
 COMPUTED = ('physical_analysis_result', 'physical_analysis_comparison', 'physical_analysis_interpretation',
             'bioprocess_forecast', 'bioprocess_cho_forecast', 'assistant_workspace_result', 'assistant_demo_deviations')
 # ID fields consume direct scientific records, never request-shaped wrappers.
-CONTEXT_OUTPUTS = ('physical_demo_context', 'physical_context_variant')
+CONTEXT_OUTPUTS = ('physical_demo_context', 'physical_context_variant', 'model_library_configure', 'model_library_refresh')
 ID_BINDINGS = {
+    'model_library_prepare': {'simulation_id': CONTEXT_OUTPUTS, 'dataset_id': ('model_library_import_runs',)},
+    'model_library_execute': {'plan_id': ('model_library_prepare',)},
+    'model_library_propose_extension': {'context_id': CONTEXT_OUTPUTS},
     'physical_context_variant': {'source_id': CONTEXT_OUTPUTS},
     'physical_pipeline_prepare': {'simulation_id': CONTEXT_OUTPUTS},
     'physical_pipeline_execute': {'plan_id': ('physical_pipeline_prepare',)},
@@ -248,7 +260,7 @@ class EngineeringConversationService:
                 except (PermissionError, ValueError, KeyError):
                     continue
                 out.append({'id': rec.id, 'kind': kind, 'audience': rec.state['workspace']['audience'],
-                    'provenance': rec.state['input_bundle']['observation_provenance'], 'updated_at': rec.updated_at})
+                    'provenance': rec.state['input_bundle']['observation_provenance'], 'model_id':rec.state.get('model_id'), 'label':rec.state.get('label'), 'updated_at': rec.updated_at})
         return sorted(out, key=lambda s: s['updated_at'], reverse=True)[:20]
 
     def _memory_inputs_readable(self, ctx, state):
@@ -436,7 +448,9 @@ class EngineeringConversationService:
                 if artifact['kind'].startswith('bioprocess_') and data.get('status') not in ('stale', 'quarantined'):
                     summaries.append(_bounded(artifact['kind'], data))
                     continue
-                if artifact['kind'] == 'physical_analysis_result' and 'models' in data:
+                if artifact['kind'] == 'physical_analysis_result' and data.get('spec',{}).get('mode')=='model_library':
+                    summaries.append(self.analysis.library_agent_view(data))
+                elif artifact['kind'] == 'physical_analysis_result' and 'models' in data:
                     summaries.append({'id': data['id'], 'source_id': data['spec']['simulation_id'], 'models': [
                         {'model_id': m['model_id'], 'status': m['status'], 'applicability': m.get('applicability'), 'error': m.get('error'), 'prediction_summary': {k: (m.get('prediction') or {}).get(k) for k in
                             ('completion_time_h', 'minimum_critical_margin_c', 'violations', 'warnings')},
@@ -459,7 +473,7 @@ class EngineeringConversationService:
             'saved_work_index': self.workspace.search(ctx, thread, kinds=['engineering_chat_turn'], limit=10),
             'workspace_capabilities': {'record_kinds': list(KINDS),
                 'remaining_planning_calls': 3 - self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', thread['turn_ids'][-1]).state.get('planning_calls_admitted', 0)},
-            'demo_sources_enabled': thread['demo_enabled'], 'registered_models': self.analysis.catalog.snapshot(),
+            'demo_sources_enabled': thread['demo_enabled'], 'registered_models': [{k:d[k] for k in ('id','title','process_family','version','qualification','hybrid_adaptation')} for d in self.analysis.catalog.snapshot()],
             'bioprocess_models_and_demo_cases': self.p.bioprocess.catalog(),
             'response_schema': ChatDecision.model_json_schema(),
             'operator_payload_schemas': {k: v.model_json_schema() for k, v in OPERATIONS.items()},
@@ -494,6 +508,7 @@ class EngineeringConversationService:
                 'Read current revisions from workspace_index or a search result. Event envelopes describe historical changes, not readable current versions. On a stale read error, search again or use the current index; never keep retrying the obsolete revision. Follow linked case evidence before broad searches. Give the final answer in at most three short sentences; the source tables and timeline artifacts carry detail.',
                 'workspace_propose_action creates a draft only, with evidence actually inspected in this turn, owner and follow-up measure. Use it only when asked to prepare an action or the standing background objective authorizes drafts. It cannot approve, dispatch, release or change equipment. Do not claim a proposal was executed. Include continue_after_workflow=true if a scientific result needs subsequent reasoning, otherwise false.',
                 'If discovery finds no applicable source, ask for missing evidence. Only when demo_sources_enabled is true may physical_demo_context create the published/reconstructed example (technology_transfer or cdmo_operation). Clearly label this reconstruction and synthetic observations.',
+                'Use model_library_catalog to discover family contracts. For non-drying processes use evidence-backed model_library_configure, import partitioned runs, prepare an operation, execute, and read the saved artifacts. Never invent physical configuration values: they must match the versioned JSON source. Calibration/test labels do not choose neural weights; intervals stay uncalibrated without enough independent batches. Source changes stale affected results; model_library_refresh rebuilds context from current originals, then explicitly reprepare affected work. When evidence points to a missing or changed physical mechanism, use model_library_propose_extension (cite the inspected results); never alter equations, add residual corrections or relabel a refit as a mechanism.',
                 'For other processes discuss missing adapters; propose a reviewed specification only if a source context exists. Do not force unsupported problems into freeze-drying.',
                 'For simulations choose appropriate registered models with rationale, prepare a typed pipeline, execute it, and optionally assess results. Transient requires explicit thermal assumptions from the user; do not invent them.',
                 'To compare operating scenarios, create independent physical_context_variant nodes, prepare/execute each, then physical_results_compare. A change is a synthetic what-if, not a correction to equipment characterization.',
@@ -508,7 +523,7 @@ class EngineeringConversationService:
         if not (thread['source_ids'] or thread.get('dataset_ids') or thread.get('case_ids') or thread['demo_enabled']):
             # Progressive tool disclosure: do not spend context on numerical adapters
             # before a process context or explicit demo permission exists.
-            prompt['operator_payload_schemas'] = {k: v for k, v in prompt['operator_payload_schemas'].items() if k.startswith('workspace_')}
+            prompt['operator_payload_schemas'] = {k: v for k, v in prompt['operator_payload_schemas'].items() if k.startswith(('workspace_','model_library_'))}
             prompt['registered_models'] = {'status': 'Discover and read a physical_analysis_context or process_simulation first; numerical schemas are exposed after an authorized context read.'}
             prompt['bioprocess_models_and_demo_cases'] = {'status': 'Simulated examples require explicit demo permission; verified datasets require discovery and source verification.'}
             scientific_prefixes = ('Sources of kind verified_cmo_dataset', 'Bioprocess models', 'For CHO questions',
@@ -890,6 +905,51 @@ class EngineeringConversationService:
                                'Proposed investigation · press Start to run it' if record['executor_configured']
                                else 'Proposed investigation · execution is not configured')
                 return {'status': 'completed', 'output': record, 'issues': []}
+            elif name.startswith('model_library_'):
+                if name=='model_library_catalog':
+                    values=self.analysis.models(ctx)['models']
+                    values=[d for d in values if (not payload.model_id or d['id']==payload.model_id) and (not payload.process_family or d['process_family']==payload.process_family)]
+                    with self.p.store.transaction(ctx.actor_id) as tx:
+                        self._active_turn(ctx,turn,tx)
+                        record=self.workspace.save_result(ctx,thread,turn,{'data':{'models':values},'source_refs':[self.analysis._catalog_ref(ctx,thread['site_id']).to_dict()]},'Scientific model catalogue')
+                        self._remember(ctx,turn,'assistant_workspace_result',record,'Scientific model catalogue')
+                    return {'status':'completed','output':record,'issues':[]}
+                if name in ('model_library_configure','model_library_import_runs') and payload.site_id!=thread['site_id']:
+                    raise PermissionError('Configuration/dataset outside this conversation site')
+                if name=='model_library_configure':
+                    record=self.analysis.create_configuration(ctx,payload);kind='physical_analysis_context'
+                elif name=='model_library_import_runs':
+                    record=self.analysis.import_runs(ctx,payload);kind='physical_model_dataset'
+                elif name=='model_library_refresh':
+                    prior=self.p.store.read().require(ctx.tenant_id,'physical_analysis_context',payload.context_id)
+                    if prior.state['site_id']!=thread['site_id']:raise PermissionError('Context outside this conversation')
+                    record=self.analysis.refresh_configuration(ctx,payload.context_id)['context'];kind='physical_analysis_context'
+                elif name=='model_library_prepare':
+                    if payload.simulation_id not in thread['source_ids']:raise PermissionError('Read/attach this configuration before preparing work')
+                    if payload.max_solver_calls>96 or payload.max_wall_seconds>90:raise ValueError('Assistant library analysis allows <=96 solver calls and <=90 seconds')
+                    record=self.analysis.prepare(ctx,payload,basis_refs=[ref],authored_by_agent=True);kind='physical_analysis_plan'
+                elif name=='model_library_execute':
+                    plan=self._owned_artifact(ctx,thread,'physical_analysis_plan',payload.plan_id)
+                    if plan['spec'].get('mode')!='model_library':raise ValueError('Use the legacy physical executor for legacy pipelines')
+                    admission=plan['spec']['max_solver_calls']
+                    if turn['solver_calls_admitted']+admission>96 or turn.get('analysis_executions_admitted',0)>=3:raise ValueError('Conversation numerical execution budget exhausted')
+                    self._update_turn(ctx,tid,solver_calls_admitted=turn['solver_calls_admitted']+admission,analysis_executions_admitted=turn.get('analysis_executions_admitted',0)+1)
+                    record=self.analysis.execute(ctx,payload.plan_id,commit_guard=lambda tx:self._active_turn(ctx,turn,tx));kind='physical_analysis_result'
+                    self._update_turn(ctx,tid,solver_calls_used=turn['solver_calls_used']+record['resource_usage']['solver_calls'])
+                elif name=='model_library_propose_extension':
+                    if payload.context_id not in thread['source_ids'] or payload.owner_id!=thread['owner_id']:
+                        raise PermissionError('extension proposal must use this conversation context and owner')
+                    record=self.analysis.propose_model_extension(ctx,payload);kind='proposal'
+                    self._remember(ctx,turn,kind,record,'Model extension specification · review required')
+                    return {'status':'completed','output':record,'issues':[]}
+                else:
+                    record=self.analysis._library_record(ctx,payload.kind,payload.record_id);kind=payload.kind
+                    if record['site_id']!=thread['site_id']:raise PermissionError('Artifact outside this conversation')
+                self._active_turn(ctx,turn,self.p.store.read())
+                title='Pharmaceutical model library · '+name.removeprefix('model_library_')
+                self._remember(ctx,turn,kind,record,title)
+                return {'status':'completed' if record.get('execution_status')!='failed' else 'failed',
+                        'output':self.analysis.library_agent_view(record),'issues':[str(record['error'])] if record.get('error') else []}
             elif name == 'physical_demo_context':
                 if not thread['demo_enabled']:
                     raise PermissionError('example reconstruction has not been selected by the user')

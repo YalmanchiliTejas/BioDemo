@@ -19,7 +19,7 @@ def fit_source(p):
             'gas_exponent_identified': False, 'source_kla_h_inv':lo['kla_h_inv'], 'source_power_w_m3':lo['aerated_power_density_kw_m3']*1000,
             'classification':'fitted_parameter_from_two_rounded_source_summaries'}
 
-def transfer_point(p, vessel_l, rpm, vvm, gas_exponent=.5):
+def transfer_point(p, vessel_l, rpm, vvm, gas_exponent=.5, *, kla_model=None):
     a = p['equipment'][0]
     b = next(e for e in p['equipment'] if e['working_volume_l'] == vessel_l)
     f = fit_source(p); row = p['calibration'][0]
@@ -28,20 +28,24 @@ def transfer_point(p, vessel_l, rpm, vvm, gas_exponent=.5):
     pd = f['source_power_w_m3'] * ratio * (rpm/row['agitation_rpm'])**3
     flow_ratio = vvm / (row['airflow_l_min']/row['working_volume_l'])
     kla = f['source_kla_h_inv'] * (pd/f['source_power_w_m3'])**f['power_exponent'] * flow_ratio**gas_exponent
+    factor = 1. if kla_model is None else float(kla_model(pd, vvm, b))
+    if not math.isfinite(factor) or not .25 <= factor <= 4.:
+        raise ValueError("learned kLa multiplier must remain in [.25, 4]")
+    kla *= factor
     # Sensitivity bounds, not statistical prediction intervals. Receiver geometry multiplier is uncalibrated.
-    bounds = [f['source_kla_h_inv']*(pd/f['source_power_w_m3'])**f['power_exponent']*flow_ratio**beta*geometry
+    bounds = [f['source_kla_h_inv']*(pd/f['source_power_w_m3'])**f['power_exponent']*flow_ratio**beta*geometry*factor
               for beta, geometry in itertools.product([0., .8], [.5, 2.])]
     return {'receiver_l':vessel_l,'rpm':rpm,'airflow_l_min':vvm*vessel_l,'vvm':vvm,'power_w_m3':pd,'hydrodynamic_power_w':pd*vessel_l/1000,
             'tip_speed_m_s':math.pi*b['impeller_diameter_mm']/1000*rpm/60,'predicted_kla_h_inv':kla,
             'sensitivity_low_h_inv':min(bounds),'sensitivity_high_h_inv':max(bounds),'sensitivity_label':'Assumed gas exponent0–0.8 and receiver geometry multiplier0.5–2; not calibrated confidence bounds'}
 
-def sulfolobus(config):
+def sulfolobus(config, *, kla_model=None):
     p, s = config['project'], Assumptions.model_validate(config.get('assumptions', {}))
     f=fit_source(p); candidates=[]; recommendations=[]
     for vessel, speeds in [(20,range(150,501,25)), (200,range(60,241,15))]:
         local=[]
         for n, vvm in itertools.product(speeds,[.15,.25,.35]):
-            row=transfer_point(p,vessel,n,vvm,s.gas_exponent)
+            row=transfer_point(p,vessel,n,vvm,s.gas_exponent,kla_model=kla_model)
             row['meets_nominal_kla_target']=row['predicted_kla_h_inv'] >= p['reference_kla_h_inv']
             row['within_assumed_power_screen']=row['power_w_m3'] <= s.power_screen_w_m3
             row['robust_to_declared_sensitivity']=row['sensitivity_low_h_inv'] >= p['reference_kla_h_inv']
@@ -51,11 +55,11 @@ def sulfolobus(config):
         recommendations.append({'receiver_l':vessel,'candidate':min(local,key=lambda x:(x['hydrodynamic_power_w'],x['airflow_l_min'])) if local else None,
                                 'approval_status':'engineering_review_required','rated_equipment_feasibility':'unknown'})
     if s.selected_receiver_l not in (20,200): raise ValueError('receiver must be20L or200L')
-    selected=transfer_point(p,s.selected_receiver_l,s.rpm,s.airflow_vvm,s.gas_exponent)
+    selected=transfer_point(p,s.selected_receiver_l,s.rpm,s.airflow_vvm,s.gas_exponent,kla_model=kla_model)
     return {'case_id':p['id'],'calibration':f,'selected_scenario':selected,'scenarios':candidates,'recommendations':recommendations,
             'selection_criterion':'Lowest hydrodynamic power among declared grid points meeting nominal kLa and the assumed power screen; air compression is not characterized and rated limits remain unknown.',
             'grid_definition':{'20L_rpm':[150,500,25],'200L_rpm':[60,240,15],'vvm':[.15,.25,.35],'classification':'scenario_search_bounds_not_certified_equipment_limits'},
-            'copy_source_recipe':[transfer_point(p,v,355,.51/2,s.gas_exponent) for v in (20,200)],
+            'copy_source_recipe':[transfer_point(p,v,355,.51/2,s.gas_exponent,kla_model=kla_model) for v in (20,200)],
             'rationale':'Copying rpm changes power density through impeller count, D^5 and volume. Copying L/min changes specific aeration. Constant turbulent power number and vvm kLa scaling are challenged hypotheses, not established receiver correlations.',
             'equations':['P/V proportional to n_impellers × N^3 × D^5 / V at equal density, power number and gassing factor',
                          'kLa/kLa0 = ((P/V)/(P/V)0)^alpha × (vvm/vvm0)^beta × receiver_geometry_factor',

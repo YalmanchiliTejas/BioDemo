@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
+const PharmaceuticalModelLibrary = dynamic(() => import('./PharmaceuticalModelLibrary'), {loading:()=> <p>Loading model library…</p>});
 import { ArrowDownToLine, Play, FlaskConical } from 'lucide-react';
 import { Callout, Card, CardBody, CardHeader, Pill, Stat } from '@/components/ui';
 import { WorkspacePageHeader } from '@/components/shell/WorkspacePageHeader';
@@ -33,6 +35,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export default function ProcessSimulation() {
+  const [libraryOpen,setLibraryOpen]=useState(false);
   const [audience, setAudience] = useState<'technology_transfer' | 'cdmo_operation'>('technology_transfer');
   const [shelf, setShelf] = useState(-24);
   const [load, setLoad] = useState(11000);
@@ -99,6 +102,8 @@ export default function ProcessSimulation() {
   if (bands) for (const q of [0, 2]) tempSeries.push({ id: q === 0 ? 'Sample P05 · active vials' : 'Sample P95 · active vials', color: '#94a3b8', dataPoints: bands.map(r => ({ elapsedHours: r.time_h, value: r.temperature_c_p05_p50_p95[q] })) });
 
   return <div className="workspace-page space-y-4">
+    <nav className="flex gap-3 border-b border-border-hairline pb-3" aria-label="Process simulation workspace"><button className="rounded border border-border-strong px-4 py-2 text-sm" aria-pressed={libraryOpen} onClick={()=>setLibraryOpen(true)}>Pharmaceutical model library</button><button className="rounded border border-border-strong px-4 py-2 text-sm" aria-pressed={!libraryOpen} onClick={()=>setLibraryOpen(false)}>Freeze-drying examples</button></nav>
+    {libraryOpen ? <PharmaceuticalModelLibrary/> : <>
     <WorkspacePageHeader title="Process simulation"
       status={<Pill tone="info">Demonstration</Pill>}
       description="Compare operating scenarios and predicted outcomes for technology transfer and CDMO operation." />
@@ -151,6 +156,7 @@ export default function ProcessSimulation() {
         {proposal && <div className="mt-4 p-4 bg-teal-50 rounded" role="status"><p className="font-medium">Review package saved · {proposal.proposal_id}</p><p>Status: {proposal.status} · execution: {proposal.execution_status} · required reviewers: {proposal.required_roles.join(', ')}</p><p>Owner: {proposal.owner_id} · {proposal.expected_result}</p><p className="mt-2">No production action was taken. MSAT and QA must each review this proposal.</p></div>}
       </CardBody></Card>
       <Card><CardHeader title="Scientific record" subtitle={`${run.id} · ${run.model_version} · ${run.status} · executed in ${fmt(workspace.runtime_seconds)} s`} actions={<><button onClick={refresh} className="underline text-xs">Check currentness</button><button onClick={download} className="flex items-center gap-1 text-xs underline"><ArrowDownToLine size={14} />Export record</button></>} /><CardBody><p>Input lineage: {run.source_revision_manifest.map(r => `${r.id} @ revision ${r.revision}`).join(', ')}.</p><details className="mt-3"><summary className="cursor-pointer font-medium">Inspect parameters and provenance</summary><div className="overflow-auto max-h-80"><table className="w-full text-xs text-left mt-2"><thead><tr>{['Parameter', 'Value / unit', 'Category', 'Source location / extraction'].map(h => <th className="p-2" key={h}>{h}</th>)}</tr></thead><tbody>{run.input_bundle.parameter_manifest.map(p => <tr key={p.parameter}><td className="p-2">{p.parameter}</td><td className="p-2">{p.value} {p.unit}</td><td className="p-2">{p.category}</td><td className="p-2">{p.location_or_transformation}</td></tr>)}</tbody></table></div></details><details className="mt-3"><summary className="cursor-pointer font-medium">Applicability and numerical warnings</summary><ul className="list-disc pl-5 mt-2 space-y-1">{option.result.warnings.map(w => <li key={w}>{w}</li>)}</ul></details></CardBody></Card>
+    </>}
     </>}
   </div>;
 }

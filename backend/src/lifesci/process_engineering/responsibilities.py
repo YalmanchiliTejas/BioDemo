@@ -86,7 +86,11 @@ class AssistantResponsibilities:
             for _, e in page:
                 if e.event_id in pending:
                     found.add(e.event_id)
-                    if not e.aggregate_id.startswith('engineering-user-instruction:'):
+                    internal=False
+                    if e.aggregate_kind=='evidence':
+                        rec=self.p.store.read().get(ctx.tenant_id,'evidence',e.aggregate_id)
+                        internal=bool(rec and rec.state.get('source_system') in ('scientific-model-catalog','process-analysis-assumptions','pharmaceutical-run-packet'))
+                    if not internal and not e.aggregate_id.startswith('engineering-user-instruction:'):
                         events.append(e)
             cursor = page[-1][0]
         if pending - found:

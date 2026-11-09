@@ -22,6 +22,7 @@ from .store import ConflictError, RecordStore, Transaction
 RISK_POLICY: dict[str, tuple[str, tuple[str, ...]]] = {
     "review_physical_analysis": ("medium", ("engineering",)),
     "review_scientific_model_adapter": ("medium", ("engineering",)),
+    "review_model_extension": ("medium", ("engineering",)),
     "release_batch": ("critical", ("qa", "qa_reviewer")),
     "reject_batch": ("critical", ("qa", "qa_reviewer")),
     "invalidate_result": ("critical", ("qa", "qa_reviewer")),
