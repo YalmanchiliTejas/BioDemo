@@ -6,7 +6,7 @@ All 16 seeded persona scenarios completed against the configured production GLM-
 
 These checks cover host integration and demo usability, not customer validation or calibrated pharmaceutical accuracy. Some live turns recovered from rejected tool arguments; completion is not a claim that future inputs can never fail. Each persona has a separate tenant and role. Existing isolation, permissions, usage caps, expiry, source version checks and approval boundaries remain enforced.
 
-The public API health check returned OK with model availability and no pending outbox events. The public LyoHUB research page and guided tour returned HTTP 200. The public release was a792d0c (PR #32, incorporating code only through 4944afb); it did not contain the later configuration-discovery fix. This audit's corrected branch must ship before the live demo can be considered covered by these checks. The automated browser could not pass the public Cloudflare challenge; a human private-window sign-in check remains required. No CAPTCHA or authentication bypass was added.
+The public API health check returned OK with model availability and no pending outbox events. The public LyoHUB research page and guided tour returned HTTP 200. The public release was a792d0c (PR #32, incorporating code only through 4944afb); it did not contain the later configuration-discovery fix. This audit's corrected branch must ship before the live demo can be considered covered by these checks. The automated browser could not pass the public Cloudflare challenge; the user independently confirmed that public private-window sign-in reaches a workspace after the human check. No CAPTCHA or authentication bypass was added.
 
 ## Issues reproduced and fixed
 
@@ -48,3 +48,5 @@ PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/lifesci/test_demo_wo
 ```
 
 In `frontend`, run `npm run lint`, `npm run check:auth`, and `npm run build`. Use a fresh live-output directory to retain prior records.
+
+Release PR: https://github.com/YalmanchiliTejas/BioDemo/pull/33. Public sign-in was confirmed by the user during this audit; deployment of the corrected branch remains a separate release step.
