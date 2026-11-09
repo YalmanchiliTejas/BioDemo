@@ -462,6 +462,9 @@ def test_demo_scenario_agent_discovers_reads_and_executes_without_reconstruction
             elif self.n == 4:
                 plan = p.store.read().list(tenant, 'physical_analysis_plan')[-1]
                 name, args = 'model_library_execute', {'plan_id': plan.id}
+            elif self.n in (5, 6):
+                result = p.store.read().list(tenant, 'physical_analysis_result')[-1]
+                name, args = 'model_library_read', {'kind': 'physical_analysis_result', 'record_id': result.id}
             else:
                 return Completion('The conditional synthetic result is saved for review.', 1, 1)
             return Completion('', 1, 1, tool_calls=({'id': 'demo-library-' + str(self.n),
@@ -481,6 +484,11 @@ def test_demo_scenario_agent_discovers_reads_and_executes_without_reconstruction
     results = p.store.read().list(tenant, 'physical_analysis_result')
     assert len(results) == 1 and results[0].state['execution_status'] == 'completed'
     assert turn['solver_calls_used'] == 1
+    charts = [a for a in turn['artifacts'] if a['kind'] == 'physical_analysis_result']
+    assert len(charts) == 1, 'Executing and reading the same saved result must render one chart'
+    assert charts[0]['inspected_ref']['id'] == results[0].id
+    stored = p.store.read().require(tenant, 'engineering_chat_turn', turn['id']).state
+    assert len([a for a in stored['artifacts'] if a['kind']=='physical_analysis_result']) == 1
     assert all(step['status'] == 'completed' for step in turn['steps'])
     assert view['demo_enabled'] is False
     assert not p.store.read().list(tenant, 'physical_model_checkpoint')
@@ -529,3 +537,33 @@ def test_every_seeded_library_choice_executes_its_own_model(p):
         assert result['execution_status'] == 'completed', (model_id, result['error'])
         assert result['resource_usage']['solver_calls'] == 1
         assert result['output']['simulation'], model_id
+
+
+def test_saved_duplicate_charts_are_hidden_but_distinct_runs_remain_visible(p):
+    tenant = p.demo.provision('anon-historical-charts', 'process_engineer', True)['tenant_id']
+    ctx = p.identity.context_for(tenant, 'anon-historical-charts')
+    service = p.engineering_conversations
+    thread = service.create(ctx, {'site_id':'NF1'})
+    queued = service.enqueue(ctx,thread['id'],{'text':'Review the saved simulation.', 'expected_revision':thread['revision']})
+    context = next(r for r in p.store.read().list(tenant,'physical_analysis_context')
+                   if r.state['model_id']=='chemical.parallel_batch')
+    results = []
+    for _ in range(2):
+        plan = p.process_models.analysis.prepare(ctx,{'mode':'model_library','context_id':context.id,
+            'model_id':'chemical.parallel_batch','operation':'simulate','objective':'Simulate the same configuration independently.',
+            'max_solver_calls':2})
+        results.append(p.process_models.analysis.execute(ctx,plan['id']))
+    first = {'kind':'physical_analysis_result','id':results[0]['id'],'title':'Executed simulation'}
+    reread = {**first,'title':'Read simulation','inspected_ref':{'kind':first['kind'],'id':first['id'],'revision':1,'site_id':'NF1'}}
+    second = {'kind':'physical_analysis_result','id':results[1]['id'],'title':'Separate execution with the same inputs'}
+    tid = queued['turn_ids'][-1]
+    with p.store.transaction(ctx.actor_id) as tx:
+        old = tx.require(tenant,'engineering_chat_turn',tid)
+        tx.put(tenant,old.kind,old.id,{**old.state,'status':'completed','artifacts':[first,reread,second]},
+               expected_revision=old.revision,action='historical_duplicate_fixture')
+    visible = service.get(ctx,thread['id'])['turns'][-1]['artifacts']
+    assert [a['id'] for a in visible] == [results[0]['id'],results[1]['id']]
+    assert visible[0]['inspected_ref'] == reread['inspected_ref']
+    assert visible[0]['title'] == first['title']
+    # Repair the display without rewriting historic evidence or tool receipts.
+    assert len(p.store.read().require(tenant,'engineering_chat_turn',tid).state['artifacts']) == 3

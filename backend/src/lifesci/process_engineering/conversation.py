@@ -28,6 +28,21 @@ from .grounding import check_reply, source_text
 from .schemas import AdapterProposalIn
 from .library_schemas import ConfigurationIn,DatasetIn,LibraryPipelineSpec,LibraryPlanId,LibraryCatalogIn,LibraryReadIn,LibraryContextId,ModelExtensionIn
 
+
+def unique_artifact_refs(refs):
+    """One visible artifact per saved record, retaining its latest inspection receipt."""
+    out, positions = [], {}
+    for ref in refs:
+        key = (ref['kind'], ref['id'])
+        if key not in positions:
+            positions[key] = len(out)
+            out.append(dict(ref))
+        else:
+            # Retain the original presentation title while a reread updates provenance.
+            out[positions[key]].update({k: v for k, v in ref.items() if k != 'title'})
+    return out
+
+
 VERSION = 'engineering-conversation-7'
 OPERATIONS = {
     'model_library_catalog': LibraryCatalogIn,
@@ -182,6 +197,7 @@ class EngineeringConversationService:
         turns = []
         for tid in rec.state['turn_ids']:
             turn = deepcopy(self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', tid).state)
+            turn['artifacts'] = unique_artifact_refs(turn['artifacts'])
             display_flow_id = turn.get('flow_run_id') or next(iter(reversed(turn.get('flow_run_ids', []))), None)
             if turn.get('tool_steps'):  # tool loop: each call is a step, shown as it happens
                 turn['steps'] = turn['tool_steps']
@@ -792,7 +808,7 @@ class EngineeringConversationService:
                 artifact['inspected_ref'] = {'kind': kind, 'id': artifact['id'],
                     'revision': record['revision'], 'site_id': record['site_id']}
             tx.put(ctx.tenant_id, 'engineering_chat_turn', turn['id'],
-                {**current.state, 'artifacts': [*current.state['artifacts'], artifact]},
+                {**current.state, 'artifacts': unique_artifact_refs([*current.state['artifacts'], artifact])},
                 expected_revision=current.revision, action='attach_engineering_artifact')
             if current.state.get('flow_run_id'):
                 tx.add_edge(ctx.tenant_id, (kind, artifact['id']), ('data_flow_run', current.state['flow_run_id']), 'scientific_output_basis')
