@@ -100,7 +100,7 @@ def seed(platform: Any, tenant: str, visitor: str, persona: str) -> dict[str, An
                                                                      'description': 'Foaming at 4 h; DO below 30 % (synthetic)'}})
     contexts = seed_model_library(platform, qa, SITE)
     return {'dataset_id': dataset['evidence_id'], 'cases': ['DEV-12', 'DEV-19', 'DEV-31'], 'site_id': SITE,
-            'persona': persona, 'model_library_contexts': contexts}
+            'persona': persona, 'model_library_contexts': contexts, 'model_library_seed_version': 1}
 
 
 def seed_model_library(platform: Any, ctx: Any, site: str) -> list[str]:
@@ -114,8 +114,17 @@ def seed_model_library(platform: Any, ctx: Any, site: str) -> list[str]:
         'fermentation.oxygen_transfer': {'project': project('sulfolobus'), 'assumptions': {}},
         'fermentation.pressure_cost': {'project': project('pichia'), 'assumptions': {}},
     }
+    platform.process_models.analysis._catalog_ref(ctx, site)
     ids = []
     for model_id, config in configs.items():
+        existing = platform.store.read().list(ctx.tenant_id, 'physical_analysis_context',
+            lambda s: s.get('site_id') == site and s.get('model_id') == model_id
+            and s.get('label') == 'SYNTHETIC · ' + model_id and s.get('status') == 'current'
+            and s.get('classification') == 'synthetic_assumption'
+            and s.get('input_bundle', {}).get('config') == config)
+        if existing:
+            ids.append(existing[-1].id)
+            continue
         original = platform.evidence.ingest(
             ctx, source_system='pharmaceutical-synthetic-demo', source_record_id=model_id,
             content=json.dumps({'config': config, 'evidence_classification': 'synthetic_assumption'}, sort_keys=True).encode(),

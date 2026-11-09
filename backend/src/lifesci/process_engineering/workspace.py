@@ -27,7 +27,7 @@ FIELDS = {
     'procedure_instance': ('instance_id', 'status', 'batch_id', 'procedure_id', 'steps'),
     'claim': ('case_id', 'classification', 'text', 'statement', 'evidence_refs', 'counterevidence_refs', 'unknowns'),
     'proposal': ('operation', 'target_id', 'status', 'rationale', 'expected_result', 'follow_up_measure', 'execution_status', 'effectiveness', 'basis'),
-    'physical_analysis_context': ('workspace', 'input_bundle'),
+    'physical_analysis_context': ('model_id', 'model_version', 'label', 'classification', 'configuration_contract', 'workspace', 'input_bundle'),
     'process_simulation': ('workspace', 'input_bundle'),
     'engineering_chat_turn': ('user_text', 'reply', 'created_at', 'status', 'artifacts'),
     'evidence': ('source_system', 'source_record_id', 'event_time', 'recorded_at', 'media_type', 'metadata', 'size'),
@@ -124,9 +124,10 @@ class WorkspaceTools:
         return {**ref, **({'memory': f"from {ref['shared_from']}'s shared memory (read-only, shared with you)"} if ref.get('shared_from') else {}),
             'status': s.get('status'), 'time': timestamp, 'time_basis': time_key,
             'label': str((f"{s.get('severity', '')} signal · {s.get('rule', '')}" if rec.kind == 'deviation_signal' else None)
-                         or s.get('case_id') or s.get('source_record_id') or s.get('user_text') or rec.id)[:180],
+                         or s.get('label') or s.get('case_id') or s.get('source_record_id') or s.get('user_text') or rec.id)[:180],
             'classification': 'saved_conversation_not_verified_finding' if rec.kind == 'engineering_chat_turn'
-                else s.get('metadata', {}).get('classification'),
+                else s.get('classification') or s.get('metadata', {}).get('classification'),
+            **({'model_id': s.get('model_id'), 'model_version': s.get('model_version')} if rec.kind == 'physical_analysis_context' else {}),
             'timeline_events': len(s.get('timeline', [])) if rec.kind == 'case' else None}
 
     def search(self, ctx, thread, *, kinds=None, query='', limit=20):

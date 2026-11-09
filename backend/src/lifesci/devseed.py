@@ -65,5 +65,7 @@ def seed(platform: Platform) -> dict[str, Any]:
         priya, objective="SYNTHETIC: understand the lower titer in F-2408", owner_id="priya",
         scope={"site_ids": [SITE], "batch": "F-2408"}, constraints=["no recipe change without QA approval"],
         subscriptions=[{"type": "evidence.", "site_id": SITE}])
-    return {"tenant": TENANT, "site": SITE, "mission_id": mission["mission_id"], "evidence": refs,
+    from .demo_seed import seed_model_library
+    library = seed_model_library(platform, idn.context_for(TENANT, "priya"), SITE)
+    return {"model_library_contexts": library, "tenant": TENANT, "site": SITE, "mission_id": mission["mission_id"], "evidence": refs,
             "people": [{"actor_id": a, "role": r} for a, r, _ in PEOPLE]}
