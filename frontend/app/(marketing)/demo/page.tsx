@@ -10,7 +10,7 @@ import { CONTACT_URL, startDemo, type Persona } from '@/lib/demo-api';
 import { ProcessApiError } from '@/lib/process-api';
 
 const PERSONAS: { id: Persona; title: string; value: string; icon: typeof Gauge }[] = [
-  { id: 'process_engineer', title: 'Process Engineer', value: 'Find why a batch drifted, forecast growth and glucose, compare runs.', icon: FlaskConical },
+  { id: 'process_engineer', title: 'Process Engineer', value: 'Run pharmaceutical models, inspect predictions, or investigate a batch.', icon: FlaskConical },
   { id: 'msat', title: 'MSAT', value: 'Review CDMO data against its sources and see what a transfer still needs.', icon: Workflow },
   { id: 'qa', title: 'Quality (QA)', value: 'Triage an overnight deviation, find precedents, prepare the review.', icon: ClipboardCheck },
   { id: 'executive', title: 'Executive', value: 'See what needs attention this week, and who owns it.', icon: Gauge },
@@ -53,7 +53,7 @@ export default function DemoStartPage() {
     <div className="mx-auto max-w-5xl py-12">
       <p className="lp-eyebrow">Try it yourself · no sign-up</p>
       <h1 className="mt-4 text-3xl font-medium tracking-tight sm:text-5xl">Explore manufacturing questions with the evidence in view.</h1>
-      <p className="mt-5 max-w-3xl text-text-secondary">Pick your role. You get a private workspace with sample batch, lab and deviation data and a few realistic scenarios to try with the assistant. Nothing from your systems is needed.</p>
+      <p className="mt-5 max-w-3xl text-text-secondary">Pick your role. You get a private workspace with sample batch, lab and deviation data and a few realistic scenarios to try with the assistant. Explore the pharmaceutical model library with ready-to-run synthetic configurations. Nothing from your systems is needed.</p>
 
       <fieldset className="mt-10">
         <legend className="mb-3 text-sm font-medium text-text-secondary">Your role</legend>

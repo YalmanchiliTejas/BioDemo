@@ -15,6 +15,7 @@ export function DemoBanner() {
   return <div role="note" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-brand-teal/20 bg-brand-teal-light/60 px-4 py-1.5 text-[12px] text-text-secondary">
     <span className="inline-flex items-center gap-1.5 font-medium text-brand-teal"><FlaskConical size={13} />Demo workspace{demo.persona ? ` · ${PERSONA_LABEL[demo.persona] ?? demo.persona}` : ''}</span>
     <span>Synthetic data</span>
+    <Link href="/process-simulation/" className="font-medium text-brand-teal underline">Try the model library</Link>
     {hours != null && <span>Deleted in {hours} h</span>}
     <span className={left <= 3 ? 'font-medium text-status-warning' : ''}>{left} of {limit} messages left</span>
     {CONTACT_URL && <a href={CONTACT_URL} target="_blank" rel="noreferrer" className="font-medium text-brand-teal underline-offset-2 hover:underline">Talk to us</a>}

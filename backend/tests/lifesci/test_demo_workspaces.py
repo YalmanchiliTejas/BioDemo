@@ -322,3 +322,34 @@ def test_the_minute_tick_never_rereads_conversations_when_nothing_is_new(p, monk
     monkeypatch.setattr(p.store._db, 'fetchall', lambda sql, params=(): kinds.append(params[1] if len(params) > 1 else sql) or real(sql, params))
     p.runtime.tick()  # nothing new since
     assert 'engineering_chat_turn' not in kinds and 'memory_vector' not in kinds and 'assistant_workspace_result' not in kinds
+
+@pytest.mark.parametrize('persona', sorted(PERSONA_ROLES))
+def test_visitors_can_discover_and_execute_library_with_provenance(api, p, persona):
+    workspace = start(api, 'anon-library', persona).json()
+    tenant = workspace['tenant_id']
+    headers = as_visitor('anon-library', tenant)
+    catalog = api.get('/v1/process-model/catalog', headers=headers)
+    assert catalog.status_code == 200, catalog.text
+    assert len(catalog.json()['models']) == 22
+    sources = api.get('/v1/process-model/conversation-sources?site_id=NF1', headers=headers).json()['sources']
+    library = [s for s in sources if s['audience'] == 'model_library']
+    assert len(library) == 19
+    source = next(s for s in library if s['model_id'] == 'chemical.parallel_batch')
+    context = p.store.read().require(tenant, 'physical_analysis_context', source['id']).state
+    assert context['classification'] == 'synthetic_assumption'
+    plan = api.post('/v1/process-model/pipelines', headers=headers, json={
+        'mode': 'model_library', 'simulation_id': source['id'], 'model_id': source['model_id'],
+        'objective': 'Inspect a synthetic chemical calculation.', 'operation': 'simulate',
+        'max_solver_calls': 2, 'max_wall_seconds': 10})
+    assert plan.status_code == 200, plan.text
+    result = api.post(f"/v1/process-model/pipelines/{plan.json()['id']}/execute", headers=headers, json={})
+    assert result.status_code == 200, result.text
+    assert result.json()['execution_status'] == 'completed'
+    # Another visitor cannot read the source or result, even with its identifiers.
+    other = start(api, 'anon-other', persona).json()['tenant_id']
+    denied = api.get(f"/v1/process-model/library/artifacts/physical_analysis_result/{result.json()['id']}",
+                     headers=as_visitor('anon-other', other))
+    assert denied.status_code in (403, 404)
+    assert start(api, 'anon-library', persona).json()['tenant_id'] == tenant
+    assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 19
+    assert p.demo.view(tenant)['messages_left'] == 20
