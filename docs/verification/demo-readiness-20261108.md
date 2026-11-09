@@ -50,3 +50,11 @@ PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/lifesci/test_demo_wo
 In `frontend`, run `npm run lint`, `npm run check:auth`, and `npm run build`. Use a fresh live-output directory to retain prior records.
 
 Release PR: https://github.com/YalmanchiliTejas/BioDemo/pull/33. Public sign-in was confirmed by the user during this audit; deployment of the corrected branch remains a separate release step.
+
+## Follow-up: duplicate charts from result inspection
+
+The original audit checked solver execution and the direct simulation workbench, but missed duplicate artifact rendering in agent conversations. Executing a model attached its saved result; reading that same result attached it again. A regression through the production agent loop reproduced three identical chart references after one execution and two reads.
+
+Artifact attachment is now idempotent by `(kind, id)` within a turn. Re-reading retains the original display title and updates the versioned inspection receipt. Conversation projections also deduplicate older saved references without rewriting historical evidence. Distinct executions with distinct result IDs remain separate even when their inputs and curves match. Tool traces and solver counts are retained.
+
+Verification: all eight persona/fresh-or-returning agent paths now execute once, read twice, and retain one chart. A historical-conversation fixture retains two distinct executions while hiding the repeated reference and preserving its inspection receipt; raw historical records remain untouched. Relevant conversation, demo, pharmaceutical integration, tool-loop, memory and privacy regressions: **141 passed in 123.97 s**. No physics or execution behavior changed.
