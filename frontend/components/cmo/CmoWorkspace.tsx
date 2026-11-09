@@ -206,11 +206,8 @@ function Start({ catalog, runs, onError, onCreated }: { catalog: Catalog | null;
   return (
     <div className="space-y-10">
       <WorkspacePageHeader title="Deliveries" description="Check the files a CDMO sends you. Every extracted value links back to its source." />
+      {demoWorkspace && <Callout tone="info" title="Try your own delivery">Upload non-confidential files you are authorized to share, or use a sample below. Demo processing uses local preview extraction without hosted model calls; unsupported formats and ambiguous mappings may need review. Your workspace expires after 24 hours. Conversations and feedback may be retained for product improvement.</Callout>}
       <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
-        {demoWorkspace ? <section className="rounded-2xl border border-border-hairline bg-white p-7 text-sm leading-6 text-text-secondary">
-          <p className="font-medium text-ink">Demo workspaces use sample data</p>
-          <p className="mt-2">Uploads are turned off here so nothing of yours is ever sent. The sample deliveries below behave exactly like a real CDMO’s files.</p>
-        </section> : <>
         <section className="space-y-4">
           <label className="block">
             <span className="text-[12px] font-medium uppercase tracking-wide text-text-tertiary">CDMO</span>
@@ -230,7 +227,6 @@ function Start({ catalog, runs, onError, onCreated }: { catalog: Catalog | null;
           <input ref={folderInput} type="file" multiple className="hidden" aria-label="Delivery folder" {...{ webkitdirectory: '' }} onChange={e => void check(picked(e.target.files))} />
           <p className="text-center text-[12.5px] text-text-tertiary">or <button type="button" disabled={!!busy} onClick={() => folderInput.current?.click()} className="text-brand-teal hover:underline">choose a whole folder</button></p>
         </section>
-        </>}
         <DemoCard catalog={catalog} onError={onError} />
       </div>
       {mine.length > 0 && (

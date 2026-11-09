@@ -24,8 +24,9 @@ PREFIX, CONTROL, CORPUS = 'demo_', '__demo_control__', '__demo_corpus__'
 PERSONA_ROLES = {'process_engineer': 'engineering', 'msat': 'msat', 'qa': 'qa', 'executive': 'supervisor'}
 TTL = timedelta(hours=24)
 PER_WORKSPACE, GLOBAL_DAILY, CORPUS_DAYS = 20, 300, 90
-NOTICE = ("This is a demo with synthetic data. We keep demo conversations and feedback to improve the product. "
-          "Don't enter confidential information.")
+NOTICE = ("This demo starts with synthetic data. You may upload non-confidential files you are authorized to share in Deliveries. "
+          "Uploaded files are stored for processing. We keep demo conversations and feedback for up to 90 days to improve the product. "
+          "Don't enter confidential information. Workspace access expires after 24 hours.")
 
 
 class DemoExpired(Exception):

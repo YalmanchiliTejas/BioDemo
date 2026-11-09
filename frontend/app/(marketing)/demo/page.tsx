@@ -15,7 +15,7 @@ const PERSONAS: { id: Persona; title: string; value: string; icon: typeof Gauge 
   { id: 'qa', title: 'Quality (QA)', value: 'Triage an overnight deviation, find precedents, prepare the review.', icon: ClipboardCheck },
   { id: 'executive', title: 'Executive', value: 'See what needs attention this week, and who owns it.', icon: Gauge },
 ];
-const DEMO_NOTICE = 'This is a demo with synthetic data. We keep demo conversations and feedback to improve the product. Don’t enter confidential information.';
+const DEMO_NOTICE = 'This demo starts with synthetic data. You may upload non-confidential files you are authorized to share in Deliveries. Uploaded files are stored for processing. We keep demo conversations and feedback for up to 90 days to improve the product. Don’t enter confidential information.';
 
 /** One click into a private demo workspace with sample data and scenarios for the chosen role. */
 export default function DemoStartPage() {
@@ -67,7 +67,7 @@ export default function DemoStartPage() {
 
       <label className="mt-8 flex max-w-3xl items-start gap-3 rounded-lg border border-border-hairline bg-white p-4 text-sm leading-6">
         <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-1 h-4 w-4 shrink-0" />
-        <span>{DEMO_NOTICE} <span className="text-text-tertiary">Your workspace is deleted after 24 hours.</span></span>
+        <span>{DEMO_NOTICE} <span className="text-text-tertiary">Workspace access expires after 24 hours.</span></span>
       </label>
 
       {error && <div role="alert" className="mt-5 max-w-3xl rounded-lg bg-status-critical-bg px-4 py-3 text-sm text-text-primary">{error}

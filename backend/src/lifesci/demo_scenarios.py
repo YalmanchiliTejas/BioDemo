@@ -8,6 +8,26 @@ from __future__ import annotations
 PERSONAS = ('process_engineer', 'msat', 'qa', 'executive')
 
 SCENARIOS: tuple[dict, ...] = (
+    {'scenario_id': 'pe-model-library', 'persona': 'process_engineer', 'title': 'Run a pharmaceutical process model',
+     'situation': 'A synthetic jacketed batch reactor makes a desired product and a competing impurity. Explore what the physical model predicts.',
+     'prompt': 'Use the pharmaceutical model library to find the existing SYNTHETIC chemical.parallel_batch configuration at NF1 and run a bounded simulation. Show desired-product yield, impurity and temperature with their units, assumptions and source lineage. Explain what the model calculates and which uncertain kinetic terms support optional neural adaptation. Do not train on the configuration alone.',
+     'look_for': ['Executes the existing solver and cites its saved result', 'Distinguishes conversion from desired-product yield',
+                  'Keeps conservation equations intact and explains the data needed for hybrid training']},
+    {'scenario_id': 'msat-model-library', 'persona': 'msat', 'title': 'Screen oxygen transfer before a site transfer',
+     'situation': 'A synthetic fermentation transport configuration is available. Use it to identify what must be characterized at a receiving site.',
+     'prompt': 'Find the existing SYNTHETIC fermentation.oxygen_transfer configuration at NF1 in the pharmaceutical model library and run a bounded simulation. Explain the oxygen-transfer and equipment predictions in their native units, inspect the assumptions, and propose targeted receiving-site characterization. Say what data are needed for source-to-receiver hybrid adaptation and independent interval calibration. Do not claim organism yield, product quality or transfer readiness from a transport calculation.',
+     'look_for': ['Runs the fermentation transport model with evidence lineage', 'Names receiving-equipment and measurement gaps',
+                  'Separates conditional predictions from calibrated transfer conclusions']},
+    {'scenario_id': 'qa-model-library', 'persona': 'qa', 'title': 'Review the evidence behind a model prediction',
+     'situation': 'An engineer wants to use a synthetic reaction prediction in a transfer review. Check what the result can actually support.',
+     'prompt': 'Use the existing SYNTHETIC chemical.parallel_batch configuration at NF1 in the pharmaceutical model library to run a bounded simulation, then prepare a QA review of the result. Inspect model version, assumptions, evidence, units, desired-product yield and impurity. Identify missing quality attributes and independent calibration evidence. Explain why this synthetic result cannot establish release suitability, calibrated risk probabilities or yield noninferiority.',
+     'look_for': ['Cites an executed result and its versioned inputs', 'Withholds conclusions for unpredicted quality attributes',
+                  'Separates model review from approval and manufacturing release']},
+    {'scenario_id': 'exec-model-library', 'persona': 'executive', 'title': 'Turn a process prediction into a next decision',
+     'situation': 'You need to decide what evidence to fund before considering a process transfer, using a synthetic reaction example.',
+     'prompt': 'Run the existing SYNTHETIC chemical.parallel_batch configuration at NF1 using the pharmaceutical model library. Give a short leadership brief: what the calculated desired-product yield and impurity mean, what remains unknown, and which characterization measurements would most help a receiving-site transfer decision. Link the saved result and distinguish predictions from validated outcomes. Do not infer commercial savings or recommend manufacturing approval from synthetic data.',
+     'look_for': ['Summarizes actual calculated results with their sources', 'Gives concrete next measurements and review owners as proposals',
+                  'States scientific gaps without inventing validated accuracy or savings']},
     {'scenario_id': 'pe-do-drop', 'persona': 'process_engineer', 'title': 'Dissolved oxygen dropped in B-117',
      'situation': 'Overnight, dissolved oxygen in batch B-117 on bioreactor BR-07 fell below the 30 % limit. '
                   'A signal is open and the shift wants to know why before the next feed.',

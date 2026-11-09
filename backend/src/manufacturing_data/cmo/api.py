@@ -181,10 +181,6 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
                 if path.endswith('/export'): action = 'export'
                 if '/reviews' in path or path.endswith('/issues'): action = 'approve'
                 permission_check(ctx, action)
-            if ctx.tenant_id.startswith('demo_') and request.method == 'POST' and (
-                    '/deliveries' in request.url.path or request.url.path.endswith('/upload')):
-                # Demo visitors work on our synthetic sample data; nothing of theirs is uploaded or stored.
-                raise HTTPException(403, 'Demo workspaces use sample data')
             request_actor.set(ctx.actor_id)
             set_tenant(ctx.tenant_id); safe_tenant()
     api=APIRouter(prefix='/api/cmo-ingestion',dependencies=[Depends(authorize)])
