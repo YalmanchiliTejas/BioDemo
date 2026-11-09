@@ -218,3 +218,11 @@ def test_narration_beside_a_lookup_is_not_shown_as_the_answer(env):
     turn, _ = run(p, ctx, [{'content': 'Let me check the case.', 'tool_calls': [call('workspace_read', kind='case', record_id='DEV-77', revision=revision(p))]},
                            'DEV-77 records foaming in B-200.'])
     assert turn['reply'] == 'DEV-77 records foaming in B-200.'
+
+
+def test_memory_and_recent_turns_sit_last_just_before_the_question(env):
+    p, ctx = env
+    _, fake = run(p, ctx, ['DEV-77 shows foaming at 4 h.'])
+    context = fake.calls[0]['messages'][1]['content']
+    order = [context.index(f'"{k}"') for k in ('capabilities', 'case_index', 'memory_index', 'recent_turns')]
+    assert order == sorted(order) and context.rindex('Question:') > order[-1]
