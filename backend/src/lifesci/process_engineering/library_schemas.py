@@ -1,7 +1,7 @@
 """Explicit typed production API/tool payloads; no caller code/import paths."""
 
 from typing import Any, Literal
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from .schemas import StrictModel
 
 
@@ -25,8 +25,19 @@ class ConfigurationIn(StrictModel):
 
 
 class LibraryPipelineSpec(StrictModel):
+    """Prepare bounded work on an EXISTING saved configuration. Read its record first, then copy its context ID; the server creates the plan and result IDs."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def one_context_identifier(cls, values):
+        if isinstance(values, dict) and "context_id" in values and "simulation_id" in values:
+            raise ValueError("Provide context_id (or the legacy simulation_id), never both")
+        return values
+
     mode: Literal["model_library"] = "model_library"
-    simulation_id: str = Field(min_length=1, max_length=200)
+    simulation_id: str = Field(min_length=1, max_length=200,
+        validation_alias=AliasChoices("context_id", "simulation_id"),
+        description="Exact existing physical_analysis_context record ID returned by catalogue discovery and read with model_library_read. Copy that ID unchanged. This is NOT a new simulation/run name; the server generates execution IDs.")
     model_id: str = Field(min_length=1, max_length=100)
     objective: str = Field(min_length=8, max_length=4000)
     operation: Literal[
@@ -43,10 +54,10 @@ class LibraryPipelineSpec(StrictModel):
         "experiments",
     ]
     options: dict[str, Any] = Field(default_factory=dict)
-    dataset_id: str | None = Field(default=None, max_length=300)
+    dataset_id: str | None = Field(default=None, max_length=300, description="Optional existing physical_model_dataset ID containing partitioned measurement runs. Omit for a forward simulation. Never put a configuration ID here.")
     checkpoint_id: str | None = Field(default=None, max_length=300)
     calibration_id: str | None = Field(default=None, max_length=300)
-    receiver_context_id: str | None = Field(default=None, max_length=300)
+    receiver_context_id: str | None = Field(default=None, max_length=300, description="Existing receiving-site configuration ID only for comparisons/adaptation. Omit for a single-source simulation; do not move the source context ID into this field.")
     max_solver_calls: int = Field(default=96, ge=1, le=512, strict=True)
     max_wall_seconds: float = Field(default=60.0, ge=1.0, le=180.0)
 

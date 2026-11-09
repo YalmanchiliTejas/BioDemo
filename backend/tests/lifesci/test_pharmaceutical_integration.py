@@ -768,3 +768,51 @@ def test_mechanism_proposal_api_route(env):
     )
     assert response.status_code == 200, response.text
     assert response.json()["operation"] == "review_model_extension"
+
+
+def test_library_prepare_names_the_existing_context_and_preserves_legacy_api():
+    from src.lifesci.process_engineering.library_schemas import LibraryPipelineSpec
+    base = {'model_id': 'chemical.parallel_batch', 'objective': 'Simulate an existing saved source', 'operation': 'simulate'}
+    schema = LibraryPipelineSpec.model_json_schema()
+    assert 'context_id' in schema['required'], 'The agent must choose a saved configuration, not invent a new simulation name'
+    current = LibraryPipelineSpec.model_validate({**base, 'context_id': 'existing-source-record'})
+    legacy = LibraryPipelineSpec.model_validate({**base, 'simulation_id': 'existing-source-record'})
+    assert current.simulation_id == legacy.simulation_id == 'existing-source-record'
+    assert current.model_dump() == legacy.model_dump()
+    with pytest.raises(ValueError, match='context_id'):
+        LibraryPipelineSpec.model_validate({**base, 'context_id': 'right-record', 'simulation_id': 'invented-run-name'})
+
+
+def test_native_library_read_can_back_memory_without_an_extra_workspace_read(env, monkeypatch):
+    from src.lifesci.gateway.providers import Completion
+    from src.lifesci.gateway.registry import Qualification
+    p, ctx = env
+    context, _, _ = configured(p, ctx)
+    plan = p.process_models.analysis.prepare(ctx, spec(context, max_solver_calls=4))
+    result = p.process_models.analysis.execute(ctx, plan['id'])
+
+    class Provider:
+        name = 'anthropic'
+        n = 0
+        def chat(self, **kw):
+            self.n += 1
+            if self.n == 1:
+                name, args = 'model_library_read', {'kind':'physical_analysis_result', 'record_id':result['id']}
+            elif self.n == 2:
+                name, args = 'remember', {'text':'This authored synthetic calculation remains conditional and requires review.',
+                    'kind':'warning', 'basis':'calculated', 'sources':[{'kind':'physical_analysis_result','id':result['id']}]}
+            else:
+                return Completion('The inspected synthetic result is saved as a conditional warning.',1,1)
+            return Completion('',1,1,tool_calls=({'id':'read-memory-'+str(self.n),'name':name,'arguments':json.dumps(args)},))
+    monkeypatch.setenv('ASSISTANT_LOOP','tools')
+    p.gateway.providers['anthropic'] = Provider()
+    p.gateway.registry.qualify(Qualification('investigation_planning','anthropic-opus','host-memory-test',True,
+        {'host':1.0},{'host':1.0},'Scripted host verification, not AI qualification','test'))
+    service = p.engineering_conversations
+    thread = service.create(ctx, {'site_id':'NF1'})
+    queued = service.enqueue(ctx,thread['id'],{'text':'Inspect the saved model result and remember its synthetic limitation.', 'expected_revision':thread['revision']})
+    service.run_turn(ctx,thread['id'],queued['turn_ids'][-1])
+    view = service.get(ctx,thread['id'])
+    assert all(step['status']=='completed' for step in view['turns'][-1]['steps']), view['turns'][-1]['steps']
+    notes = p.agent_memory.notes(ctx)
+    assert len(notes)==1 and notes[0]['sources'][0]['id']==result['id']

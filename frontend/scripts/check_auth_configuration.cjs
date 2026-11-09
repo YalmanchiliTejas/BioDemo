@@ -4,12 +4,14 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 const code = ts.transpileModule(fs.readFileSync(require.resolve('../lib/auth.ts'), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
-function auth(env, session=null, updateUser=async()=>({error:null})) {
+function auth(env, session=null, updateUser=async()=>({error:null}), local=null) {
   const module={exports:{}};
   const storage=new Map([['sievance.organization:fixture','org_a']]);
+  if(local) storage.set('sievance.local-session.v1',JSON.stringify(local));
   vm.runInNewContext(code,{
     exports:module.exports,module,process:{env},
     require:name=>name==='react'?{}:{createClient:()=>({auth:{getSession:async()=>({data:{session},error:null}),updateUser}})},
+    window:{},
     localStorage:{getItem:key=>storage.get(key),setItem:(key,v)=>storage.set(key,v),removeItem:key=>storage.delete(key)},
   });
   return module.exports;
@@ -34,7 +36,17 @@ function auth(env, session=null, updateUser=async()=>({error:null})) {
   assert.equal(updates.length, 1);
   const development=auth({NODE_ENV:'development'});
   assert.equal(development.authMode(),'development');
-  assert.equal((await development.authHeaders())['X-Actor-Id'],'priya');
+  assert.equal(JSON.stringify(await development.authHeaders()), '{}'); // no implicit developer identity
+  const local=auth({NODE_ENV:'development',NEXT_PUBLIC_LOCAL_LOGIN:'1'}, null, undefined,
+    {tenant_id:'local-test',actor_id:'demo-visitor-fixture',email:'',name:'Demo visitor'});
+  const localHeaders=await local.authHeaders();
+  assert.equal(localHeaders['X-Actor-Id'],'demo-visitor-fixture');
+  assert.equal(localHeaders['X-Tenant-Id'],'local-test');
+  assert.equal(localHeaders['X-Demo-Visitor'],'1');
+  const productionWithLocalData=auth({NODE_ENV:'production',NEXT_PUBLIC_LOCAL_LOGIN:'1'}, null, undefined,
+    {tenant_id:'local-test',actor_id:'demo-visitor-fixture'});
+  assert.equal(productionWithLocalData.authMode(),'supabase');
+  await assert.rejects(productionWithLocalData.authHeaders(), /not configured/);
   for(const next of ['//external.test','/\\external.test','/bad path','https://external.test']) assert.equal(production.safeNext(next),'/dashboard/');
   assert.equal(production.safeNext(null), '/dashboard/');
   assert.equal(production.safeNext('/cmo/?run=fixture'), '/cmo/?run=fixture');

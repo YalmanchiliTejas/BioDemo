@@ -424,18 +424,21 @@ def test_existing_demo_scenario_can_discover_missing_library_seed(p, monkeypatch
     assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 19
 
 
+@pytest.mark.parametrize('persona', sorted(PERSONA_ROLES))
 @pytest.mark.parametrize('legacy', [False, True])
-def test_demo_scenario_agent_discovers_reads_and_executes_without_reconstruction(p, monkeypatch, legacy):
-    from src.lifesci.demo_scenarios import get
+def test_demo_scenario_agent_discovers_reads_and_executes_without_reconstruction(p, monkeypatch, legacy, persona):
+    from src.lifesci.demo_scenarios import for_persona
     from src.lifesci.gateway.providers import Completion
     from src.lifesci.gateway.registry import Qualification
 
     with monkeypatch.context() as previous_release:
         if legacy:
             previous_release.setattr('src.lifesci.demo_seed.seed_model_library', lambda *args: [])
-        tenant = p.demo.provision('anon-library-agent', 'process_engineer', True)['tenant_id']
+        tenant = p.demo.provision('anon-library-agent', persona, True)['tenant_id']
     ctx = p.identity.context_for(tenant, 'anon-library-agent')
     chosen = {}
+    model_id = 'fermentation.oxygen_transfer' if persona == 'msat' else 'chemical.parallel_batch'
+    scenario = next(s for s in for_persona(persona) if s['scenario_id'].endswith('model-library'))
 
     class Provider:
         name = 'anthropic'
@@ -444,12 +447,12 @@ def test_demo_scenario_agent_discovers_reads_and_executes_without_reconstruction
         def chat(self, **kw):
             self.n += 1
             if self.n == 1:
-                name, args = 'model_library_catalog', {'model_id': 'chemical.parallel_batch'}
+                name, args = 'model_library_catalog', {'model_id': model_id}
             elif self.n == 2:
                 catalog = p.store.read().list(tenant, 'assistant_workspace_result')[-1].state['data']
                 available = catalog.get('configurations', [])
                 assert available, 'Catalogue exposed equations but no saved configuration identifiers to the agent'
-                chosen.update(next(c for c in available if c['model_id'] == 'chemical.parallel_batch'))
+                chosen.update(next(c for c in available if c['model_id'] == model_id))
                 name, args = 'model_library_read', {'kind': chosen['kind'], 'record_id': chosen['id']}
             elif self.n == 3:
                 name, args = 'model_library_prepare', {
@@ -470,7 +473,7 @@ def test_demo_scenario_agent_discovers_reads_and_executes_without_reconstruction
         True, {'host': 1.0}, {'host': 1.0}, 'Scripted host test, not live AI validation', 'test'))
     service = p.engineering_conversations
     thread = service.create(ctx, {'site_id': 'NF1'})
-    queued = service.enqueue(ctx, thread['id'], {'text': get('pe-model-library')['prompt'], 'expected_revision': thread['revision']})
+    queued = service.enqueue(ctx, thread['id'], {'text': scenario['prompt'], 'expected_revision': thread['revision']})
     service.run_turn(ctx, thread['id'], queued['turn_ids'][-1])
     view = service.get(ctx, thread['id'])
     turn = view['turns'][-1]
@@ -509,3 +512,20 @@ def test_demo_repairs_partial_library_seed_without_replacing_custom_data(p):
     p.demo.workspace(ctx)
     assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 20
     assert p.demo.view(tenant)['messages_left'] == 20
+
+
+def test_every_seeded_library_choice_executes_its_own_model(p):
+    tenant = p.demo.provision('anon-library-catalogue-audit', 'qa', True)['tenant_id']
+    ctx = p.identity.context_for(tenant, 'anon-library-catalogue-audit')
+    service = p.process_models.analysis
+    contexts = p.store.read().list(tenant, 'physical_analysis_context')
+    assert len(contexts) == 19
+    for context in contexts:
+        model_id = context.state['model_id']
+        plan = service.prepare(ctx, {'mode':'model_library','context_id':context.id,'model_id':model_id,
+            'objective':'Check that this public demo configuration has a runnable native model.',
+            'operation':'simulate','max_solver_calls':2,'max_wall_seconds':15})
+        result = service.execute(ctx, plan['id'])
+        assert result['execution_status'] == 'completed', (model_id, result['error'])
+        assert result['resource_usage']['solver_calls'] == 1
+        assert result['output']['simulation'], model_id
