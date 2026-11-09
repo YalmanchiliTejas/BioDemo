@@ -816,3 +816,11 @@ def test_native_library_read_can_back_memory_without_an_extra_workspace_read(env
     assert all(step['status']=='completed' for step in view['turns'][-1]['steps']), view['turns'][-1]['steps']
     notes = p.agent_memory.notes(ctx)
     assert len(notes)==1 and notes[0]['sources'][0]['id']==result['id']
+    # A receipt is tied to the inspected revision; it must not bless a later edit.
+    with p.store.transaction(ctx.actor_id) as tx:
+        prior = tx.require(ctx.tenant_id,'physical_analysis_result',result['id'])
+        tx.put(ctx.tenant_id,prior.kind,prior.id,{**prior.state,'warnings':['Updated after inspection']},
+               expected_revision=prior.revision,action='test_changed_inspected_result')
+    with pytest.raises((ValueError, PermissionError)):
+        p.agent_memory.remember(ctx,view,view['turns'][-1]['id'],text='This changed result has not been inspected again.',
+            kind='warning',basis='calculated',sources=[{'kind':'physical_analysis_result','id':result['id']}])

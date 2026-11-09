@@ -12,6 +12,14 @@ on:
       - backend/tests/**
       - backend/benchmarks/agent_pilot/**
       - .github/workflows/deploy-api.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - backend/src/**
+      - backend/scripts/check_demo_readiness.py
+      - backend/tests/**
+      - frontend/**
+      - .github/workflows/deploy-api.yml
   workflow_dispatch:
 
 permissions:
@@ -55,12 +63,33 @@ jobs:
           tests/lifesci/test_workspace_links_search.py tests/lifesci/test_durable_rules.py tests/lifesci/test_case_cards.py
           tests/lifesci/test_investigation_runs.py tests/lifesci/test_conversation_management.py tests/test_cloud_investigation_events.py
           tests/lifesci/test_deviation_signals.py tests/lifesci/test_alerts.py tests/lifesci/test_auto_triage.py tests/lifesci/test_capabilities.py tests/lifesci/test_signal_pipeline.py tests/lifesci/test_local_executor.py tests/test_cmo_upload_race.py tests/lifesci/test_turn_caps.py tests/lifesci/test_demo_workspaces.py tests/test_cmo_tenant_isolation.py tests/lifesci/test_bioprocess.py tests/lifesci/test_tool_loop.py tests/lifesci/test_agent_memory.py tests/lifesci/test_comparisons.py
+          tests/lifesci/test_pharmaceutical_integration.py tests/lifesci/test_process_model_library.py
+          tests/lifesci/test_process_engineering.py tests/lifesci/test_chemical_reactor.py tests/lifesci/test_fermentation.py
       - name: Template lint
         run: pip install cfn-lint && cfn-lint deploy/aws/template.yaml deploy/aws/github-oidc.yaml
 
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run check:auth
+      - run: npm run build
+
   deploy:
     name: Build and deploy
-    needs: test
+    if: github.event_name != 'pull_request'
+    needs: [test, frontend]
     runs-on: ubuntu-24.04-arm     # native arm64 build for an arm64 Lambda
     environment: production       # the AWS role trusts only this environment
     permissions:
