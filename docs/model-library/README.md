@@ -1,5 +1,7 @@
 # Learn and develop pharmaceutical process models
 
+For current implementation status, exact local product/example commands, executed checks and remaining limitations, read [IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md).
+
 For the complete multi-family baseline, open [the library overview](LIBRARY.md) and
 [the all-models notebook](02_pharmaceutical_model_library.ipynb).
 The [reactor learning notebook](01_jacketed_reactor.ipynb) remains the detailed first-principles lesson.

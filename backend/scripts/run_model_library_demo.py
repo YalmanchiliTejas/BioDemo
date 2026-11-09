@@ -17,6 +17,8 @@ def seed_library(p):
     seed(p)
     ctx = p.identity.context_for(TENANT, "priya")
     service = p.process_models.analysis
+    # Refresh the versioned software evidence before reusing persisted demo contexts.
+    service._catalog_ref(ctx, "NF1")
     configs = examples() | {
         "chemical.parallel_batch": example(),
         "fermentation.oxygen_transfer": {"project": project("sulfolobus"), "assumptions": {}},
