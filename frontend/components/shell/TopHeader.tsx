@@ -27,7 +27,10 @@ export function TopHeader({ onSearch }: { onSearch: () => void }) {
   const name = demo ? 'Demo visitor' : String(workspace.user?.user_metadata?.full_name || workspace.email?.split('@')[0] || reviewer || 'Your account');
   const initials = name.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
   const organizationName = workspace.organization?.name ?? (workspace.mode === 'development' ? 'Development workspace' : workspace.loadingAccount ? 'Loading…' : 'Select organization');
-  useEffect(() => { if (workspace.email) setReviewer(workspace.email); }, [workspace.email]);
+  useEffect(() => {
+    const identity = demo ? workspace.user?.id : workspace.email;
+    if (identity) setReviewer(identity);
+  }, [demo, workspace.email, workspace.user?.id]);
   useEffect(() => { setMenu(null); setError(''); }, [path]);
   useEffect(() => {
     if (!menu) return;

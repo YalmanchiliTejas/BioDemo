@@ -1,6 +1,6 @@
 # Demo workspaces for prospects
 
-Status: **build spec, 2026-11-06.** Governing direction: [the four pillars](../../Main_Culture_andETHOS.md).
+Status: **implemented locally; updated 2026-11-08 for persona model scenarios and optional visitor deliveries.** Governing direction: [the four pillars](../../Main_Culture_andETHOS.md).
 
 ## Job
 
@@ -9,10 +9,10 @@ A prospect (Process Engineer, MSAT, QA, Executive) should see the product work o
 ## Decisions (product owner, 2026-11-06)
 
 - **Entry:** one click, no sign-up (Supabase anonymous sign-in). Email is optional, in feedback or "Talk to us".
-- **Notice:** shown before entering, with a required checkbox: *"This is a demo with synthetic data. We keep demo conversations and feedback to improve the product. Don't enter confidential information."*
-- **Retention:** each workspace for 24 h; the improvement copy for 90 days.
+- **Notice:** shown before entering, with a required checkbox: the demo starts with synthetic data; optional authorized, non-confidential uploads are stored for processing; demo conversations and feedback are kept for up to 90 days for product improvement; workspace access expires after 24 hours.
+- **Retention:** workspace access for 24 h; conversations/feedback in the improvement copy for up to 90 days. The existing database purge deletes expired tenant records; delivery originals and local caches use their storage retention policy and are not covered by the database purge. Do not claim all uploaded bytes are deleted at 24 h.
 - **Limits:** 20 assistant messages per workspace; 300 per day across all demo workspaces.
-- **No visitor data.** Visitors don't upload; uploads are refused in demo workspaces. Each role gets our synthetic data and **scenarios** to work through, and we ask for feedback on the scenario as well as the answers.
+- **Optional visitor deliveries (user direction, 2026-11-08).** Every persona may create deliveries and upload non-confidential files they are authorized to share. Existing tenant permissions, original hashes, intake validation, file/expansion limits and mapping review apply. Demo runs force local `preview` processing even when hosted extraction is requested. Unsupported formats and ambiguous mappings are exposed for review. Uploading files does not make them verified model configurations or calibrated training data.
 - Multi-agent investigations stay off (paid tier).
 
 ## Design
@@ -71,12 +71,12 @@ Static per persona (`lifesci/demo_scenarios.py`): `{scenario_id, persona, title,
 - Counters are records in `__demo_control__`.
 
 ### Uploads
-- CMO delivery creation and uploads return 403 "Demo workspaces use sample data" for `demo_*` tenants.
-- Deliveries shows the persona's prepared delivery (read-only) instead of the drop zone.
+- Delivery creation, direct uploads and storage uploads use the existing authenticated, tenant-scoped endpoints for demo visitors. Expired tenants are refused through the shared context dependency.
+- Deliveries shows both the standard file/folder drop zone and the existing sample-delivery options. Authenticated anonymous visitors use their actual actor identifier for review receipts; no invented reviewer name is required.
 
 ### Frontend
 - **`/demo`** (public): headline, four persona cards, notice and checkbox, Start. Start runs `supabase.auth.signInAnonymously()`, then POSTs the workspace, selects the organization, and goes to `/home/?scenarios=1`.
-- **Demo banner** across the app: "Demo workspace · synthetic data · deleted in 23 h · 14 of 20 messages left · Talk to us".
+- **Demo banner** across the app: "Demo workspace · sample data + optional uploads · access expires in 23 h · 14 of 20 messages left · Try your own delivery · Try the model library".
 - **Scenario panel:** in the assistant's empty state, and as a "Scenarios" button in the header. Each card shows the situation, a **Try it** button (sends the prompt), "What a good answer should do", and **Rate this scenario** (realistic 1–5, useful 1–5, comment).
 - **Answer feedback:** 👍/👎 under each assistant answer in demo workspaces, with an optional comment.
 - **Feedback button** in the header: overall usefulness, "would you use this?", what's missing, optional email.
@@ -89,3 +89,7 @@ Static per persona (`lifesci/demo_scenarios.py`): `{scenario_id, persona, title,
 
 ### Measures
 Demo starts per persona; scenarios tried; feedback rate; mean realistic/useful per scenario; 👎 rate per scenario; messages per workspace; Talk-to-us clicks; return within 24 h.
+
+## Pharmaceutical model scenarios (2026-11-08)
+
+Each persona has one additional scenario in the existing assistant scenario cards, with an executable prompt and explicit review expectations. Process Engineer: simulate the synthetic competing-reaction reactor, inspect yield/impurity/temperature and explain permitted neural terms. MSAT: simulate the existing oxygen-transfer configuration and identify receiving-site characterization and adaptation/calibration data needs. QA: execute and review the reaction model's evidence, versions, missing quality attributes and uncertainty limits. Executive: run the reaction example and prepare a concise, conditional transfer-decision brief with proposed next measurements. No scenario treats synthetic predictions as validation, release authorization or workload savings. The existing library, tool loop, result store and approval boundary are reused.

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useDemo } from '@/lib/demo-api';
 import dynamic from 'next/dynamic';
 const PharmaceuticalModelLibrary = dynamic(() => import('./PharmaceuticalModelLibrary'), {loading:()=> <p>Loading model library…</p>});
 import { ArrowDownToLine, Play, FlaskConical } from 'lucide-react';
@@ -35,7 +36,9 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export default function ProcessSimulation() {
-  const [libraryOpen,setLibraryOpen]=useState(false);
+  const { demo } = useDemo();
+  const [libraryChoice,setLibraryOpen]=useState<boolean | null>(null);
+  const libraryOpen = libraryChoice ?? Boolean(demo);
   const [audience, setAudience] = useState<'technology_transfer' | 'cdmo_operation'>('technology_transfer');
   const [shelf, setShelf] = useState(-24);
   const [load, setLoad] = useState(11000);

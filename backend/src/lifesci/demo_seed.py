@@ -98,7 +98,37 @@ def seed(platform: Any, tenant: str, visitor: str, persona: str) -> dict[str, An
                              metadata={'synthetic': True, 'mapped': {'case_id': 'DEV-31', 'record_type': 'Deviation',
                                                                      'batch_id': 'B-117', 'equipment_id': 'BR-07',
                                                                      'description': 'Foaming at 4 h; DO below 30 % (synthetic)'}})
-    return {'dataset_id': dataset['evidence_id'], 'cases': ['DEV-12', 'DEV-19', 'DEV-31'], 'site_id': SITE, 'persona': persona}
+    contexts = seed_model_library(platform, qa, SITE)
+    return {'dataset_id': dataset['evidence_id'], 'cases': ['DEV-12', 'DEV-19', 'DEV-31'], 'site_id': SITE,
+            'persona': persona, 'model_library_contexts': contexts}
+
+
+def seed_model_library(platform: Any, ctx: Any, site: str) -> list[str]:
+    """Evidence-backed executable examples, scoped to this visitor; no inference or solver calls."""
+    from .process_models.examples import examples
+    from .chemical_reactor.demo import example
+    from .fermentation.data import project
+
+    configs = examples() | {
+        'chemical.parallel_batch': example(),
+        'fermentation.oxygen_transfer': {'project': project('sulfolobus'), 'assumptions': {}},
+        'fermentation.pressure_cost': {'project': project('pichia'), 'assumptions': {}},
+    }
+    ids = []
+    for model_id, config in configs.items():
+        original = platform.evidence.ingest(
+            ctx, source_system='pharmaceutical-synthetic-demo', source_record_id=model_id,
+            content=json.dumps({'config': config, 'evidence_classification': 'synthetic_assumption'}, sort_keys=True).encode(),
+            media_type='application/json', site_id=site, event_time=None,
+            metadata={'synthetic': True})
+        result = platform.process_models.analysis.create_configuration(ctx, {
+            'model_id': model_id, 'site_id': site, 'label': 'SYNTHETIC · ' + model_id, 'config': config,
+            'classification': 'synthetic_assumption',
+            'assumptions': ['Authored executable example; not measured customer characterization or validation.'],
+            'basis': [{'kind': 'evidence', 'id': original['evidence_id'], 'revision': original['revision'], 'site_id': site}],
+        })
+        ids.append(result['id'])
+    return ids
 
 
 def _backdate(platform: Any, tenant: str, case_id: str, occurred: str) -> None:

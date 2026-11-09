@@ -31,7 +31,9 @@ def p():
 
 
 @pytest.fixture
-def api(p, monkeypatch):
+def api(p, monkeypatch, tmp_path):
+    monkeypatch.setenv('CMO_INGESTION_ROOT', str(tmp_path / 'cmo'))
+    monkeypatch.setenv('CMO_UPLOAD_MODE', 'direct')
     monkeypatch.delenv('CMO_API_TOKEN', raising=False)
     monkeypatch.setenv('LIFESCI_AUTH_MODE', 'supabase')
     return TestClient(create_app(p, resolver=supabase_resolver(p, verifier=FakeVerifier())))
@@ -84,10 +86,55 @@ def test_workspaces_are_isolated_between_visitors(api):
     assert api.get('/v1/signals', headers=as_visitor('anon-b', a['tenant_id'])).status_code == 403
 
 
-def test_uploads_are_refused_in_demo_workspaces(api):
-    t = start(api).json()['tenant_id']
-    refused = api.post('/api/cmo-ingestion/deliveries', json={'cmo': 'Mine', 'name': 'x'}, headers=as_visitor('anon-1', t))
-    assert refused.status_code == 403 and 'sample data' in refused.text
+@pytest.mark.parametrize('persona', sorted(PERSONA_ROLES))
+def test_demo_custom_delivery_can_be_uploaded_and_processed_privately(api, p, persona):
+    import time
+    tenant = start(api, 'anon-upload', persona).json()['tenant_id']
+    headers = as_visitor('anon-upload', tenant)
+    base = '/api/cmo-ingestion'
+    created = api.post(base + '/deliveries', json={'cmo': 'My test CDMO', 'name': 'Custom test'}, headers=headers)
+    assert created.status_code == 200, created.text
+    delivery = created.json()
+    assert delivery['synthetic'] is False
+    added = api.post(f"{base}/deliveries/{delivery['id']}/files", params={'filename': 'measurements.csv'},
+                     content=b'batch_id,elapsed_h,pH [pH]\nB,0,7\nB,1,7.1\n', headers=headers)
+    assert added.status_code == 200, added.text
+    assert added.json()['files'][0]['sha256']
+    # A caller cannot opt an anonymous demo into hosted extraction.
+    queued = api.post(base + '/runs', json={'package_id': delivery['id'], 'configuration': 'decisions'}, headers=headers)
+    assert queued.status_code == 200, queued.text
+    run_id = queued.json()['id']
+    for _ in range(200):
+        result = api.get(f'{base}/runs/{run_id}', headers=headers).json()
+        if result['status'] not in ('queued', 'running'):
+            break
+        time.sleep(.02)
+    assert result['status'] == 'complete', result
+    assert result['configuration'] == 'preview'
+    assert result['synthetic'] is False
+    assert result['summary']['model_calls'] == 0
+    assert len(result['measurements']) == 2
+    assert all(m['source_sha256'] for m in result['measurements'])
+    other = start(api, 'anon-other-upload', persona).json()['tenant_id']
+    other_headers = as_visitor('anon-other-upload', other)
+    catalog = api.get(base + '/catalog', headers=other_headers).json()
+    assert delivery['id'] not in {item['id'] for item in catalog['packages']}
+    assert api.get(f'{base}/runs/{run_id}', headers=other_headers).status_code == 404
+    assert api.post(f"{base}/deliveries/{delivery['id']}/files", params={'filename': 'extra.csv'},
+                    content=b'not mine', headers=other_headers).status_code == 404
+    expire(p, tenant)
+    assert api.post(base + '/deliveries', json={'cmo': 'Expired'}, headers=headers).status_code == 410
+
+
+def test_each_persona_has_an_executable_model_library_scenario(api):
+    for persona in PERSONA_ROLES:
+        body = start(api, 'anon-scenario-' + persona, persona).json()
+        scenarios = body['scenarios']
+        library = [s for s in scenarios if 'model-library' in s['scenario_id']]
+        assert len(library) == 1
+        assert 'SYNTHETIC' in library[0]['prompt']
+        assert 'pharmaceutical model library' in library[0]['prompt']
+        assert library[0]['look_for']
 
 
 def test_per_workspace_and_daily_message_limits(p, monkeypatch):
@@ -322,3 +369,35 @@ def test_the_minute_tick_never_rereads_conversations_when_nothing_is_new(p, monk
     monkeypatch.setattr(p.store._db, 'fetchall', lambda sql, params=(): kinds.append(params[1] if len(params) > 1 else sql) or real(sql, params))
     p.runtime.tick()  # nothing new since
     assert 'engineering_chat_turn' not in kinds and 'memory_vector' not in kinds and 'assistant_workspace_result' not in kinds
+
+@pytest.mark.parametrize('persona', sorted(PERSONA_ROLES))
+def test_visitors_can_discover_and_execute_library_with_provenance(api, p, persona):
+    workspace = start(api, 'anon-library', persona).json()
+    tenant = workspace['tenant_id']
+    headers = as_visitor('anon-library', tenant)
+    catalog = api.get('/v1/process-model/catalog', headers=headers)
+    assert catalog.status_code == 200, catalog.text
+    assert len(catalog.json()['models']) == 22
+    sources = api.get('/v1/process-model/conversation-sources?site_id=NF1', headers=headers).json()['sources']
+    library = [s for s in sources if s['audience'] == 'model_library']
+    assert len(library) == 19
+    model_id = 'fermentation.oxygen_transfer' if persona == 'msat' else 'chemical.parallel_batch'
+    source = next(s for s in library if s['model_id'] == model_id)
+    context = p.store.read().require(tenant, 'physical_analysis_context', source['id']).state
+    assert context['classification'] == 'synthetic_assumption'
+    plan = api.post('/v1/process-model/pipelines', headers=headers, json={
+        'mode': 'model_library', 'simulation_id': source['id'], 'model_id': source['model_id'],
+        'objective': 'Inspect a synthetic chemical calculation.', 'operation': 'simulate',
+        'max_solver_calls': 2, 'max_wall_seconds': 10})
+    assert plan.status_code == 200, plan.text
+    result = api.post(f"/v1/process-model/pipelines/{plan.json()['id']}/execute", headers=headers, json={})
+    assert result.status_code == 200, result.text
+    assert result.json()['execution_status'] == 'completed'
+    # Another visitor cannot read the source or result, even with its identifiers.
+    other = start(api, 'anon-other', persona).json()['tenant_id']
+    denied = api.get(f"/v1/process-model/library/artifacts/physical_analysis_result/{result.json()['id']}",
+                     headers=as_visitor('anon-other', other))
+    assert denied.status_code in (403, 404)
+    assert start(api, 'anon-library', persona).json()['tenant_id'] == tenant
+    assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 19
+    assert p.demo.view(tenant)['messages_left'] == 20
