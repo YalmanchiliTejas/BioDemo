@@ -265,8 +265,8 @@ class AgentMemory:
         return out
 
     def recall(self, ctx, thread, query: str, *, exclude_turn_id: str | None = None, limit: int = 8) -> dict[str, Any]:
-        """Hybrid recall over earlier turns, notes and entity pages: lexical (words and identifiers) and semantic
-        (embeddings) rankings merged by reciprocal rank. Candidates are filtered by permission first."""
+        """Recall over earlier turns, notes and entity pages, ranked by meaning (embeddings) with a boost for shared
+        identifiers and exact phrases; words only when embeddings are unavailable. Filtered by permission first."""
         query = ' '.join(str(query or '').split())[:500]
         if not query:
             raise ValueError('say what to look for')

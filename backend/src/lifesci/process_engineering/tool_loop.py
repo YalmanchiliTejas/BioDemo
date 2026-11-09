@@ -245,17 +245,18 @@ class ToolLoop:
             ASK_TOOL, RECALL_TOOL, OPEN_TOOL, REMEMBER_TOOL, OPEN_MEMORY_TOOL]
         recent, index = self._history(ctx, thread)
         latest = shown['conversation'][-1] if shown['conversation'] else {}
-        context = {
-            'current_user_id': shown['current_user_id'], 'user_roles': shown['user_roles'], 'site_id': shown['site_id'],
-            'mission_context': shown['mission_context'], 'memory_index': self._memory_index(ctx, thread),
-            'recent_turns': recent, 'earlier_turns_index': index,
-            'attached_sources': sources, 'case_index': shown['workspace_index'],
-            'capabilities': shown.get('capabilities'), 'demo_sources_enabled': shown['demo_sources_enabled'],
-            'today': iso(utc_now())[:10],
-        }
+        # Order matters: what changes least comes first (a cacheable prefix), memory and recent turns last, right
+        # before the question, where the model weighs them most. JSON keeps this insertion order.
+        context = {'capabilities': shown.get('capabilities'), 'demo_sources_enabled': shown['demo_sources_enabled']}
         for key in ('registered_models', 'bioprocess_models_and_demo_cases'):
             if isinstance(shown.get(key), (dict, list)) and 'status' not in shown[key]:
                 context[key] = shown[key]
+        context.update({
+            'site_id': shown['site_id'], 'case_index': shown['workspace_index'],
+            'current_user_id': shown['current_user_id'], 'user_roles': shown['user_roles'], 'today': iso(utc_now())[:10],
+            'mission_context': shown['mission_context'], 'attached_sources': sources,
+            'earlier_turns_index': index, 'memory_index': self._memory_index(ctx, thread), 'recent_turns': recent,
+        })
         question = latest.get('user_text') or ''
         if latest.get('display_context'):
             question += '\n\n[Screen the person shared, as quoted data]\n' + json.dumps(latest['display_context'], ensure_ascii=False)[:6000]
