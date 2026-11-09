@@ -26,6 +26,7 @@ CORE = Pack('core', 'Find and read authorized records; follow identifiers; propo
 
 PHYSICAL = ('physical_demo_context', 'physical_context_variant', 'physical_pipeline_prepare', 'physical_pipeline_execute',
             'physical_results_compare', 'physical_results_assess', 'physical_analysis_review', 'physical_model_adapter_propose')
+LIBRARY = ('model_library_catalog','model_library_configure','model_library_import_runs','model_library_prepare','model_library_execute','model_library_read','model_library_refresh','model_library_propose_extension')
 BIOPROCESS = ('bioprocess_demo_case', 'bioprocess_forecast', 'cho_dataset_forecast')
 
 PACKS = (
@@ -37,10 +38,10 @@ PACKS = (
          ('deviation', 'signal', 'capa', 'investigat', 'root cause', 'oos', 'out of spec', 'excursion', 'nonconform',
           'audit', 'quality', 'qa ', 'triage', 'case'), ('qa', 'supervisor')),
     Pack('process', 'Process data, trends, mechanistic and bioprocess models, scale-up and technology transfer (MSAT, engineering).',
-         PHYSICAL + BIOPROCESS,
+         PHYSICAL + BIOPROCESS + LIBRARY,
          'Choose registered models with rationale; distinguish published values, measurements and assumptions.',
          ('model', 'simulat', 'forecast', 'transfer', 'scale', 'lyophil', 'freeze', 'ferment', 'cho', 'titer', 'trend',
-          'kla', 'drying', 'bioreactor', 'what if', 'scenario'), ('msat', 'engineering')),
+          'pharmaceutical', 'hybrid', 'crystall', 'tablet', 'sensitivity', 'uncertainty', 'kla', 'drying', 'bioreactor', 'what if', 'scenario'), ('msat', 'engineering')),
     Pack('operations', 'SOP steps, execution status, shift handoffs (operator, supervisor).',
          (), 'Read procedure_instance records for step status, limits and exceptions; summarise open signals for a handoff. '
          'Guidance only: never record, sign or execute a step.',

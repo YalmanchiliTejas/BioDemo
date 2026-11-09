@@ -8,7 +8,7 @@ class ChatPipelineSpec(PipelineSpec):
     max_solver_calls: int = Field(default=32, ge=2, le=32, strict=True)
     max_wall_seconds: float = Field(default=30., ge=1., le=30.)
 
-Operator = Literal['physical_demo_context', 'physical_context_variant', 'physical_pipeline_prepare',
+Operator = Literal['model_library_catalog','model_library_configure','model_library_import_runs','model_library_prepare','model_library_execute','model_library_read','model_library_refresh','model_library_propose_extension','physical_demo_context', 'physical_context_variant', 'physical_pipeline_prepare',
     'physical_pipeline_execute', 'physical_results_compare', 'physical_results_assess',
     'physical_analysis_review', 'physical_model_adapter_propose',
     'bioprocess_demo_case', 'bioprocess_forecast', 'cho_dataset_forecast',
@@ -89,14 +89,14 @@ class ChatDecision(StrictModel):
             raise ValueError('ask for missing information before running a workflow')
         if self.continue_after_workflow and not self.workflow:
             raise ValueError('continuation requires tool work')
-        self._hold_over_cap(('physical_pipeline_execute',), 3, 'at most three numerical analyses per conversational turn')
+        self._hold_over_cap(('physical_pipeline_execute','model_library_execute'), 3, 'at most three numerical analyses per conversational turn')
         self._hold_over_cap(('bioprocess_forecast', 'cho_dataset_forecast'), 3, 'at most three bioprocess forecasts per conversational turn')
         if sum(n.task_kind == 'physical_results_assess' for n in self.workflow) > 1:
             raise ValueError('at most one agent interpretation per conversational turn')
         return self
 
 WorkspaceKind = Literal['case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
-    'proposal', 'physical_analysis_context', 'process_simulation', 'engineering_chat_turn', 'deviation_signal']
+    'proposal', 'physical_analysis_context', 'physical_model_dataset', 'physical_model_checkpoint', 'physical_interval_calibration', 'physical_analysis_result', 'process_simulation', 'engineering_chat_turn', 'deviation_signal']
 
 class WorkspaceSearch(StrictModel):
     """mode=search: records by kind and query. mode=links: records sharing an identifier with record_kind/record_id.

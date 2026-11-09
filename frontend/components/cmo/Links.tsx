@@ -46,7 +46,7 @@ export function Links({ run, reviewer }: { run: Run; reviewer: string }) {
       </summary>
       <p className="px-4 pb-2 text-[12.5px] text-text-secondary">
         A link means two identifiers were recorded together, not why. Guessed links come from file or sheet names;
-        rejected links are no longer used by the assistant. Links include this CMO's recent earlier deliveries.
+        rejected links are no longer used by the assistant. Links include this CDMO's recent earlier deliveries.
       </p>
       {!!data.deliveries_unavailable?.length && <p className="px-4 pb-2 text-[12px] text-status-warning">Not included (originals unavailable): {data.deliveries_unavailable.join(', ')}</p>}
       {error && <Callout tone="critical" className="mx-4 mb-2">{error}</Callout>}

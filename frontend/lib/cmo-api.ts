@@ -1,4 +1,4 @@
-/** Client for the CMO delivery API (backend/src/manufacturing_data/cmo/api.py), served by the platform API. */
+/** Client for the CDMO delivery API (backend/src/manufacturing_data/cmo/api.py), served by the platform API. */
 import { PROCESS_API } from './process-api';
 import { forgetMutable, remember } from './cache';
 import { authHeaders, authMode, redirectToSignIn, SIGNED_OUT_MESSAGE } from './auth';
@@ -75,11 +75,11 @@ export async function cmoFetch(path: string, init: RequestInit = {}): Promise<Re
   try {
     response = await fetch(`${apiBase()}/api/cmo-ingestion${path}`, {
       ...init,
-      // Same identity as process-api.ts: CMO records are scoped to the platform tenant.
+      // Same identity as process-api.ts: CDMO records are scoped to the platform tenant.
       headers: { ...(await authHeaders()), ...(init.body && typeof init.body === 'string' ? { 'Content-Type': 'application/json' } : {}), ...(token ? { 'X-CMO-Token': token } : {}), ...init.headers },
     });
   } catch {
-    throw new ApiError('Cannot reach the CMO data service. Check your connection, or ask the administrator whether the service is running.', 0);
+    throw new ApiError('Cannot reach the CDMO data service. Check your connection, or ask the administrator whether the service is running.', 0);
   }
   if (!response.ok) {
     let message = `${response.status} ${response.statusText}`;
@@ -136,7 +136,7 @@ export const RULES: Record<string, { title: string; help: string }> = {
   DRAFT_MAPPING: { title: 'Column meaning not confirmed', help: 'Confirm what this column means once; future deliveries in the same layout are then checked automatically.' },
   LAYOUT_CHANGED: { title: 'Layout changed since the last confirmed delivery', help: 'Columns were added, removed or renamed. Unchanged columns keep their confirmed meaning as a proposal.' },
   UNMAPPED_FIELD: { title: 'Column not used', help: 'This column was not converted into data. Map it to a parameter or mark it as ignored.' },
-  UNRECOGNIZED_TABLE: { title: 'Table with no known process parameters', help: 'Read it, then map its columns or ignore the whole table for this CMO.' },
+  UNRECOGNIZED_TABLE: { title: 'Table with no known process parameters', help: 'Read it, then map its columns or ignore the whole table for this CDMO.' },
   UNACCOUNTED_CONTENT: { title: 'Text not converted into data', help: 'These lines are listed so nothing is lost. Read them; ignore recurring letterhead or footers for future deliveries.' },
   MISSING_FIELD: { title: 'Expected value missing', help: 'A mapped column is empty here, or the file has no batch or time column.' },
   MISSING_PAGE: { title: 'Pages missing', help: 'The document says it has more pages than were delivered.' },
@@ -155,7 +155,7 @@ export const RULES: Record<string, { title: string; help: string }> = {
   EXTRACTION_UNCERTAIN: { title: 'Extraction needs review', help: 'The extraction model was unsure or failed for part of this document.' },
   MAPPING_UNCERTAIN: { title: 'Column meaning uncertain', help: 'The mapping model was not confident. Confirm the meaning yourself.' },
   BATCH_DOCUMENT_MISSING: { title: 'Batch missing a document', help: 'Other batches in this delivery have this document; this batch does not.' },
-  EXPECTED_DOCUMENT_MISSING: { title: 'Document missing compared with last delivery', help: 'The previous verified delivery from this CMO included this document type.' },
+  EXPECTED_DOCUMENT_MISSING: { title: 'Document missing compared with last delivery', help: 'The previous verified delivery from this CDMO included this document type.' },
   EXPECTED_PARAMETER_MISSING: { title: 'Parameter missing compared with last delivery', help: 'The previous verified delivery reported this parameter.' },
 };
 /** Readable names for parameter IDs (backend/src/ingestion/schema.py VOCAB); a bare ID like "product" reads as a mistake. */

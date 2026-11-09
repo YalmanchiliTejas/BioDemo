@@ -418,6 +418,9 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
                         platform.evidence.read_derived(ctx, kind, r.id)
                     except (PermissionError, ValueError, KeyError):
                         continue
+                if platform.process_models.analysis.is_library_record(kind,r.state):
+                    try:platform.process_models.analysis._library_memory(ctx,kind,r.state)
+                    except PermissionError:continue
                 visible.append({"id": r.id, "revision": r.revision, "state": r.state})
                 if len(visible) == limit:
                     break
@@ -429,6 +432,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
         if kind in HIDDEN_KINDS:
             raise HTTPException(404, "not a public record kind")
         rec = platform.store.read().require(ctx.tenant_id, kind, record_id)
+        if platform.process_models.analysis.is_library_record(kind,rec.state):platform.process_models.analysis._library_memory(ctx,kind,rec.state)
         if kind == "transfer_package" and not any(platform.identity.check(ctx, "read", kind, rec.id, site_id=rec.state[s])
                                                    for s in ("sending_site", "receiving_site")):
             raise HTTPException(403, "transfer outside actor site scope")

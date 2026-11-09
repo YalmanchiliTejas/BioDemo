@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { ModelLibraryResult,type LibraryResult } from './ModelLibraryResult';
 import { ScientificPlot } from '@/components/ScientificPlot';
 import { processRequest } from '@/lib/process-api';
 import { cached } from '@/lib/cache';
@@ -11,7 +12,7 @@ const VialScene = dynamic(() => import('./VialScene'), { ssr: false, loading: ()
 export type ArtifactRef = { id: string; kind: string; title: string; status?: string };
 type Point = { time_h: number; interface_temperature_c: number; rate_kg_s_per_vial: number; remaining_ice_kg_per_vial: number; capacity_margin_kg_h: number };
 type Model = { model_id: string; status: string; error?: string; applicability?: { missing_inputs: string[] }; rationale: string; prediction?: { completion_time_h: number | null; minimum_critical_margin_c: number | null; minimum_capacity_margin_kg_h: number | null; trajectory: Point[]; violations: { constraint: string; first_time_h: number }[] }; geometry?: GeometryRecord; holdout_evaluation?: { rmse_c: number | null; points: number }; uncertainty?: { completion_p05_p50_p95_h: number[] | null; interpretation: string } };
-type RecordData = { id: string; status: string; models?: Model[]; warnings?: string[]; spec?: { views: string[] }; resource_usage?: { solver_calls: number; runtime_seconds: number }; series?: { id: string; trajectory: Point[] }[]; rows?: { label: string; result_id: string; model_id: string; completion_time_h: number | null; minimum_critical_margin_c: number | null; minimum_capacity_margin_kg_h: number | null; violations: { constraint: string; first_time_h: number; last_time_h: number }[]; holdout_rmse_c: number | null }[]; source_snapshot?: unknown; pinned_models?: { title: string; rationale: string }[]; scenario_changes?: { label: string; rationale: string }; input_bundle?: { observation_provenance: string; parameter_manifest: unknown[] }; workspace?: { audience: string }; summary?: string; verification_experiments?: string[]; proposal_id?: string; operation?: string; rationale?: string; owner_id?: string; required_roles?: string[]; execution_status?: string; follow_up_measure?: string; expected_result?: string; constraints?: string[] };
+type RecordData = { id: string; status: string; models?: Model[]; warnings?: string[]; spec?: { views?: string[]; mode?: string }; resource_usage?: { solver_calls: number; runtime_seconds: number }; series?: { id: string; trajectory: Point[] }[]; rows?: { label: string; result_id: string; model_id: string; completion_time_h: number | null; minimum_critical_margin_c: number | null; minimum_capacity_margin_kg_h: number | null; violations: { constraint: string; first_time_h: number; last_time_h: number }[]; holdout_rmse_c: number | null }[]; source_snapshot?: unknown; pinned_models?: { title: string; rationale: string }[]; scenario_changes?: { label: string; rationale: string }; input_bundle?: { observation_provenance: string; parameter_manifest: unknown[] }; workspace?: { audience: string }; summary?: string; verification_experiments?: string[]; proposal_id?: string; operation?: string; rationale?: string; owner_id?: string; required_roles?: string[]; execution_status?: string; follow_up_measure?: string; expected_result?: string; constraints?: string[] };
 const fmt = (v: number | null | undefined) => v == null ? '—' : v.toFixed(2);
 const colors = ['#0e7490', '#c26a31', '#7c3aed'];
 
@@ -26,6 +27,7 @@ export function AnalysisArtifact({ threadId, artifact }: { threadId: string; art
       .then(result => { if (current) setData(result); }).catch(e => { if (current) setError(String(e)); });
     return () => { current = false; };
   }, [threadId, artifact.id, artifact.kind, artifact.status]);
+  if (data && (data.spec?.mode==='model_library' || (data.workspace?.audience==='model_library') || ['physical_model_dataset','physical_model_checkpoint','physical_interval_calibration'].includes(artifact.kind))) return <ModelLibraryResult data={data as unknown as LibraryResult}/>;
   const models = data?.models?.filter(m => m.prediction) ?? [];
   const active = models[selected] ?? models[0];
   const stale = ['stale', 'quarantined'].includes(data?.status ?? artifact.status ?? '');

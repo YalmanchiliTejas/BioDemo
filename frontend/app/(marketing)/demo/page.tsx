@@ -11,7 +11,7 @@ import { ProcessApiError } from '@/lib/process-api';
 
 const PERSONAS: { id: Persona; title: string; value: string; icon: typeof Gauge }[] = [
   { id: 'process_engineer', title: 'Process Engineer', value: 'Find why a batch drifted, forecast growth and glucose, compare runs.', icon: FlaskConical },
-  { id: 'msat', title: 'MSAT', value: 'Judge whether CMO data is trustworthy and what a transfer still needs.', icon: Workflow },
+  { id: 'msat', title: 'MSAT', value: 'Review CDMO data against its sources and see what a transfer still needs.', icon: Workflow },
   { id: 'qa', title: 'Quality (QA)', value: 'Triage an overnight deviation, find precedents, prepare the review.', icon: ClipboardCheck },
   { id: 'executive', title: 'Executive', value: 'See what needs attention this week, and who owns it.', icon: Gauge },
 ];
@@ -52,7 +52,7 @@ export default function DemoStartPage() {
     <header className="mx-auto flex max-w-5xl items-center justify-between gap-4"><BrandMark href="/" /><Link href="/" className="text-sm text-text-secondary">Back to home</Link></header>
     <div className="mx-auto max-w-5xl py-12">
       <p className="lp-eyebrow">Try it yourself · no sign-up</p>
-      <h1 className="mt-4 text-3xl font-medium tracking-tight sm:text-5xl">Work a real manufacturing problem in a minute.</h1>
+      <h1 className="mt-4 text-3xl font-medium tracking-tight sm:text-5xl">Explore manufacturing questions with the evidence in view.</h1>
       <p className="mt-5 max-w-3xl text-text-secondary">Pick your role. You get a private workspace with sample batch, lab and deviation data and a few realistic scenarios to try with the assistant. Nothing from your systems is needed.</p>
 
       <fieldset className="mt-10">

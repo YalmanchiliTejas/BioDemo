@@ -12,8 +12,12 @@ from ..cmo_datasets import CLASSIFICATION as DATASET, summarize
 from ..ids import iso, parse_iso
 
 KINDS = ('case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
-         'proposal', 'physical_analysis_context', 'process_simulation', 'engineering_chat_turn', 'deviation_signal')
+         'proposal', 'physical_analysis_context', 'physical_model_dataset', 'physical_model_checkpoint', 'physical_interval_calibration', 'physical_analysis_result', 'process_simulation', 'engineering_chat_turn', 'deviation_signal')
 FIELDS = {
+    'physical_model_dataset': ('label','partition_counts','packet_hash','limitations'),
+    'physical_model_checkpoint': ('checkpoint','review_state','runner_manifest'),
+    'physical_interval_calibration': ('interval_calibration','review_state','runner_manifest'),
+    'physical_analysis_result': ('spec','output','error','execution_status','warnings','resource_usage','artifacts'),
     # Deviation signals are detections, not deviations: a person decides whether a case is opened.
     'deviation_signal': ('signal_id', 'kind', 'severity', 'rule', 'parameter', 'value', 'unit', 'limit', 'spec_ref',
                          'subject', 'source', 'status', 'occurrences', 'first_at', 'last_at', 'case_id', 'triage'),
@@ -87,6 +91,8 @@ class WorkspaceTools:
         self.p = platform
 
     def _authorize(self, ctx, thread, rec):
+        if self.p.process_models.analysis.is_library_record(rec.kind,rec.state):
+            self.p.process_models.analysis._library_memory(ctx,rec.kind,rec.state)
         if rec.kind not in KINDS or rec.state.get('site_id') != thread['site_id']:
             raise PermissionError('record is outside this workspace')
         # Someone else's conversation (or a result derived from it) is readable only under their grant.

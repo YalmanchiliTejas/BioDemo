@@ -167,7 +167,7 @@ export function screens(kit: Kit) {
 
     laptopReceipt: ((ctx, w, h) => {
       light(ctx, w, h);
-      header(kit, ctx, w, 'October delivery · 8 files', 'CMO', false);
+      header(kit, ctx, w, 'October delivery · 8 files', 'CDMO', false);
       const rows: [string, string][] = [['Values verified', '1,843 / 1,843'], ['Wrong values accepted', '0'], ['Unaccounted cells', '0'], ['CoA matched to lot', '8 / 8']];
       rows.forEach(([k, v], i) => {
         const y = 66 + i * 40;

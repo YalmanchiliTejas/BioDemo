@@ -12,20 +12,25 @@ from ..ids import content_hash, parse_iso
 from .catalog import ModelCatalog
 from .engine import execute, visible_rows
 from .schemas import AdapterProposalIn, AgentPlanIn, PipelineSpec
+from .library_service import LibraryOperations
+from .library_schemas import LibraryPipelineSpec
 
 PIPELINE_VERSION = "physical-analysis-pipeline-1"
 
 
-class ProcessAnalysisService:
+class ProcessAnalysisService(LibraryOperations):
     def __init__(self, platform):
         self.p = platform
-        self.catalog = ModelCatalog()
+        self.catalog = ModelCatalog(None)
 
     def _source(self, ctx, simulation_id, index):
         kind = "physical_analysis_context" if self.p.store.read().get(ctx.tenant_id, "physical_analysis_context", simulation_id) else "process_simulation"
         source = self.p.evidence.read_derived(ctx, kind, simulation_id)
         source["source_record_kind"] = kind
         self.p.identity.validate_refs(ctx, [{"kind": kind, "id": simulation_id, "revision": source["revision"], "site_id": source["site_id"]}])
+        if source.get("workspace",{}).get("audience") == "model_library":
+            if index != 0:raise ValueError("Library contexts have one evidence-backed configuration")
+            return source, deepcopy(source["input_bundle"]["config"])
         options = source["workspace"]["options"]
         if not 0 <= index < len(options):
             raise ValueError("candidate index is not present in the source simulation")
@@ -40,10 +45,11 @@ class ProcessAnalysisService:
 
     def models(self, ctx, simulation_id=None, candidate_index=0):
         if simulation_id:
-            _, config = self._source(ctx, simulation_id, candidate_index)
-            return {"models": self.catalog.snapshot(config), "catalog_hash": content_hash(self.catalog.snapshot())}
+            source, config = self._source(ctx, simulation_id, candidate_index)
+            catalog = ModelCatalog(source.get("process_family", "pharmaceutical_primary_drying"))
+            return {"models": catalog.snapshot(config), "catalog_hash": content_hash(self.catalog.snapshot())}
         self.p.identity.require(ctx, "read", "scientific_model_catalog")
-        return {"models": self.catalog.snapshot(), "catalog_hash": content_hash(self.catalog.snapshot())}
+        return {"models": self.catalog.snapshot(), "catalog_hash": content_hash(self.catalog.snapshot()), "existing_external_capabilities": self.p.bioprocess.catalog()}
 
     def _catalog_ref(self, ctx, site_id):
         record = self.p.evidence.ingest(ctx, source_system="scientific-model-catalog", source_record_id=site_id,
@@ -54,11 +60,14 @@ class ProcessAnalysisService:
     @staticmethod
     def _runner_manifest():
         return {"version": PIPELINE_VERSION, "files_sha256": {name: hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
-                for name in ("engine.py", "schemas.py", "catalog.py", "service.py")}}
+                for name in ("engine.py", "schemas.py", "catalog.py", "service.py", "contracts.py", "hybrid.py", "uncertainty.py", "library_service.py", "library_schemas.py", "decisions.py", "cho_adapter.py")}}
 
     def prepare(self, ctx, spec: PipelineSpec | dict, *, agent_run_id=None, authored_by_agent=False, basis_refs=()):
+        if isinstance(spec, LibraryPipelineSpec) or isinstance(spec,dict) and spec.get("mode")=="model_library":
+            return self.prepare_library(ctx,spec,basis_refs=basis_refs,agent_run_id=agent_run_id,authored_by_agent=authored_by_agent)
         spec = PipelineSpec.model_validate(spec)
         source, config = self._source(ctx, spec.simulation_id, spec.candidate_index)
+        if source.get("workspace",{}).get("audience")=="model_library":raise ValueError("Use the family-specific model_library pipeline contract")
         site = source["site_id"]
         self.p.identity.require(ctx, "propose", "physical_analysis_plan", site_id=site)
         cutoff = source["input_bundle"].get("evidence_cutoff_h")
@@ -105,10 +114,13 @@ class ProcessAnalysisService:
                 inputs=refs, produced_by={"method": PIPELINE_VERSION, "gateway_run_id": agent_run_id})
 
     def get_plan(self, ctx, plan_id):
-        return self.p.evidence.read_derived(ctx, "physical_analysis_plan", plan_id)
+        result=self.p.evidence.read_derived(ctx, "physical_analysis_plan", plan_id)
+        if result.get('spec',{}).get('mode')=='model_library':self._library_memory(ctx,'physical_analysis_plan',result)
+        return result
 
-    def execute(self, ctx, plan_id):
+    def execute(self, ctx, plan_id, *, commit_guard=None):
         plan = self.get_plan(ctx, plan_id)
+        if plan["spec"].get("mode")=="model_library":return self.execute_library(ctx,plan,commit_guard=commit_guard)
         self.p.identity.require(ctx, "propose", "physical_analysis_result", site_id=plan["site_id"])
         self._catalog_ref(ctx, plan["site_id"])
         ref = EvidenceRef("physical_analysis_plan", plan_id, plan["revision"], plan["site_id"])
@@ -129,7 +141,11 @@ class ProcessAnalysisService:
                 inputs=[ref], produced_by={"method": PIPELINE_VERSION, "actor_id": ctx.actor_id})
 
     def get_result(self, ctx, result_id):
-        return self.p.evidence.read_derived(ctx, "physical_analysis_result", result_id)
+        result=self.p.evidence.read_derived(ctx, "physical_analysis_result", result_id)
+        if result.get('spec',{}).get('mode')=='model_library':self._library_memory(ctx,'physical_analysis_result',result)
+        if result.get('spec',{}).get('mode')=='model_library' and (result['status']!='current' or result.get('runner_manifest')!=self._runner_manifest()):
+            return {k:v for k,v in result.items() if k not in ('output','models','source_snapshot')} | {'status':'stale','warnings':['Contributing evidence or implementation changed; predictions withheld until reassessment.']}
+        return result
 
     def agent_plan(self, ctx, request: AgentPlanIn | dict):
         request = AgentPlanIn.model_validate(request)
@@ -168,6 +184,8 @@ class ProcessAnalysisService:
 
     def propose_review(self, ctx, result_id, owner_id):
         result = self.get_result(ctx, result_id)
+        if result["spec"].get("mode")=="model_library":
+            return self.library_review(ctx,result_id,owner_id)
         ref = {"kind": "physical_analysis_result", "id": result_id, "revision": result["revision"], "site_id": result["site_id"]}
         with self.p.store.transaction(ctx.actor_id) as tx:
             self.p.identity.validate_refs(ctx, [ref], tx=tx)
@@ -200,6 +218,7 @@ class ProcessAnalysisService:
     def interpret(self, ctx, result_id):
         """Use the same gateway for engineering interpretation after calculations."""
         result = self.get_result(ctx, result_id)
+        if result["spec"].get("mode")=="model_library":return self.library_interpret(ctx,result_id)
         ref = EvidenceRef("physical_analysis_result", result_id, result["revision"], result["site_id"])
         self.p.identity.require(ctx, "propose", "physical_analysis_interpretation", site_id=result["site_id"])
         self.p.identity.validate_refs(ctx, [ref.to_dict()])

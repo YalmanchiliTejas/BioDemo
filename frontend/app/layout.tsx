@@ -13,8 +13,8 @@ const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', displ
 
 export const metadata: Metadata = {
   icons: { icon: { url: "/brand/favicon-transparent.svg", type: "image/svg+xml" }, apple: "/brand/symbol-transparent.png" },
-  title: { default: 'Sievance · Verified CMO data', template: '%s · Sievance' },
-  description: 'Turn the files your CMOs send into one verified dataset. Every value links to its source; nothing is accepted or dropped without a record.',
+  title: { default: 'Sievance · Pharmaceutical manufacturing intelligence', template: '%s · Sievance' },
+  description: 'Connect manufacturing evidence, investigate process questions and compare next steps. AI for pharmaceutical teams and CDMOs, with traceable sources and human review.',
 };
 
 export const viewport: Viewport = { themeColor: '#0e7490' };

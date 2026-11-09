@@ -42,12 +42,12 @@ function StatusPill({ status }: { status: Chapter['status'] }) {
 const CHAPTERS: Chapter[] = [
   {
     station: 'partners', status: 'available', zoom: 1.75, place: 'lg:left-auto lg:right-[8%] lg:top-[16%]',
-    title: 'Verifies every delivery from your CMOs',
-    body: 'Spreadsheets, LIMS exports and certificates become one dataset. Each value links to its source cell, and nothing is accepted or dropped without a record.',
-    note: 'Measured on real CHO cell-culture data, repackaged as deliveries from a fictional CMO.',
+    title: 'Make sense of the data your CDMOs send',
+    body: 'Bring spreadsheets, LIMS exports and certificates together. Inspect extracted values beside their sources, resolve flagged items and keep a record of review decisions.',
+    note: 'Measured on real CHO cell-culture data, repackaged as deliveries from a fictional CDMO.',
     callout: (
       <Callout icon={<PackageCheck className="h-4 w-4" />} title="October delivery · 8 files">
-        <Row label="Values verified automatically" value="1,843 / 1,843" />
+        <Row label="Values matched to source files" value="1,843 / 1,843" />
         <Row label="Wrong values accepted" value="0" />
         <Row label="Source cells unaccounted for" value="0" />
         <Row label="Sent to the assistant as evidence" tone="ok" />
@@ -134,21 +134,21 @@ function Copy({ className }: { className?: string }) {
   return (
     <div className={className}>
       <h1 className="font-display text-[36px] font-light leading-[1.06] tracking-[-0.03em] text-ink sm:text-[56px] xl:text-[62px]">
-        The AI operating system for <span className="text-brand-teal">pharmaceutical manufacturing.</span>
+        AI for <span className="text-brand-teal">pharmaceutical manufacturing.</span>
       </h1>
       <p className="mt-5 max-w-[31rem] text-[15.5px] leading-relaxed text-text-secondary sm:mt-6 sm:text-[17px]">
-        Verify what your contract manufacturers send, investigate deviations with the evidence in view, and forecast process outcomes with physics-based models. Every proposed change waits for a named person to sign.
+        Bring your manufacturing data into context, investigate process questions and compare next steps with physics-based models. Work across your team and CDMOs, with evidence you can inspect and decisions people control.
       </p>
       <div className="mt-8 flex flex-wrap gap-3">
         <Link href="/demo/" className="lp-btn lp-btn-primary">Explore the platform<ArrowRight className="h-4 w-4" /></Link>
         <a href="#platform" className="lp-btn lp-btn-outline">See how it works</a>
       </div>
-      <p className="mt-5 max-w-[31rem] text-[12.5px] leading-relaxed text-text-tertiary">Working now: CMO delivery verification on real CHO data, the assistant and freeze-drying forecasts. Monitoring and investigation screens preview a synthetic campaign.</p>
+      <p className="mt-5 max-w-[31rem] text-[12.5px] leading-relaxed text-text-tertiary">Explore CDMO data review on published CHO data, the assistant and freeze-drying forecasts. Monitoring and investigation screens preview a synthetic campaign.</p>
     </div>
   );
 }
 
-const FORMATS = ['CMO deliveries', 'Excel trend exports', 'LIMS results', 'Certificates of analysis', 'Batch records', 'Historian tags', 'Deviations and CAPAs', 'Work orders', 'SOPs', 'Freeze drying', 'Tech transfer'];
+const FORMATS = ['CDMO deliveries', 'Excel trend exports', 'LIMS results', 'Certificates of analysis', 'Batch records', 'Historian tags', 'Deviations and CAPAs', 'Work orders', 'SOPs', 'Freeze drying', 'Tech transfer'];
 
 function Marquee() {
   return (
