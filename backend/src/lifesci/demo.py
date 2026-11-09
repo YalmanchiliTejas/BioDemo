@@ -84,6 +84,7 @@ class DemoService:
             raise ValueError('Accept the demo notice to continue')
         owner = self.p.store.read().get(CONTROL, 'demo_owner', visitor)
         if owner and not self.expired(owner.state['tenant_id']):
+            self.ensure_library_examples(self.p.identity.context_for(owner.state['tenant_id'], visitor))
             return self.view(owner.state['tenant_id'])  # one active workspace per visitor
         if self._daily()[1] >= GLOBAL_DAILY:
             raise DemoLimit('The demo is at capacity today. Please try again tomorrow, or talk to us.')
@@ -132,7 +133,35 @@ class DemoService:
     def workspace(self, ctx: AccessContext) -> dict[str, Any]:
         if not is_demo(ctx.tenant_id) or not ctx.roles:
             raise PermissionError('not a demo workspace')
+        self.ensure_library_examples(ctx)
         return self.view(ctx.tenant_id)
+
+    def ensure_library_examples(self, ctx: AccessContext) -> None:
+        """Upgrade returning demo tenants without resetting their data or enabling reconstruction tools."""
+        if not is_demo(ctx.tenant_id) or self.expired(ctx.tenant_id):
+            return
+        entry = self._entry(ctx.tenant_id)
+        if entry is None:
+            return
+        from .demo_seed import SITE, seed_model_library
+        # Refresh versioned software first: an updated solver can stale saved demo contexts.
+        self.p.process_models.analysis._catalog_ref(ctx, SITE)
+        seed = entry.get('seed') or {}
+        ids = set(seed.get('model_library_contexts') or [])
+        current = self.p.store.read().list(ctx.tenant_id, 'physical_analysis_context',
+                                         lambda s: s.get('status') == 'current')
+        if seed.get('model_library_seed_version') == 1 and len(ids) == 19 and ids.issubset({r.id for r in current}):
+            return
+        # Seed only in the visitor tenant. Control metadata is a separate tenant
+        # transaction; retrying after interruption reuses the already-created examples.
+        with self.p.store.transaction(ctx.actor_id):
+            ids = seed_model_library(self.p, ctx, SITE)
+        with self.p.store.transaction(ctx.actor_id) as tx:
+            current = tx.require(CONTROL, 'demo_workspace', ctx.tenant_id)
+            tx.put(CONTROL, 'demo_workspace', ctx.tenant_id,
+                   {**current.state, 'seed': {**current.state.get('seed', {}),
+                    'model_library_contexts': ids, 'model_library_seed_version': 1}},
+                   expected_revision=current.revision, action='upgrade_demo_library_examples')
 
     # --- limits ---------------------------------------------------------------------
     def consume_message(self, ctx: AccessContext) -> None:
@@ -144,6 +173,7 @@ class DemoService:
         day, used_today = self._daily()
         if used_today >= GLOBAL_DAILY:
             raise DemoLimit('The demo has reached today\'s limit. Please come back tomorrow, or talk to us to keep going.')
+        self.ensure_library_examples(ctx)
         with self.p.store.transaction('demo') as tx:
             rec = tx.require(CONTROL, 'demo_workspace', ctx.tenant_id)
             if rec.state['messages'] >= PER_WORKSPACE:

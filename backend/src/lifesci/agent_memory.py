@@ -58,6 +58,11 @@ class AgentMemory:
         seen = {}
         for tid in thread['turn_ids']:
             for a in self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', tid).state['artifacts']:
+                # Only the host's explicit read path writes this versioned receipt.
+                # Producing or merely listing an artifact does not count as inspection.
+                inspected = a.get('inspected_ref')
+                if inspected and inspected.get('kind') == a['kind'] and inspected.get('id') == a['id']:
+                    seen[(inspected['kind'], inspected['id'])] = inspected
                 rec = self.p.store.read().get(ctx.tenant_id, a['kind'], a['id'])
                 for ref in (rec.state.get('inputs') or []) if rec else []:
                     if ref.get('kind') not in ('engineering_chat_turn',):

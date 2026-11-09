@@ -401,3 +401,131 @@ def test_visitors_can_discover_and_execute_library_with_provenance(api, p, perso
     assert start(api, 'anon-library', persona).json()['tenant_id'] == tenant
     assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 19
     assert p.demo.view(tenant)['messages_left'] == 20
+
+
+def test_existing_demo_scenario_can_discover_missing_library_seed(p, monkeypatch):
+    # A visitor created before the library seed was deployed keeps their original tenant.
+    with monkeypatch.context() as old_seed:
+        old_seed.setattr('src.lifesci.demo_seed.seed_model_library', lambda *args: [])
+        tenant = p.demo.provision('anon-before-library', 'process_engineer', True)['tenant_id']
+    with p.store.transaction('legacy-fixture') as tx:
+        old = tx.require(CONTROL, 'demo_workspace', tenant)
+        legacy_seed = {k: v for k, v in old.state['seed'].items() if not k.startswith('model_library_')}
+        tx.put(CONTROL, 'demo_workspace', tenant, {**old.state, 'seed': legacy_seed},
+               expected_revision=old.revision, action='legacy_demo_fixture')
+    ctx = p.identity.context_for(tenant, 'anon-before-library')
+    p.demo.workspace(ctx)  # normal returning-visitor entry, not a fresh sign-in
+    found = p.engineering_conversations.workspace.search(
+        ctx, {'site_id': 'NF1', 'owner_id': ctx.actor_id},
+        kinds=['physical_analysis_context'], query='chemical.parallel_batch')
+    matches = [r for r in found['records'] if r.get('model_id') == 'chemical.parallel_batch']
+    assert len(matches) == 1, 'Scenario advertises a SYNTHETIC configuration the agent cannot discover'
+    p.demo.workspace(ctx)
+    assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 19
+
+
+@pytest.mark.parametrize('persona', sorted(PERSONA_ROLES))
+@pytest.mark.parametrize('legacy', [False, True])
+def test_demo_scenario_agent_discovers_reads_and_executes_without_reconstruction(p, monkeypatch, legacy, persona):
+    from src.lifesci.demo_scenarios import for_persona
+    from src.lifesci.gateway.providers import Completion
+    from src.lifesci.gateway.registry import Qualification
+
+    with monkeypatch.context() as previous_release:
+        if legacy:
+            previous_release.setattr('src.lifesci.demo_seed.seed_model_library', lambda *args: [])
+        tenant = p.demo.provision('anon-library-agent', persona, True)['tenant_id']
+    ctx = p.identity.context_for(tenant, 'anon-library-agent')
+    chosen = {}
+    model_id = 'fermentation.oxygen_transfer' if persona == 'msat' else 'chemical.parallel_batch'
+    scenario = next(s for s in for_persona(persona) if s['scenario_id'].endswith('model-library'))
+
+    class Provider:
+        name = 'anthropic'
+        n = 0
+
+        def chat(self, **kw):
+            self.n += 1
+            if self.n == 1:
+                name, args = 'model_library_catalog', {'model_id': model_id}
+            elif self.n == 2:
+                catalog = p.store.read().list(tenant, 'assistant_workspace_result')[-1].state['data']
+                available = catalog.get('configurations', [])
+                assert available, 'Catalogue exposed equations but no saved configuration identifiers to the agent'
+                chosen.update(next(c for c in available if c['model_id'] == model_id))
+                name, args = 'model_library_read', {'kind': chosen['kind'], 'record_id': chosen['id']}
+            elif self.n == 3:
+                name, args = 'model_library_prepare', {
+                    'mode': 'model_library', 'simulation_id': chosen['id'], 'model_id': chosen['model_id'],
+                    'objective': 'Execute the existing synthetic chemical example with lineage.',
+                    'operation': 'simulate', 'max_solver_calls': 4, 'max_wall_seconds': 10}
+            elif self.n == 4:
+                plan = p.store.read().list(tenant, 'physical_analysis_plan')[-1]
+                name, args = 'model_library_execute', {'plan_id': plan.id}
+            else:
+                return Completion('The conditional synthetic result is saved for review.', 1, 1)
+            return Completion('', 1, 1, tool_calls=({'id': 'demo-library-' + str(self.n),
+                'name': name, 'arguments': json.dumps(args)},))
+
+    monkeypatch.setenv('ASSISTANT_LOOP', 'tools')
+    p.gateway.providers['anthropic'] = Provider()
+    p.gateway.registry.qualify(Qualification('investigation_planning', 'anthropic-opus', 'unit-contract',
+        True, {'host': 1.0}, {'host': 1.0}, 'Scripted host test, not live AI validation', 'test'))
+    service = p.engineering_conversations
+    thread = service.create(ctx, {'site_id': 'NF1'})
+    queued = service.enqueue(ctx, thread['id'], {'text': scenario['prompt'], 'expected_revision': thread['revision']})
+    service.run_turn(ctx, thread['id'], queued['turn_ids'][-1])
+    view = service.get(ctx, thread['id'])
+    turn = view['turns'][-1]
+    assert turn['status'] == 'completed', turn.get('issues')
+    results = p.store.read().list(tenant, 'physical_analysis_result')
+    assert len(results) == 1 and results[0].state['execution_status'] == 'completed'
+    assert turn['solver_calls_used'] == 1
+    assert all(step['status'] == 'completed' for step in turn['steps'])
+    assert view['demo_enabled'] is False
+    assert not p.store.read().list(tenant, 'physical_model_checkpoint')
+
+
+def test_standard_local_development_seed_includes_library(p):
+    from src.lifesci.devseed import seed, TENANT
+    seed(p)
+    records = p.store.read().list(TENANT, 'physical_analysis_context')
+    assert any(r.state.get('model_id') == 'chemical.parallel_batch' for r in records), \
+        'Normal --seed-demo startup must not require a separate library preview script'
+
+
+def test_demo_repairs_partial_library_seed_without_replacing_custom_data(p):
+    tenant = p.demo.provision('anon-partial-library', 'msat', True)['tenant_id']
+    ctx = p.identity.context_for(tenant, 'anon-partial-library')
+    records = p.store.read().list(tenant, 'physical_analysis_context')
+    target = next(r for r in records if r.state['model_id'] == 'chemical.parallel_batch')
+    with p.store.transaction(ctx.actor_id) as tx:
+        tx.put(tenant, target.kind, target.id, {**target.state, 'status': 'stale'},
+               expected_revision=target.revision, action='test_stale_demo_configuration')
+    evidence_before = p.store.read().list(tenant, 'evidence')
+    p.demo.workspace(ctx)
+    current = p.store.read().list(tenant, 'physical_analysis_context', lambda s: s.get('status') == 'current')
+    assert len(current) == 19
+    assert target.id not in {r.id for r in current}
+    assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 20
+    assert len(p.store.read().list(tenant, 'evidence')) == len(evidence_before)
+    p.demo.workspace(ctx)
+    assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 20
+    assert p.demo.view(tenant)['messages_left'] == 20
+
+
+def test_every_seeded_library_choice_executes_its_own_model(p):
+    tenant = p.demo.provision('anon-library-catalogue-audit', 'qa', True)['tenant_id']
+    ctx = p.identity.context_for(tenant, 'anon-library-catalogue-audit')
+    service = p.process_models.analysis
+    contexts = p.store.read().list(tenant, 'physical_analysis_context')
+    assert len(contexts) == 19
+    for context in contexts:
+        model_id = context.state['model_id']
+        plan = service.prepare(ctx, {'mode':'model_library','context_id':context.id,'model_id':model_id,
+            'objective':'Check that this public demo configuration has a runnable native model.',
+            'operation':'simulate','max_solver_calls':2,'max_wall_seconds':15})
+        result = service.execute(ctx, plan['id'])
+        assert result['execution_status'] == 'completed', (model_id, result['error'])
+        assert result['resource_usage']['solver_calls'] == 1
+        assert result['output']['simulation'], model_id
