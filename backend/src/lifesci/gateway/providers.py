@@ -65,7 +65,8 @@ class FakeProvider:
 
     def chat(self, *, model: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]], tool_choice: str,
              max_output_tokens: int, timeout_s: float) -> Completion:
-        """Scripted turns: a str (final text), {'content', 'tool_calls': [{'name', 'arguments': dict}]}, or an Exception."""
+        """Scripted turns: a str (final text), {'content', 'tool_calls': [{'name', 'arguments': dict}]}, an Exception,
+        or a function of the messages so far returning one of those."""
         import json as _json
         self.calls.append({"model": model, "messages": [dict(m) for m in messages], "tools": [t["function"]["name"] for t in tools],
                            "tool_choice": tool_choice, "max_output_tokens": max_output_tokens})
@@ -73,6 +74,8 @@ class FakeProvider:
         if not queue:
             raise ProviderError(f"no scripted response for {model}", retryable=False, kind="unavailable")
         item = queue.pop(0)
+        if callable(item):  # a step that depends on what earlier tool calls created (e.g. a plan ID)
+            item = item(messages)
         if isinstance(item, Exception):
             raise item
         if isinstance(item, str):

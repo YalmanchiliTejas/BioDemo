@@ -171,7 +171,7 @@ CONTEXT = [
     ('ERP', 'LOT-L-8812', '2026-10-28T09:00:00+00:00', {'lot': 'L-8812', 'material': 'Antifoam C emulsion'},
      'Antifoam lot L-8812 received 2026-10-28 (supplier Silco). First issued to batch B-117 on 2026-11-03. '
      'Previous lot on BR-07 was L-8801, used in B-104 to B-116 with no foaming recorded.'),
-    ('CMMS', 'PM-AF-2-2026-11', '2026-11-01T10:00:00+00:00', {'equipment_id': 'AF-2'},
+    ('CMMS', 'PM-AF-2-2026-11', '2026-11-01T10:00:00+00:00', {'equipment_id': 'AF-2', 'parent_equipment_id': 'BR-07'},
      'Antifoam pump AF-2 (BR-07) preventive maintenance 2026-11-01: seal inspected, no wear; flow check 98 % of nominal. Pass.'),
     ('CMMS', 'CAL-DO-BR-07-2026-10', '2026-10-30T14:00:00+00:00', {'equipment_id': 'BR-07'},
      'DO probe on BR-07 calibrated 2026-10-30 (two-point: zero and air saturation). Post-calibration bump test passed.'),

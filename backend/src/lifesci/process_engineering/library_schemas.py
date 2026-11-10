@@ -1,7 +1,7 @@
 """Explicit typed production API/tool payloads; no caller code/import paths."""
 
 from typing import Any, Literal
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import field_validator, AliasChoices, Field, model_validator
 from .schemas import StrictModel
 
 
@@ -34,6 +34,23 @@ class LibraryPipelineSpec(StrictModel):
             raise ValueError("Provide context_id (or the legacy simulation_id), never both")
         return values
 
+    @field_validator("options", mode="before")
+    @classmethod
+    def options_from_json_text(cls, value):
+        """Models sometimes send the options object as JSON text; accept it if it parses to an object."""
+        if isinstance(value, dict):  # misplaced top-level limits are not operation options
+            return {k: v for k, v in value.items() if k not in ("max_solver_calls", "max_wall_seconds")}
+        if isinstance(value, str):
+            import json
+            try:
+                parsed = json.loads(value)
+            except ValueError:
+                raise ValueError("options must be an object (or JSON text of one)")
+            if not isinstance(parsed, dict):
+                raise ValueError("options must be an object")
+            return {k: v for k, v in parsed.items() if k not in ("max_solver_calls", "max_wall_seconds")}
+        return value
+
     mode: Literal["model_library"] = "model_library"
     simulation_id: str = Field(min_length=1, max_length=200,
         validation_alias=AliasChoices("context_id", "simulation_id"),
@@ -62,7 +79,7 @@ class LibraryPipelineSpec(StrictModel):
         "basis: spec_tolerance|fit_uncertainty|engineering_assumption|measured_range, source, applies_to: "
         "receiver|donor|both}] for inputs not yet known exactly, e.g. an unmeasured receiving jacket U. Returns "
         "verdicts per criterion, what changes between the sites, and an equipment capability check. "
-        "Set max_solver_calls to what the operation needs (assess_transfer: 2 + 2^tolerances)."))
+        "Solver limits are the top-level max_solver_calls/max_wall_seconds fields, never inside options."))
     dataset_id: str | None = Field(default=None, max_length=300, description="Optional existing physical_model_dataset ID containing partitioned measurement runs. Omit for a forward simulation. Never put a configuration ID here.")
     checkpoint_id: str | None = Field(default=None, max_length=300)
     calibration_id: str | None = Field(default=None, max_length=300)

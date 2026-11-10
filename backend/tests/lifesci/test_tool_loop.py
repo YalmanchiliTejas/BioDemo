@@ -240,3 +240,25 @@ def test_a_turn_budget_counts_solver_calls_used_not_the_maximum_each_run_reserve
         conv._settle_solver_calls(ctx, tid, 96, 4)
     turn = p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', tid).state
     assert turn['solver_calls_admitted'] == 8 and turn['solver_calls_used'] == 8
+
+
+def test_two_full_budget_pre_transfer_checks_both_run_in_one_answer(env):
+    """Live regression (2026-11-10): the second check was refused because the first reserved the whole turn budget."""
+    p, ctx = env
+    contexts = {r.state['label']: r.id for r in p.store.read().list(ctx.tenant_id, 'physical_analysis_context')
+                if r.state.get('model_id') == 'chemical.parallel_batch'}
+    sending = next(i for k, i in contexts.items() if 'receiving' not in k)
+    a, b = (next(i for k, i in contexts.items() if f'option {x}' in k) for x in 'AB')
+    criteria = [{'metric': 'product_yield_fraction', 'unit': 'fraction', 'role': 'yield', 'operator': '>=', 'limit': 0.85}]
+    prepare = lambda receiver: call('model_library_prepare', mode='model_library', context_id=sending, receiver_context_id=receiver,
+                                    model_id='chemical.parallel_batch', objective='Pre-transfer check to the receiving vessel',
+                                    operation='assess_transfer', options={'criteria': criteria, 'max_solver_calls': 96})
+    latest_plan = lambda messages: {'tool_calls': [call('model_library_execute', plan_id=sorted(
+        p.store.read().list(ctx.tenant_id, 'physical_analysis_plan'), key=lambda r: r.id)[-1].id)]}
+    script = [{'tool_calls': [call('model_library_read', kind='physical_analysis_context', record_id=sending)]},
+              {'tool_calls': [prepare(a)]}, latest_plan, {'tool_calls': [prepare(b)]}, latest_plan, 'Both checks ran.']
+    turn, _ = run(p, ctx, script, 'Check both receiving vessels.')
+    results = p.store.read().list(ctx.tenant_id, 'physical_analysis_result')
+    assert [s['status'] for s in turn['steps'] if s['title'].startswith('Model library')].count('blocked') == 0
+    assert len(results) == 2 and all(r.state['execution_status'] == 'completed' for r in results)
+    assert sorted(r.state['spec']['options'] == {'criteria': criteria} for r in results) == [True, True]

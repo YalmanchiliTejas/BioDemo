@@ -24,6 +24,7 @@ NOTE, PAGE, VECTOR, STATE = 'memory_note', 'memory_page', 'memory_vector', 'memo
 KINDS = ('lesson', 'decision', 'preference', 'open_thread', 'warning')
 BASES = ('observed', 'calculated', 'user_stated', 'inferred')
 INDEX_NOTES, INDEX_CHARS = 12, 3000
+COMPUTED_EVIDENCE = ('physical_analysis_result',)
 DUPLICATE = 0.93  # cosine above which two notes say the same thing
 WORDS = re.compile(r'[a-z0-9]{2,}')
 # A manufacturing identifier: letters then digits, optionally a run suffix (B-117, BR-07, L-8812, DEV-31, CHO-003-R01).
@@ -64,6 +65,11 @@ class AgentMemory:
                 if inspected and inspected.get('kind') == a['kind'] and inspected.get('id') == a['id']:
                     seen[(inspected['kind'], inspected['id'])] = inspected
                 rec = self.p.store.read().get(ctx.tenant_id, a['kind'], a['id'])
+                # A solver result run in this conversation was returned to the assistant in full: evidence it saw.
+                # Its own drafts (proposals, interpretations) stay excluded: citing them would be circular.
+                if rec is not None and a['kind'] in COMPUTED_EVIDENCE:
+                    seen.setdefault((a['kind'], a['id']), {'kind': a['kind'], 'id': a['id'], 'revision': rec.revision,
+                                                           'site_id': rec.state.get('site_id')})
                 for ref in (rec.state.get('inputs') or []) if rec else []:
                     if ref.get('kind') not in ('engineering_chat_turn',):
                         seen[(ref['kind'], ref['id'])] = ref

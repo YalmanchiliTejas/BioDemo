@@ -18,7 +18,8 @@ def changes(donor_config, receiver_config):
         if a == b:
             continue
         rel = (b - a) / abs(a) if a not in (None, 0) and b is not None else None
-        out.append({"input": key, "sending": a, "receiving": b, "relative_change": rel})
+        out.append({"input": key, "sending": a, "receiving": b, "relative_change": rel,
+                    "receiving_over_sending": round(b / a, 4) if a not in (None, 0) and b is not None else None})
     return out
 
 

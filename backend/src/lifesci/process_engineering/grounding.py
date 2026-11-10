@@ -48,8 +48,16 @@ def _traced(value, tolerance, allowed_sorted):
     return False
 
 
+TIME_FACTORS = (60.0, 3600.0, 24.0)  # s<->min, s<->h, h<->day: "987 s (16.4 min)"
+
+
 def _arithmetic(value, tolerance, operands):
-    """A difference, sum, ratio, product or percent change of two traced numbers in the same reply."""
+    """A difference, sum, ratio, product or percent change of two traced numbers in the same reply, or a traced
+    number converted between time units."""
+    if any(abs(a / f - value) <= tolerance or abs(a * f - value) <= tolerance for a in operands for f in TIME_FACTORS):
+        return True
+    if any(abs(abs(a - 273.15) - value) <= tolerance for a in operands):  # kelvin <-> °C: "312.8 K (39.7 °C)"
+        return True
     for a in operands:
         for b in operands:
             candidates = [a - b, a + b, a * b] + ([a / b, (a - b) / b * 100] if b else [])

@@ -96,24 +96,26 @@ class ChatDecision(StrictModel):
         return self
 
 WorkspaceKind = Literal['case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
-    'proposal', 'physical_analysis_context', 'physical_model_dataset', 'physical_model_checkpoint', 'physical_interval_calibration', 'physical_analysis_result', 'process_simulation', 'engineering_chat_turn', 'deviation_signal']
+    'proposal', 'physical_analysis_context', 'physical_model_dataset', 'physical_model_checkpoint', 'physical_interval_calibration', 'physical_analysis_result', 'process_simulation', 'engineering_chat_turn', 'deviation_signal', 'specification']
 
 class WorkspaceSearch(StrictModel):
-    """mode=search: records by kind and query. mode=links: records sharing an identifier with record_kind/record_id.
-    mode=similar_cases: closed cases similar to case_id and/or the query text."""
+    """mode=search: records by kind and query. mode=links: records sharing an identifier with record_id (record_kind
+    optional: omit it for an identifier such as a batch, lot or equipment ID). mode=similar_cases: closed cases similar
+    to case_id and/or the query text."""
     mode: Literal['search', 'links', 'similar_cases'] = 'search'
-    kinds: list[WorkspaceKind] = Field(default_factory=list, max_length=10)
+    kinds: list[WorkspaceKind] = Field(default_factory=list, max_length=20)
     query: str = Field(default='', max_length=200)
     limit: int = Field(default=20, ge=1, le=50)
     record_kind: WorkspaceKind | None = None
     record_id: str | None = Field(default=None, max_length=300)
     case_id: str | None = Field(default=None, max_length=300)
     include_open: bool = False
+    site_id: str | None = Field(default=None, max_length=100, description='Optional; must be this conversation\'s site.')
 
     @model_validator(mode='after')
     def mode_inputs(self):
-        if self.mode == 'links' and not (self.record_kind and self.record_id):
-            raise ValueError('links needs record_kind and record_id')
+        if self.mode == 'links' and not self.record_id:
+            raise ValueError('links needs record_id')
         if self.mode == 'similar_cases' and not (self.case_id or self.query.strip()):
             raise ValueError('similar_cases needs case_id or query')
         return self
