@@ -13,6 +13,28 @@ from ..ids import iso, parse_iso
 
 KINDS = ('case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
          'proposal', 'physical_analysis_context', 'physical_model_dataset', 'physical_model_checkpoint', 'physical_interval_calibration', 'physical_analysis_result', 'process_simulation', 'engineering_chat_turn', 'deviation_signal', 'specification')
+# Every other record type the product stores, and why the assistant does not search it. A new record type must be
+# added to KINDS (with FIELDS) or here: tests/lifesci/test_workspace_kinds.py fails otherwise, so a new kind of
+# process evidence can't silently stay invisible to the assistant (DO specifications did, 2026-11-10).
+ASSISTANT_EXCLUDED = {
+    'account_organizations': 'account and access control', 'organization': 'account and access control',
+    'organization_index': 'account and access control', 'ownership': 'account and access control',
+    'role_assignment': 'account and access control',
+    'demo_owner': 'demo workspace administration', 'demo_workspace': 'demo workspace administration',
+    'alert_inbox': "a person's notification inbox; the signals it points to are searchable",
+    'signal_triage': 'triage state, shown on the deviation signal itself',
+    'triage_settings': 'site configuration for automatic triage, not process evidence',
+    'spec_series': 'version history of a specification; the current specification is searchable',
+    'mission': 'loaded into every turn as mission_context',
+    'engineering_conversation': 'the conversation container; its turns are searchable and recallable',
+    'assistant_workspace_result': "the assistant's own saved tool output; reloaded with open_result",
+    'physical_analysis_plan': 'an execution plan; its result is searchable as physical_analysis_result',
+    'model_run': 'model call log (telemetry), not process evidence',
+    'memory_note': 'assistant memory: reached through recall/open_memory with owner permissions',
+    'memory_page': 'assistant memory: reached through recall/open_memory with owner permissions',
+    'memory_vector': 'assistant memory search index',
+    'memory_state': 'assistant memory bookkeeping',
+}
 FIELDS = {
     'physical_model_dataset': ('label','partition_counts','packet_hash','limitations'),
     'physical_model_checkpoint': ('checkpoint','review_state','runner_manifest'),
