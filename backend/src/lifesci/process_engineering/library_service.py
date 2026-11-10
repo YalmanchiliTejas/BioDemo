@@ -405,12 +405,11 @@ class LibraryOperations:
             raise ValueError(
                 "Negative transfer detected; adapted prediction promotion withheld. Review source/refit/physics alternatives."
             )
+        def run(c):  # one model for every operation: the attached checkpoint when there is one, else physics
+            return budget.run(adapter, c) if mode == "physics" else budget.call(lambda: hybrid.run_hybrid(adapter, c, cp, mode=mode))
+
         if spec.operation == "simulate":
-            result = (
-                budget.run(adapter, cfg)
-                if mode == "physics"
-                else budget.call(lambda: hybrid.run_hybrid(adapter, cfg, cp, mode=mode))
-            )
+            result = run(cfg)
             if not completed(result):
                 return {"simulation": result, "scientific_status": "stopped_or_failed", "decision": "withheld"}
             return {"simulation": result}
@@ -418,10 +417,18 @@ class LibraryOperations:
             if "receiver_context_id" not in snapshot:
                 raise ValueError("Receiving configuration required")
             receiver = snapshot["receiver_context_id"]["input_bundle"]["config"]
-            a = budget.run(adapter, cfg)
-            b = budget.run(adapter, receiver)
+            a, b = run(cfg), run(receiver)
             if spec.operation == "assess_transfer":
-                return decisions.transfer_assessment(adapter, a, b, options["criteria"])
+                intervals = {}
+                if cal and cal.get("q") is not None:
+                    grid = [{"observable": o, "unit": u, "coordinate": x, "value": 0.0} for o, u, x in cal["basis"]]
+                    for side, c in (("donor_interval", cfg), ("receiver_interval", receiver)):
+                        try:
+                            intervals[side] = uncertainty.interval_prediction(
+                                adapter, c, grid, cal, checkpoint=cp, budget=budget, components=False)
+                        except ValueError:
+                            intervals[side] = None  # a different model version or basis: no range, so no verdict
+                return decisions.transfer_assessment(adapter, a, b, options["criteria"], **intervals)
             comparisons = {}
             for metric in options["metrics"]:
                 try:
@@ -487,7 +494,7 @@ class LibraryOperations:
                     checkpoint=cp,
                     mode=mode,
                     alpha=options.get("alpha", 0.1),
-                    samples=options.get("samples", 3),
+                    samples=options.get("samples", 8),
                     seed=options.get("seed", 1),
                     distributions=options.get("distributions", ()),
                     budget=budget,

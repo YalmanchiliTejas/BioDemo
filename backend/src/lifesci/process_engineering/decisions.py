@@ -19,9 +19,38 @@ MEASUREMENT_BASES = {
 }
 
 
-def transfer_assessment(adapter, donor, receiver, criteria, *, receiver_intervals=None):
+REAL = "empirically_calibrated_conditional"
+
+
+def _band(adapter, interval, metric, unit, result):
+    """The calibrated range for a metric's end-of-run value, from an interval prediction, or why there is none."""
+    if not interval:
+        return None, "No interval calibration attached; a single model estimate cannot pass or fail a criterion"
+    if interval.get("calibrated_lower") is None:
+        reasons = interval.get("unsupported_input_conditions") or []
+        return None, ("Outside the calibrated operating range: " + ", ".join(reasons)) if reasons else (
+            "Interval prediction abstained or failed; no calibrated range")
+    rows = [(i, r) for i, r in enumerate(interval["basis"]) if r[0] == metric and r[1] == unit]
+    from .contracts import contract
+
+    axis = contract(adapter)["axis"]
+    end = 0.0 if axis == "none" else (result.get("trajectory") or [{}])[-1].get(axis)
+    if not rows:
+        return None, "The interval calibration does not cover this metric"
+    i, row = max(rows, key=lambda x: x[1][2])
+    if end is None or abs(float(row[2]) - float(end)) > 1e-6 * max(1.0, abs(float(end))):
+        return None, "The interval calibration does not cover the end-of-run value this criterion uses"
+    return {"lower": interval["calibrated_lower"][i], "upper": interval["calibrated_upper"][i],
+            "calibration_status": interval["calibration_status"]}, None
+
+
+def transfer_assessment(adapter, donor, receiver, criteria, *, donor_interval=None, receiver_interval=None):
+    """Screen explicit criteria. A pass or fail needs the whole calibrated range on one side of the limit (or margin);
+    a single model estimate, a synthetic-only calibration or a range straddling the limit is never a verdict."""
     if not criteria:
         raise ValueError("Explicit acceptance criteria required")
+    from .contracts import contract
+
     checks = []
     for criterion in criteria:
         if set(criterion) - {"metric", "unit", "basis", "operator", "limit", "margin", "role", "method"}:
@@ -33,40 +62,25 @@ def transfer_assessment(adapter, donor, receiver, criteria, *, receiver_interval
             raise ValueError("Explicit unit and compatible measurement basis required")
         if role == "yield" and ("conversion" in metric or "conversion" in criterion["basis"].lower()):
             raise ValueError("Reactant conversion cannot serve as desired-product yield")
+        if method not in ("absolute", "noninferiority"):
+            raise ValueError("Only explicit absolute or difference-interval noninferiority criteria supported")
+        operator = criterion.get("operator")
+        if operator not in (">=", "<="):
+            raise ValueError("Operator >= (higher is better) or <= (lower is better) required")
+        if method == "absolute" and not math.isfinite(criterion.get("limit", float("nan"))):
+            raise ValueError("Finite threshold required")
+        if method == "noninferiority" and (not math.isfinite(criterion.get("margin", float("nan"))) or criterion["margin"] < 0):
+            raise ValueError("Nonnegative noninferiority margin required")
         declared = adapter.describe().get("supported_outputs", {})
-        from .contracts import contract
-
-        declared = (
-            contract(adapter)["observables"] | declared
-            if isinstance(declared, dict)
-            else contract(adapter)["observables"]
-        )
-        # Root summary metrics need explicit units, never a caller-created quality label.
-        summary_units = {
-            "chemical.parallel_batch": {"product_yield_fraction": "fraction", "impurity_fraction": "fraction"},
-            "chemical.semi_batch": {"product_yield_fraction": "fraction", "impurity_fraction": "fraction"},
-            "isolation.cake_dryer": {"final_solvent_kg_kg_dry": "kg/kg dry solids"},
-        }.get(adapter.id, {})
-        declared = {**declared, **summary_units}
+        declared = contract(adapter)["observables"] | declared if isinstance(declared, dict) else contract(adapter)["observables"]
         if metric not in declared or declared[metric] != criterion["unit"]:
-            checks.append(
-                {
-                    "metric": metric,
-                    "status": "withheld",
-                    "reason": "Model does not predict this required quality attribute on the requested unit/basis",
-                }
-            )
+            checks.append({"metric": metric, "status": "withheld",
+                           "reason": "Model does not predict this required quality attribute on the requested unit/basis"})
             continue
         expected_basis = MEASUREMENT_BASES.get(adapter.id, {}).get(metric)
         if expected_basis is None or criterion["basis"] != expected_basis:
-            checks.append(
-                {
-                    "metric": metric,
-                    "status": "withheld",
-                    "reason": "Measurement basis is unsupported or differs from the model-defined quantity",
-                    "required_basis": expected_basis,
-                }
-            )
+            checks.append({"metric": metric, "status": "withheld", "required_basis": expected_basis,
+                           "reason": "Measurement basis is unsupported or differs from the model-defined quantity"})
             continue
         if not completed(donor) or not completed(receiver):
             checks.append({"metric": metric, "status": "withheld", "reason": "Solver did not complete"})
@@ -78,54 +92,40 @@ def transfer_assessment(adapter, donor, receiver, criteria, *, receiver_interval
             continue
         if not math.isfinite(a + b):
             raise ValueError("Nonfinite decision metric")
-        if method == "noninferiority":
-            # A p-value or point estimate is never noninferiority evidence.
-            band = (receiver_intervals or {}).get(metric)
-            if (
-                not band
-                or band.get("status") != "empirically_calibrated_conditional"
-                or band.get("basis") != criterion["basis"]
-                or band.get("unit") != criterion["unit"]
-                or "difference_lower" not in band
-            ):
-                checks.append(
-                    {
-                        "metric": metric,
-                        "status": "withheld",
-                        "reason": "Independent compatible calibrated donor-receiver difference interval required; nonsignificance and marginal bands are insufficient",
-                    }
-                )
-                continue
-            margin = criterion["margin"]
-            if not math.isfinite(margin) or margin < 0:
-                raise ValueError("Nonnegative noninferiority margin required")
-            passed = band["difference_lower"] >= -margin
-        elif method == "absolute":
+        higher = operator == ">="
+        entry = {"metric": metric, "unit": criterion["unit"], "basis": criterion["basis"], "method": method,
+                 "operator": operator, "donor_estimate": a, "receiver_estimate": b}
+        r_band, r_why = _band(adapter, receiver_interval, metric, criterion["unit"], receiver)
+        d_band, d_why = (_band(adapter, donor_interval, metric, criterion["unit"], donor) if method == "noninferiority" else (None, None))
+        why = r_why or d_why
+        if why or r_band["calibration_status"] != REAL or (d_band and d_band["calibration_status"] != REAL):
+            # Shown for orientation only: which side of the limit the single estimate lands on is not evidence.
+            checks.append({**entry, "status": "indicative_only",
+                           "reason": why or "Calibrated on synthetic data only; not a real-world coverage claim"})
+            continue
+        if method == "absolute":
             limit = criterion["limit"]
-            operator = criterion["operator"]
-            if not math.isfinite(limit) or operator not in (">=", "<="):
-                raise ValueError("Finite threshold and supported operator required")
-            passed = b >= limit if operator == ">=" else b <= limit
+            lo, hi = r_band["lower"], r_band["upper"]
+            entry.update(receiver_range=[lo, hi], limit=limit)
+            ok, bad = (lo >= limit, hi < limit) if higher else (hi <= limit, lo > limit)
         else:
-            raise ValueError("Only explicit absolute or difference-interval noninferiority criteria supported")
-        checks.append(
-            {
-                "metric": metric,
-                "status": "conditional_pass" if passed else "fails_criterion",
-                "donor": a,
-                "receiver": b,
-                "unit": criterion["unit"],
-                "basis": criterion["basis"],
-                "method": method,
-            }
-        )
+            # receiver - donor, from simultaneous ranges; joint coverage >= 1 - 2*alpha by the union bound.
+            margin = criterion["margin"]
+            diff = [r_band["lower"] - d_band["upper"], r_band["upper"] - d_band["lower"]]
+            entry.update(difference_range=diff, margin=margin, coverage_note="Each range covers at 1-alpha; jointly at least 1-2*alpha")
+            ok, bad = (diff[0] >= -margin, diff[1] < -margin) if higher else (diff[1] <= margin, diff[0] > margin)
+        entry["status"] = "conditional_pass" if ok else "fails_criterion" if bad else "inconclusive"
+        if entry["status"] == "inconclusive":
+            entry["reason"] = "The calibrated range straddles the limit; more data or a measurement is needed to decide"
+        checks.append(entry)
+    statuses = {c["status"] for c in checks}
+    conclusion = ("criteria_not_met" if "fails_criterion" in statuses
+                  else "withheld_missing_quality_evidence" if "withheld" in statuses
+                  else "conditional_model_criteria_met" if statuses == {"conditional_pass"}
+                  else "inconclusive_uncertainty")
     return {
         "checks": checks,
-        "conclusion": "withheld_missing_quality_evidence"
-        if any(c["status"] == "withheld" for c in checks)
-        else "conditional_model_criteria_met"
-        if all(c["status"] == "conditional_pass" for c in checks)
-        else "criteria_not_met",
+        "conclusion": conclusion,
         "authorization": "draft_requires_engineering_review",
         "risk_probability": None,
         "limitation": "Conditional model-based screen, not approved process transfer or measured yield protection.",

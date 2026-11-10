@@ -162,7 +162,11 @@ Synthetic batches are never eligible, however many IDs they carry.
 independent and exchangeable, from the same measurement basis and operating population.
 Training, selection and augmentation are finished before calibration. Coverage is
 *marginal over batches*, not a guarantee for one batch, and it says nothing about operating
-conditions outside the calibration support. Such inputs make predictions abstain.
+conditions outside the calibration support. Such inputs make predictions abstain: every numeric input must lie
+within the minimum–maximum the calibration batches covered, with no extrapolation margin.
+
+The ensemble uses 8 solver-propagated samples by default (`samples`). Calibration skips the per-source
+diagnostic solves, so it costs `samples × batches` solver calls (72 for 9 batches, within the assistant's 96).
 
 `evaluate_intervals` runs only on untouched `test` batches. It reports per-observable RMSE,
 interval width, whole-batch coverage with its denominator, abstentions, failed predictions
@@ -194,9 +198,22 @@ operator and limit, for example:
 - A criterion for an attribute the model does not predict, or on a different measurement
   basis, is **withheld**. The overall conclusion is then
   `withheld_missing_quality_evidence`.
-- `noninferiority` needs an independently calibrated donor–receiver *difference* interval.
-  A non-significant difference or a marginal band is never accepted. Without the difference
-  interval the check is withheld.
+- `operator` states the direction: `>=` when higher is better (yield), `<=` when lower is
+  better (impurity).
+- **A verdict needs a calibrated range, never a single estimate.** The donor and receiver are
+  run with the same model as `simulate` (the attached checkpoint, else physics). When an
+  interval calibration is attached, both get calibrated ranges for the metric's end-of-run value.
+  - `conditional_pass`: the whole receiver range is on the right side of the limit.
+  - `fails_criterion`: the whole range is on the wrong side.
+  - `inconclusive`: the range straddles the limit.
+  - `indicative_only`: no calibration, a synthetic-only calibration, a calibration that doesn't
+    cover the metric's end-of-run value, or a receiver outside the calibrated operating range.
+    The single estimates are shown for orientation and are not evidence either way.
+- `noninferiority` (with `margin`) uses the difference of the two calibrated ranges
+  (receiver − donor). Each range covers at 1−α, so the difference covers at least 1−2α
+  (union bound). A non-significant difference is never accepted.
+- Conclusions: `criteria_not_met`, `withheld_missing_quality_evidence`,
+  `conditional_model_criteria_met` or `inconclusive_uncertainty`.
 - Every result is `draft_requires_engineering_review` and carries no risk probability.
 
 `experiments` ranks up to 12 feasible candidate measurements for one identified decision.

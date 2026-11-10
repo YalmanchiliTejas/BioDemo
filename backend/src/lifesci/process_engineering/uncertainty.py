@@ -30,7 +30,8 @@ def physical_domain(config, prefix=""):
 
 
 def ensemble(
-    adapter, config, observations, *, checkpoint=None, mode="physics", samples=8, seed=1, distributions=(), budget=None
+    adapter, config, observations, *, checkpoint=None, mode="physics", samples=8, seed=1, distributions=(), budget=None,
+    components=True,
 ):
     if not 2 <= samples <= 32:
         raise ValueError("2..32 solver-propagated samples required")
@@ -47,6 +48,7 @@ def ensemble(
     output_std = np.array([r.get("measurement_std", 0.0) for r in observations])
     if not np.isfinite(output_std).all() or np.any(output_std < 0):
         raise ValueError("Finite nonnegative output measurement uncertainty required")
+    include_components = components  # per-source diagnostics cost extra solves; calibration does not need them
     components = {k: [] for k in ("measurement", "parameter", "learned_model")}
     for d in distributions:
         if d["category"] not in ("measurement", "parameter") or not math.isfinite(d["std"]) or d["std"] < 0:
@@ -97,7 +99,7 @@ def ensemble(
     a = np.asarray(predictions)
     # Component-only propagation uses the same physical solver; no fabricated
     # variance decomposition when components are nonlinear or unspecified.
-    for category in components:
+    for category in components if include_components else ():
         subset = [d for d in distributions if d["category"] == category]
         if category == "learned_model":
             if mode != "hybrid":
@@ -148,7 +150,8 @@ def ensemble(
             "learned_model": components["learned_model"] or "not_applicable",
             "structural_discrepancy": "not quantified; ensemble cannot identify omitted physical mechanisms",
         },
-        "component_note": "Component-only sample trajectories, not additive independent variances.",
+        "component_note": "Component-only sample trajectories, not additive independent variances."
+        if include_components else "Per-source diagnostics not computed for this call.",
     }
 
 
@@ -222,6 +225,7 @@ def calibrate_intervals(
             seed=seed,
             distributions=distributions,
             budget=budget,
+            components=False,
         )
         if predicted["status"] != "completed" or predicted.get("abstention"):
             failures.append({"run_id": run["run_id"], "reason": "failed_or_out_of_domain"})
@@ -296,7 +300,7 @@ def calibrate_intervals(
     }
 
 
-def interval_prediction(adapter, config, observations, calibration, *, checkpoint=None, budget=None):
+def interval_prediction(adapter, config, observations, calibration, *, checkpoint=None, budget=None, components=True):
     if (
         calibration["model_id"] != adapter.id
         or calibration["adapter_digest"] != adapter.digest
@@ -315,14 +319,14 @@ def interval_prediction(adapter, config, observations, calibration, *, checkpoin
         seed=calibration["seed"],
         distributions=calibration["distributions"],
         budget=budget,
+        components=components,
     )
     current = physical_domain(config)
+    # Strictly the range the calibration batches covered: coverage was only observed there.
     outside = [
         k
         for k, (lo, hi) in calibration.get("input_support", {}).items()
-        if k not in current
-        or current[k] < lo - max(0.1 * (hi - lo), 1e-9)
-        or current[k] > hi + max(0.1 * (hi - lo), 1e-9)
+        if k not in current or not lo - 1e-9 * max(1.0, abs(lo)) <= current[k] <= hi + 1e-9 * max(1.0, abs(hi))
     ]
     result["unsupported_input_conditions"] = outside
     if outside:

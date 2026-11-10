@@ -104,7 +104,7 @@
           "sha256": "382682fd0093803e0a227851ea9d5dd2a5e7cc76910a0ba1518fa6d6281b17b3",
           "status": "completed",
           "seconds": 0.0029811669955961406,
-          "stdout": "{'value': -0.01, 'status': 'failed', 'error': 'filter_area_m2 outside declared numerical bounds (m\u00b2)', 'metrics': None}\n{'value': 0.01, 'status': 'incomplete', 'violations': ['target_filtrate_not_reached'], 'metrics': {'completion_time_s': None}}\n{'value': 0.02, 'status': 'completed', 'violations': [], 'metrics': {'completion_time_s': 843.75}}\n{'value': 0.04, 'status': 'completed', 'violations': [], 'metrics': {'completion_time_s': 226.5625}}\n"
+          "stdout": "{'value': -0.01, 'status': 'failed', 'error': 'filter_area_m2 outside declared numerical bounds (m²)', 'metrics': None}\n{'value': 0.01, 'status': 'incomplete', 'violations': ['target_filtrate_not_reached'], 'metrics': {'completion_time_s': None}}\n{'value': 0.02, 'status': 'completed', 'violations': [], 'metrics': {'completion_time_s': 843.75}}\n{'value': 0.04, 'status': 'completed', 'violations': [], 'metrics': {'completion_time_s': 226.5625}}\n"
         },
         {
           "cell_index": 15,
@@ -120,118 +120,118 @@
     },
     {
       "path": "docs/model-library/03_hybrid_adaptation_and_uncertainty.ipynb",
-      "source_sha256": "bfc5d6989abeac9383b0b75a794e71139e0e38d48d364417f7bd3205ecaf5bd7",
+      "source_sha256": "6a7733420422e4fd381a9181623e73496eede3bccadc5fea73d266cb9911022a",
       "code_cells": [
         {
           "cell_index": 1,
           "sha256": "9c436edd8742d86d2b10df681f82ef059c45eec5479063baa94239e4a04d9c39",
           "status": "completed",
-          "seconds": 0.0026773749850690365,
+          "seconds": 1.14137601852417,
           "stdout": "22 registered models in the single existing catalogue\n"
         },
         {
           "cell_index": 3,
           "sha256": "7857a949f19a687ebd29aeb2b25c7a2119ec9b0feb5ae3763d461af5451c2614",
           "status": "completed",
-          "seconds": 0.008931624994147569,
+          "seconds": 0.01088714599609375,
           "stdout": "lyo.kv_rp                            reduced_mechanistic                    no hybrid term\nlyo.transient_lumped                 reduced_mechanistic                    no hybrid term\nchemical.parallel_batch              reduced_mechanistic                    learns product_rate_multiplier, impurity_rate_multiplier\nfermentation.oxygen_transfer         semimechanistic                        learns kla_multiplier\nfermentation.pressure_cost           semimechanistic                        no hybrid term\nchemical.semi_batch                  reduced_mechanistic                    no hybrid term\ncrystal.cooling_moments              reduced_mechanistic                    no hybrid term\nisolation.cake_filter                reduced_mechanistic                    no hybrid term\nisolation.cake_wash                  mechanistic_plus_screening_assumption  no hybrid term\nisolation.cake_dryer                 semi_mechanistic                       no hybrid term\npowder.continuous_blender            reduced_mechanistic                    no hybrid term\npowder.two_bin_mill                  lumped_kinetic                         no hybrid term\npowder.aggregation_granulator        reduced_mechanistic                    no hybrid term\ntablet.heckel_compaction             empirical                              no hybrid term\ntablet.coating_deposition            reduced_mechanistic                    no hybrid term\ntablet.shrinking_area_dissolution    reduced_mechanistic                    no hybrid term\ndownstream.equilibrium_capture       reduced_mechanistic                    no hybrid term\nmembrane.ultrafiltration             reduced_mechanistic                    no hybrid term\nmembrane.diafiltration               reduced_mechanistic                    no hybrid term\nutility.turbulent_mixing             reduced_mechanistic                    no hybrid term\nutility.ideal_vacuum                 reduced_mechanistic                    no hybrid term\ncho.monod_batch                      semimechanistic                        no hybrid term\n\n{\n  \"supported\": true,\n  \"version\": \"bounded-hybrid-1\",\n  \"features\": [\n    \"temperature_k\",\n    \"reactant_fraction\",\n    \"area_per_volume_m_inv\",\n    \"heat_transfer_w_m2_k\",\n    \"coolant_temperature_k\"\n  ],\n  \"terms\": [\n    \"product_rate_multiplier\",\n    \"impurity_rate_multiplier\"\n  ],\n  \"output_unit\": \"dimensionless multiplier; physical rates retain 1/s or 1/h\",\n  \"bounds\": [\n    0.25,\n    4.0\n  ],\n  \"invariants\": \"Original species/energy equations or oxygen-transfer/power algebra unchanged\",\n  \"limitations\": \"No new pathways or organism/yield kinetics; synthetic examples do not validate these terms\"\n}\n"
         },
         {
           "cell_index": 5,
           "sha256": "7f22129c01db455599d6da5ac4cdbce450e3cf4de2ad2007e032a4302d729c49",
           "status": "completed",
-          "seconds": 0.5381867910036817,
+          "seconds": 0.5174663066864014,
           "stdout": "Desired-product yield: 0.2635 | conversion: 0.3296 (conversion is NOT yield)\nLargest A-equivalent mole-balance error: 7.105427357601002e-15\n"
         },
         {
           "cell_index": 7,
           "sha256": "9014d043e657a2466c2cc0ef84fa226f5dae802ef59a805e6d0f3331b5ec7779",
           "status": "completed",
-          "seconds": 0.018418791994918138,
+          "seconds": 0.01759195327758789,
           "stdout": "{'train': 8, 'selection': 3, 'calibration': 10, 'test': 3} batches per role\nRejected: Batch leakage between partitions\nRejected: Augmentation belongs to training original runs only\n"
         },
         {
           "cell_index": 9,
           "sha256": "41949189e211e3c90515469ffa519cdbc28d3f70af3f999030f07a37c20dd473",
           "status": "completed",
-          "seconds": 0.3976510839711409,
+          "seconds": 0.5584721565246582,
           "stdout": "Network inputs: ['temperature_k', 'reactant_fraction', 'area_per_volume_m_inv', 'heat_transfer_w_m2_k', 'coolant_temperature_k']\nSelected on selection batches: hybrid\n  physics  scaled RMSE 0.08880   failed 0\n  refit    scaled RMSE 0.00563   failed 0\n  hybrid   scaled RMSE 0.00027   failed 0\nClassification: synthetic_development_only\nDepartures from the paper:\n  - Chemical estimation uses integrated species balances with measured temperatures, not full nonlinear TVP trajectory optimization.\n  - Transport adapter learns algebraic kLa factors, not fermentation organism kinetics.\n  - Six hidden units, smooth L1 source-weight regularization, whole-batch bootstrap; no paper-results reproduction claim.\n"
         },
         {
           "cell_index": 11,
           "sha256": "e819a635dc3c7d0d6bc1e51445c0d075b66413465781ecf6549d8eb8500c5c5d",
           "status": "completed",
-          "seconds": 0.04614575000596233,
+          "seconds": 0.18980717658996582,
           "stdout": ""
         },
         {
           "cell_index": 13,
           "sha256": "54280bbd3289e000b6717651cf30662b4b31266ef4412601b6079e8f47a88fa4",
           "status": "completed",
-          "seconds": 0.022181875014211982,
+          "seconds": 0.05566000938415527,
           "stdout": "Max drift in A + B + I (mol): 2.4868995751603507e-14\nHybrid status: within_observed_feature_support | risk probability: None\n"
         },
         {
           "cell_index": 15,
           "sha256": "32a2793231871fbe4252111e4afd7b5deab15b388e9ffecafa4ee5fed41be59e",
           "status": "completed",
-          "seconds": 0.1665742500044871,
+          "seconds": 0.2903580665588379,
           "stdout": "physics  scaled RMSE 0.08661  failed 0  out-of-domain 0  of 3 test batches\nrefit    scaled RMSE 0.00569  failed 0  out-of-domain 0  of 3 test batches\nhybrid   scaled RMSE 0.00024  failed 0  out-of-domain 0  of 3 test batches\n"
         },
         {
           "cell_index": 17,
           "sha256": "ca07705903ec584edf8b29679102b704157d935fdf3141fd7f9f6f49cbc2827f",
           "status": "completed",
-          "seconds": 0.9283949579985347,
-          "stdout": "Source model on receiver selection batches: out-of-domain 3 of 3\nSource checkpoint hash:           1641ef555e85d930\nAdapted checkpoint's source hash: 1641ef555e85d930 (source is unchanged and stored separately)\n  physics  scaled RMSE 0.08800  out-of-domain 0\n  refit    scaled RMSE 0.00627  out-of-domain 0\n  hybrid   scaled RMSE 0.00030  out-of-domain 0\n  source   scaled RMSE 0.00794  out-of-domain 3\nNegative transfer: False \u2192 promotion: draft_requires_review\nRule: Adapted hybrid selection RMSE exceeds the best source/physics/refit alternative by >1% plus 1e-8; heuristic, not a significance test.\n"
+          "seconds": 0.9104490280151367,
+          "stdout": "Source model on receiver selection batches: out-of-domain 3 of 3\nSource checkpoint hash:           1641ef555e85d930\nAdapted checkpoint's source hash: 1641ef555e85d930 (source is unchanged and stored separately)\n  physics  scaled RMSE 0.08800  out-of-domain 0\n  refit    scaled RMSE 0.00627  out-of-domain 0\n  hybrid   scaled RMSE 0.00030  out-of-domain 0\n  source   scaled RMSE 0.00794  out-of-domain 3\nNegative transfer: False → promotion: draft_requires_review\nRule: Adapted hybrid selection RMSE exceeds the best source/physics/refit alternative by >1% plus 1e-8; heuristic, not a significance test.\n"
         },
         {
           "cell_index": 19,
           "sha256": "1b882080979036d9a6cb6de443ab3469c3694e31c942b6b1a1824b1a0e2248c4",
           "status": "completed",
-          "seconds": 0.10826787500991486,
-          "stdout": "  physics  scaled RMSE 0.19317\n  refit    scaled RMSE 0.04633\n  hybrid   scaled RMSE 0.00163\n  source   scaled RMSE 0.00126\nNegative transfer: True \u2192 promotion: withheld_negative_transfer\n"
+          "seconds": 0.11283612251281738,
+          "stdout": "  physics  scaled RMSE 0.19317\n  refit    scaled RMSE 0.04633\n  hybrid   scaled RMSE 0.00163\n  source   scaled RMSE 0.00126\nNegative transfer: True → promotion: withheld_negative_transfer\n"
         },
         {
           "cell_index": 21,
           "sha256": "e87de39576676ac3c379dfc5d690ef734ba6349a9c75c2173f14263742ce01c9",
           "status": "completed",
-          "seconds": 0.5081640830030665,
-          "stdout": "Observable: [('product_mol', 'mol', 2400.0)]\nMean [13.209] | 10\u201390% band [12.912] \u2013 [13.446]\n10th..90th sample quantiles, NOT calibrated intervals | calibration: uncalibrated | risk probability: None\nStructural discrepancy: not quantified; ensemble cannot identify omitted physical mechanisms\nUnsupported equipment (U = 1000): abstention = True | risk probability: None\n"
+          "seconds": 0.574760913848877,
+          "stdout": "Observable: [('product_mol', 'mol', 2400.0)]\nMean [13.209] | 10–90% band [12.912] – [13.446]\n10th..90th sample quantiles, NOT calibrated intervals | calibration: uncalibrated | risk probability: None\nStructural discrepancy: not quantified; ensemble cannot identify omitted physical mechanisms\nUnsupported equipment (U = 1000): abstention = True | risk probability: None\n"
         },
         {
           "cell_index": 23,
           "sha256": "132190d6a0ef335a93c3f0f884cb2ca6b554a6c982054d8b18da9916be2b3490",
           "status": "completed",
-          "seconds": 2.636725167016266,
+          "seconds": 1.229611873626709,
           "stdout": "Status: uncalibrated | eligible independent batches: 0\nReason: Insufficient original independently supported measured batches, or unsupported/failed predictions\nTest batches scored for coverage: 0 | abstentions: 3\n"
         },
         {
           "cell_index": 25,
           "sha256": "145b1c65442323b5c368cfc0f276bdd580ef52f712122d0be30e4b138638f023",
           "status": "completed",
-          "seconds": 3.907317833014531,
+          "seconds": 2.6227612495422363,
           "stdout": "n = 10 calibration batches, order statistic k = 10, q = 0.00043\nSynthetic test batches inside widened band: 2 of 3 (3 batches cannot estimate coverage)\n"
         },
         {
           "cell_index": 27,
-          "sha256": "ef600a8d49ef079f82cf2bdc0d12c48807d7fd89400818ed18f7392e74266ccf",
+          "sha256": "a95fe60ae94fd353cea6d73a32a311a9793f548c15b7fcebe1c6d6412611ce5a",
           "status": "completed",
-          "seconds": 0.0270998329797294,
-          "stdout": "product_yield_fraction   conditional_pass   \nimpurity_fraction        conditional_pass   \nparticle_size_d50_um     withheld           Model does not predict this required quality attribute on the requested unit/basis\nConclusion: withheld_missing_quality_evidence | draft_requires_engineering_review\nNoninferiority: Independent compatible calibrated donor-receiver difference interval required; nonsignificance and marginal bands are insufficient\nRejected: Reactant conversion cannot serve as desired-product yield\n"
+          "seconds": 0.02714395523071289,
+          "stdout": "product_yield_fraction   indicative_only    No interval calibration attached; a single model estimate cannot pass or fail a criterion\nimpurity_fraction        indicative_only    No interval calibration attached; a single model estimate cannot pass or fail a criterion\nparticle_size_d50_um     withheld           Model does not predict this required quality attribute on the requested unit/basis\nConclusion: withheld_missing_quality_evidence | draft_requires_engineering_review\nNoninferiority: indicative_only | No interval calibration attached; a single model estimate cannot pass or fail a criterion\nRejected: Reactant conversion cannot serve as desired-product yield\n"
         },
         {
           "cell_index": 29,
           "sha256": "b8deab68ef1895a202b8fccd3035c2ec3bcb9bf05e136de971bc51288b658da1",
           "status": "completed",
-          "seconds": 0.24992254201788455,
-          "stdout": "Decision: is product at 40 min >= 8.21 mol?\n0.501  straddles threshold: True   Product assay at 40 min, nominal temperature\n0.053  straddles threshold: False  Product assay at 40 min, +10 K\nrejected: Product assay at 40 min, 700 K (outside model limits) \u2192 outside declared model applicability\nHeuristic decision-discrimination proxy; not calibrated expected information gain, intervention benefit or validated experiment feasibility.\n"
+          "seconds": 0.242326021194458,
+          "stdout": "Decision: is product at 40 min >= 8.21 mol?\n0.501  straddles threshold: True   Product assay at 40 min, nominal temperature\n0.053  straddles threshold: False  Product assay at 40 min, +10 K\nrejected: Product assay at 40 min, 700 K (outside model limits) → outside declared model applicability\nHeuristic decision-discrimination proxy; not calibrated expected information gain, intervention benefit or validated experiment feasibility.\n"
         },
         {
           "cell_index": 31,
           "sha256": "42b3937dc25a7ed2fa89a8b08e75ba36986f80b55674168e582da6315fff4d52",
           "status": "completed",
-          "seconds": 0.7815007090102881,
+          "seconds": 0.7590479850769043,
           "stdout": "review_model_extension | proposed | registry: unchanged | execution permission: none\nCurrent digest recorded: 74dc018db17ca853 == live digest: 74dc018db17ca853\n"
         }
       ],
