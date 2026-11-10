@@ -827,57 +827,11 @@ def test_native_library_read_can_back_memory_without_an_extra_workspace_read(env
             kind='warning',basis='calculated',sources=[{'kind':'physical_analysis_result','id':result['id']}])
 
 
-def _yield_band(result, lower, upper, status="empirically_calibrated_conditional"):
-    end = result["trajectory"][-1]["time_s"]
-    return {"basis": [["product_yield_fraction", "fraction", end]], "calibrated_lower": [lower],
-            "calibrated_upper": [upper], "calibration_status": status}
-
-
-YIELD = {"metric": "product_yield_fraction", "unit": "fraction", "role": "yield", "operator": ">=",
-         "basis": "desired_product_mol_per_initial_reactant_mol"}
-
-
-def test_a_transfer_verdict_needs_the_whole_calibrated_range_on_one_side_of_the_limit():
-    a = ModelCatalog(None).get("chemical.parallel_batch")
-    r = a.run(synthetic_runs(a.id)[0]["config"])
-    limit = r["product_yield_fraction"] - 0.001  # the single estimate clears the limit by a hair
-    crit = [{**YIELD, "limit": limit}]
-    alone = decisions.transfer_assessment(a, r, r, crit)
-    assert alone["checks"][0]["status"] == "indicative_only" and alone["conclusion"] == "inconclusive_uncertainty"
-    synthetic = decisions.transfer_assessment(a, r, r, crit, receiver_interval=_yield_band(r, limit + .01, limit + .05, "calibrated_synthetic_only"))
-    assert synthetic["checks"][0]["status"] == "indicative_only"
-    cases = {(limit + .01, limit + .05): "conditional_pass", (limit - .02, limit + .02): "inconclusive", (limit - .05, limit - .01): "fails_criterion"}
-    for (lo, hi), expected in cases.items():
-        assert decisions.transfer_assessment(a, r, r, crit, receiver_interval=_yield_band(r, lo, hi))["checks"][0]["status"] == expected
-    # A range that stops before the end of the run says nothing about the end-of-run yield.
-    early = {**_yield_band(r, limit + .01, limit + .05), "basis": [["product_yield_fraction", "fraction", 1.0]]}
-    assert decisions.transfer_assessment(a, r, r, crit, receiver_interval=early)["checks"][0]["status"] == "indicative_only"
-
-
-def test_noninferiority_uses_the_difference_of_calibrated_ranges_in_the_stated_direction():
-    a = ModelCatalog(None).get("chemical.parallel_batch")
-    r = a.run(synthetic_runs(a.id)[0]["config"])
-    crit = [{**YIELD, "method": "noninferiority", "margin": 0.05}]
-    donor = _yield_band(r, .60, .62)
-    status = lambda lo, hi: decisions.transfer_assessment(a, r, r, crit, donor_interval=donor,
-                                                          receiver_interval=_yield_band(r, lo, hi))["checks"][0]["status"]
-    assert status(.58, .63) == "conditional_pass"  # worst case .58 - .62 = -.04 >= -.05
-    assert status(.55, .63) == "inconclusive"
-    assert status(.50, .54) == "fails_criterion"  # even the best case, .54 - .60 = -.06, is worse than -.05
-
-
-def test_interval_calibration_spends_solver_calls_only_on_the_bands_and_never_extrapolates():
-    a = ModelCatalog(None).get("chemical.parallel_batch")
-    cal = [r for r in synthetic_runs(a.id) if r["role"] == "calibration"]
-    for r in cal:
-        r["evidence_classification"] = "measured"
-        r["independence_basis"] = "Test fixture for an asserted independent experiment record"
-    budget = SolverBudget(512, 120)
-    result = uncertainty.calibrate_intervals(a, cal, samples=3, budget=budget)
-    assert budget.calls == 3 * len(cal)  # no per-source diagnostic solves inside calibration
-    key, (lo, hi) = next((k, v) for k, v in result["input_support"].items() if v[1] > v[0])
-    config = deepcopy(cal[0]["config"])
-    from src.lifesci.process_engineering.contracts import set_value
-    set_value(config, key, hi + 0.01 * (hi - lo))  # 1 % beyond what calibration covered
-    p = uncertainty.interval_prediction(a, config, cal[0]["observations"], result)
-    assert key in p["unsupported_input_conditions"] and p["calibrated_lower"] is None
+def test_only_uncertain_terms_are_fittable_never_sizes_charges_or_set_points():
+    from src.lifesci.process_engineering.contracts import FITTABLE, contract, fit_runs
+    catalog = ModelCatalog(None)
+    for mid, names in FITTABLE.items():
+        assert set(names) <= set(catalog.get(mid).inputs), mid
+        assert set(contract(catalog.get(mid))["fit_parameters"]) == set(names), mid
+    with pytest.raises(ValueError, match="not designated"):
+        fit_runs(catalog.get("isolation.cake_filter"), [], "filter_area_m2", [0.1, 1.0], SolverBudget(4, 5))

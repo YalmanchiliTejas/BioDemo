@@ -20,6 +20,30 @@ def set_value(data, path, value):
     data[keys[-1]] = value
 
 
+# Terms a fit may estimate: rates, transfer coefficients, resistances, efficiencies, i.e. what is uncertain and
+# characterised from run data. Sizes, charges, set points and recipe settings come from records and are never fitted.
+# A model absent here, or with an empty set, has nothing designated to fit; the fit is refused.
+FITTABLE = {
+    "chemical.semi_batch": ("product_rate_ref_s_inv", "impurity_rate_ref_s_inv", "product_activation_j_mol",
+                            "impurity_activation_j_mol", "heat_transfer_coefficient_w_m2_k"),
+    "crystal.cooling_moments": ("growth_rate_m_s", "growth_exponent", "nucleation_rate_m3_s", "nucleation_exponent"),
+    "isolation.cake_filter": ("medium_resistance_m_inv", "cake_resistance_m_kg"),
+    "isolation.cake_wash": (),  # screening displacement model: no rate term to estimate
+    "isolation.cake_dryer": ("drying_rate_s_inv", "ua_w_k"),
+    "powder.continuous_blender": ("hold_up_kg",),
+    "powder.two_bin_mill": ("breakage_rate_s_inv",),
+    "powder.aggregation_granulator": ("aggregation_coefficient_m3_s",),
+    "tablet.heckel_compaction": ("heckel_coefficient_pa_inv", "zero_porosity_strength_pa", "strength_porosity_coefficient"),
+    "tablet.coating_deposition": ("deposition_efficiency",),
+    "tablet.shrinking_area_dissolution": ("mass_transfer_m_s",),
+    "downstream.equilibrium_capture": ("capacity_kg_kg_resin", "affinity_m3_kg"),
+    "membrane.ultrafiltration": ("permeate_flux_m_s", "product_sieving"),
+    "membrane.diafiltration": ("permeate_flux_m_s", "product_sieving", "impurity_sieving"),
+    "utility.turbulent_mixing": ("power_number",),
+    "utility.ideal_vacuum": ("effective_pumping_m3_s", "gas_load_mol_s"),
+}
+
+
 def contract(adapter):
     d = adapter.describe()
     mid = adapter.id
@@ -29,7 +53,7 @@ def contract(adapter):
         fit = {
             k: {"unit": v.unit, "bounds": [v.minimum, v.maximum]}
             for k, v in adapter.inputs.items()
-            if k not in ("duration_s",)
+            if k in FITTABLE.get(mid, ())
         }
     elif mid.startswith("lyo."):
         axis = "time_h"
