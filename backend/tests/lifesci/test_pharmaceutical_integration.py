@@ -309,11 +309,12 @@ def test_transfer_decision_never_substitutes_conversion_or_missing_quality():
                 "basis": "desired_product_mol_per_initial_reactant_mol",
                 "role": "yield",
                 "method": "noninferiority",
+                "operator": ">=",
                 "margin": 0.05,
             }
         ],
     )
-    assert q["checks"][0]["status"] == "withheld"
+    assert q["checks"][0]["status"] == "indicative_only" and q["conclusion"] == "inconclusive_uncertainty"  # no ranges, no verdict
 
 
 def test_independent_public_oxygen_data_are_retained_without_fake_replicates():
