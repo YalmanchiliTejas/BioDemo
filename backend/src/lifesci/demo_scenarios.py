@@ -52,6 +52,19 @@ SCENARIOS: tuple[dict, ...] = (
      'situation': 'This CHO process is moving to a receiving site with a larger bioreactor.',
      'prompt': 'What would you check in this data before we transfer the process to a new site with a larger bioreactor?',
      'look_for': ['Names concrete characterization gaps', 'Separates evidence from assumptions']},
+    {'scenario_id': 'msat-pre-transfer', 'persona': 'msat', 'title': 'Pre-transfer check: 10 L to 100 L',
+     'situation': 'A SYNTHETIC reaction step runs well in a 10 L reactor and is moving to 100 L. The receiving site offers two '
+                  'vessels: option A as specified, and option B with a larger jacket whose heat transfer coefficient has not '
+                  'been measured yet. Before anyone books a batch, find out which vessel can run the recipe and keep the yield.',
+     'prompt': 'In the pharmaceutical model library, the SYNTHETIC chemical.parallel_batch configuration is our 10 L sending '
+               'reactor; the two "receiving 100 L reactor" configurations are the options at the receiving site. Run a '
+               'pre-transfer check (assess_transfer) from the sending reactor to each option, against desired-product yield '
+               '>= 0.85 and impurity <= 0.08 (fractions). For option B, the jacket heat transfer coefficient is not measured: '
+               'use 245 to 455 W/(m2 K) as an engineering assumption (vendor value +-30 %). Tell me which option can run the '
+               'recipe, what equipment shortfall you see, how confident each verdict is, and the one measurement to do next.',
+     'look_for': ['Catches that option A cannot remove the reaction heat before running a batch',
+                  'Labels each verdict by its basis: model-based over stated tolerances, not calibrated',
+                  'Names one targeted next measurement (the receiving jacket U) instead of a full batch']},
     {'scenario_id': 'msat-precedent', 'persona': 'msat', 'title': 'Have we seen this before?',
      'situation': 'Foaming and low DO again on BR-07.',
      'prompt': 'Have we seen foaming or low DO on BR-07 before? What did we conclude then?',
@@ -78,6 +91,16 @@ SCENARIOS: tuple[dict, ...] = (
      'situation': 'You want to know which open deviations carry the most risk and who owns them.',
      'prompt': 'Which open deviations are highest risk, and who owns them?',
      'look_for': ['Explains why each is ranked as it is', 'Names owners and status']},
+    {'scenario_id': 'exec-transfer', 'persona': 'executive', 'title': 'Which receiving vessel do we commit to?',
+     'situation': 'A SYNTHETIC reaction step is scaling from 10 L to 100 L. Two receiving vessels are on the table and the '
+                  'team wants a decision before booking an engineering batch.',
+     'prompt': 'Use the pharmaceutical model library pre-transfer check (assess_transfer) to compare the SYNTHETIC 10 L sending '
+               'reactor (chemical.parallel_batch) with the two "receiving 100 L reactor" options, against yield >= 0.85 and '
+               'impurity <= 0.08 (fractions); option B\'s jacket U is unmeasured, assume 245 to 455 W/(m2 K). Give me a short '
+               'brief: which option to pursue, what it would have cost to find out on a batch, what is still uncertain, and '
+               'the next step. Do not claim validated results from synthetic data.',
+     'look_for': ['Leads with a decision and its basis', 'Separates model-based findings from validated outcomes',
+                  'Proposes a cheap next measurement rather than a batch']},
     {'scenario_id': 'exec-cmo', 'persona': 'executive', 'title': 'How reliable is our CMO?',
      'situation': 'Leadership is reviewing the CMO relationship.',
      'prompt': 'How reliable has our CMO\'s data been, and what has gone wrong?',

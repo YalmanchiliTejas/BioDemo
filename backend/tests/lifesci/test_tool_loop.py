@@ -226,3 +226,17 @@ def test_memory_and_recent_turns_sit_last_just_before_the_question(env):
     context = fake.calls[0]['messages'][1]['content']
     order = [context.index(f'"{k}"') for k in ('capabilities', 'case_index', 'memory_index', 'recent_turns')]
     assert order == sorted(order) and context.rindex('Question:') > order[-1]
+
+
+def test_a_turn_budget_counts_solver_calls_used_not_the_maximum_each_run_reserved(env):
+    p, ctx = env
+    conv = p.engineering_conversations
+    thread = conv.create(ctx, {})
+    tid = conv.enqueue(ctx, thread['id'], {'text': 'Check both receiving vessels.', 'expected_revision': thread['revision']})['turn_ids'][-1]
+    for _ in range(2):  # each reserves 96 (the whole turn budget) but uses 4
+        turn = p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', tid).state
+        assert turn['solver_calls_admitted'] + 96 <= 96 + 8
+        conv._update_turn(ctx, tid, solver_calls_admitted=turn['solver_calls_admitted'] + 96)
+        conv._settle_solver_calls(ctx, tid, 96, 4)
+    turn = p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', tid).state
+    assert turn['solver_calls_admitted'] == 8 and turn['solver_calls_used'] == 8

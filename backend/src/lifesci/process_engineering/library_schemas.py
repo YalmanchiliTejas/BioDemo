@@ -53,7 +53,16 @@ class LibraryPipelineSpec(StrictModel):
         "assess_transfer",
         "experiments",
     ]
-    options: dict[str, Any] = Field(default_factory=dict)
+    options: dict[str, Any] = Field(default_factory=dict, description=(
+        "Operation options. assess_transfer (pre-transfer check; needs receiver_context_id): "
+        "criteria=[{metric, unit, basis (optional: omit to use the model's defined quantity, e.g. chemical.parallel_batch "
+        "product_yield_fraction = desired_product_mol_per_initial_reactant_mol), role: yield|quality, operator: '>=' higher "
+        "is better | '<=' lower is better, "
+        "limit} or {..., method: 'noninferiority', margin}], optional tolerances (at most 4)=[{path, unit, low, high, "
+        "basis: spec_tolerance|fit_uncertainty|engineering_assumption|measured_range, source, applies_to: "
+        "receiver|donor|both}] for inputs not yet known exactly, e.g. an unmeasured receiving jacket U. Returns "
+        "verdicts per criterion, what changes between the sites, and an equipment capability check. "
+        "Set max_solver_calls to what the operation needs (assess_transfer: 2 + 2^tolerances)."))
     dataset_id: str | None = Field(default=None, max_length=300, description="Optional existing physical_model_dataset ID containing partitioned measurement runs. Omit for a forward simulation. Never put a configuration ID here.")
     checkpoint_id: str | None = Field(default=None, max_length=300)
     calibration_id: str | None = Field(default=None, max_length=300)
