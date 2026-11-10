@@ -881,3 +881,11 @@ def test_interval_calibration_spends_solver_calls_only_on_the_bands_and_never_ex
     set_value(config, key, hi + 0.01 * (hi - lo))  # 1 % beyond what calibration covered
     p = uncertainty.interval_prediction(a, config, cal[0]["observations"], result)
     assert key in p["unsupported_input_conditions"] and p["calibrated_lower"] is None
+def test_only_uncertain_terms_are_fittable_never_sizes_charges_or_set_points():
+    from src.lifesci.process_engineering.contracts import FITTABLE, contract, fit_runs
+    catalog = ModelCatalog(None)
+    for mid, names in FITTABLE.items():
+        assert set(names) <= set(catalog.get(mid).inputs), mid
+        assert set(contract(catalog.get(mid))["fit_parameters"]) == set(names), mid
+    with pytest.raises(ValueError, match="not designated"):
+        fit_runs(catalog.get("isolation.cake_filter"), [], "filter_area_m2", [0.1, 1.0], SolverBudget(4, 5))
