@@ -380,7 +380,7 @@ def test_visitors_can_discover_and_execute_library_with_provenance(api, p, perso
     assert len(catalog.json()['models']) == 22
     sources = api.get('/v1/process-model/conversation-sources?site_id=NF1', headers=headers).json()['sources']
     library = [s for s in sources if s['audience'] == 'model_library']
-    assert len(library) == 19
+    assert len(library) == 21
     model_id = 'fermentation.oxygen_transfer' if persona == 'msat' else 'chemical.parallel_batch'
     source = next(s for s in library if s['model_id'] == model_id)
     context = p.store.read().require(tenant, 'physical_analysis_context', source['id']).state
@@ -399,7 +399,7 @@ def test_visitors_can_discover_and_execute_library_with_provenance(api, p, perso
                      headers=as_visitor('anon-other', other))
     assert denied.status_code in (403, 404)
     assert start(api, 'anon-library', persona).json()['tenant_id'] == tenant
-    assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 19
+    assert len(p.store.read().list(tenant, "physical_analysis_context")) == 21
     assert p.demo.view(tenant)['messages_left'] == 20
 
 
@@ -419,9 +419,10 @@ def test_existing_demo_scenario_can_discover_missing_library_seed(p, monkeypatch
         ctx, {'site_id': 'NF1', 'owner_id': ctx.actor_id},
         kinds=['physical_analysis_context'], query='chemical.parallel_batch')
     matches = [r for r in found['records'] if r.get('model_id') == 'chemical.parallel_batch']
-    assert len(matches) == 1, 'Scenario advertises a SYNTHETIC configuration the agent cannot discover'
+    sending = [r for r in matches if 'receiving' not in r['label']]
+    assert len(sending) == 1 and len(matches) == 3, 'Scenario advertises a SYNTHETIC configuration the agent cannot discover'
     p.demo.workspace(ctx)
-    assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 19
+    assert len(p.store.read().list(tenant, "physical_analysis_context")) == 21
 
 
 @pytest.mark.parametrize('persona', sorted(PERSONA_ROLES))
@@ -513,12 +514,12 @@ def test_demo_repairs_partial_library_seed_without_replacing_custom_data(p):
     evidence_before = p.store.read().list(tenant, 'evidence')
     p.demo.workspace(ctx)
     current = p.store.read().list(tenant, 'physical_analysis_context', lambda s: s.get('status') == 'current')
-    assert len(current) == 19
+    assert len(current) == 21
     assert target.id not in {r.id for r in current}
-    assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 20
+    assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 22
     assert len(p.store.read().list(tenant, 'evidence')) == len(evidence_before)
     p.demo.workspace(ctx)
-    assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 20
+    assert len(p.store.read().list(tenant, 'physical_analysis_context')) == 22
     assert p.demo.view(tenant)['messages_left'] == 20
 
 
@@ -527,7 +528,7 @@ def test_every_seeded_library_choice_executes_its_own_model(p):
     ctx = p.identity.context_for(tenant, 'anon-library-catalogue-audit')
     service = p.process_models.analysis
     contexts = p.store.read().list(tenant, 'physical_analysis_context')
-    assert len(contexts) == 19
+    assert len(contexts) == 21
     for context in contexts:
         model_id = context.state['model_id']
         plan = service.prepare(ctx, {'mode':'model_library','context_id':context.id,'model_id':model_id,
@@ -567,3 +568,36 @@ def test_saved_duplicate_charts_are_hidden_but_distinct_runs_remain_visible(p):
     assert visible[0]['title'] == first['title']
     # Repair the display without rewriting historic evidence or tool receipts.
     assert len(p.store.read().require(tenant,'engineering_chat_turn',tid).state['artifacts']) == 3
+
+
+@pytest.mark.parametrize('persona', ['msat', 'executive'])
+def test_visitors_can_run_the_pre_transfer_check_as_the_library_page_does(api, persona):
+    tenant = start(api, 'anon-transfer', persona).json()['tenant_id']
+    headers = as_visitor('anon-transfer', tenant)
+    sources = api.get('/v1/process-model/conversation-sources?site_id=NF1', headers=headers).json()['sources']
+    reactors = [s for s in sources if s['model_id'] == 'chemical.parallel_batch']
+    sending = next(s for s in reactors if 'receiving' not in s['label'])
+    option = {x: next(s for s in reactors if f'option {x}' in s['label']) for x in 'AB'}
+    rec = api.get(f"/v1/process-model/library/artifacts/physical_analysis_context/{option['B']['id']}", headers=headers).json()
+    u = rec['input_bundle']['config']['equipment']['heat_transfer_coefficient_w_m2_k']
+    criteria = [{'metric': 'product_yield_fraction', 'unit': 'fraction', 'role': 'yield', 'operator': '>=', 'limit': 0.85,
+                 'basis': 'desired_product_mol_per_initial_reactant_mol'},
+                {'metric': 'impurity_fraction', 'unit': 'fraction', 'role': 'quality', 'operator': '<=', 'limit': 0.08,
+                 'basis': 'impurity_mol_per_initial_reactant_mol'}]
+
+    def check(receiver, tolerances):
+        plan = api.post('/v1/process-model/pipelines', headers=headers, json={
+            'mode': 'model_library', 'simulation_id': sending['id'], 'receiver_context_id': receiver['id'],
+            'model_id': 'chemical.parallel_batch', 'objective': 'Pre-transfer check from the library page',
+            'operation': 'assess_transfer', 'options': {'criteria': criteria, 'tolerances': tolerances},
+            'max_solver_calls': 64, 'max_wall_seconds': 60})
+        assert plan.status_code == 200, plan.text
+        result = api.post(f"/v1/process-model/pipelines/{plan.json()['id']}/execute", headers=headers, json={}).json()
+        assert result['execution_status'] == 'completed', result.get('error')
+        return result['output']
+
+    assert check(option['A'], [])['conclusion'] == 'criteria_not_met'
+    out = check(option['B'], [{'path': 'equipment.heat_transfer_coefficient_w_m2_k', 'unit': 'W/(m2 K)', 'low': 0.7 * u,
+                               'high': 1.3 * u, 'basis': 'engineering_assumption', 'source': 'U not measured; ±30 %',
+                               'applies_to': 'receiver'}])
+    assert [c['status'] for c in out['checks']] == ['model_based_pass', 'inconclusive']

@@ -20,6 +20,41 @@ MEASUREMENT_BASES = {
 
 
 REAL = "empirically_calibrated_conditional"
+MODEL_BASED = ("Model-based range: the physics run at every combination of the stated tolerances. Conditional on the "
+               "model's equations and on the tolerances being right; not calibrated and not a probability.")
+
+
+def _model_based(entry, criterion, metric, a, b, donor_corners, receiver_corners):
+    """Verdict from the corner runs. A corner where the run stops means the process can fail within tolerance."""
+    def spread(corners, nominal):
+        stops = [c for c in corners if c["status"] != "completed"]
+        values = [nominal, *[float(value_at(c, metric)) for c in corners if c["status"] == "completed"]]
+        return min(values), max(values), stops
+
+    r_lo, r_hi, r_stops = spread(receiver_corners, b)
+    entry = {**entry, "basis_of_range": MODEL_BASED, "corner_runs": len(receiver_corners) + len(donor_corners)}
+    if r_stops:
+        worst = r_stops[0]
+        return {**entry, "status": "at_risk", "stopping_corners": [
+            {"tolerances": c["assignment"], "violations": c.get("violations") or [c.get("error", "solver failure")]} for c in r_stops],
+            "reason": f"Within the stated tolerances the receiving run stops ({', '.join(worst.get('violations') or ['solver failure'])}) "
+                      f"at {', '.join(f'{k}={v:g}' for k, v in worst['assignment'].items())}"}
+    higher = criterion["operator"] == ">="
+    if criterion.get("method", "absolute") == "absolute":
+        limit = criterion["limit"]
+        entry.update(receiver_range=[r_lo, r_hi], limit=limit)
+        ok, bad = (r_lo >= limit, r_hi < limit) if higher else (r_hi <= limit, r_lo > limit)
+    else:
+        d_lo, d_hi, d_stops = spread(donor_corners, a)
+        if d_stops:
+            return {**entry, "status": "indicative_only", "reason": "The sending-site run stops within its stated tolerances"}
+        margin = criterion["margin"]
+        diff = [r_lo - d_hi, r_hi - d_lo]
+        entry.update(difference_range=diff, margin=margin)
+        ok, bad = (diff[0] >= -margin, diff[1] < -margin) if higher else (diff[1] <= margin, diff[0] > margin)
+    status = "model_based_pass" if ok else "model_based_fail" if bad else "inconclusive"
+    return {**entry, "status": status, **({"reason": "The model-based range straddles the limit; measure the most "
+                                                     "uncertain term to narrow it"} if status == "inconclusive" else {})}
 
 
 def _band(adapter, interval, metric, unit, result):
@@ -44,9 +79,13 @@ def _band(adapter, interval, metric, unit, result):
             "calibration_status": interval["calibration_status"]}, None
 
 
-def transfer_assessment(adapter, donor, receiver, criteria, *, donor_interval=None, receiver_interval=None):
-    """Screen explicit criteria. A pass or fail needs the whole calibrated range on one side of the limit (or margin);
-    a single model estimate, a synthetic-only calibration or a range straddling the limit is never a verdict."""
+def transfer_assessment(adapter, donor, receiver, criteria, *, donor_interval=None, receiver_interval=None,
+                        donor_corners=(), receiver_corners=()):
+    """Screen explicit criteria. A verdict needs a range wholly on one side of the limit (or margin):
+    - calibrated: from an empirical interval calibration on real batches (conditional_pass / fails_criterion);
+    - model-based: the physics run at every combination of stated tolerances (model_based_pass / model_based_fail),
+      conditional on the model's equations, never a probability;
+    otherwise indicative_only. A single model estimate or a range straddling the limit is never a verdict."""
     if not criteria:
         raise ValueError("Explicit acceptance criteria required")
     from .contracts import contract
@@ -58,8 +97,12 @@ def transfer_assessment(adapter, donor, receiver, criteria, *, donor_interval=No
         metric = criterion["metric"]
         role = criterion.get("role", "quality")
         method = criterion.get("method", "absolute")
-        if not criterion.get("basis") or not criterion.get("unit"):
-            raise ValueError("Explicit unit and compatible measurement basis required")
+        if not criterion.get("unit"):
+            raise ValueError("Explicit unit required")
+        # Omitted basis means the model's own defined quantity, stated back in the result; a different one is withheld.
+        criterion = {**criterion, "basis": criterion.get("basis") or MEASUREMENT_BASES.get(adapter.id, {}).get(metric) or ""}
+        if not criterion["basis"]:
+            raise ValueError("Explicit compatible measurement basis required")
         if role == "yield" and ("conversion" in metric or "conversion" in criterion["basis"].lower()):
             raise ValueError("Reactant conversion cannot serve as desired-product yield")
         if method not in ("absolute", "noninferiority"):
@@ -82,8 +125,17 @@ def transfer_assessment(adapter, donor, receiver, criteria, *, donor_interval=No
             checks.append({"metric": metric, "status": "withheld", "required_basis": expected_basis,
                            "reason": "Measurement basis is unsupported or differs from the model-defined quantity"})
             continue
-        if not completed(donor) or not completed(receiver):
-            checks.append({"metric": metric, "status": "withheld", "reason": "Solver did not complete"})
+        if not completed(donor):
+            checks.append({"metric": metric, "status": "withheld",
+                           "reason": "The sending-site run does not complete: " + ", ".join(donor.get("violations") or ["solver failure"])})
+            continue
+        if not completed(receiver):
+            if receiver.get("violations"):  # the receiving equipment cannot run the recipe: a finding, not a gap
+                checks.append({"metric": metric, "status": "model_based_fail", "violations": receiver["violations"],
+                               "stopped_at_s": receiver.get("completed_duration_s"),
+                               "reason": "At the receiving site's nominal values the run stops: " + ", ".join(receiver["violations"])})
+            else:
+                checks.append({"metric": metric, "status": "withheld", "reason": "Receiving-site solver did not complete"})
             continue
         try:
             a, b = float(value_at(donor, metric)), float(value_at(receiver, metric))
@@ -98,7 +150,11 @@ def transfer_assessment(adapter, donor, receiver, criteria, *, donor_interval=No
         r_band, r_why = _band(adapter, receiver_interval, metric, criterion["unit"], receiver)
         d_band, d_why = (_band(adapter, donor_interval, metric, criterion["unit"], donor) if method == "noninferiority" else (None, None))
         why = r_why or d_why
-        if why or r_band["calibration_status"] != REAL or (d_band and d_band["calibration_status"] != REAL):
+        calibrated = not why and r_band["calibration_status"] == REAL and (not d_band or d_band["calibration_status"] == REAL)
+        if not calibrated and receiver_corners:
+            checks.append(_model_based(entry, criterion, metric, a, b, donor_corners, receiver_corners))
+            continue
+        if not calibrated:
             # Shown for orientation only: which side of the limit the single estimate lands on is not evidence.
             checks.append({**entry, "status": "indicative_only",
                            "reason": why or "Calibrated on synthetic data only; not a real-world coverage claim"})
@@ -119,9 +175,11 @@ def transfer_assessment(adapter, donor, receiver, criteria, *, donor_interval=No
             entry["reason"] = "The calibrated range straddles the limit; more data or a measurement is needed to decide"
         checks.append(entry)
     statuses = {c["status"] for c in checks}
-    conclusion = ("criteria_not_met" if "fails_criterion" in statuses
+    conclusion = ("criteria_not_met" if statuses & {"fails_criterion", "model_based_fail"}
                   else "withheld_missing_quality_evidence" if "withheld" in statuses
+                  else "at_risk_within_tolerances" if "at_risk" in statuses
                   else "conditional_model_criteria_met" if statuses == {"conditional_pass"}
+                  else "model_based_criteria_met" if statuses <= {"conditional_pass", "model_based_pass"}
                   else "inconclusive_uncertainty")
     return {
         "checks": checks,

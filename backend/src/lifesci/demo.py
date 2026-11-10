@@ -143,14 +143,14 @@ class DemoService:
         entry = self._entry(ctx.tenant_id)
         if entry is None:
             return
-        from .demo_seed import SITE, seed_model_library
+        from .demo_seed import LIBRARY_SEED_VERSION, SITE, library_examples, seed_model_library
         # Refresh versioned software first: an updated solver can stale saved demo contexts.
         self.p.process_models.analysis._catalog_ref(ctx, SITE)
         seed = entry.get('seed') or {}
         ids = set(seed.get('model_library_contexts') or [])
         current = self.p.store.read().list(ctx.tenant_id, 'physical_analysis_context',
                                          lambda s: s.get('status') == 'current')
-        if seed.get('model_library_seed_version') == 1 and len(ids) == 19 and ids.issubset({r.id for r in current}):
+        if seed.get('model_library_seed_version') == LIBRARY_SEED_VERSION and len(ids) == len(library_examples()) and ids.issubset({r.id for r in current}):
             return
         # Seed only in the visitor tenant. Control metadata is a separate tenant
         # transaction; retrying after interruption reuses the already-created examples.
@@ -160,7 +160,7 @@ class DemoService:
             current = tx.require(CONTROL, 'demo_workspace', ctx.tenant_id)
             tx.put(CONTROL, 'demo_workspace', ctx.tenant_id,
                    {**current.state, 'seed': {**current.state.get('seed', {}),
-                    'model_library_contexts': ids, 'model_library_seed_version': 1}},
+                    'model_library_contexts': ids, 'model_library_seed_version': LIBRARY_SEED_VERSION}},
                    expected_revision=current.revision, action='upgrade_demo_library_examples')
 
     # --- limits ---------------------------------------------------------------------

@@ -7,6 +7,7 @@ registry, agent runtime or evidence store.
 
 from copy import deepcopy
 import json
+import math
 from time import perf_counter
 
 from ..evidence import EvidenceRef
@@ -14,7 +15,7 @@ from ..ids import content_hash
 from .library_schemas import ConfigurationIn, DatasetIn, LibraryPipelineSpec, ModelExtensionIn
 from .contracts import value_at, predict, contract, fit_runs, completed
 from .engine import SolverBudget
-from . import hybrid, uncertainty, decisions
+from . import capability, hybrid, uncertainty, decisions
 
 
 class LibraryOperations:
@@ -287,7 +288,7 @@ class LibraryOperations:
             "calibrate_intervals": {"prediction_mode", "alpha", "samples", "seed", "distributions"},
             "predict_intervals": {"observations"},
             "evaluate_intervals": set(),
-            "assess_transfer": {"criteria"},
+            "assess_transfer": {"criteria", "tolerances"},
             "experiments": {"candidates", "decision"},
         }
         extra = set(spec.options) - fields[spec.operation]
@@ -428,7 +429,16 @@ class LibraryOperations:
                                 adapter, c, grid, cal, checkpoint=cp, budget=budget, components=False)
                         except ValueError:
                             intervals[side] = None  # a different model version or basis: no range, so no verdict
-                return decisions.transfer_assessment(adapter, a, b, options["criteria"], **intervals)
+                tolerances = _tolerances(adapter, cfg, receiver, options.get("tolerances") or [])
+                corners = {}
+                for side, c, wanted in (("receiver_corners", receiver, True),
+                                        ("donor_corners", cfg, any(k.get("method") == "noninferiority" for k in options["criteria"]))):
+                    used = [t for t in tolerances if t["applies_to"] in (side.split("_")[0], "both")]
+                    corners[side] = _corners(run, c, used) if used and wanted else []
+                out = decisions.transfer_assessment(adapter, a, b, options["criteria"], **intervals, **corners)
+                return {**out, "tolerances": tolerances, "what_changes": capability.changes(cfg, receiver),
+                        "equipment_capability": capability.capabilities(adapter, cfg, a, receiver, b),
+                        "sending_result": _summary(a), "receiving_result": _summary(b)}
             comparisons = {}
             for metric in options["metrics"]:
                 try:
@@ -678,3 +688,59 @@ class LibraryOperations:
             if isinstance(value, dict):
                 value.pop("runs", None)
         return result
+
+
+TOLERANCE_BASES = ("spec_tolerance", "fit_uncertainty", "engineering_assumption", "measured_range")
+MAX_TOLERANCES = 4  # 2**4 = 16 corner runs per site
+
+
+def _tolerances(adapter, donor, receiver, raw):
+    """Stated low/high values for uncertain inputs, each with where it comes from; checked against the model."""
+    from .contracts import input_units
+
+    if len(raw) > MAX_TOLERANCES:
+        raise ValueError(f"At most {MAX_TOLERANCES} tolerances (2^n corner runs); keep the most uncertain terms")
+    units, out = input_units(adapter), []
+    for t in raw:
+        if not isinstance(t, dict) or set(t) - {"path", "unit", "low", "high", "basis", "source", "applies_to"}:
+            raise ValueError("Tolerance fields: path, unit, low, high, basis, source, applies_to")
+        path, side = t.get("path"), t.get("applies_to", "receiver")
+        if units.get(path) is None or units[path] != t.get("unit"):
+            raise ValueError(f"Tolerance {path!r}: not a model input, or unit differs from {units.get(path)!r}")
+        if t.get("basis") not in TOLERANCE_BASES or not str(t.get("source") or "").strip():
+            raise ValueError(f"Tolerance {path!r}: basis must be one of {TOLERANCE_BASES}, with its source")
+        if side not in ("receiver", "donor", "both"):
+            raise ValueError("applies_to must be receiver, donor or both")
+        lo, hi = float(t["low"]), float(t["high"])
+        for c in ([receiver] if side == "receiver" else [donor] if side == "donor" else [donor, receiver]):
+            nominal = float(value_at(c, path))
+            if not (math.isfinite(lo) and math.isfinite(hi) and lo <= nominal <= hi and lo < hi):
+                raise ValueError(f"Tolerance {path!r}: need low <= configured value ({nominal:g}) <= high")
+        out.append({"path": path, "unit": t["unit"], "low": lo, "high": hi, "basis": t["basis"],
+                    "source": str(t["source"])[:300], "applies_to": side})
+    return out
+
+
+def _corners(run, config, tolerances):
+    from itertools import product
+    from .contracts import set_value
+    from .engine import BudgetExceeded
+
+    out = []
+    for values in product(*[(t["low"], t["high"]) for t in tolerances]):
+        c = deepcopy(config)
+        for t, v in zip(tolerances, values):
+            set_value(c, t["path"], v)
+        assignment = {t["path"]: v for t, v in zip(tolerances, values)}
+        try:
+            out.append({"assignment": assignment, **_summary(run(c))})
+        except BudgetExceeded:
+            raise
+        except (ValueError, RuntimeError, ArithmeticError) as exc:
+            out.append({"assignment": assignment, "status": "failed", "error": str(exc), "violations": []})
+    return out
+
+
+def _summary(result):
+    """A run without its trajectory: enough to read outcomes, small enough to store per corner."""
+    return {k: v for k, v in result.items() if k not in ("trajectory", "limitations", "solver")}

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { ScientificPlot } from '@/components/ScientificPlot';
+import { TransferCheck, type TransferOutput } from './TransferCheck';
 
 type Json = Record<string, unknown>;
 type Manifest = { id: string; title: string; version: string; analysis_contract: { axis: string; observables: Record<string,string> } };
@@ -25,6 +26,7 @@ export function ModelLibraryResult({ data }: { data: LibraryResult }) {
     <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-base font-medium">{manifest?.title ?? 'Pharmaceutical model analysis'}</h3><span className="text-xs text-text-secondary">{stale?'Evidence changed · reassessment required':data.execution_status ?? data.status ?? 'Saved draft'}</span></div>
     {stale ? <p>Predictions are withheld because contributing evidence changed. Refresh the configuration and reassess the affected analysis.</p> : <>
       {data.error && <p role="alert" className="text-status-critical">{data.error.type}: {data.error.message}</p>}
+      {'equipment_capability' in output && <TransferCheck output={output as unknown as TransferOutput} />}
       {checkpoint && <p role="status">{checkpoint.negative_transfer ? 'Negative transfer detected. Adapted predictions are withheld pending review.' : `Checkpoint saved · selected model: ${checkpoint.selected_model ?? 'review required'}.`} {checkpoint.classification?.replaceAll('_',' ')}</p>}
       {calibration && <p role="status"><strong>Interval status: {calibration.status?.replaceAll('_',' ')}</strong>. {calibration.independent_calibration_groups ?? 0} eligible independent calibration batches. {calibration.reason}</p>}
       {simulation?.hybrid?.out_of_domain && <p role="status">Operating conditions extend beyond the learned feature support. Calibrated intervals and risk probabilities are withheld.</p>}

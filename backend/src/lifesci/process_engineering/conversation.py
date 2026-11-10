@@ -277,7 +277,7 @@ class EngineeringConversationService:
                     continue
                 out.append({'id': rec.id, 'kind': kind, 'audience': rec.state['workspace']['audience'],
                     'provenance': rec.state['input_bundle']['observation_provenance'], 'model_id':rec.state.get('model_id'), 'label':rec.state.get('label'), 'updated_at': rec.updated_at})
-        return sorted(out, key=lambda s: s['updated_at'], reverse=True)[:20]
+        return sorted(out, key=lambda s: s['updated_at'], reverse=True)[:50]
 
     def _memory_inputs_readable(self, ctx, state):
         """A what-if built from someone's conversation is part of their memory: its inputs carry their instruction."""
@@ -333,6 +333,12 @@ class EngineeringConversationService:
                 expected_revision=rec.revision, action='append_engineering_message')
         self.p.missions.add_note(ctx, rec.state['mission_id'], text)
         return self.get(ctx, thread_id)
+
+    def _settle_solver_calls(self, ctx, tid, admission, used):
+        """An execution reserves its maximum up front; once done, only what it used counts against the turn."""
+        cur = self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', tid).state
+        self._update_turn(ctx, tid, solver_calls_used=cur['solver_calls_used'] + used,
+                          solver_calls_admitted=cur['solver_calls_admitted'] - admission + used)
 
     def _update_turn(self, ctx, tid, **changes):
         with self.p.store.transaction(ctx.actor_id) as tx:
@@ -968,7 +974,7 @@ class EngineeringConversationService:
                     if turn['solver_calls_admitted']+admission>96 or turn.get('analysis_executions_admitted',0)>=3:raise ValueError('Conversation numerical execution budget exhausted')
                     self._update_turn(ctx,tid,solver_calls_admitted=turn['solver_calls_admitted']+admission,analysis_executions_admitted=turn.get('analysis_executions_admitted',0)+1)
                     record=self.analysis.execute(ctx,payload.plan_id,commit_guard=lambda tx:self._active_turn(ctx,turn,tx));kind='physical_analysis_result'
-                    self._update_turn(ctx,tid,solver_calls_used=turn['solver_calls_used']+record['resource_usage']['solver_calls'])
+                    self._settle_solver_calls(ctx,tid,admission,record['resource_usage']['solver_calls'])
                 elif name=='model_library_propose_extension':
                     if payload.context_id not in thread['source_ids'] or payload.owner_id!=thread['owner_id']:
                         raise PermissionError('extension proposal must use this conversation context and owner')
@@ -1014,7 +1020,7 @@ class EngineeringConversationService:
                 self._update_turn(ctx, tid, solver_calls_admitted=turn['solver_calls_admitted']+admission,
                     analysis_executions_admitted=executions + 1)
                 record = self.analysis.execute(ctx, payload.plan_id)
-                self._update_turn(ctx, tid, solver_calls_used=turn['solver_calls_used']+record['resource_usage']['solver_calls'])
+                self._settle_solver_calls(ctx, tid, admission, record['resource_usage']['solver_calls'])
                 kind, title = 'physical_analysis_result', 'Calculated process forecast'
             elif name == 'physical_results_compare':
                 record = self._compare(ctx, thread, payload.result_ids, ref)

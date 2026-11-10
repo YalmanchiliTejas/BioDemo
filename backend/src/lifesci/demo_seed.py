@@ -100,13 +100,16 @@ def seed(platform: Any, tenant: str, visitor: str, persona: str) -> dict[str, An
                                                                      'description': 'Foaming at 4 h; DO below 30 % (synthetic)'}})
     contexts = seed_model_library(platform, qa, SITE)
     return {'dataset_id': dataset['evidence_id'], 'cases': ['DEV-12', 'DEV-19', 'DEV-31'], 'site_id': SITE,
-            'persona': persona, 'model_library_contexts': contexts, 'model_library_seed_version': 1}
+            'persona': persona, 'model_library_contexts': contexts, 'model_library_seed_version': LIBRARY_SEED_VERSION}
 
 
-def seed_model_library(platform: Any, ctx: Any, site: str) -> list[str]:
-    """Evidence-backed executable examples, scoped to this visitor; no inference or solver calls."""
+LIBRARY_SEED_VERSION = 2  # 2: the receiving reactors for the pre-transfer check
+
+
+def library_examples() -> list[tuple[str, str, dict]]:
+    """(model_id, label, config) for every seeded example; all authored, none measured."""
     from .process_models.examples import examples
-    from .chemical_reactor.demo import example
+    from .chemical_reactor.demo import example, receiver_example
     from .fermentation.data import project
 
     configs = examples() | {
@@ -114,24 +117,36 @@ def seed_model_library(platform: Any, ctx: Any, site: str) -> list[str]:
         'fermentation.oxygen_transfer': {'project': project('sulfolobus'), 'assumptions': {}},
         'fermentation.pressure_cost': {'project': project('pichia'), 'assumptions': {}},
     }
+    out = [(mid, 'SYNTHETIC · ' + mid, c) for mid, c in configs.items()]
+    # Tech-transfer story: the 10 L sending reactor above moves to 100 L. Option A is the vessel as specified;
+    # option B is an alternative vessel with a larger jacket whose heat transfer coefficient is not yet measured.
+    option_b = receiver_example(example())
+    option_b['equipment'].update(heat_transfer_area_m2=1.2, heat_transfer_coefficient_w_m2_k=350.)
+    out += [('chemical.parallel_batch', 'SYNTHETIC · receiving 100 L reactor · option A (as specified)', receiver_example(example())),
+            ('chemical.parallel_batch', 'SYNTHETIC · receiving 100 L reactor · option B (larger jacket, U not measured)', option_b)]
+    return out
+
+
+def seed_model_library(platform: Any, ctx: Any, site: str) -> list[str]:
+    """Evidence-backed executable examples, scoped to this visitor; no inference or solver calls."""
     platform.process_models.analysis._catalog_ref(ctx, site)
     ids = []
-    for model_id, config in configs.items():
+    for model_id, label, config in library_examples():
         existing = platform.store.read().list(ctx.tenant_id, 'physical_analysis_context',
             lambda s: s.get('site_id') == site and s.get('model_id') == model_id
-            and s.get('label') == 'SYNTHETIC · ' + model_id and s.get('status') == 'current'
+            and s.get('label') == label and s.get('status') == 'current'
             and s.get('classification') == 'synthetic_assumption'
             and s.get('input_bundle', {}).get('config') == config)
         if existing:
             ids.append(existing[-1].id)
             continue
         original = platform.evidence.ingest(
-            ctx, source_system='pharmaceutical-synthetic-demo', source_record_id=model_id,
+            ctx, source_system='pharmaceutical-synthetic-demo', source_record_id=label,
             content=json.dumps({'config': config, 'evidence_classification': 'synthetic_assumption'}, sort_keys=True).encode(),
             media_type='application/json', site_id=site, event_time=None,
             metadata={'synthetic': True})
         result = platform.process_models.analysis.create_configuration(ctx, {
-            'model_id': model_id, 'site_id': site, 'label': 'SYNTHETIC · ' + model_id, 'config': config,
+            'model_id': model_id, 'site_id': site, 'label': label, 'config': config,
             'classification': 'synthetic_assumption',
             'assumptions': ['Authored executable example; not measured customer characterization or validation.'],
             'basis': [{'kind': 'evidence', 'id': original['evidence_id'], 'revision': original['revision'], 'site_id': site}],

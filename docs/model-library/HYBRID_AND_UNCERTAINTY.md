@@ -216,6 +216,37 @@ operator and limit, for example:
   `conditional_model_criteria_met` or `inconclusive_uncertainty`.
 - Every result is `draft_requires_engineering_review` and carries no risk probability.
 
+### Pre-transfer check: tolerances, model-based verdicts and equipment capability
+
+Before a receiving site runs a batch, it has spec sheets but no batch data. That is outside any interval calibration,
+so `assess_transfer` adds two things that need no receiving-site batches.
+
+**Model-based verdicts over stated tolerances.** `tolerances` (at most 4) gives a low and high value for inputs that
+are not known exactly yet, e.g. an unmeasured receiving jacket U. Each needs a unit matching the model, a `basis`
+(`spec_tolerance`, `fit_uncertainty`, `engineering_assumption` or `measured_range`) and its `source`, and must bracket
+the configured value. The physics runs at every combination of low and high values (2ⁿ runs per site):
+
+| Status | Meaning |
+|---|---|
+| `model_based_pass` / `model_based_fail` | Every combination is on the same side of the limit |
+| `inconclusive` | The range straddles the limit: measure the most uncertain term |
+| `at_risk` | Some combination stops the run (e.g. temperature limit reached): the process can fail within tolerance |
+| `model_based_fail` (nominal) | At the receiving site's configured values the run stops: the equipment cannot run the recipe |
+
+A model-based verdict is conditional on the model's equations and on the tolerances being right. It is not
+calibrated and not a probability. A calibrated range, when available and in range, takes precedence.
+
+**What changes, and equipment capability.** `what_changes` lists every input that differs between the sites.
+`equipment_capability` compares what the process needs with what the receiving equipment provides. For
+`chemical.parallel_batch`, this is heat removal: the peak heat released per m³ in the sending-site run times the
+receiving volume (a lower bound, because a hotter batch reacts faster), against U·A·(temperature limit − coolant
+temperature). Every family also gets a "recipe runs to completion at each site" check. Other families do not have a
+need-versus-capacity check yet.
+
+The demo seeds this story: a 10 L sending reactor, and two 100 L receiving options. Option A, as specified, is 75 %
+short on heat removal and the run stops. Option B, with a larger jacket and U unmeasured (±30 %), passes on yield
+model-based; impurity spans the 8 % limit, so the next step is to measure U, e.g. with a water run, not a batch.
+
 `experiments` ranks up to 12 feasible candidate measurements for one identified decision.
 The ranking favours candidates whose modelled spread straddles the decision threshold,
 relative to measurement resolution and cost. Each entry includes the measurement,

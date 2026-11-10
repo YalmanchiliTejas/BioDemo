@@ -827,6 +827,60 @@ def test_native_library_read_can_back_memory_without_an_extra_workspace_read(env
             kind='warning',basis='calculated',sources=[{'kind':'physical_analysis_result','id':result['id']}])
 
 
+def _yield_band(result, lower, upper, status="empirically_calibrated_conditional"):
+    end = result["trajectory"][-1]["time_s"]
+    return {"basis": [["product_yield_fraction", "fraction", end]], "calibrated_lower": [lower],
+            "calibrated_upper": [upper], "calibration_status": status}
+
+
+YIELD = {"metric": "product_yield_fraction", "unit": "fraction", "role": "yield", "operator": ">=",
+         "basis": "desired_product_mol_per_initial_reactant_mol"}
+
+
+def test_a_transfer_verdict_needs_the_whole_calibrated_range_on_one_side_of_the_limit():
+    a = ModelCatalog(None).get("chemical.parallel_batch")
+    r = a.run(synthetic_runs(a.id)[0]["config"])
+    limit = r["product_yield_fraction"] - 0.001  # the single estimate clears the limit by a hair
+    crit = [{**YIELD, "limit": limit}]
+    alone = decisions.transfer_assessment(a, r, r, crit)
+    assert alone["checks"][0]["status"] == "indicative_only" and alone["conclusion"] == "inconclusive_uncertainty"
+    synthetic = decisions.transfer_assessment(a, r, r, crit, receiver_interval=_yield_band(r, limit + .01, limit + .05, "calibrated_synthetic_only"))
+    assert synthetic["checks"][0]["status"] == "indicative_only"
+    cases = {(limit + .01, limit + .05): "conditional_pass", (limit - .02, limit + .02): "inconclusive", (limit - .05, limit - .01): "fails_criterion"}
+    for (lo, hi), expected in cases.items():
+        assert decisions.transfer_assessment(a, r, r, crit, receiver_interval=_yield_band(r, lo, hi))["checks"][0]["status"] == expected
+    # A range that stops before the end of the run says nothing about the end-of-run yield.
+    early = {**_yield_band(r, limit + .01, limit + .05), "basis": [["product_yield_fraction", "fraction", 1.0]]}
+    assert decisions.transfer_assessment(a, r, r, crit, receiver_interval=early)["checks"][0]["status"] == "indicative_only"
+
+
+def test_noninferiority_uses_the_difference_of_calibrated_ranges_in_the_stated_direction():
+    a = ModelCatalog(None).get("chemical.parallel_batch")
+    r = a.run(synthetic_runs(a.id)[0]["config"])
+    crit = [{**YIELD, "method": "noninferiority", "margin": 0.05}]
+    donor = _yield_band(r, .60, .62)
+    status = lambda lo, hi: decisions.transfer_assessment(a, r, r, crit, donor_interval=donor,
+                                                          receiver_interval=_yield_band(r, lo, hi))["checks"][0]["status"]
+    assert status(.58, .63) == "conditional_pass"  # worst case .58 - .62 = -.04 >= -.05
+    assert status(.55, .63) == "inconclusive"
+    assert status(.50, .54) == "fails_criterion"  # even the best case, .54 - .60 = -.06, is worse than -.05
+
+
+def test_interval_calibration_spends_solver_calls_only_on_the_bands_and_never_extrapolates():
+    a = ModelCatalog(None).get("chemical.parallel_batch")
+    cal = [r for r in synthetic_runs(a.id) if r["role"] == "calibration"]
+    for r in cal:
+        r["evidence_classification"] = "measured"
+        r["independence_basis"] = "Test fixture for an asserted independent experiment record"
+    budget = SolverBudget(512, 120)
+    result = uncertainty.calibrate_intervals(a, cal, samples=3, budget=budget)
+    assert budget.calls == 3 * len(cal)  # no per-source diagnostic solves inside calibration
+    key, (lo, hi) = next((k, v) for k, v in result["input_support"].items() if v[1] > v[0])
+    config = deepcopy(cal[0]["config"])
+    from src.lifesci.process_engineering.contracts import set_value
+    set_value(config, key, hi + 0.01 * (hi - lo))  # 1 % beyond what calibration covered
+    p = uncertainty.interval_prediction(a, config, cal[0]["observations"], result)
+    assert key in p["unsupported_input_conditions"] and p["calibrated_lower"] is None
 def test_only_uncertain_terms_are_fittable_never_sizes_charges_or_set_points():
     from src.lifesci.process_engineering.contracts import FITTABLE, contract, fit_runs
     catalog = ModelCatalog(None)
@@ -835,3 +889,71 @@ def test_only_uncertain_terms_are_fittable_never_sizes_charges_or_set_points():
         assert set(contract(catalog.get(mid))["fit_parameters"]) == set(names), mid
     with pytest.raises(ValueError, match="not designated"):
         fit_runs(catalog.get("isolation.cake_filter"), [], "filter_area_m2", [0.1, 1.0], SolverBudget(4, 5))
+
+
+# --- pre-transfer check: equipment capability and model-based verdicts --------------------------------------------
+
+def _transfer_demo(p, ctx):
+    from src.lifesci.demo_seed import library_examples
+    ids = {}
+    for mid, label, config in library_examples():
+        if mid == "chemical.parallel_batch":
+            ref = source(p, ctx, {"config": config}, rid=label)
+            ids[label] = p.process_models.analysis.create_configuration(ctx, {
+                "model_id": mid, "site_id": "NF1", "label": label, "config": config, "basis": [ref],
+                "classification": "synthetic_assumption", "assumptions": ["Authored transfer example"]})["id"]
+    sending = next(i for k, i in ids.items() if "receiving" not in k)
+    a, b = (next(i for k, i in ids.items() if f"option {x}" in k) for x in "AB")
+    return sending, a, b
+
+
+CRITERIA = [{**YIELD, "limit": 0.85}, {"metric": "impurity_fraction", "unit": "fraction", "role": "quality", "operator": "<=",
+                                      "basis": "impurity_mol_per_initial_reactant_mol", "limit": 0.08}]
+U_UNMEASURED = {"path": "equipment.heat_transfer_coefficient_w_m2_k", "unit": "W/(m2 K)", "low": 245.0, "high": 455.0,
+                "basis": "engineering_assumption", "source": "Receiving jacket U not measured; vendor value +-30 %"}
+
+
+def _check(p, ctx, sending, receiver, tolerances=()):
+    s = p.process_models.analysis
+    plan = s.prepare(ctx, {"mode": "model_library", "context_id": sending, "receiver_context_id": receiver,
+                           "model_id": "chemical.parallel_batch", "objective": "Pre-transfer check, 10 L to 100 L",
+                           "operation": "assess_transfer", "options": {"criteria": CRITERIA, "tolerances": list(tolerances)}})
+    result = s.execute(ctx, plan["id"])
+    assert result["execution_status"] == "completed", result["error"]
+    return result["output"]
+
+
+def test_pre_transfer_check_catches_the_vessel_that_cannot_remove_the_reaction_heat(env):
+    p, ctx = env
+    sending, option_a, option_b = _transfer_demo(p, ctx)
+    out = _check(p, ctx, sending, option_a)
+    heat = next(c for c in out["equipment_capability"]["checks"] if c["capability"].startswith("Heat removal"))
+    assert heat["status"] == "short" and heat["receiving_capacity"] < heat["receiving_need"]
+    assert heat["sending_capacity"] > heat["sending_need"]  # the 10 L reactor copes: the gap is the new vessel's
+    assert {c["status"] for c in out["checks"]} == {"model_based_fail"} and out["conclusion"] == "criteria_not_met"
+    assert "temperature_limit_reached" in out["checks"][0]["reason"]
+    assert {c["input"] for c in out["what_changes"]} >= {"equipment.working_volume_m3", "equipment.heat_transfer_coefficient_w_m2_k"}
+    # Option B: one nominal estimate is not a verdict; over the unmeasured U, yield clears 0.85 everywhere, impurity does not.
+    assert {c["status"] for c in _check(p, ctx, sending, option_b)["checks"]} == {"indicative_only"}
+    out = _check(p, ctx, sending, option_b, [U_UNMEASURED])
+    by = {c["metric"]: c for c in out["checks"]}
+    assert by["product_yield_fraction"]["status"] == "model_based_pass" and by["product_yield_fraction"]["receiver_range"][0] >= 0.85
+    lo, hi = by["impurity_fraction"]["receiver_range"]
+    assert by["impurity_fraction"]["status"] == "inconclusive" and lo <= 0.08 <= hi
+    assert out["conclusion"] == "inconclusive_uncertainty" and out["tolerances"][0]["source"]
+
+
+def test_a_stop_within_tolerance_is_at_risk_and_tolerances_must_be_sourced_and_bracket_the_value(env):
+    p, ctx = env
+    sending, _, option_b = _transfer_demo(p, ctx)
+    low_u = {**U_UNMEASURED, "low": 60.0}  # a badly fouled jacket: the batch overheats at that corner
+    out = _check(p, ctx, sending, option_b, [low_u])
+    assert out["conclusion"] == "at_risk_within_tolerances"
+    assert out["checks"][0]["stopping_corners"][0]["tolerances"] == {"equipment.heat_transfer_coefficient_w_m2_k": 60.0}
+    s = p.process_models.analysis
+    for bad in ({**U_UNMEASURED, "source": ""}, {**U_UNMEASURED, "low": 400.0}, {**U_UNMEASURED, "unit": "W/K"},
+                {**U_UNMEASURED, "path": "recipe.duration_s", "unit": "s"}):
+        plan = s.prepare(ctx, {"mode": "model_library", "context_id": sending, "receiver_context_id": option_b,
+                               "model_id": "chemical.parallel_batch", "objective": "Pre-transfer check, invalid tolerance",
+                               "operation": "assess_transfer", "options": {"criteria": CRITERIA, "tolerances": [bad]}})
+        assert s.execute(ctx, plan["id"])["execution_status"] == "failed"
