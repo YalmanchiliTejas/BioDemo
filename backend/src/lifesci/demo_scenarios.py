@@ -50,7 +50,7 @@ SCENARIOS: tuple[dict, ...] = (
      'look_for': ['Distinguishes process differences from data-quality problems', 'Points to the source rows']},
     {'scenario_id': 'msat-transfer', 'persona': 'msat', 'title': 'Before transferring to a new site',
      'situation': 'This CHO process is moving to a receiving site with a larger bioreactor.',
-     'prompt': 'What would you check in this data before we transfer the process to a new site with a larger bioreactor?',
+     'prompt': 'What would you check in the CHO run data (the verified CMO delivery) before we transfer this CHO process to a new site with a larger bioreactor?',
      'look_for': ['Names concrete characterization gaps', 'Separates evidence from assumptions']},
     {'scenario_id': 'msat-pre-transfer', 'persona': 'msat', 'title': 'Pre-transfer check: 10 L to 100 L',
      'situation': 'A SYNTHETIC reaction step runs well in a 10 L reactor and is moving to 100 L. The receiving site offers two '

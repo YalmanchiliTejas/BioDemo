@@ -93,7 +93,10 @@ def summarize(data: dict[str, Any], *, sample_rows: int = 40, series: bool = Fal
             batches[batch][name] = {"n": len(ordered),
                                     "first": {"time_h": _hours(ordered[0]["time"]), "value": ordered[0]["value"]},
                                     "last": {"time_h": _hours(ordered[-1]["time"]), "value": ordered[-1]["value"]},
-                                    "min": min(values) if values else None, "max": max(values) if values else None}
+                                    # Measured extremes with when they occurred: compare runs on these, never on guesses.
+                                    "min": min(values) if values else None, "max": max(values) if values else None,
+                                    "min_at_h": _hours(min(ordered, key=lambda m: m["value"])["time"]) if values else None,
+                                    "max_at_h": _hours(max(ordered, key=lambda m: m["value"])["time"]) if values else None}
     extra: dict[str, Any] = {}
     if series and len(rows) <= SERIES_MAX:
         # Every value as [time_h, value] per run and parameter: answers "when did it diverge" without paging raw rows.

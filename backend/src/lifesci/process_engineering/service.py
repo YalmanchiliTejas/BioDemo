@@ -118,9 +118,9 @@ class ProcessAnalysisService(LibraryOperations):
         if result.get('spec',{}).get('mode')=='model_library':self._library_memory(ctx,'physical_analysis_plan',result)
         return result
 
-    def execute(self, ctx, plan_id, *, commit_guard=None):
+    def execute(self, ctx, plan_id, *, commit_guard=None, solver_cap=None):
         plan = self.get_plan(ctx, plan_id)
-        if plan["spec"].get("mode")=="model_library":return self.execute_library(ctx,plan,commit_guard=commit_guard)
+        if plan["spec"].get("mode")=="model_library":return self.execute_library(ctx,plan,commit_guard=commit_guard,solver_cap=solver_cap)
         self.p.identity.require(ctx, "propose", "physical_analysis_result", site_id=plan["site_id"])
         self._catalog_ref(ctx, plan["site_id"])
         ref = EvidenceRef("physical_analysis_plan", plan_id, plan["revision"], plan["site_id"])

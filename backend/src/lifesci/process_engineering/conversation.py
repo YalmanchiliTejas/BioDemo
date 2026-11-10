@@ -337,8 +337,11 @@ class EngineeringConversationService:
     def _settle_solver_calls(self, ctx, tid, admission, used):
         """An execution reserves its maximum up front; once done, only what it used counts against the turn."""
         cur = self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', tid).state
+        # A run refused before any solver call (bad options) does not use up one of the turn's executions.
+        executions = cur.get('analysis_executions_admitted', 0) - (1 if used == 0 else 0)
         self._update_turn(ctx, tid, solver_calls_used=cur['solver_calls_used'] + used,
-                          solver_calls_admitted=cur['solver_calls_admitted'] - admission + used)
+                          solver_calls_admitted=cur['solver_calls_admitted'] - admission + used,
+                          analysis_executions_admitted=max(0, executions))
 
     def _update_turn(self, ctx, tid, **changes):
         with self.p.store.transaction(ctx.actor_id) as tx:
@@ -702,9 +705,11 @@ class EngineeringConversationService:
             except Exception:  # never fail an answer over bookkeeping; expiry takes a final full snapshot
                 logging.getLogger(__name__).exception('post-answer bookkeeping deferred')
 
-    def _grounding(self, ctx, thread, sources, decision, mission=None):
-        """Check a final reply against everything the assistant was actually shown."""
+    def _grounding(self, ctx, thread, sources, decision, mission=None, seen=()):
+        """Check a final reply against everything the assistant was actually shown.
+        seen: the tool results the model received this turn, verbatim (the tool loop passes its transcript)."""
         inspected = {s['id']: source_text(s) for s in sources if 'id' in s}
+        inspected.update({f'tool_result_{i}': text for i, text in enumerate(seen)})
         if mission:  # shown to the model as mission_context; a legitimate thing to quote
             inspected['mission_context'] = json.dumps(mission, ensure_ascii=False, default=str, sort_keys=True)
         support = []
@@ -728,10 +733,10 @@ class EngineeringConversationService:
                 inspected[artifact['id']] = json.dumps(data, ensure_ascii=False, default=str, sort_keys=True)
         return check_reply(decision.reply, [c.model_dump() for c in decision.claims], inspected, support_texts=support)
 
-    def _grounding_or_unavailable(self, ctx, thread, sources, decision, mission=None):
+    def _grounding_or_unavailable(self, ctx, thread, sources, decision, mission=None, seen=()):
         # The check annotates; it must never withhold an otherwise valid reply.
         try:
-            return self._grounding(ctx, thread, sources, decision, mission)
+            return self._grounding(ctx, thread, sources, decision, mission, seen)
         except Exception as exc:
             return {'status': 'evaluation_unavailable', 'error': type(exc).__name__}
 
@@ -852,6 +857,8 @@ class EngineeringConversationService:
             self.p.identity.validate_refs(ctx, [ref.to_dict()])
             self._mission_fence(ctx, turn, self.p.store.read())
             if name in ('workspace_search', 'workspace_read'):
+                if getattr(payload, 'site_id', None) not in (None, thread['site_id']):
+                    raise PermissionError(f"This conversation covers site {thread['site_id']}; start one at {payload.site_id} to search there")
                 mode = getattr(payload, 'mode', None)
                 if mode == 'links':
                     result = self.workspace.links(ctx, thread, kind=payload.record_kind, record_id=payload.record_id, limit=payload.limit)
@@ -970,10 +977,11 @@ class EngineeringConversationService:
                 elif name=='model_library_execute':
                     plan=self._owned_artifact(ctx,thread,'physical_analysis_plan',payload.plan_id)
                     if plan['spec'].get('mode')!='model_library':raise ValueError('Use the legacy physical executor for legacy pipelines')
-                    admission=plan['spec']['max_solver_calls']
-                    if turn['solver_calls_admitted']+admission>96 or turn.get('analysis_executions_admitted',0)>=3:raise ValueError('Conversation numerical execution budget exhausted')
+                    # Reserve what is left of the turn's 96 solver calls (at most what the plan allows); the run is capped there.
+                    admission=min(plan['spec']['max_solver_calls'],96-turn['solver_calls_admitted'])
+                    if admission<1 or turn.get('analysis_executions_admitted',0)>=3:raise ValueError('This answer has used its numerical budget (96 solver calls, 3 runs); answer from the results you have')
                     self._update_turn(ctx,tid,solver_calls_admitted=turn['solver_calls_admitted']+admission,analysis_executions_admitted=turn.get('analysis_executions_admitted',0)+1)
-                    record=self.analysis.execute(ctx,payload.plan_id,commit_guard=lambda tx:self._active_turn(ctx,turn,tx));kind='physical_analysis_result'
+                    record=self.analysis.execute(ctx,payload.plan_id,commit_guard=lambda tx:self._active_turn(ctx,turn,tx),solver_cap=admission);kind='physical_analysis_result'
                     self._settle_solver_calls(ctx,tid,admission,record['resource_usage']['solver_calls'])
                 elif name=='model_library_propose_extension':
                     if payload.context_id not in thread['source_ids'] or payload.owner_id!=thread['owner_id']:

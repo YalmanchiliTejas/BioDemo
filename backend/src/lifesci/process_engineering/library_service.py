@@ -234,6 +234,12 @@ class LibraryOperations:
             and not spec.dataset_id
         ):
             raise ValueError("A partitioned evidence dataset is required")
+        if spec.operation == "assess_transfer":  # fail now, with a fixable message, not after spending an execution
+            if "receiver_context_id" not in snapshot:
+                raise ValueError("assess_transfer needs receiver_context_id: the receiving-site configuration")
+            decisions.check_criteria(adapter, spec.options.get("criteria"))
+            _tolerances(adapter, snapshot["config"], snapshot["receiver_context_id"]["input_bundle"]["config"],
+                        spec.options.get("tolerances") or [])
         if spec.operation == "adapt_hybrid" and not spec.checkpoint_id:
             raise ValueError("Adaptation requires an immutable source checkpoint")
         if spec.operation in ("predict_intervals", "evaluate_intervals") and not spec.calibration_id:
@@ -293,9 +299,12 @@ class LibraryOperations:
         }
         extra = set(spec.options) - fields[spec.operation]
         if extra:
-            raise ValueError("Unsupported operation options: " + str(sorted(extra)))
+            hint = (" (criteria: list of {metric, unit, operator '>=' or '<=', limit}; tolerances: list of "
+                    "{path, unit, low, high, basis, source})") if spec.operation == "assess_transfer" else ""
+            raise ValueError(f"Unsupported options {sorted(extra)} for {spec.operation}; it accepts "
+                             f"{sorted(fields[spec.operation]) or 'no options'}{hint}")
 
-    def execute_library(self, ctx, plan, *, commit_guard=None):
+    def execute_library(self, ctx, plan, *, commit_guard=None, solver_cap=None):
         spec = LibraryPipelineSpec.model_validate(plan["spec"])
         snapshot = plan["source_snapshot"]
         adapter = self.catalog.get(spec.model_id)
@@ -307,7 +316,8 @@ class LibraryOperations:
         self.p.identity.require(ctx, "propose", "physical_analysis_result", site_id=plan["site_id"])
         ref = EvidenceRef("physical_analysis_plan", plan["id"], plan["revision"], plan["site_id"])
         self.p.identity.validate_refs(ctx, [ref.to_dict()])
-        budget = SolverBudget(spec.max_solver_calls, spec.max_wall_seconds)
+        # solver_cap: what is left of the caller's own budget (a conversation turn), never more than the plan allows
+        budget = SolverBudget(min(spec.max_solver_calls, solver_cap or spec.max_solver_calls), spec.max_wall_seconds)
         status = "completed"
         error = None
         output = {}

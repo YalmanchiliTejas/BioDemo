@@ -12,7 +12,7 @@ from ..cmo_datasets import CLASSIFICATION as DATASET, summarize
 from ..ids import iso, parse_iso
 
 KINDS = ('case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
-         'proposal', 'physical_analysis_context', 'physical_model_dataset', 'physical_model_checkpoint', 'physical_interval_calibration', 'physical_analysis_result', 'process_simulation', 'engineering_chat_turn', 'deviation_signal')
+         'proposal', 'physical_analysis_context', 'physical_model_dataset', 'physical_model_checkpoint', 'physical_interval_calibration', 'physical_analysis_result', 'process_simulation', 'engineering_chat_turn', 'deviation_signal', 'specification')
 FIELDS = {
     'physical_model_dataset': ('label','partition_counts','packet_hash','limitations'),
     'physical_model_checkpoint': ('checkpoint','review_state','runner_manifest'),
@@ -21,6 +21,9 @@ FIELDS = {
     # Deviation signals are detections, not deviations: a person decides whether a case is opened.
     'deviation_signal': ('signal_id', 'kind', 'severity', 'rule', 'parameter', 'value', 'unit', 'limit', 'spec_ref',
                          'subject', 'source', 'status', 'occurrences', 'first_at', 'last_at', 'case_id', 'triage'),
+    # Approved limits (e.g. DO low 30 %, critical 15 %, from the batch record): what a reading is judged against.
+    'specification': ('spec_id', 'parameter', 'unit', 'low', 'high', 'critical_low', 'critical_high', 'equipment_id',
+                      'product_id', 'source', 'source_ref', 'status', 'version', 'approved_by', 'approved_at'),
     'case': ('case_id', 'status', 'opened_at', 'owner_id', 'qa_reviewer_id', 'timeline', 'procedure_refs', 'closure'),
     'batch': ('batch_id', 'status', 'product', 'recipe_id', 'equipment_id', 'started_at', 'completed_at'),
     'sample': ('sample_id', 'status', 'batch_id', 'results', 'collected_at'),
@@ -123,7 +126,9 @@ class WorkspaceTools:
             timestamp = None
         return {**ref, **({'memory': f"from {ref['shared_from']}'s shared memory (read-only, shared with you)"} if ref.get('shared_from') else {}),
             'status': s.get('status'), 'time': timestamp, 'time_basis': time_key,
-            'label': str((f"{s.get('severity', '')} signal · {s.get('rule', '')}" if rec.kind == 'deviation_signal' else None)
+            'label': str((f"{s.get('severity', '')} signal · {s.get('rule', '')}" if rec.kind == 'deviation_signal' else
+                          f"{s.get('parameter')} limits {s.get('low')}–{s.get('high')} {s.get('unit') or ''} ({s.get('source_ref') or 'no source'})"
+                          if rec.kind == 'specification' else None)
                          or s.get('label') or s.get('case_id') or s.get('source_record_id') or s.get('user_text') or rec.id)[:180],
             'classification': 'saved_conversation_not_verified_finding' if rec.kind == 'engineering_chat_turn'
                 else s.get('classification') or s.get('metadata', {}).get('classification'),
@@ -275,18 +280,22 @@ class WorkspaceTools:
     def links(self, ctx, thread, *, kind, record_id, limit=20):
         """Records sharing an identifier (batch, lot, equipment, material, deviation...) with one record.
         A shared identifier says the records mention the same ID, not that one caused the other."""
-        if kind not in KINDS or kind == 'engineering_chat_turn':
+        if kind is None:  # just an identifier: the record carrying that ID if there is one, else the identifier itself
+            kind = next((k for k in KINDS if k != 'engineering_chat_turn'
+                         and self.p.store.read().get(ctx.tenant_id, k, record_id) is not None), None)
+        if kind is not None and (kind not in KINDS or kind == 'engineering_chat_turn'):
             raise ValueError('links apply to workspace process records')
-        target = self.p.store.read().get(ctx.tenant_id, kind, record_id)
+        target = self.p.store.read().get(ctx.tenant_id, kind, record_id) if kind else None
         if target is None:
             # No such record (e.g. a batch named only inside other records): find records that name the identifier.
-            target_ref, mine = None, _identifiers({f'{kind}_id': record_id}, (f'{kind}_id',))
+            field = f'{kind}_id' if kind else 'record_id'  # an *_id field: the identifier counts as structured
+            target_ref, mine = None, _identifiers({field: record_id}, (field,))
         else:
             target_ref = self._authorize(ctx, thread, target)
             mine = _identifiers(target.state, FIELDS[kind])
         found, searched = [], 0
         for rec, ref in self._authorized(ctx, thread, [k for k in KINDS if k != 'engineering_chat_turn']):
-            if (rec.kind, rec.id) == (kind, record_id):
+            if (rec.kind, rec.id) == (kind, record_id) or (target is None and rec.id == record_id):
                 continue
             searched += 1
             theirs = _identifiers(rec.state, FIELDS[rec.kind])
@@ -301,7 +310,7 @@ class WorkspaceTools:
         found.sort(key=lambda r: (-sum(s['status'] == 'extracted' for s in r['shared_identifiers']),
                                   -len(r['shared_identifiers']), r['id']))
         # 'target', not 'record': a link list is discovery, not an inspection of the target's content.
-        missing = {} if target else {'target_missing': f'There is no {kind} record {record_id} in this workspace; '
+        missing = {} if target else {'target_missing': f"There is no {kind + ' record' if kind else 'record'} {record_id} in this workspace; "
                                      f'these are records that name {record_id}.'}
         return {**missing, 'target': target_ref, 'identifiers': [{'canonical': k, **v} for k, v in sorted(mine.items())],
                 'records': found[:limit], 'matching_count': len(found), 'truncated': len(found) > limit,

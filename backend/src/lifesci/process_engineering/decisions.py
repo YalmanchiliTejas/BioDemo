@@ -79,6 +79,42 @@ def _band(adapter, interval, metric, unit, result):
             "calibration_status": interval["calibration_status"]}, None
 
 
+def check_criteria(adapter, criteria):
+    """Validate criteria before any solver runs; errors name the criterion and say what to send instead."""
+    if not isinstance(criteria, list) or not criteria:
+        raise ValueError("Explicit acceptance criteria required: a list of {metric, unit, operator, limit}")
+    out = []
+    for criterion in criteria:
+        if not isinstance(criterion, dict):
+            raise ValueError("Each criterion is an object: {metric, unit, operator, limit}")
+        metric = criterion.get("metric") or "?"
+        where = f"Criterion {metric}: "
+        extra = set(criterion) - {"metric", "unit", "basis", "operator", "limit", "margin", "role", "method"}
+        if extra:
+            raise ValueError(where + f"unknown fields {sorted(extra)}; allowed: metric, unit, basis, operator, limit, margin, role, method")
+        role, method, operator = criterion.get("role", "quality"), criterion.get("method", "absolute"), criterion.get("operator")
+        if not criterion.get("unit"):
+            raise ValueError(where + "unit required")
+        # Omitted basis means the model's own defined quantity, stated back in the result; a different one is withheld.
+        basis = criterion.get("basis") or MEASUREMENT_BASES.get(adapter.id, {}).get(metric) or ""
+        if not basis:
+            raise ValueError(where + "explicit compatible measurement basis required")
+        if role == "yield" and ("conversion" in metric or "conversion" in basis.lower()):
+            raise ValueError(where + "reactant conversion cannot serve as desired-product yield")
+        if method not in ("absolute", "noninferiority"):
+            raise ValueError(where + "method is 'absolute' (with limit) or 'noninferiority' (with margin)")
+        if operator not in (">=", "<="):
+            raise ValueError(where + "operator '>=' (higher is better) or '<=' (lower is better) required")
+        number = lambda k: isinstance(criterion.get(k), (int, float)) and not isinstance(criterion.get(k), bool) and math.isfinite(criterion[k])
+        if method == "absolute" and not number("limit"):
+            raise ValueError(where + f"absolute criteria need a numeric limit in {criterion['unit']} (got {criterion.get('limit')!r}); "
+                                     "to compare with the sending site use method 'noninferiority' with a margin")
+        if method == "noninferiority" and (not number("margin") or criterion["margin"] < 0):
+            raise ValueError(where + f"noninferiority needs a numeric margin >= 0 (got {criterion.get('margin')!r})")
+        out.append({**criterion, "basis": basis, "role": role, "method": method})
+    return out
+
+
 def transfer_assessment(adapter, donor, receiver, criteria, *, donor_interval=None, receiver_interval=None,
                         donor_corners=(), receiver_corners=()):
     """Screen explicit criteria. A verdict needs a range wholly on one side of the limit (or margin):
@@ -86,34 +122,11 @@ def transfer_assessment(adapter, donor, receiver, criteria, *, donor_interval=No
     - model-based: the physics run at every combination of stated tolerances (model_based_pass / model_based_fail),
       conditional on the model's equations, never a probability;
     otherwise indicative_only. A single model estimate or a range straddling the limit is never a verdict."""
-    if not criteria:
-        raise ValueError("Explicit acceptance criteria required")
     from .contracts import contract
 
     checks = []
-    for criterion in criteria:
-        if set(criterion) - {"metric", "unit", "basis", "operator", "limit", "margin", "role", "method"}:
-            raise ValueError("Unknown criterion fields")
-        metric = criterion["metric"]
-        role = criterion.get("role", "quality")
-        method = criterion.get("method", "absolute")
-        if not criterion.get("unit"):
-            raise ValueError("Explicit unit required")
-        # Omitted basis means the model's own defined quantity, stated back in the result; a different one is withheld.
-        criterion = {**criterion, "basis": criterion.get("basis") or MEASUREMENT_BASES.get(adapter.id, {}).get(metric) or ""}
-        if not criterion["basis"]:
-            raise ValueError("Explicit compatible measurement basis required")
-        if role == "yield" and ("conversion" in metric or "conversion" in criterion["basis"].lower()):
-            raise ValueError("Reactant conversion cannot serve as desired-product yield")
-        if method not in ("absolute", "noninferiority"):
-            raise ValueError("Only explicit absolute or difference-interval noninferiority criteria supported")
-        operator = criterion.get("operator")
-        if operator not in (">=", "<="):
-            raise ValueError("Operator >= (higher is better) or <= (lower is better) required")
-        if method == "absolute" and not math.isfinite(criterion.get("limit", float("nan"))):
-            raise ValueError("Finite threshold required")
-        if method == "noninferiority" and (not math.isfinite(criterion.get("margin", float("nan"))) or criterion["margin"] < 0):
-            raise ValueError("Nonnegative noninferiority margin required")
+    for criterion in check_criteria(adapter, criteria):
+        metric, role, method, operator = criterion["metric"], criterion["role"], criterion["method"], criterion["operator"]
         declared = adapter.describe().get("supported_outputs", {})
         declared = contract(adapter)["observables"] | declared if isinstance(declared, dict) else contract(adapter)["observables"]
         if metric not in declared or declared[metric] != criterion["unit"]:

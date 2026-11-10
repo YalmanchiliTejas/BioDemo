@@ -953,7 +953,19 @@ def test_a_stop_within_tolerance_is_at_risk_and_tolerances_must_be_sourced_and_b
     s = p.process_models.analysis
     for bad in ({**U_UNMEASURED, "source": ""}, {**U_UNMEASURED, "low": 400.0}, {**U_UNMEASURED, "unit": "W/K"},
                 {**U_UNMEASURED, "path": "recipe.duration_s", "unit": "s"}):
-        plan = s.prepare(ctx, {"mode": "model_library", "context_id": sending, "receiver_context_id": option_b,
-                               "model_id": "chemical.parallel_batch", "objective": "Pre-transfer check, invalid tolerance",
-                               "operation": "assess_transfer", "options": {"criteria": CRITERIA, "tolerances": [bad]}})
-        assert s.execute(ctx, plan["id"])["execution_status"] == "failed"
+        with pytest.raises(ValueError):  # refused when the plan is prepared, before any execution is spent
+            s.prepare(ctx, {"mode": "model_library", "context_id": sending, "receiver_context_id": option_b,
+                            "model_id": "chemical.parallel_batch", "objective": "Pre-transfer check, invalid tolerance",
+                            "operation": "assess_transfer", "options": {"criteria": CRITERIA, "tolerances": [bad]}})
+    with pytest.raises(ValueError, match="numeric limit"):
+        s.prepare(ctx, {"mode": "model_library", "context_id": sending, "receiver_context_id": option_b,
+                        "model_id": "chemical.parallel_batch", "objective": "Pre-transfer check, missing limit",
+                        "operation": "assess_transfer", "options": {"criteria": [{**CRITERIA[0], "limit": None}]}})
+
+
+def test_library_options_sent_as_json_text_are_accepted_and_garbage_is_refused():
+    from src.lifesci.process_engineering.library_schemas import LibraryPipelineSpec
+    base = {"context_id": "phys_x", "model_id": "chemical.parallel_batch", "objective": "Pre-transfer check", "operation": "assess_transfer"}
+    assert LibraryPipelineSpec.model_validate({**base, "options": '{"criteria": []}'}).options == {"criteria": []}
+    with pytest.raises(ValueError):
+        LibraryPipelineSpec.model_validate({**base, "options": "criteria: yield >= 0.85"})
