@@ -20,6 +20,7 @@ def env(monkeypatch, tmp_path):
     monkeypatch.setenv("TEST_READ_TOKEN", "read-secret")
     monkeypatch.setenv("TEST_WRITE_TOKEN", "write-secret")
     monkeypatch.setenv("TEST_WEBHOOK_SECRET", "a signing secret for testing")
+    monkeypatch.setenv("LIFESCI_CONNECTOR_SECRET_ENVS", "TEST_READ_TOKEN,TEST_WRITE_TOKEN,TEST_WEBHOOK_SECRET")
     p = Platform(RecordStore(), providers={})
     for actor, role, site in [("admin", "admin", "S1"), ("op", "operator", "S1"),
                               ("other", "admin", "S2"), ("sup", "supervisor", "S1"),

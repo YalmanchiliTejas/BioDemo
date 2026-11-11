@@ -8,6 +8,7 @@ import json
 import os
 import shlex
 import shutil
+import signal
 import subprocess
 import time
 import uuid
@@ -24,6 +25,17 @@ from .bridge import ManufacturingBridge, finalization_reserve
 DEFAULT_COMPACTION_TARGET_TOKENS = 128_000
 
 
+
+def kill_tree(process) -> None:
+    """Kill the process and, where it leads its own group, everything it spawned."""
+    try:
+        if os.name == "posix" and os.getpgid(process.pid) == process.pid:
+            os.killpg(process.pid, signal.SIGKILL)
+            return
+    except (ProcessLookupError, PermissionError):
+        pass
+    process.kill()
+
 def _stream(command, *, cwd, env, input_text, timeout, on_line=None, started=None):
     """subprocess.run(capture_output=True) with each stdout line delivered as it arrives.
 
@@ -31,8 +43,9 @@ def _stream(command, *, cwd, env, input_text, timeout, on_line=None, started=Non
     killed and TimeoutExpired carries the output read so far."""
     import queue
     import threading
+    # Its own process group, so a timeout or abort also stops the kernels and child agents it started.
     process = subprocess.Popen(command, cwd=cwd, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, text=True, bufsize=1)
+                               stderr=subprocess.PIPE, text=True, bufsize=1, start_new_session=os.name == "posix")
     if started:
         started(process)
     lines, errors, stdout = queue.Queue(), [], []
@@ -52,30 +65,36 @@ def _stream(command, *, cwd, env, input_text, timeout, on_line=None, started=Non
     for thread in threads:
         thread.start()
     deadline = time.monotonic() + timeout
-    while True:
-        try:
-            line = lines.get(timeout=max(0.0, min(1.0, deadline - time.monotonic())))
-        except queue.Empty:
-            if time.monotonic() >= deadline:
-                process.kill(); process.wait()
-                for thread in threads[1:]:
-                    thread.join(timeout=5)
-                while not lines.empty():
-                    item = lines.get_nowait()
-                    if item is not None:
-                        stdout.append(item)
-                raise subprocess.TimeoutExpired(command, timeout, output=''.join(stdout), stderr=''.join(errors))
-            continue
-        if line is None:
-            break
-        stdout.append(line)
-        if on_line:
+    try:
+        while True:
             try:
-                on_line(json.loads(line))
-            except (ValueError, TypeError):
-                pass
-            except Exception:
-                pass  # a progress consumer must never break the investigation
+                line = lines.get(timeout=max(0.0, min(1.0, deadline - time.monotonic())))
+            except queue.Empty:
+                if time.monotonic() >= deadline:
+                    kill_tree(process); process.wait()
+                    for thread in threads[1:]:
+                        thread.join(timeout=5)
+                    while not lines.empty():
+                        item = lines.get_nowait()
+                        if item is not None:
+                            stdout.append(item)
+                    raise subprocess.TimeoutExpired(command, timeout, output=''.join(stdout), stderr=''.join(errors))
+                continue
+            if line is None:
+                break
+            stdout.append(line)
+            if on_line:
+                try:
+                    on_line(json.loads(line))
+                except (ValueError, TypeError):
+                    pass
+                except Exception:
+                    pass  # a progress consumer must never break the investigation
+    except BaseException:
+        # An interrupt no longer reaches the child through the terminal; stop it here.
+        if process.poll() is None:
+            kill_tree(process)
+        raise
     returncode = process.wait()
     for thread in threads[1:]:
         thread.join(timeout=5)
@@ -114,7 +133,7 @@ class PrimeManufacturingHarness:
     def abort(self) -> None:
         """Stop the running SDK host (e.g. a token cap); the run then fails without a report."""
         if self._process is not None and self._process.poll() is None:
-            self._process.kill()
+            kill_tree(self._process)
 
     @classmethod
     def from_env(cls, *, store: ManufacturingStore, blackboards: BlackboardStore,

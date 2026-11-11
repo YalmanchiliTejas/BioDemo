@@ -145,7 +145,8 @@ function SignalDetail({ id }: { id: string }) {
 
 function Signals() {
   const id = useSearchParams().get('id');
-  return id ? <SignalDetail id={id} /> : <SignalList />;
+  // Keyed by signal: a different id starts from an empty view, so its actions can never sit under another signal's details.
+  return id ? <SignalDetail key={id} id={id} /> : <SignalList />;
 }
 
 export default function SignalsPage() {

@@ -137,6 +137,16 @@ echo "API URL: ${URL%/}"
 [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] && echo "API URL: \`${URL%/}\` (image \`$TAG\`)" >> "$GITHUB_STEP_SUMMARY"
 # A healthy deployment answers, and refuses an anonymous caller.
 DIRECT="$(output FunctionUrl)"
-STATUS="$(curl -s -o /dev/null -w '%{http_code}' "${DIRECT%/}/v1/me" || true)"
+STATUS=000
+for _ in 1 2 3 4 5 6; do   # a fresh function can take a few seconds to answer
+  STATUS="$(curl -s -o /dev/null --max-time 30 -w '%{http_code}' "${DIRECT%/}/v1/me" || true)"
+  [[ "$STATUS" == "401" ]] && break
+  sleep 5
+done
 echo "GET /v1/me without sign-in -> HTTP $STATUS (expected 401)"
+if [[ "$STATUS" != "401" ]]; then
+  echo "Deployment check failed: the API did not refuse an anonymous caller with 401. The new version is live;" >&2
+  echo "inspect its logs, then redeploy the previous image tag if it is not serving." >&2
+  exit 1
+fi
 echo "Next: set NEXT_PUBLIC_LIFESCI_API_URL=${URL%/} in Vercel and redeploy the frontend."

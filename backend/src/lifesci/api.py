@@ -112,7 +112,10 @@ class MemoryDecisionIn(BaseModel):
 
 
 # Evidence that only the platform itself writes: a person's chat instructions and verified CMO deliveries.
-RESERVED_SOURCES = ("engineering-user-instruction", "verified-source-snapshot")
+RESERVED_SOURCES = ("engineering-user-instruction", "verified-source-snapshot", "scientific-model-catalog",
+                    "process-analysis-assumptions", "process-model-inputs", "fermentation-transfer",
+                    "pharmaceutical-run-packet", "simulated-bioprocess-case")
+RESERVED_SOURCE_PREFIXES = ("cmo-", "edge:")
 HIDDEN_KINDS = ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization",
                 "organization_member", "account_organizations", "connector_credential", "memory_grant", "alert_inbox")
 
@@ -192,9 +195,20 @@ class IdentityResolver(Protocol):
     def __call__(self, request: Any) -> AccessContext: ...
 
 
+# Loopback addresses, plus the in-process test client's placeholder host.
+LOCAL_CLIENTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
+
+
 def dev_header_resolver(platform: Platform) -> IdentityResolver:
     """Development only. Roles are loaded from the store, not from headers."""
     def resolve(request: Any) -> AccessContext:
+        # Header identity is a local convenience. A server that is reachable from another machine must not
+        # take a caller's word for who they are, so remote callers are refused unless that is asked for.
+        client = getattr(request, "client", None)
+        host = getattr(client, "host", None)
+        if host not in LOCAL_CLIENTS and os.environ.get("LIFESCI_DEV_AUTH_ALLOW_REMOTE") != "1":
+            raise HTTPException(401, "This server uses development sign-in and only accepts local requests. "
+                                     "Set LIFESCI_AUTH_MODE=supabase or oidc for shared use.")
         tenant = request.headers.get("x-tenant-id")
         actor = request.headers.get("x-actor-id")
         if not tenant or not actor:
@@ -213,8 +227,12 @@ def oidc_resolver(platform: Platform) -> IdentityResolver:
                         os.environ["DEPLOYMENT_TENANT"])
 
     def resolve(request: Any) -> AccessContext:
+        from dataclasses import replace
+        from .identity import Authentication
         identity = verifier.verify(request.headers.get("authorization"))
-        return platform.identity.context_for(identity.tenant, identity.subject)
+        # These tokens carry no sign-in time, so they cannot satisfy a required re-authentication.
+        return replace(platform.identity.context_for(identity.tenant, identity.subject),
+                       authentication=Authentication("oidc"))
     return resolve
 
 
@@ -352,6 +370,14 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
                        expected_revision=None, action="idempotency")
         return response
 
+    def command(ctx: AccessContext, key: str | None, route: str, body: Any, run: Callable[[], Any]) -> Any:
+        """Store-only commands: the change and its replay receipt commit together, and a concurrent retry
+        with the same key waits for that commit instead of running the command a second time."""
+        if not key:
+            return run()
+        with platform.store.transaction(ctx.actor_id):
+            return idempotent(ctx, key, route, body, run)
+
     from .demo import DemoExpired, demo_routes
     demo_routes(app, platform, ctx_dep, demo_visitor)
 
@@ -390,12 +416,19 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/evidence", status_code=201)
     def ingest(body: EvidenceIn, ctx: AccessContext = Depends(ctx_dep),
                idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
-        if body.source_system in RESERVED_SOURCES or body.source_system.startswith("cmo-"):
+        if body.source_system in RESERVED_SOURCES or body.source_system.startswith(RESERVED_SOURCE_PREFIXES):
             raise HTTPException(403, "this source is written only by the platform")
-        return idempotent(ctx, idem, "evidence", body.model_dump(), lambda: platform.evidence.ingest(
+        # Reading evidence is not authority to add or correct it.
+        platform.identity.require(ctx, "propose", "evidence", site_id=body.site_id)
+        current = platform.store.read().get(ctx.tenant_id, "evidence", f"{body.source_system}:{body.source_record_id}")
+        if current is not None and current.state.get("metadata") and current.state["metadata"].get("intake") != "manual":
+            # Records a connector, gateway or platform service brought in are corrected by that source only.
+            raise HTTPException(403, "this record is maintained by its source; a correction must come from that source")
+        return command(ctx, idem, "evidence", body.model_dump(), lambda: platform.evidence.ingest(
             ctx, source_system=body.source_system, source_record_id=body.source_record_id,
             content=body.content_text.encode(), media_type=body.media_type, site_id=body.site_id,
-            event_time=body.event_time, source_revision=body.source_revision))
+            event_time=body.event_time, source_revision=body.source_revision,
+            metadata={"intake": "manual", "submitted_by": ctx.actor_id}))
 
     @app.get(f"/{API_VERSION}/records/{{kind}}")
     def list_records(kind: str, cursor: str | None = None, limit: int = 50,
@@ -447,19 +480,20 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/proposals", status_code=201)
     def propose(body: ProposalIn, ctx: AccessContext = Depends(ctx_dep),
                 idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
-        return idempotent(ctx, idem, "proposals", body.model_dump(),
+        return command(ctx, idem, "proposals", body.model_dump(),
                           lambda: platform.actions.propose(ctx, **body.model_dump()))
 
     @app.post(f"/{API_VERSION}/proposals/{{proposal_id}}/decisions")
     def decide(proposal_id: str, body: DecisionIn, ctx: AccessContext = Depends(ctx_dep),
                idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
-        return idempotent(ctx, idem, f"decisions:{proposal_id}", body.model_dump(),
+        return command(ctx, idem, f"decisions:{proposal_id}", body.model_dump(),
                           lambda: platform.actions.decide(ctx, proposal_id, **body.model_dump()))
 
     def _proposal_view(tx: Any, rec: Any, ctx: AccessContext) -> dict[str, Any]:
         approvals = [a.state for a in tx.find(ctx.tenant_id, "approval", "proposal_id", rec.id)]
         outcomes = [o.state for o in tx.find(ctx.tenant_id, "outcome", "proposal_id", rec.id)]
         can = [r for r in rec.state["required_roles"] if r in ctx.roles and ctx.actor_id != rec.state["requested_by"]
+               and ctx.actor_id not in rec.state.get("revised_by", [])
                and ctx.actor_kind != "agent" and rec.state["status"] == "proposed"
                and not any(a["role"] == r and a["content_hash"] == rec.state["content_hash"] for a in approvals)]
         return {**rec.state, "revision": rec.revision, "updated_at": rec.updated_at, "approvals": approvals,
@@ -489,7 +523,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
                       idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
         if body.owner_id != principal(ctx):
             raise HTTPException(403, "a mission is started for yourself")
-        return idempotent(ctx, idem, "missions", body.model_dump(),
+        return command(ctx, idem, "missions", body.model_dump(),
                           lambda: platform.missions.start_or_resume(ctx, **body.model_dump()))
 
     @app.get(f"/{API_VERSION}/missions")
@@ -503,7 +537,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/missions/{{mission_id}}/notes", status_code=201)
     def add_note(mission_id: str, body: NoteIn, ctx: AccessContext = Depends(ctx_dep),
                  idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
-        return idempotent(ctx, idem, f"notes:{mission_id}", body.model_dump(),
+        return command(ctx, idem, f"notes:{mission_id}", body.model_dump(),
                           lambda: platform.missions.add_note(ctx, mission_id, body.body))
 
     @app.post(f"/{API_VERSION}/missions/{{mission_id}}/obligations", status_code=201)
@@ -511,7 +545,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
                        idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
         platform.missions.get(ctx, mission_id)
         platform.identity.require(ctx, "propose", "mission", mission_id)
-        return idempotent(ctx, idem, f"obligations:{mission_id}", body.model_dump(),
+        return command(ctx, idem, f"obligations:{mission_id}", body.model_dump(),
             lambda: platform.missions.add_obligation(ctx, mission_id, **body.model_dump()))
 
     @app.post(f"/{API_VERSION}/missions/{{mission_id}}/obligations/{{obligation_id}}/retry")
@@ -543,7 +577,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/proposals/{{proposal_id}}/outcomes", status_code=201)
     def outcome(proposal_id: str, body: OutcomeIn, ctx: AccessContext = Depends(ctx_dep),
                 idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
-        return idempotent(ctx, idem, f"outcomes:{proposal_id}", body.model_dump(),
+        return command(ctx, idem, f"outcomes:{proposal_id}", body.model_dump(),
                           lambda: platform.actions.record_outcome(ctx, proposal_id, **body.model_dump()))
 
     @app.get(f"/{API_VERSION}/missions/{{mission_id}}/stream")
@@ -643,6 +677,9 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     def consolidate(ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
         if ctx.actor_kind != "person" or ctx.delegated_from:
             raise PermissionError("only the person can consolidate their memory")
+        platform.identity.require(ctx, "read", "model_run")
+        if getattr(platform, "demo", None) is not None:
+            platform.demo.consume_message(ctx)
         return platform.agent_memory.dream(ctx.tenant_id, ctx.actor_id)
 
     @app.get(f"/{API_VERSION}/assistant-rules")
@@ -711,6 +748,10 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/tasks")
     def run_task(body: TaskIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
         from .gateway import TaskRequest
+        # A signed-in account with no role in this organization gets no model work.
+        platform.identity.require(ctx, "read", "model_run")
+        if getattr(platform, "demo", None) is not None:
+            platform.demo.consume_message(ctx)  # demo workspaces spend their message allowance here too
         return platform.gateway.run(TaskRequest(body.task_kind, ctx, prompt=body.prompt, payload=body.payload,
                                                 inputs=body.inputs, mission_id=body.mission_id)).to_dict()
 
@@ -786,10 +827,17 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
 
     @app.post(f"/{API_VERSION}/webhooks/{{tenant_id}}/{{connector_id}}", status_code=202)
     async def receive_webhook(tenant_id: str, connector_id: str, request: Request):
-        body = await request.body()
-        if len(body) > 1_000_000:
+        declared = request.headers.get("content-length", "")
+        if declared.isdigit() and int(declared) > 1_000_000:
             raise HTTPException(413, "Webhook exceeds 1 MB")
-        return platform.connectors.receive(tenant_id, connector_id, body, dict(request.headers))
+        data = bytearray()
+        async for chunk in request.stream():
+            data.extend(chunk)
+            if len(data) > 1_000_000:
+                raise HTTPException(413, "Webhook exceeds 1 MB")
+        from starlette.concurrency import run_in_threadpool
+        return await run_in_threadpool(platform.connectors.receive, tenant_id, connector_id, bytes(data),
+                                       dict(request.headers))
 
     platform.extend_api(app, ctx_dep, idempotent)
     from .edge import install_edge_api

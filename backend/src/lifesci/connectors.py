@@ -14,6 +14,7 @@ import threading
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
+from http.client import HTTPException as HTTPProtocolError
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -57,10 +58,24 @@ def family_template(family: str) -> ConnectorTemplate:
                              tuple(FieldMap(name, name) for name in (*fields, *context)))
 
 
+def _secret_names() -> set[str]:
+    """Server variables a connector may read, named by the operator. Nothing else in the environment
+    (database URLs, model keys, signing keys) can be referenced from a connector's configuration."""
+    return {n.strip() for n in os.environ.get("LIFESCI_CONNECTOR_SECRET_ENVS", "").split(",") if n.strip()}
+
+
+def _check_secret_name(name: Any) -> None:
+    if not isinstance(name, str) or not _ENV.fullmatch(name):
+        raise ValueError("invalid credential environment reference")
+    if name not in _secret_names():
+        raise PermissionError("connector credential reference must be listed in LIFESCI_CONNECTOR_SECRET_ENVS")
+
+
 def _secret(name: str | None) -> str | None:
     if not name:
         return None
-    if not _ENV.fullmatch(name) or not os.environ.get(name):
+    _check_secret_name(name)
+    if not os.environ.get(name):
         raise ValueError("connector credential environment reference is unavailable")
     return os.environ[name]
 
@@ -143,9 +158,11 @@ class RestSource:
                 **asdict(action), "approved_at": iso(action.approved_at)}, write=True)
             return _source_record(doc, source_system=self.source_system, fallback_id="",
                                   site_id=self.config["site_id"])
-        except (HTTPError, URLError, TimeoutError, ValueError) as exc:
-            if isinstance(exc, HTTPError) and exc.code < 500:
-                raise
+        except (OSError, HTTPProtocolError, ValueError, KeyError, TypeError) as exc:
+            # Only an explicit refusal (4xx) is a definite "not applied". A dropped connection, a truncated
+            # reply or an unreadable receipt can all follow a write the destination did apply.
+            if isinstance(exc, PermissionError) or (isinstance(exc, HTTPError) and exc.code < 500):
+                raise  # refused before sending, or explicitly rejected
             raise DeliveryUnknown("destination outcome unconfirmed; reconcile before retry") from exc
 
     def lookup(self, key: str) -> dict[str, Any] | None:
@@ -314,8 +331,8 @@ class ConnectorService:
         if set(options) - allowed:
             raise ValueError("unknown connector options; credentials must be environment references")
         for key, value in options.items():
-            if key.endswith("_env") and (not isinstance(value, str) or not _ENV.fullmatch(value)):
-                raise ValueError("invalid credential environment reference")
+            if key.endswith("_env"):
+                _check_secret_name(value)
         if transport in {"rest", "mqtt", "opcua"}:
             url = _url(options["base_url"])
             scheme = urlsplit(url).scheme
@@ -358,6 +375,16 @@ class ConnectorService:
             raise ValueError("use a new connection when changing the product")
         stored = self.credentials.fields(ctx.tenant_id, cid) if current else []
         options = products.prepare(transport, dict(config.get("options", {})), credentials, stored)
+        # Saved sign-in details belong to the address they were entered for. If the address changes they
+        # are discarded, so they can never be sent to a host the person who entered them did not choose.
+        moved = bool(current) and (urlsplit(options["base_url"]).hostname
+                                   != urlsplit(str(current.state["options"].get("base_url", ""))).hostname)
+        if moved and stored:
+            try:
+                options = products.prepare(transport, dict(config.get("options", {})), credentials, [])
+            except products.SourceError as exc:
+                raise products.SourceError(
+                    f"The address changed, so the saved sign-in details were not reused. {exc}") from exc
         poll = options.get("poll_seconds", 0)
         if not isinstance(poll, int) or poll < 0 or (poll and poll < 10):
             raise ValueError("poll_seconds is zero (manual) or at least 10 seconds")
@@ -366,10 +393,11 @@ class ConnectorService:
             default = products.suggest_mapping(default, [])
         mapping = dict(config.get("mapping") or default)
         mapping["ignore_fields"] = sorted(set(mapping.get("ignore_fields", [])) | set(products.envelope(transport, options)))
-        return self._persist(ctx, {**config, "vendor": transport, "mapping": mapping}, options, [], credentials)
+        return self._persist(ctx, {**config, "vendor": transport, "mapping": mapping}, options, [], credentials,
+                             replace_credentials=moved)
 
     def _persist(self, ctx: Any, config: dict[str, Any], options: dict[str, Any], writes: list[str],
-                 credentials: dict[str, str] | None = None) -> dict[str, Any]:
+                 credentials: dict[str, str] | None = None, replace_credentials: bool = False) -> dict[str, Any]:
         cid, family, transport = config["connector_id"], config["family"], config["transport"]
         template = ConnectorTemplate.from_dict(config["mapping"]) if config.get("mapping") else family_template(family)
         if template.problems():
@@ -388,8 +416,8 @@ class ConnectorService:
                      "mapping": template.to_dict(), "write_operations": writes,
                      "vendor": config.get("vendor", "generic"), "version": config.get("version", "1"),
                      "enabled": config.get("enabled", True), "last_sync": None, "last_error": None}
-            if credentials:
-                self.credentials.save(tx, ctx.tenant_id, cid, credentials)
+            if credentials or replace_credentials:
+                self.credentials.save(tx, ctx.tenant_id, cid, credentials or {}, replace=replace_credentials)
             contract = self.matrix.register(ctx, ConnectorContract(family, state["vendor"], state["version"],
                 "rest" if product else transport,
                 ("pull",), config["owner"], "encrypted workspace credential" if product else "environment reference",

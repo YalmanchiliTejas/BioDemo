@@ -77,6 +77,8 @@ def test_handler_serves_http_and_scheduled_ticks(monkeypatch):
     from src.lifesci.store import RecordStore
 
     monkeypatch.delenv('AWS_LAMBDA_FUNCTION_NAME', raising=False)
+    # This exercises the handler plumbing with development identity headers from a remote address.
+    monkeypatch.setenv('LIFESCI_DEV_AUTH_ALLOW_REMOTE', '1')
     platform = Platform(RecordStore(), providers={})
     seed(platform)
     app = create_app(platform)

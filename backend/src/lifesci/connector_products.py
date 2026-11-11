@@ -72,9 +72,9 @@ class CredentialStore:
     def __init__(self, store: Any) -> None:
         self.store = store
 
-    def save(self, tx: Any, tenant: str, cid: str, values: dict[str, str]) -> None:
+    def save(self, tx: Any, tenant: str, cid: str, values: dict[str, str], *, replace: bool = False) -> None:
         current = tx.get(tenant, CREDENTIAL_KIND, cid)
-        merged = {**(self._open(tenant, cid, current.state) if current else {}), **values}
+        merged = {**(self._open(tenant, cid, current.state) if current and not replace else {}), **values}
         nonce = os.urandom(12)
         sealed = AESGCM(_connection_key(tenant, cid)).encrypt(
             nonce, json.dumps(merged).encode(), f"{tenant}/{cid}".encode())
