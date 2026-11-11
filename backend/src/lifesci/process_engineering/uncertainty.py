@@ -12,6 +12,7 @@ import numpy as np
 
 from ..ids import content_hash
 from .contracts import predict, set_value
+from .engine import BudgetExceeded
 from .hybrid import run_hybrid
 
 VERSION = "group-split-intervals-1"
@@ -86,6 +87,8 @@ def ensemble(
             predictions.append(p + rng.normal(0, output_std))
             violations += bool(result.get("violations"))
             ood += bool(result.get("hybrid", {}).get("out_of_domain"))
+        except BudgetExceeded:
+            raise  # an exhausted solver budget is not a failed sample
         except (ValueError, KeyError, RuntimeError, ArithmeticError) as exc:
             failures.append({"sample": index, "error": str(exc), "kind": type(exc).__name__})
     if not predictions:
@@ -117,6 +120,8 @@ def ensemble(
                 if category == "measurement":
                     p = p + rng.normal(0, output_std)
                 components[category].append(p.tolist())
+            except BudgetExceeded:
+                raise
             except (ValueError, KeyError, RuntimeError, ArithmeticError):
                 components[category].append(None)
     return {

@@ -84,6 +84,10 @@ def validate(config):
     return config if isinstance(config, Config) else Config.model_validate(config)
 
 
+# Relative residual of the energy balance above which a run is not reported as completed.
+ENERGY_TOLERANCE = 1e-3
+
+
 def rates(temperature_k, chemistry):
     return tuple(k * np.exp(-ea / R * (1 / temperature_k - 1 / chemistry.reference_temperature_k))
                  for k, ea in ((chemistry.product_rate_ref_s_inv, chemistry.product_activation_j_mol),
@@ -132,7 +136,17 @@ def simulate(config, *, kinetic_model=None):
     times = np.unique(np.r_[np.arange(0, stop, recipe.sample_interval_s), sol.t, stop])
     states = sol.sol(times)
     bad_state = not np.isfinite(states).all() or states[:3].min() < -n0*1e-7
-    complete = bool(sol.success and not upper_hit and not lower_hit and not bad_state
+    # Independent check on the integration: the temperature change must equal the heat released by the
+    # composition change minus the heat the jacket removed, the latter by quadrature of the solved temperature.
+    energy_error = None
+    if stop > 0 and not bad_state:
+        fine = np.linspace(0., stop, 4001)
+        removed = ua * float(np.trapezoid(sol.sol(fine)[3] - eq.coolant_temperature_k, fine))
+        released = -ch.product_enthalpy_j_mol * float(states[1, -1]) - ch.impurity_enthalpy_j_mol * float(states[2, -1])
+        stored = capacity * float(states[3, -1] - recipe.initial_temperature_k)
+        energy_error = abs(stored - released + removed) / max(abs(stored), abs(released), abs(removed), 1e-12)
+    unbalanced = energy_error is not None and energy_error > ENERGY_TOLERANCE
+    complete = bool(sol.success and not upper_hit and not lower_hit and not bad_state and not unbalanced
                     and abs(stop - recipe.duration_s) < 1e-6)
     rows = [{"time_s": float(t), "a_mol": float(a), "product_mol": float(b),
              "impurity_mol": float(i), "temperature_k": float(temp),
@@ -148,6 +162,8 @@ def simulate(config, *, kinetic_model=None):
         violations.append("impurity_limit_exceeded")
     if bad_state:
         violations.append("invalid_numerical_state")
+    if unbalanced:
+        violations.append("energy_balance_not_closed")
     return {"model_version": VERSION, "input_hash": content_hash(c.model_dump()),
             "classification": "conditional_model_prediction", "evidence_classification": c.evidence_classification,
             "source_refs": c.source_refs, "status": "completed" if complete else "stopped_or_failed",
@@ -159,6 +175,7 @@ def simulate(config, *, kinetic_model=None):
             "conversion_fraction": float(1-states[0, -1]/n0) if complete else None,
             "maximum_temperature_k_at_returned_points": float(states[3].max()),
             "maximum_a_equivalent_mole_error": float(np.max(np.abs(states[:3].sum(axis=0)-n0))),
+            "energy_balance_relative_error": energy_error, "energy_balance_tolerance": ENERGY_TOLERANCE,
             "violations": violations, "within_declared_constraints": complete and not violations,
             "limitations": LIMITS}
 

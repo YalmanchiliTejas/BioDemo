@@ -30,31 +30,45 @@ def _heat_removal(donor_config, donor_result, receiver_config, receiver_result):
     rows = donor_result.get("trajectory") or []
     if not rows:
         return []
-    # Peak heat released per m3 along the sending-site run. At the receiving site a hotter batch reacts faster,
-    # so this is a lower bound on the receiving need, never an overstatement of it.
-    peak = 0.0
-    for row in rows:
-        kb, ki = rates(row["temperature_k"], d.chemistry)
-        conc = row["a_mol"] / d.equipment.working_volume_m3
-        peak = max(peak, (-d.chemistry.product_enthalpy_j_mol * kb - d.chemistry.impurity_enthalpy_j_mol * ki) * conc)
+    def peak_per_m3(config, trajectory):
+        best = 0.0
+        for row in trajectory:
+            kb, ki = rates(row["temperature_k"], config.chemistry)
+            conc = row["a_mol"] / config.equipment.working_volume_m3
+            best = max(best, (-config.chemistry.product_enthalpy_j_mol * kb - config.chemistry.impurity_enthalpy_j_mol * ki) * conc)
+        return best
 
-    def side(c):
-        need = peak * c.equipment.working_volume_m3
+    # Peak heat released per m3 along the sending-site run. At the receiving site a hotter batch reacts faster,
+    # so this is a lower bound on the receiving need, never an overstatement of it. The receiving run's own
+    # trajectory, as far as it got, can only raise that bound.
+    peak = peak_per_m3(d, rows)
+    receiving_peak = max(peak, peak_per_m3(r, receiver_result.get("trajectory") or []))
+
+    def side(c, per_m3):
+        need = per_m3 * c.equipment.working_volume_m3
         capacity = c.equipment.heat_transfer_area_m2 * c.equipment.heat_transfer_coefficient_w_m2_k * (
             c.recipe.temperature_limit_k - c.equipment.coolant_temperature_k)
         return need, capacity
 
-    (dn, dc), (rn, rc) = side(d), side(r)
+    (dn, dc), (rn, rc) = side(d, peak), side(r, receiving_peak)
     margin = rc / rn - 1 if rn > 0 else None
+    # Capacity is the most the jacket removes, at the temperature limit; need is a lower bound. Their comparison
+    # can show a shortfall, but it shows adequacy only together with a receiving run that stayed inside its limits.
+    ran = receiver_result.get("status", receiver_result.get("numerical_status", "completed")) == "completed" \
+        and not receiver_result.get("violations")
+    status = "unknown" if margin is None else "short" if margin < 0 else "sufficient" if ran else "unknown"
     return [{
         "capability": "Heat removal at peak reaction heat",
         "unit": "W",
         "sending_need": dn, "sending_capacity": dc,
         "receiving_need": rn, "receiving_capacity": rc,
         "receiving_margin_fraction": margin,
-        "status": "short" if margin is not None and margin < 0 else "sufficient" if margin is not None else "unknown",
-        "how": "Need: peak heat released per m3 in the sending-site run x receiving volume (a lower bound: a hotter "
-               "batch reacts faster). Capacity: U x A x (temperature limit - coolant temperature).",
+        "status": status,
+        **({"reason": "Capacity exceeds the lower-bound need, but the receiving run did not stay inside its limits, "
+                      "so adequacy is not shown"} if status == "unknown" and margin is not None else {}),
+        "how": "Need: peak heat released per m3 in the sending-site run, or in the receiving run if higher, x receiving "
+               "volume (a lower bound: a hotter batch reacts faster). Capacity: U x A x (temperature limit - coolant "
+               "temperature), the most the jacket can remove.",
         "drivers": ["equipment.working_volume_m3", "equipment.heat_transfer_area_m2",
                     "equipment.heat_transfer_coefficient_w_m2_k", "equipment.coolant_temperature_k",
                     "recipe.temperature_limit_k"],

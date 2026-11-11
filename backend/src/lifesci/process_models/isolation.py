@@ -17,7 +17,8 @@ def filtration(c):
     finished = completion <= c["duration_s"]
     return {"trajectory": series(t, filtrate_m3=volume, cake_solids_kg=volume*c["solids_per_filtrate_kg_m3"]),
             "completion_time_s": float(completion) if finished else None,
-            "final_filtrate_m3": float(volume[-1]), "status": "completed" if finished else "incomplete",
+            "final_filtrate_m3": float(volume[-1]) if finished else None,
+            "filtrate_at_end_of_duration_m3": float(volume[-1]), "status": "completed" if finished else "incomplete",
             "violations": [] if finished else ["target_filtrate_not_reached"]}
 
 
@@ -50,13 +51,17 @@ def drying(c):
     hot.direction = cold.direction = -1
     t, y, sol = integrate(c, rhs, [c["initial_solvent_kg_kg_dry"], c["initial_temperature_k"]], events=[hot,cold])
     stopped = any(len(e) for e in sol.t_events)
-    reached = not stopped and y[0,-1] <= c["target_solvent_kg_kg_dry"]
+    # The drying rate here does not depend on temperature or heat supply. A cake that ends colder than both its
+    # starting temperature and the wall was dried on heat it never received, so dryness is not shown.
+    unheated = not stopped and y[1,-1] < min(c["initial_temperature_k"], c["wall_temperature_k"]) - 1e-6
+    reached = not stopped and not unheated and y[0,-1] <= c["target_solvent_kg_kg_dry"]
     return {"trajectory": series(t, solvent_kg_kg_dry=y[0], temperature_k=y[1]),
             "status": "stopped" if stopped else "completed",
             "final_solvent_kg_kg_dry": None if stopped else float(y[0,-1]),
             "solvent_target_met": bool(reached),
             "evaporated_solvent_kg": float(c["dry_solids_kg"]*(c["initial_solvent_kg_kg_dry"]-y[0,-1])),
-            "violations": (["temperature_envelope_reached"] if stopped else []) + ([] if reached else ["dryness_not_demonstrated"])}
+            "violations": (["temperature_envelope_reached"] if stopped else []) + (["evaporation_exceeds_heat_supplied"] if unheated else [])
+                          + ([] if reached else ["dryness_not_demonstrated"])}
 
 
 MODELS = [
