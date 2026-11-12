@@ -31,6 +31,8 @@ LIMITATIONS = [
     'Constant lumped kinetics. Other nutrients, metabolites, stress, pH and temperature effects are not modelled.',
     'Batch growth phase only. Readings after the horizon (death phase, feeding) are excluded from fitting and forecasting.',
     'Parameters may be weakly identifiable; they are effective values, not measured biology.',
+    'Yield and maintenance enter the equations only through the sum mu_max/Y + m. No data can separate them: '
+    'only that glucose uptake coefficient is determined, and the two individual values are arbitrary.',
     'In the earlier real-CHO experiment this model made glucose forecasts worse (MAE 0.60 → 0.72 g/L). Treat forecasts as a rough reference.',
 ]
 
@@ -40,6 +42,26 @@ def _hours(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def excluded(measurements: list[dict[str, Any]], horizon_h: float) -> list[str]:
+    """Readings of the modelled fields that the model cannot use, by reason, so none is dropped unseen."""
+    units: dict[tuple[str, str], int] = {}
+    nonpositive: dict[str, int] = {}
+    for m in measurements:
+        t = _hours(m.get('time'))
+        if m.get('parameter') not in FIELDS or t is None or t > horizon_h or not isinstance(m.get('value'), (int, float)):
+            continue
+        if m.get('unit') != SOURCE_UNITS[m['parameter']]:
+            units[(m['parameter'], str(m.get('unit')))] = units.get((m['parameter'], str(m.get('unit'))), 0) + 1
+        elif m['value'] <= 0:
+            nonpositive[m['parameter']] = nonpositive.get(m['parameter'], 0) + 1
+    out = [f"{n} {field.replace('_', ' ')} reading(s) in {unit} were left out: the model reads {SOURCE_UNITS[field]} and does not convert units."
+           for (field, unit), n in sorted(units.items())]
+    out += [f"{n} {field.replace('_', ' ')} reading(s) at or below zero were left out: the model works on logarithms and cannot "
+            f"represent a zero value{' (glucose depletion)' if field == 'glucose' else ''}."
+            for field, n in sorted(nonpositive.items())]
+    return out
 
 
 def series(measurements: list[dict[str, Any]], horizon_h: float) -> dict[str, list[dict[str, Any]]]:
@@ -136,6 +158,9 @@ def fit(training: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
                       for f in FIELDS if (c := [abs(float(pred[r['time_h']][FIELDS.index(f)]) - r['value']) for r in rows if r['field'] == f])}
     return {'parameters': dict(zip(NAMES, params.tolist())), 'training_batches': sorted(usable),
             'optimizer_converged': bool(best.success), 'cost': float(best.cost), 'parameters_at_bounds': at_bound,
+            # The only combination of yield and maintenance the equations contain, hence the only one a fit determines.
+            'glucose_uptake_coefficient_g_l_per_million_cells_ml_h': float(params[0] / params[3] + params[4]),
+            'not_separately_determined': ['yield_million_cells_ml_per_g_l', 'maintenance_g_l_per_million_cells_ml_h'],
             # In-sample: how closely the fitted model reproduces each run it was fitted to, from that run's first reading.
             'training_fit': per_run,
             'training_fit_basis': 'fit error on the runs the model was fitted to (in-sample), not a forecast test'}
@@ -185,5 +210,10 @@ def forecast(dataset: dict[str, Any], batch: str, cutoff_h: float = 72., horizon
         'trajectory': [{'time_h': t, **{f: float(v[i]) for i, f in enumerate(FIELDS)}} for t, v in zip(grid, traj)],
         'holdout_comparison': comparisons, 'holdout_errors': errors, 'units': UNITS,
         'warnings': (['Duplicate readings with different values were averaged at ' + ', '.join(f'{t:g} h' for t in flagged) + '.'] if flagged else [])
-        + ([] if comparisons else ['No readings after the cutoff within the horizon, so the forecast cannot be checked.']),
+        + ([] if comparisons else ['No readings after the cutoff within the horizon, so the forecast cannot be checked.'])
+        + excluded(dataset['measurements'], horizon_h)
+        + ([] if model['optimizer_converged'] else ['The parameter fit did not converge; the forecast rests on an unfinished fit.'])
+        + ([f"Fitted {', '.join(model['parameters_at_bounds'])} stopped at the edge of the allowed range, so the data pull outside "
+            'what this model allows; treat the forecast as unreliable.'] if model['parameters_at_bounds'] else [])
+        + ['Yield and maintenance are not separately determined by this model; only the glucose uptake coefficient is.'],
     }

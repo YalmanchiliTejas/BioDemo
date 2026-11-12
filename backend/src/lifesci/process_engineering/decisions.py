@@ -28,10 +28,16 @@ def _model_based(entry, criterion, metric, a, b, donor_corners, receiver_corners
     """Verdict from the corner runs. A corner where the run stops means the process can fail within tolerance."""
     def spread(corners, nominal):
         stops = [c for c in corners if c["status"] != "completed"]
-        values = [nominal, *[float(value_at(c, metric)) for c in corners if c["status"] == "completed"]]
-        return min(values), max(values), stops
+        at_corners = [float(value_at(c, metric)) for c in corners if c["status"] == "completed"]
+        values = [nominal, *at_corners]
+        # Corner runs bound the response only if it moves one way with each tolerance. A nominal value outside
+        # every corner shows a peak or dip inside the tolerances, so the true range can be wider than this one.
+        slack = 1e-9 * max(1.0, abs(nominal))
+        interior = bool(at_corners) and (nominal > max(at_corners) + slack or nominal < min(at_corners) - slack)
+        return min(values), max(values), stops, interior
 
-    r_lo, r_hi, r_stops = spread(receiver_corners, b)
+    r_lo, r_hi, r_stops, r_interior = spread(receiver_corners, b)
+    d_interior = False
     entry = {**entry, "basis_of_range": MODEL_BASED, "corner_runs": len(receiver_corners) + len(donor_corners)}
     if r_stops:
         worst = r_stops[0]
@@ -45,13 +51,17 @@ def _model_based(entry, criterion, metric, a, b, donor_corners, receiver_corners
         entry.update(receiver_range=[r_lo, r_hi], limit=limit)
         ok, bad = (r_lo >= limit, r_hi < limit) if higher else (r_hi <= limit, r_lo > limit)
     else:
-        d_lo, d_hi, d_stops = spread(donor_corners, a)
+        d_lo, d_hi, d_stops, d_interior = spread(donor_corners, a)
         if d_stops:
             return {**entry, "status": "indicative_only", "reason": "The sending-site run stops within its stated tolerances"}
         margin = criterion["margin"]
         diff = [r_lo - d_hi, r_hi - d_lo]
         entry.update(difference_range=diff, margin=margin)
         ok, bad = (diff[0] >= -margin, diff[1] < -margin) if higher else (diff[1] <= margin, diff[0] > margin)
+    if r_interior or d_interior:
+        return {**entry, "status": "inconclusive", "response_within_tolerances": "not_monotonic",
+                "reason": "The nominal value lies outside every corner run, so the response peaks or dips inside the stated "
+                          "tolerances and the corner runs do not bound it; run points inside the tolerances or measure"}
     status = "model_based_pass" if ok else "model_based_fail" if bad else "inconclusive"
     return {**entry, "status": status, **({"reason": "The model-based range straddles the limit; measure the most "
                                                      "uncertain term to narrow it"} if status == "inconclusive" else {})}

@@ -34,8 +34,12 @@ def ultrafiltration(c):
     return {"trajectory":series(t, retentate_volume_m3=volumes, retentate_product_kg=mass,
                                   product_concentration_kg_m3=mass/volumes),
             "status":"completed" if done else "incomplete", "completion_time_s":completion if done else None,
-            "retained_product_kg":float(mass[-1]), "permeate_product_kg":float(c["initial_product_kg"]-mass[-1]),
-            "final_volume_m3":float(volumes[-1]), "recovery_fraction":float(mass[-1]/c["initial_product_kg"]),
+            # End-of-step figures describe the finished concentration; an unfinished run reports where it stopped instead.
+            "retained_product_kg":float(mass[-1]) if done else None,
+            "permeate_product_kg":float(c["initial_product_kg"]-mass[-1]) if done else None,
+            "final_volume_m3":float(volumes[-1]) if done else None,
+            "recovery_fraction":float(mass[-1]/c["initial_product_kg"]) if done else None,
+            "at_end_of_duration":{"retentate_volume_m3":float(volumes[-1]),"retentate_product_kg":float(mass[-1])},
             "violations":[] if done else ["target_volume_not_reached"]}
 
 

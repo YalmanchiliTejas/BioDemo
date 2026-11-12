@@ -14,6 +14,7 @@ from scipy.special import expit
 
 from ..ids import content_hash
 from .contracts import predict
+from .engine import BudgetExceeded
 
 VERSION = "bounded-hybrid-1"
 SUPPORTED = ("chemical.parallel_batch", "fermentation.oxygen_transfer")
@@ -195,7 +196,13 @@ def estimate_terms(mid, runs):
                 dt = right - left
                 ka = np.array(rates(a["temperature_k"], c.chemistry))
                 kb = np.array(rates(b["temperature_k"], c.chemistry))
-                exposure = 0.5 * dt * (ka * a["a_mol"] + kb * b["a_mol"])
+                # Reactant falls exponentially between samples, so its time integral is the log-mean amount times
+                # the interval. A trapezoid overstates it and biases the multiplier low as sampling gets coarser.
+                na, nb = a["a_mol"], b["a_mol"]
+                if na <= 0 or nb <= 0:
+                    raise ValueError("Reactant amount must stay positive to estimate kinetic multipliers")
+                mean_amount = na if abs(na - nb) <= 1e-12 * na else (na - nb) / math.log(na / nb)
+                exposure = 0.5 * (ka + kb) * dt * mean_amount
                 delta = np.array([b["product_mol"] - a["product_mol"], b["impurity_mol"] - a["impurity_mol"]])
                 if np.any(exposure < 1e-10):
                     raise ValueError("Kinetic pathway is unexcited; neural terms unidentifiable")
@@ -290,7 +297,7 @@ def learn(x, y, groups, *, parent=None, regularization=0.002, source_penalty=0.0
             gradient += source_penalty * delta / distance / size
         return loss, gradient
 
-    fitted = minimize(objective, initial, jac=True, method="L-BFGS-B", options={"maxiter": 200, "ftol": 1e-10})
+    fitted = minimize(objective, initial, jac=True, method="L-BFGS-B", options={"maxiter": 2000, "ftol": 1e-10})
     if not np.isfinite(fitted.fun):
         raise ValueError("Neural optimization failed")
     return {
@@ -398,6 +405,8 @@ def score(adapter, runs, checkpoint=None, mode="physics", budget=None):
             errors.extend(((prediction - [r["value"] for r in run["observations"]]) / scale).tolist())
             violations += bool(result.get("violations"))
             ood += bool(result.get("hybrid", {}).get("out_of_domain"))
+        except BudgetExceeded:
+            raise  # running out of solver budget says nothing about the model being scored
         except (ValueError, KeyError, RuntimeError, FloatingPointError):
             failed += 1
     return {
@@ -514,19 +523,22 @@ def train(adapter, runs, *, parent=None, seed=1, ensemble_size=3, site_holdout=F
     checkpoint["selection"] = comparisons
     checkpoint["selected_model"] = best
     reference = min((v for k, v in available.items() if k != "hybrid"), default=float("inf"))
+    # Applies to a model trained from scratch as much as to an adapted one: a learned term that does worse than
+    # the alternatives without it is not used for prediction.
     checkpoint["negative_transfer"] = bool(
-        parent
-        and (
-            comparisons["hybrid"]["failed_predictions"]
-            or comparisons["hybrid"]["rmse_scaled"] is None
-            or comparisons["hybrid"]["rmse_scaled"] > reference * 1.01 + 1e-8
-        )
+        comparisons["hybrid"]["failed_predictions"]
+        or comparisons["hybrid"]["rmse_scaled"] is None
+        or comparisons["hybrid"]["rmse_scaled"] > reference * 1.01 + 1e-8
     )
     checkpoint["negative_transfer_rule"] = (
-        "Adapted hybrid selection RMSE exceeds the best source/physics/refit alternative by >1% plus 1e-8; heuristic, not a significance test."
+        "Hybrid selection RMSE exceeds the best source/physics/refit alternative by >1% plus 1e-8; heuristic, not a significance test."
     )
+    unconverged = [i for i, m in enumerate(checkpoint["members"]) if not m.get("optimizer_converged", True)]
+    checkpoint["unconverged_members"] = unconverged
     checkpoint["promotion"] = (
-        "withheld_negative_transfer" if checkpoint["negative_transfer"] else "draft_requires_review"
+        "withheld_negative_transfer" if checkpoint["negative_transfer"]
+        else "withheld_optimizer_not_converged" if unconverged
+        else "draft_requires_review"
     )
     # Final evaluation is a separate operation after interval calibration is frozen.
     return checkpoint

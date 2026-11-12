@@ -166,11 +166,63 @@ def test_LS017_receipt_is_not_readiness_and_approval_needs_zero_gaps(env):
     with pytest.raises(AuthorizationError):
         env.xfer.approve(env.sup1, pid, "recipient", inv)
     after = env.xfer.approve(env.sup2, pid, "recipient", inv)
+    # The recipient's approval alone is not readiness: the sender must approve the same content.
+    cl = env.xfer.recipient_checklist(env.sup2, pid, inv)
+    assert cl["readiness"] == "not_ready" and cl["reasons"] == ["sender approval missing"]
+    after = env.xfer.approve(env.sup1, pid, "sender")
     assert env.xfer.recipient_checklist(env.sup2, pid, inv)["readiness"] == "ready"
     env.xfer.revise(env.sup1, pid, after["revision"], parameters={"temp": 35})
     cl = env.xfer.recipient_checklist(env.sup2, pid, inv)
     assert cl["readiness"] == "not_ready" and "no longer covers" in cl["reasons"][0]
     assert env.xfer.recipient_checklist(env.sup2, pid, {"materials": [], "equipment": {}})["gaps"]
+
+
+def ready_package(env):
+    p = env.xfer.create(env.sup1, package(material_mapping={"media-A": "media-X"}, open_gaps=[]))
+    inv = {"materials": ["media-X"], "equipment": {"BR-9": {"qualifications": ["OQ"]}}}
+    return p["package_id"], inv
+
+
+def test_LS017_readiness_is_tied_to_the_inventory_the_recipient_approved(env):
+    pid, inv = ready_package(env)
+    approved = env.xfer.approve(env.sup2, pid, "recipient", inv)
+    env.xfer.approve(env.sup1, pid, "sender")
+    recorded = approved["approvals"]["recipient"]
+    assert recorded["inventory"] == inv and recorded["inventory_basis"]["equipment_declared_only"] == 1
+    assert env.xfer.recipient_checklist(env.sup2, pid, inv)["readiness"] == "ready"
+    # A more favourable inventory offered later is not the one that was approved.
+    other = {"materials": ["media-X", "extra"], "equipment": {"BR-9": {"qualifications": ["OQ", "PQ"]}}}
+    cl = env.xfer.recipient_checklist(env.sup2, pid, other)
+    assert cl["readiness"] == "not_ready" and "not the one the recipient approved" in cl["reasons"][0]
+
+
+def test_LS017_recorded_equipment_overrides_a_declared_inventory(env):
+    pid, inv = ready_package(env)
+    put(env, "equipment", "BR-9", {"id": "BR-9", "site_id": "S1", "qualification_due": "2020-01-01T00:00:00+00:00"})
+    cl = env.xfer.recipient_checklist(env.sup2, pid, inv)
+    assert {g["type"] for g in cl["gaps"]} == {"equipment_recorded_at_other_site", "equipment_qualification_overdue"}
+    assert cl["inventory_basis"]["equipment_confirmed_by_record"] == 1
+    with pytest.raises(ValueError, match="gaps remain"):
+        env.xfer.approve(env.sup2, pid, "recipient", inv)
+    put(env, "equipment", "BR-9", {"id": "BR-9", "site_id": "S2", "qualification_due": "2999-01-01T00:00:00+00:00"})
+    assert env.xfer.recipient_checklist(env.sup2, pid, inv)["gaps"] == []
+
+
+def test_LS017_one_person_cannot_approve_as_sender_and_recipient(env):
+    pid, inv = ready_package(env)
+    env.xfer.approve(env.qa, pid, "sender")  # qa holds approval at every site
+    with pytest.raises(AuthorizationError, match="different people"):
+        env.xfer.approve(env.qa, pid, "recipient", inv)
+    env.xfer.approve(env.sup2, pid, "recipient", inv)
+
+
+def test_LS017_revision_cannot_move_the_sending_site_without_authority_there(env):
+    pid, _ = ready_package(env)
+    rev = env.s.read().require(T, "transfer_package", pid).revision
+    with pytest.raises(AuthorizationError):
+        env.xfer.revise(env.sup1, pid, rev, sending_site="S2")
+    with pytest.raises(ValueError, match="versioned"):
+        env.xfer.revise(env.sup1, pid, rev, procedure_refs=[{"id": "SOP-1"}])
 
 
 # --- LS-018 -------------------------------------------------------------------------------------------------

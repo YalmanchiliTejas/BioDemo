@@ -236,9 +236,41 @@ class TransferService:
             rec = tx.require(ctx.tenant_id, "transfer_package", package_id)
             self.identity.require(ctx, "propose", "transfer_package", package_id, site_id=rec.state["sending_site"], tx=tx)
             state = {**rec.state, **changes}
+            if state["sending_site"] != rec.state["sending_site"]:
+                # Moving a package to another sending site needs authority there too.
+                self.identity.require(ctx, "propose", "transfer_package", package_id, site_id=state["sending_site"], tx=tx)
+            for ref in state["procedure_refs"]:
+                if not ref.get("id") or ref.get("revision") is None:
+                    raise ValueError("transfer procedures must be versioned references (id and revision)")
             state["content_hash"] = content_hash({k: state[k] for k in _CONTENT_KEYS})
             out = tx.put(ctx.tenant_id, "transfer_package", package_id, state, expected_revision=expected_revision, action="revise_transfer_package")
         return {"revision": out.revision, **out.state}
+
+    def _recorded_equipment(self, tx: Any, tenant_id: str, s: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, int]]:
+        """Check mapped receiving equipment against the equipment records the platform already holds.
+
+        A declared inventory is the approver's statement. Where a record exists it is the stronger source:
+        equipment recorded at another site, or with an overdue qualification, is a gap whatever was declared.
+        """
+        gaps: list[dict[str, Any]] = []
+        confirmed = declared_only = 0
+        now = iso(utc_now())
+        for src, dst in s["equipment_mapping"].items():
+            if dst is None:
+                continue
+            rec = tx.get(tenant_id, "equipment", dst)
+            if rec is None:
+                declared_only += 1
+                continue
+            confirmed += 1
+            if rec.state.get("site_id") != s["receiving_site"]:
+                gaps.append({"type": "equipment_recorded_at_other_site", "item": dst,
+                             "detail": f"{dst} is recorded at {rec.state.get('site_id')}, not {s['receiving_site']}"})
+            due = rec.state.get("qualification_due")
+            if due and str(due) < now:
+                gaps.append({"type": "equipment_qualification_overdue", "item": dst,
+                             "detail": f"{dst} qualification was due {str(due)[:10]}"})
+        return gaps, {"equipment_confirmed_by_record": confirmed, "equipment_declared_only": declared_only}
 
     def _gaps(self, s: dict[str, Any], inventory: dict[str, Any]) -> list[dict[str, Any]]:
         gaps: list[dict[str, Any]] = []
@@ -270,14 +302,25 @@ class TransferService:
         rec = tx.require(ctx.tenant_id, "transfer_package", package_id)
         s = rec.state
         self.identity.require(ctx, "read", "transfer_package", package_id, site_id=s["receiving_site"], tx=tx)
-        gaps = self._gaps(s, receiving_site_inventory)
-        approval = s["approvals"]["recipient"]
+        recorded, basis = self._recorded_equipment(tx, ctx.tenant_id, s)
+        gaps = self._gaps(s, receiving_site_inventory) + recorded
+        approval, sender = s["approvals"]["recipient"], s["approvals"]["sender"]
         approved = bool(approval and approval["content_hash"] == s["content_hash"])
+        sender_approved = bool(sender and sender["content_hash"] == s["content_hash"])
+        inventory_hash = content_hash(receiving_site_inventory)
+        same_inventory = bool(approved and approval.get("inventory_hash") == inventory_hash)
         reasons = [f"{len(gaps)} open gap(s)"] if gaps else []
         if not approved:
             reasons.append("recipient approval missing" if not approval else "recipient approval no longer covers package content")
+        elif not same_inventory:
+            reasons.append("this inventory is not the one the recipient approved against")
+        if not sender_approved:
+            reasons.append("sender approval missing" if not sender else "sender approval no longer covers package content")
+        ready = not gaps and approved and same_inventory and sender_approved
         return {"package_id": package_id, "gaps": gaps, "received": s["received"] is not None, "recipient_approved": approved,
-                "readiness": "ready" if not gaps and approved else "not_ready", "reasons": reasons,
+                "sender_approved": sender_approved, "readiness": "ready" if ready else "not_ready", "reasons": reasons,
+                "inventory_basis": {**basis, "materials": "declared_by_reviewer", "inventory_hash": inventory_hash,
+                                    "note": "Inventory is stated by the person checking; only equipment with a platform record is confirmed."},
                 "note": "receipt of the package does not establish readiness"}
 
     def acknowledge_receipt(self, ctx: AccessContext, package_id: str) -> dict[str, Any]:
@@ -301,11 +344,20 @@ class TransferService:
             s = rec.state
             site = s["receiving_site"] if role == "recipient" else s["sending_site"]
             self.identity.require(ctx, "approve", "transfer_package", package_id, site_id=site, tx=tx)
+            other = s["approvals"]["sender" if role == "recipient" else "recipient"]
+            if other and other["by"] == ctx.actor_id and other["content_hash"] == s["content_hash"]:
+                raise AuthorizationError(Decision(False, "sender and recipient approval must come from different people"))
+            entry: dict[str, Any] = {"by": ctx.actor_id, "at": iso(utc_now()), "content_hash": s["content_hash"]}
             if role == "recipient":
-                gaps = self._gaps(s, receiving_site_inventory or {})
+                inventory = receiving_site_inventory or {}
+                recorded, basis = self._recorded_equipment(tx, ctx.tenant_id, s)
+                gaps = self._gaps(s, inventory) + recorded
                 if gaps:
                     raise ValueError(f"recipient cannot approve while gaps remain: {[g['type'] + ':' + str(g['item']) for g in gaps]}")
-            approvals = {**s["approvals"], role: {"by": ctx.actor_id, "at": iso(utc_now()), "content_hash": s["content_hash"]}}
+                # What the approver stated about their site is part of the approval, so it can be reviewed later.
+                entry.update({"inventory": inventory, "inventory_hash": content_hash(inventory),
+                              "inventory_basis": {**basis, "materials": "declared_by_approver"}})
+            approvals = {**s["approvals"], role: entry}
             out = tx.put(ctx.tenant_id, "transfer_package", package_id, {**s, "approvals": approvals},
                          expected_revision=rec.revision, action=f"approve_{role}")
         return {"revision": out.revision, **out.state}

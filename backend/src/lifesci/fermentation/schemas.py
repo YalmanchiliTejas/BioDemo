@@ -5,6 +5,8 @@ class Assumptions(StrictModel):
     # Every default here is a scenario assumption, not an extracted measurement.
     gas_exponent: float = Field(default=.5, ge=0, le=1)
     power_screen_w_m3: float = Field(default=1000, ge=50, le=10000)
+    # Fraction above the kLa target a recommended setting should carry. A screening choice, not a validated margin.
+    kla_target_margin: float = Field(default=.2, ge=0, le=1)
     selected_receiver_l: int = Field(default=20)
     rpm: float = Field(default=300, ge=20, le=1000)
     airflow_vvm: float = Field(default=.25, ge=.05, le=1)

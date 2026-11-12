@@ -4,6 +4,9 @@ import numpy as np
 from .common import Model, Input, positive, temperature, duration, integrate, series
 
 
+MAX_SOLIDS_VOLUME_FRACTION = .2
+
+
 def cooling(c):
     if c["end_temperature_k"] > c["start_temperature_k"]:
         raise ValueError("growth-only model supports cooling, not heating/dissolution")
@@ -26,6 +29,9 @@ def cooling(c):
     if np.min(y[0]) < -1e-6 or np.min(y[1:]) < -1e-12:
         raise ValueError("invalid concentration or population moment")
     solid = rho*kv*y[4]
+    # The balances assume a dilute suspension in a constant liquid volume.
+    if float(np.max(kv*y[4])) > MAX_SOLIDS_VOLUME_FRACTION:
+        raise ValueError(f"crystal volume exceeds {MAX_SOLIDS_VOLUME_FRACTION:.0%} of the liquid volume; outside the dilute-suspension model")
     mean_size = np.divide(y[2], y[1], out=np.zeros_like(y[2]), where=y[1]>0)
     d32 = np.divide(y[4], y[3], out=np.zeros_like(y[4]), where=y[3]>0)
     return {"trajectory": series(t, solute_kg_m3=y[0], crystal_kg_m3=solid,

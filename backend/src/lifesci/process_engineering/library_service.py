@@ -410,11 +410,13 @@ class LibraryOperations:
         if (
             mode == "hybrid"
             and cp
-            and cp.get("negative_transfer")
+            and (cp.get("negative_transfer") or cp.get("unconverged_members"))
             and spec.operation not in ("adapt_hybrid", "train_hybrid")
         ):
             raise ValueError(
                 "Negative transfer detected; adapted prediction promotion withheld. Review source/refit/physics alternatives."
+                if cp.get("negative_transfer") else
+                "The learned term's optimizer did not converge; hybrid prediction withheld. Retrain, or predict with physics."
             )
         def run(c):  # one model for every operation: the attached checkpoint when there is one, else physics
             return budget.run(adapter, c) if mode == "physics" else budget.call(lambda: hybrid.run_hybrid(adapter, c, cp, mode=mode))

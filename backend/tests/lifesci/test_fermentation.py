@@ -61,7 +61,7 @@ def test_absolute_pressure_and_economic_dimensional_balance():
     p=project('pichia'); prediction=calculate(p)
     assert prediction['pressure_saturation_ratio_air_only']==pytest.approx(201.325/151.325)
     a,b=prediction['scenarios']
-    assert b['otr_mg_l_h']==pytest.approx(20*max(0,b['cstar_mg_l']-1.5))
+    assert b['otr_mg_l_h']==pytest.approx(b['kla_h_inv']*(b['cstar_mg_l']-1.5))
     assert b['compressor_kw']>a['compressor_kw']
     assert compression_kw(36,0,101.325,.65)==0
     no_oxygen=calculate(p,{'oxygen_nm3_h':0})
@@ -194,3 +194,95 @@ def test_same_prime_adapter_receives_the_registered_fermentation_tool(tmp_path,m
     result=FullManufacturingOS().run_investigation(request)
     assert len(seen)==1 and len(result['scientific_tool_results'])==1
     assert result['constraints']['gmp_actions_available'] is False
+
+
+# --- self-checks, margins and the release gate ------------------------------------------------------
+def test_sensitivity_range_spans_power_exponent_and_gas_basis_and_brackets_the_withheld_points():
+    p=project('sulfolobus'); targets=json.loads((DATA/'validation.evaluator.json').read_text())['sulfolobus']
+    for actual in targets:
+        row=transfer_point(p,actual['working_volume_l'],actual['agitation_rpm'],actual['airflow_l_min']/actual['working_volume_l'])
+        assert row['sensitivity_low_h_inv']<=min(row['predicted_kla_h_inv'],row['gas_velocity_basis_kla_h_inv'])
+        assert row['sensitivity_high_h_inv']>=max(row['predicted_kla_h_inv'],row['gas_velocity_basis_kla_h_inv'])
+        assert row['gas_velocity_basis']=='assumed_geometric_similarity'
+        assert row['sensitivity_low_h_inv']<=actual['kla_h_inv']<=row['sensitivity_high_h_inv']
+    # At the source vessel both gas forms coincide and the source point is reproduced exactly.
+    lo=p['calibration'][0]; home=transfer_point(p,2,lo['agitation_rpm'],lo['airflow_l_min']/2)
+    assert home['predicted_kla_h_inv']==pytest.approx(lo['kla_h_inv']) and home['gas_basis_divergence']==pytest.approx(0)
+
+
+def test_measured_tank_diameters_switch_the_gas_term_to_superficial_velocity():
+    p=project('sulfolobus')
+    for e,d in zip(p['equipment'],(.13,.29,.60)): e['tank_diameter_m']=d
+    row=transfer_point(p,200,117,.1875)
+    assert row['gas_velocity_basis']=='measured_tank_diameters'
+    assert row['predicted_kla_h_inv']==pytest.approx(row['gas_velocity_basis_kla_h_inv'])
+    source_vvm=.51/2; expected=(.1875*200/.60**2)/(source_vvm*2/.13**2)
+    fit=fit_source(p)
+    assert row['predicted_kla_h_inv']==pytest.approx(fit['source_kla_h_inv']*(row['power_w_m3']/fit['source_power_w_m3'])**fit['power_exponent']*expected**.5)
+
+
+def test_recommendation_prefers_margin_over_the_edge_and_reports_what_it_could_not_meet():
+    output=calculate(project('sulfolobus'))
+    for rec in output['recommendations']:
+        chosen=rec['candidate']
+        assert rec['selection_basis']=='meets_margin_on_both_gas_bases' and rec['settings_meeting_target_across_sensitivity']==0
+        assert chosen['margin_over_target']>=rec['target_margin_required']==.2 and not chosen['robust_to_declared_sensitivity']
+    edge=calculate(project('sulfolobus'),{'kla_target_margin':0})
+    assert all(a['candidate']['hydrodynamic_power_w']<=b['candidate']['hydrodynamic_power_w']
+               for a,b in zip(edge['recommendations'],output['recommendations']))
+    source=output['copy_source_recipe']
+    assert {r['rpm'] for r in source}=={355} and all(r['vvm']==pytest.approx(.51/2) for r in source)
+
+
+def test_self_checks_name_every_unsupported_part_of_the_scale_up():
+    output=calculate(project('sulfolobus'))
+    status={c['id']:c['status'] for c in output['self_checks']}
+    assert status=={'source_power_law':'attention','calibration_degrees_of_freedom':'attention','power_exponent_plausibility':'attention',
+                    'gas_exponent_identified':'attention','power_within_calibrated_range':'ok','scale_extrapolation':'ok',
+                    'gas_basis_agreement':'blocking','robust_scenarios':'blocking'}
+    assert output['self_check_status']=='blocking'
+    power=next(c for c in output['self_checks'] if c['id']=='source_power_law')
+    assert power['observed']==pytest.approx(250*(500/355)**3/630-1)
+    large=calculate(project('sulfolobus'),{'selected_receiver_l':200,'rpm':120,'airflow_vvm':.2})
+    assert {c['id']:c['status'] for c in large['self_checks']}['scale_extrapolation']=='blocking'
+
+
+def test_pressure_lowers_kla_and_cost_is_compared_at_equal_oxygen_delivery():
+    p=project('pichia'); prediction=calculate(p); enriched,air=prediction['scenarios']
+    assert air['kla_h_inv']==pytest.approx(20*(151.325/201.325)**.5)
+    assert enriched['kla_h_inv']==pytest.approx(20*(38/36)**.5)
+    assert air['otr_mg_l_h']<enriched['otr_mg_l_h']  # constant kLa would have reported the opposite
+    matched=prediction['matched_oxygen_delivery']
+    assert matched['attainable'] and matched['scenario']['otr_mg_l_h']==pytest.approx(enriched['otr_mg_l_h'],rel=1e-9)
+    assert 100<matched['scenario']['pressure_gauge_kpa']<150
+    assert matched['oxygen_delivery_savings_usd_h']<prediction['economics']['oxygen_delivery_savings_usd_h']
+    flat=calculate(p,{'gas_exponent':0})
+    assert flat['scenarios'][1]['kla_h_inv']==pytest.approx(20)
+    unreachable=calculate(p,{'oxygen_nm3_h':30})
+    assert not unreachable['matched_oxygen_delivery']['attainable']
+    assert {c['id']:c['status'] for c in unreachable['self_checks']}['matched_delivery_attainable']=='blocking'
+
+
+def test_placeholder_oxygen_inputs_block_the_feasibility_claim():
+    p=project('pichia'); default=calculate(p)
+    assert default['oxygen_feasibility_basis']=='placeholder_inputs' and default['self_check_status']=='blocking'
+    declared=calculate(p,{'kla_h_inv':300,'our_mg_l_h':900,'dissolved_oxygen_mg_l':1.6,'air_saturation_mg_l':7.6,'broth_solubility_factor':.75})
+    assert declared['oxygen_feasibility_basis']=='declared_inputs'
+    assert {c['id']:c['status'] for c in declared['self_checks']}['oxygen_inputs_declared']=='ok'
+    short=calculate(p,{'kla_h_inv':300,'our_mg_l_h':9000,'dissolved_oxygen_mg_l':1.6,'air_saturation_mg_l':7.6,'broth_solubility_factor':.75})
+    assert not short['conditional_oxygen_feasible']
+    assert {c['id']:c['status'] for c in short['self_checks']}['demand_covered']=='blocking'
+
+
+def test_release_gate_travels_with_the_result_and_into_the_review(env):
+    p,ctx=env
+    result=p.fermentation.evaluate(ctx,'sulfolobus',{})
+    gate=result['release_gate']; verdict=result['validation']['verdict']
+    assert gate['status']=='not_a_basis_for_settings'
+    assert verdict['status']=='fails_withheld_comparison' and verdict['rows_outside_tolerance']==[200]
+    assert verdict['rows_outside_sensitivity_range']==[]
+    assert any('Withheld comparison' in reason for reason in gate['blocking'])
+    proposal=p.fermentation.review(ctx,result['id'],'priya')
+    assert sum(c.startswith('Unresolved check: ') for c in proposal['constraints'])==len(gate['blocking'])
+    failed=p.fermentation.evaluate(ctx,'sulfolobus',{'assumptions':{'selected_receiver_l':1000}})
+    assert failed['release_gate']['status']=='no_result'

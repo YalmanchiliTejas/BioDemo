@@ -11,6 +11,24 @@ from .data import project, CASE_IDS
 from .schemas import EvaluateIn
 from .model import VERSION
 
+def release_gate(prediction,evaluation):
+    """What the calculation's own checks and its withheld comparison say about using the result.
+
+    The gate travels with the result, so a reader sees an unsupported calculation as unsupported
+    before acting on any number in it. It never approves anything; review remains required."""
+    if prediction is None:
+        return {'status':'no_result','blocking':['The calculation did not complete.'],'attention':[]}
+    checks=prediction.get('self_checks',[])
+    blocking=[c['message'] for c in checks if c['status']=='blocking']
+    attention=[c['message'] for c in checks if c['status']=='attention']
+    verdict=(evaluation or {}).get('verdict')
+    if verdict and verdict['status']=='fails_withheld_comparison':
+        blocking.append(f"Withheld comparison: worst error {verdict['worst_relative_error']:+.0%} against a {verdict['tolerance']:.0%} screening tolerance "
+                        f"(receivers {', '.join(str(r)+' L' for r in verdict['rows_outside_tolerance'])}).")
+    return {'status':'not_a_basis_for_settings' if blocking else 'screening_use_with_review','blocking':blocking,'attention':attention,
+            'meaning':'Blocking items must be resolved, normally by receiver characterization, before any setting here is relied on.'}
+
+
 class FermentationService:
     def __init__(self, platform):
         self.p=platform
@@ -67,10 +85,11 @@ class FermentationService:
             status='completed'; issues=[]
         except (ValueError,RuntimeError,ArithmeticError) as exc:
             prediction=None; evaluation=None; status='failed'; issues=[str(exc)]
+        gate=release_gate(prediction,evaluation)
         result=self.p.evidence.record_derived(ctx,'physical_analysis_result',{'site_id':site,'process_family':'aerobic_fermentation',
             'case_id':plan['project']['id'],'project':plan['project'],'assumptions':request.assumptions.model_dump(),
             'plan_hash':plan['plan_hash'],'model_manifest':plan['model_manifest'],'prediction':prediction,'validation':evaluation,
-            'execution_status':status,'issues':issues,'review_state':'requires_engineering_review',
+            'execution_status':status,'issues':issues,'release_gate':gate,'review_state':'requires_engineering_review',
             'resource_usage':{'solver_calls':budget.calls,'runtime_seconds':perf_counter()-started,'inference_cost_usd':0,'human_preparation_minutes':None},
             'warnings':plan['project']['limitations']},inputs=[ref],produced_by={'method':VERSION,'implementation_digest':adapter.digest})
         return {'status':'completed' if status=='completed' else 'blocked','output':result,'issues':issues}
@@ -91,7 +110,8 @@ class FermentationService:
                      'mode':'literature_transfer_review_only','questions':result['project']['missing']},basis=basis,
             rationale='Review source applicability, withheld discrepancies, equipment ratings and scenario assumptions.',
             expected_result='Document engineering characterization and acceptance criteria; no manufacturing change or qualification.',
-            owner_id=owner_id,site_id=result['site_id'],constraints=result['warnings'],
+            owner_id=owner_id,site_id=result['site_id'],
+            constraints=[*result['warnings'],*[f"Unresolved check: {reason}" for reason in (result.get('release_gate') or {}).get('blocking',[])]],
             follow_up_measure='Independent receiver kLa/OUR and replicated productivity under the proposed conditions')
 
     def agent_assessment(self,ctx,case_id,site_id='NF1',assumptions=None):
