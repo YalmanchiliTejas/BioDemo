@@ -10,7 +10,14 @@ export type TrendSummary = { n: number; mean: number; min: TrendPoint; max: Tren
 export type TrendSeries = TrendBatch & { unit: string | null; summary: TrendSummary; points: Array<[number, number, string]>;
   points_total: number; points_without_time: number; sampled_every: number };
 export type TrendCatalogue = { parameters: TrendParameter[]; batches: TrendBatch[]; deliveries: number };
-export type TrendData = TrendCatalogue & { parameter: string; series: TrendSeries[] };
+/** Calculated at measured times only: the sharpest steps within a batch, and the widest gaps between batches at one time. */
+export type Standouts = {
+  largest_changes_between_consecutive_samples?: Array<{ key: string; batch: string; from_h: number; to_h: number; from: number; to: number; change: number }>;
+  typical_change_between_samples?: number;
+  largest_same_time_differences?: Array<{ key: string; batch: string; time_h: number; value: number; median_of_other_runs: number; difference: number; runs_at_this_time: number }>;
+  from_sampled_profiles: boolean;
+};
+export type TrendData = TrendCatalogue & { parameter: string; series: TrendSeries[]; standouts: Standouts };
 
 export type Statistic = 'last' | 'max' | 'min' | 'mean' | 'first';
 export const STATISTICS: Array<{ value: Statistic; label: string }> = [
@@ -29,13 +36,37 @@ export const LAYOUTS: Array<{ value: ExportLayout; label: string; detail: string
 export const getTrends = async <T extends TrendCatalogue = TrendCatalogue>(parameter?: string) =>
   (await cmoFetch(`/trends${parameter ? `?parameter=${encodeURIComponent(parameter)}` : ''}`)).json() as Promise<T>;
 
-/** Leaving parameters or batches out exports all of them. */
-export function exportTrends(options: { format: 'csv' | 'xlsx'; layout: ExportLayout; parameters?: string[]; batches?: string[] }) {
-  const query = new URLSearchParams({ format: options.format, layout: options.layout });
+export type ExportFormat = 'csv' | 'xlsx' | 'json';
+/** Leaving parameters, batches or columns out means all of them. */
+export type ExportOptions = { layout: ExportLayout; parameters?: string[]; batches?: string[]; columns?: string[];
+  timeFrom?: number | null; timeTo?: number | null; celsius?: boolean; verifiedOnly?: boolean };
+export type ExportPreview = { columns: string[]; rows: Array<Record<string, string | number | boolean | null>>; total_rows: number };
+
+function exportQuery(options: ExportOptions) {
+  const query = new URLSearchParams({ layout: options.layout });
   options.parameters?.forEach(p => query.append('parameter', p));
   options.batches?.forEach(b => query.append('batch', b));
+  options.columns?.forEach(c => query.append('column', c));
+  if (options.timeFrom != null) query.set('time_from', String(options.timeFrom));
+  if (options.timeTo != null) query.set('time_to', String(options.timeTo));
+  if (options.celsius) query.set('celsius', 'true');
+  if (options.verifiedOnly) query.set('verified_only', 'true');
+  return query;
+}
+
+export function exportTrends(options: ExportOptions & { format: ExportFormat }) {
+  const query = exportQuery(options); query.set('format', options.format);
   return download(`/trends/export?${query}`, `batch-values-${options.layout}.${options.format}`);
 }
+
+/** The first rows of exactly what a download would contain. */
+export async function previewExport(options: ExportOptions, rows = 8) {
+  const query = exportQuery(options); query.set('preview', String(rows));
+  return (await cmoFetch(`/trends/export?${query}`)).json() as Promise<ExportPreview>;
+}
+
+/** What Trends hands to the Export page when its button is used: the parameter and batches on screen. */
+export const EXPORT_HANDOFF = 'export.handoff';
 
 /** Readable without false precision: four significant figures, no exponent for ordinary magnitudes. */
 export function formatValue(v: number | null | undefined) {

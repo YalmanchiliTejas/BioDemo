@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Download, PackageCheck } from 'lucide-react';
 import { WorkspacePageHeader } from '@/components/shell/WorkspacePageHeader';
-import { Button, Callout, Modal, Pill, table } from '@/components/ui';
+import { Button, Callout, Pill, table } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { parameterLabel } from '@/lib/cmo-api';
 import { processRequest } from '@/lib/process-api';
-import { exportTrends, formatValue, getTrends, LAYOUTS, statistic, STATISTICS, type ExportLayout, type Statistic, type TrendCatalogue, type TrendData, type TrendSeries } from '@/lib/trends-api';
+import { EXPORT_HANDOFF, formatValue, getTrends, statistic, STATISTICS, type Standouts, type Statistic, type TrendCatalogue, type TrendData, type TrendSeries } from '@/lib/trends-api';
 import { BatchComparisonChart, BatchProfileChart, outside, SERIES_COLORS, type Limits } from './TrendCharts';
 
 type Spec = Limits & { spec_id: string; parameter: string; unit: string | null; version: number; equipment_id: string | null; product_id: string | null };
@@ -31,7 +31,6 @@ export function TrendsWorkspace() {
   const [notice, setNotice] = useState('');
   const [specs, setSpecs] = useState<Spec[]>([]);
   const [specId, setSpecId] = useState('');
-  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -90,6 +89,13 @@ export function TrendsWorkspace() {
       return { ...prev, [key]: free };
     });
   }
+  /** The Export page starts from what is on screen here: this parameter, and these batches if some are hidden or filtered out. */
+  function handOff() {
+    try {
+      sessionStorage.setItem(EXPORT_HANDOFF, JSON.stringify({ parameters: [parameter],
+        ...(current && shown.length < current.series.length ? { batches: shown.map(s => s.key) } : {}) }));
+    } catch { /* the Export page then starts from everything */ }
+  }
   const toggleShown = (key: string) => setHidden(prev => { const next = new Set(prev); if (!next.delete(key)) next.add(key); return next; });
 
   const sampled = shown.filter(s => s.sampled_every > 1).length;
@@ -99,7 +105,7 @@ export function TrendsWorkspace() {
 
   return <div className="workspace-page" data-testid="trends">
     <WorkspacePageHeader title="Trends" description="Any accepted value from your deliveries, across batches and over process time. Choose a parameter; nothing here waits on the assistant."
-      actions={catalogue?.parameters.length ? <Button variant="primary" onClick={() => setExporting(true)}><Download size={15} />Export</Button> : undefined} />
+      actions={catalogue?.parameters.length ? <Link href="/export/" onClick={handOff} className="chrome-button primary"><Download size={15} />Export</Link> : undefined} />
     {error && <Callout tone="critical" title="Trends could not be loaded" className="mb-4">{error}</Callout>}
     {!catalogue && !error && <p role="status" className="py-10 text-center text-sm text-text-secondary">Loading accepted values…</p>}
     {catalogue && !catalogue.parameters.length && <section className="rounded-2xl border border-border-hairline bg-white px-6 py-12 text-center">
@@ -128,6 +134,7 @@ export function TrendsWorkspace() {
       {current && !shown.length && <Callout tone="info" title="No batches match these filters">Clear a filter or tick a batch in the table to bring it back.</Callout>}
 
       {current && !!shown.length && <div className="space-y-4">
+        <StandoutsPanel found={current.standouts} shown={new Set(shown.map(s => s.key))} unit={unit} colors={colors} onSelect={key => { if (!colors[key]) toggleHighlight(key); }} />
         <section className="rounded-2xl border border-border-hairline bg-white">
           <div className="flex flex-wrap items-center gap-3 border-b border-border-hairline px-5 py-3">
             <div className="min-w-0">
@@ -176,7 +183,6 @@ export function TrendsWorkspace() {
         </div>
       </section>}
     </>}
-    {exporting && catalogue && <ExportDialog catalogue={catalogue} parameter={parameter} shown={shown} total={current?.series.length ?? 0} onClose={() => setExporting(false)} />}
   </div>;
 }
 
@@ -194,47 +200,35 @@ function BatchRow({ s, color, shown, limits, onHighlight, onShown }: { s: TrendS
   </tr>;
 }
 
-/** One place to take values to another tool: which batches, which parameters, what shape, what file. */
-function ExportDialog({ catalogue, parameter, shown, total, onClose }: { catalogue: TrendCatalogue; parameter: string; shown: TrendSeries[]; total: number; onClose: () => void }) {
-  const [scope, setScope] = useState<'shown' | 'all'>(shown.length && shown.length < total ? 'shown' : 'all');
-  const [chosen, setChosen] = useState<Set<string>>(new Set([parameter]));
-  const [layout, setLayout] = useState<ExportLayout>('long');
-  const [format, setFormat] = useState<'csv' | 'xlsx'>('csv');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const everything = chosen.size === catalogue.parameters.length;
-  async function run() {
-    setBusy(true); setError('');
-    try {
-      await exportTrends({ format, layout, parameters: everything ? undefined : [...chosen], batches: scope === 'shown' ? shown.map(s => s.key) : undefined });
-      onClose();
-    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
-  }
-  const heading = 'mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary';
-  return <Modal open onClose={onClose} title="Export batch values" width="max-w-xl"
-    footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={busy || !chosen.size} onClick={run}><Download size={14} />{busy ? 'Preparing…' : `Download ${format.toUpperCase()}`}</Button></>}>
-    <div className="space-y-4 text-[13px]">
-      <div><p className={heading}>Batches</p>
-        <label className="mr-4 inline-flex items-center gap-2"><input type="radio" name="scope" checked={scope === 'all'} onChange={() => setScope('all')} />All {catalogue.batches.length} batches</label>
-        <label className={cn('inline-flex items-center gap-2', !shown.length && 'opacity-50')}><input type="radio" name="scope" disabled={!shown.length} checked={scope === 'shown'} onChange={() => setScope('shown')} />The {shown.length} shown on the page</label>
+/** The commonest question, answered without asking: which batch moved most between samples, and which sat furthest from the rest. */
+function StandoutsPanel({ found, shown, unit, colors, onSelect }: { found: Standouts; shown: Set<string>; unit: string; colors: Record<string, string>; onSelect: (key: string) => void }) {
+  // The largest entry for each batch, so one batch's long excursion does not crowd out the others.
+  const firstPerBatch = <T extends { key: string }>(items: T[] = []) => items.filter((s, i) => shown.has(s.key) && items.findIndex(x => x.key === s.key) === i).slice(0, 3);
+  const steps = firstPerBatch(found.largest_changes_between_consecutive_samples);
+  const gaps = firstPerBatch(found.largest_same_time_differences);
+  if (!steps.length && !gaps.length) return null;
+  const typical = found.typical_change_between_samples;
+  const signed = (v: number) => `${v > 0 ? '+' : '−'}${formatValue(Math.abs(v))}`;
+  const row = 'flex w-full items-baseline gap-2 rounded-control px-2 py-1.5 text-left hover:bg-surface-secondary';
+  const swatch = (key: string) => <span className="inline-block h-0.5 w-3 shrink-0 translate-y-[-3px] rounded" style={{ background: colors[key] ?? '#cbd5e1' }} />;
+  return (
+    <section className="rounded-2xl border border-border-hairline bg-white" data-testid="trend-standouts">
+      <div className="border-b border-border-hairline px-5 py-3">
+        <h2 className="text-[15px] font-medium text-ink">What stands out</h2>
+        <p className="text-xs text-text-tertiary">Calculated from the accepted values at measured times; nothing is estimated between samples. Click one to highlight its batch below.</p>
       </div>
-      <div><div className="flex items-baseline justify-between"><p className={heading}>Parameters</p>
-          <button className="text-xs text-brand-teal hover:underline" onClick={() => setChosen(everything ? new Set([parameter]) : new Set(catalogue.parameters.map(p => p.id)))}>{everything ? 'Only the one on the page' : 'Select all'}</button></div>
-        <div className="grid max-h-40 grid-cols-2 gap-x-4 gap-y-1 overflow-y-auto rounded-control border border-border-hairline p-2">
-          {catalogue.parameters.map(p => <label key={p.id} className="flex items-center gap-2 truncate"><input type="checkbox" checked={chosen.has(p.id)}
-            onChange={() => setChosen(prev => { const next = new Set(prev); if (!next.delete(p.id)) next.add(p.id); return next; })} />{parameterLabel(p.id)}</label>)}
-        </div>
+      <div className="grid gap-x-6 gap-y-3 px-3 py-3 md:grid-cols-2">
+        {steps.length > 0 && <div><p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">Largest change between two samples</p>
+          <ul>{steps.map((s, i) => <li key={i}><button type="button" className={row} onClick={() => onSelect(s.key)}>{swatch(s.key)}
+            <span className="shrink-0 whitespace-nowrap font-mono text-[12.5px] text-ink">{s.batch || '(no batch)'}</span>
+            <span className="text-[13px] text-text-secondary"><span className="font-medium tabular-nums text-text-primary">{signed(s.change)} {unit}</span> between {formatValue(s.from_h)} h and {formatValue(s.to_h)} h <span className="text-text-tertiary">({formatValue(s.from)} → {formatValue(s.to)})</span></span></button></li>)}</ul>
+          {typical != null && <p className="px-2 pt-1 text-xs text-text-tertiary">A typical change between samples is {formatValue(typical)} {unit}.</p>}</div>}
+        {gaps.length > 0 && <div><p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">Furthest from the other batches at the same time</p>
+          <ul>{gaps.map((s, i) => <li key={i}><button type="button" className={row} onClick={() => onSelect(s.key)}>{swatch(s.key)}
+            <span className="shrink-0 whitespace-nowrap font-mono text-[12.5px] text-ink">{s.batch || '(no batch)'}</span>
+            <span className="text-[13px] text-text-secondary"><span className="font-medium tabular-nums text-text-primary">{signed(s.difference)} {unit}</span> at {formatValue(s.time_h)} h <span className="text-text-tertiary">({formatValue(s.value)} against a median of {formatValue(s.median_of_other_runs)} across {s.runs_at_this_time - 1} others)</span></span></button></li>)}</ul></div>}
       </div>
-      <div><p className={heading}>Shape</p>
-        <div className="space-y-1.5">{LAYOUTS.map(l => <label key={l.value} className="flex items-start gap-2"><input type="radio" name="layout" className="mt-1" checked={layout === l.value} onChange={() => setLayout(l.value)} />
-          <span><span className="font-medium text-text-primary">{l.label}</span><span className="block text-xs text-text-tertiary">{l.detail}</span></span></label>)}</div>
-      </div>
-      <div><p className={heading}>File</p>
-        <label className="mr-4 inline-flex items-center gap-2"><input type="radio" name="format" checked={format === 'csv'} onChange={() => setFormat('csv')} />CSV</label>
-        <label className="inline-flex items-center gap-2"><input type="radio" name="format" checked={format === 'xlsx'} onChange={() => setFormat('xlsx')} />Excel (.xlsx)</label>
-      </div>
-      <p className="text-xs text-text-tertiary">Only accepted values are exported. Each source file is checked against its recorded hash first; the export stops if a file has changed.</p>
-      {error && <Callout tone="critical" title="Export stopped">{error}</Callout>}
-    </div>
-  </Modal>;
+      {found.from_sampled_profiles && <p className="border-t border-border-hairline px-5 py-2 text-xs text-text-tertiary">Some long profiles were thinned before this was calculated, so a very brief step may be missed.</p>}
+    </section>
+  );
 }

@@ -1,4 +1,4 @@
-import { Bell, Building2, ChartLine, Lock, SlidersHorizontal, Database, FlaskConical, FolderKanban, LayoutDashboard, MessageSquare, PackageCheck, Radar, ScrollText, UserRound, type LucideIcon } from 'lucide-react';
+import { Bell, Building2, ChartLine, Download, Lock, SlidersHorizontal, Database, FlaskConical, FolderKanban, LayoutDashboard, MessageSquare, PackageCheck, Radar, ScrollText, UserRound, type LucideIcon } from 'lucide-react';
 
 /** One entry per destination; the sidebar, page breadcrumbs and quick find all read from this list. */
 export type NavItem = { label: string; href: string; icon: LucideIcon; description: string; guide?: string; keywords?: string };
@@ -12,6 +12,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Workspaces', href: '/workspaces', icon: FolderKanban, description: 'Saved results, charts, source records and review steps', keywords: 'results investigation deviation schedule data tables actions' },
       { label: 'Signals', href: '/signals', icon: Radar, description: 'Possible deviations detected from your data, triaged by the assistant', keywords: 'deviation alert excursion oos out of spec trend triage' },
       { label: 'Deliveries', href: '/cmo', icon: PackageCheck, guide: 'deliveries', description: 'Check CDMO files against their original sources', keywords: 'cmo cdmo upload verify batch coa export' },
+      { label: 'Export', href: '/export', icon: Download, description: 'Take batch values or signals to another tool, in the shape it needs', keywords: 'export download csv excel xlsx json file columns units preset' },
       { label: 'Assistant', href: '/home', icon: MessageSquare, guide: 'assistant', description: 'Ask a question with the evidence you choose', keywords: 'chat ask companion question' },
     ],
   },

@@ -12,6 +12,7 @@ from time import monotonic
 
 from pydantic import ValidationError
 
+from .open_links import open_links
 from ..cmo_datasets import conversation_source, require_dataset
 from ..evidence import EvidenceRef
 from ..flows import node_order
@@ -213,6 +214,11 @@ class EngineeringConversationService:
                 # Internal credentials/fencing data are not a user-facing plan.
                 for step in turn['steps']:
                     step['payload'] = {k: v for k, v in step['payload'].items() if not k.startswith('_')}
+            if turn.get('reply') and turn.get('steps'):
+                def evidence(record_id):
+                    rec = self.p.store.read().get(ctx.tenant_id, 'evidence', record_id)
+                    return rec.state if rec and self.p.identity.check(ctx, 'read', 'evidence', rec.id, site_id=rec.state.get('site_id')) else None
+                turn['open_in'] = open_links(turn['steps'], evidence=evidence, question=turn.get('user_text'), answer=turn.get('reply'))
             for artifact in turn['artifacts']:
                 record = self.p.store.read().require(ctx.tenant_id, artifact['kind'], artifact['id'])
                 artifact['status'] = record.state.get('status', 'current')

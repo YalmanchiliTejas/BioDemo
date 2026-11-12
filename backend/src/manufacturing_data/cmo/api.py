@@ -668,14 +668,23 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
         if parameter is not None:
             if parameter not in {p['id'] for p in result['parameters']}: raise HTTPException(404,'No accepted values for this parameter')
             result['parameter']=parameter; result['series']=trends.series(entries,parameter)
+            result['standouts']=trends.series_standouts(result['series'])
         return result
 
     @api.get('/trends/export')
-    def trend_export(format:str='csv',layout:str='long',parameter:list[str]|None=Query(default=None),batch:list[str]|None=Query(default=None)):
-        # Repeated ?parameter= and ?batch= (the batch key from /trends); leaving one out means all of them.
-        content=guard(lambda:service.trend_export(parameters=parameter,keys=batch,layout=layout,format=format))
-        return Response(content,media_type='text/csv' if format=='csv' else 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            headers={'Content-Disposition':f'attachment; filename="batch-values-{layout}.{format}"'})
+    def trend_export(format:str='csv',layout:str='long',parameter:list[str]|None=Query(default=None),batch:list[str]|None=Query(default=None),
+                     column:list[str]|None=Query(default=None),time_from:float|None=None,time_to:float|None=None,
+                     celsius:bool=False,verified_only:bool=False,preview:int=Query(default=0,ge=0,le=50)):
+        # Repeated ?parameter=, ?batch= (the batch key from /trends) and ?column=; leaving one out means all of them.
+        options=dict(parameters=parameter,keys=batch,layout=layout,columns=column,time_from=time_from,time_to=time_to,
+                     celsius=celsius,verified_only=verified_only)
+        if preview:
+            # The first rows of exactly what a download would contain, and how many rows there would be.
+            rows=guard(lambda:service.trend_rows(**options,check_sources=False))
+            return {'columns':list(dict.fromkeys(k for row in rows for k in row)),'rows':rows[:preview],'total_rows':len(rows)}
+        content=guard(lambda:service.trend_export(format=format,**options))
+        media={'csv':'text/csv','json':'application/json'}.get(format,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        return Response(content,media_type=media,headers={'Content-Disposition':f'attachment; filename="batch-values-{layout}.{format}"'})
 
     def verified_payload(run_id:str,tenant:str|None=None):
         if tenant is not None:
