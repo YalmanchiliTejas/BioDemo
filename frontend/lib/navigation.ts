@@ -1,4 +1,4 @@
-import { Bell, Building2, Lock, SlidersHorizontal, Database, FlaskConical, FolderKanban, LayoutDashboard, MessageSquare, PackageCheck, Radar, ScrollText, UserRound, type LucideIcon } from 'lucide-react';
+import { Bell, Building2, ChartLine, Lock, SlidersHorizontal, Database, FlaskConical, FolderKanban, LayoutDashboard, MessageSquare, PackageCheck, Radar, ScrollText, UserRound, type LucideIcon } from 'lucide-react';
 
 /** One entry per destination; the sidebar, page breadcrumbs and quick find all read from this list. */
 export type NavItem = { label: string; href: string; icon: LucideIcon; description: string; guide?: string; keywords?: string };
@@ -7,6 +7,7 @@ export type NavGroup = { id: string; label: string; items: NavItem[] };
 export const NAV_GROUPS: NavGroup[] = [
   {
     id: 'work', label: 'Work', items: [
+      { label: 'Trends', href: '/trends', icon: ChartLine, description: 'Any accepted value across batches and over process time, with export', keywords: 'trend chart graph plot batches parameter compare export csv excel control' },
       { label: 'Overview', href: '/dashboard', icon: LayoutDashboard, guide: 'dashboard', description: 'Status, recent deliveries and what needs attention', keywords: 'dashboard home status' },
       { label: 'Workspaces', href: '/workspaces', icon: FolderKanban, description: 'Saved results, charts, source records and review steps', keywords: 'results investigation deviation schedule data tables actions' },
       { label: 'Signals', href: '/signals', icon: Radar, description: 'Possible deviations detected from your data, triaged by the assistant', keywords: 'deviation alert excursion oos out of spec trend triage' },

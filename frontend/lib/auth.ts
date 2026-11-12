@@ -68,7 +68,10 @@ export async function authHeaders(): Promise<Record<string, string>> {
 }
 
 /** Only same-site paths are accepted as a post-sign-in destination. */
-export function safeNext(value: string | null | undefined, fallback = '/dashboard/') {
+/** Where a signed-in person arrives when no destination was asked for: the trends of their own data. */
+export const LANDING = '/trends/';
+
+export function safeNext(value: string | null | undefined, fallback = LANDING) {
   return value && value.startsWith('/') && !value.startsWith('//') && !/[\\\x00-\x20]/.test(value) ? value : fallback;
 }
 
