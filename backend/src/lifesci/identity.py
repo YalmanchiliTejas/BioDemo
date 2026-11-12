@@ -10,6 +10,7 @@ approve, sign, release or execute a consequential operation (LS-025).
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Iterable
@@ -51,6 +52,14 @@ DEFAULT_ROLE_POLICY: dict[str, dict[str, frozenset[str]]] = {
 
 
 @dataclass(frozen=True)
+class Authentication:
+    """How and when the identity provider says this actor signed in. Set only from a verified token."""
+    method: str
+    at: float | None = None  # epoch seconds of the most recent sign-in; None when the provider did not assert one
+    assurance: str | None = None
+
+
+@dataclass(frozen=True)
 class AccessContext:
     tenant_id: str
     actor_id: str
@@ -61,11 +70,42 @@ class AccessContext:
     delegated_from: str | None = None  # service jobs carry a person's limited scope
     authorization_version: int = 0
     role_scopes: tuple[tuple[str, str | None], ...] | None = None
+    # None where no identity provider verified the request (development headers, in-process service calls).
+    authentication: Authentication | None = None
 
     def with_roles(self, *roles: str) -> "AccessContext":
         return AccessContext(self.tenant_id, self.actor_id, self.actor_kind, frozenset(roles),
                              self.site_ids, self.partner_org_id, self.delegated_from, self.authorization_version,
-                             tuple((r, s) for r, s in self.role_scopes if r in roles) if self.role_scopes is not None else None)
+                             tuple((r, s) for r, s in self.role_scopes if r in roles) if self.role_scopes is not None else None,
+                             self.authentication)
+
+
+def reauth_max_age_seconds() -> int:
+    return int(os.environ.get("LIFESCI_REAUTH_MAX_AGE_SECONDS", "900"))
+
+
+def authentication_assertion(ctx: AccessContext, claimed: dict[str, Any] | None, *, purpose: str,
+                             required: bool = True) -> dict[str, Any]:
+    """What a record may state about how its actor authenticated for a consequential act.
+
+    Where a verified token established the identity, the method and time come from that token and a
+    required re-authentication means a recent sign-in; the caller's own description is not evidence.
+    Without a verifying provider (development, in-process calls) the caller's stated method is kept and
+    the record says it is unverified.
+    """
+    verified = ctx.authentication
+    if verified is None:
+        method = (claimed or {}).get("method")
+        if required and not method:
+            raise PermissionError(f"{purpose} requires re-authentication (authentication.method)")
+        return {"method": method or "session", "assurance": (claimed or {}).get("assurance", "unspecified"),
+                "verified": False}
+    if required:
+        age = None if verified.at is None else utc_now().timestamp() - verified.at
+        if age is None or age > reauth_max_age_seconds() or age < -300:
+            raise PermissionError(f"{purpose} requires a recent sign-in; sign in again, then retry")
+    return {"method": verified.method, "assurance": verified.assurance or "unspecified", "verified": True,
+            "authenticated_at": None if verified.at is None else iso(datetime.fromtimestamp(verified.at, utc_now().tzinfo))}
 
 
 @dataclass(frozen=True)

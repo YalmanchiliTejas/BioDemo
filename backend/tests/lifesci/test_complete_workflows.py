@@ -124,6 +124,7 @@ def test_edge_restart_lost_ack_and_signed_receipt(world, tmp_path, monkeypatch):
     from src.lifesci.edge import EdgeAgent
     p, c = world
     monkeypatch.setenv("EDGE_TEST_SECRET", "long-secret-only-in-environment")
+    monkeypatch.setenv("LIFESCI_CONNECTOR_SECRET_ENVS", "EDGE_TEST_SECRET")
     monkeypatch.setenv("LIFESCI_CONNECTOR_FILE_ROOT", str(tmp_path))
     exports = tmp_path / "exports"; exports.mkdir()
     (exports / "data.json").write_text(json.dumps([{"id": "R1", "timestamp": "2026-10-24T00:00:00Z", "value": 7}]))

@@ -26,20 +26,24 @@ export function SourceViewer({ run, measurement, parameters, reviewer, onChanged
 
   useEffect(() => {
     let url = '';
+    let stale = false;  // a slower reply for a previous measurement must not replace this one's source
     setCells(null); setPage(null); setError(''); setCorrecting(false);
     setFix({ value: measurement.value_raw, unit: measurement.unit_declared ?? measurement.unit_raw ?? measurement.unit, parameter: measurement.parameter, batch: measurement.batch, time: measurement.time });
     (async () => {
       try {
         if (pdf) {
           const response = await cmoFetch(`/runs/${run.id}/pages/${measurement.source_id}/${measurement.source.page ?? 1}`);
-          url = URL.createObjectURL(await response.blob());
+          const blob = await response.blob();
+          if (stale) return;
+          url = URL.createObjectURL(blob);
           setPage({ url, width: Number(response.headers.get('X-Page-Width') ?? 1), height: Number(response.headers.get('X-Page-Height') ?? 1) });
         } else {
-          setCells(await getJson<Cells>(`/runs/${run.id}/cells/${measurement.id}`));
+          const loaded = await getJson<Cells>(`/runs/${run.id}/cells/${measurement.id}`);
+          if (!stale) setCells(loaded);
         }
-      } catch (e) { setError((e as Error).message); }
+      } catch (e) { if (!stale) setError((e as Error).message); }
     })();
-    return () => { if (url) URL.revokeObjectURL(url); };
+    return () => { stale = true; if (url) URL.revokeObjectURL(url); };
   }, [run.id, measurement.id, measurement.source_id, measurement.source.page, pdf, measurement]);
 
   async function decide(decision: 'accept' | 'reject' | 'correct') {

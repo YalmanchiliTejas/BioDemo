@@ -100,6 +100,7 @@ def test_opcua_encrypted_read_preserves_source_time_and_quality(monkeypatch, tmp
     idx = server.register_namespace("urn:biodemo:test")
     node = server.nodes.objects.add_variable(idx, "pH", 7.1)
     monkeypatch.setenv("TEST_OPCUA_SECURITY", f"Basic256Sha256,SignAndEncrypt,{client_cert},{client_key},{server_cert}")
+    monkeypatch.setenv("LIFESCI_CONNECTOR_SECRET_ENVS", "TEST_OPCUA_SECURITY")
     server.start()
     try:
         source = OpcUaSource({"connector_id": "opc1", "family": "HISTORIAN", "site_id": "S1",

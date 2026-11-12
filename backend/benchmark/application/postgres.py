@@ -14,7 +14,9 @@ class PostgresActionStore:
             import psycopg
         except ImportError as exc:  # pragma: no cover - optional service
             raise RuntimeError("Install the 'knowledge' extra to use PostgreSQL") from exc
-        self._connection = psycopg.connect(dsn)
+        # Autocommit makes each `transaction()` block a real transaction that commits on exit. Without it the
+        # first read opens an implicit transaction that later blocks only nest inside, and nothing commits.
+        self._connection = psycopg.connect(dsn, autocommit=True)
         self._initialize()
 
     def close(self) -> None:

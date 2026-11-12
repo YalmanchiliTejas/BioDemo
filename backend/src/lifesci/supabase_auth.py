@@ -99,11 +99,32 @@ class SupabaseVerifier:
         return claims
 
 
+def sign_in_assertion(claims: dict[str, Any]) -> Any:
+    """The token's own record of how and when this session signed in (Supabase `amr` and `aal`)."""
+    from .identity import Authentication
+    latest: tuple[float, str] | None = None
+    entries = claims.get("amr")
+    for entry in entries if isinstance(entries, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        stamp, method = entry.get("timestamp"), entry.get("method")
+        if isinstance(stamp, (int, float)) and not isinstance(stamp, bool) and isinstance(method, str) and method:
+            if latest is None or stamp > latest[0]:
+                latest = (float(stamp), method[:64])
+    aal = claims.get("aal")
+    return Authentication(latest[1] if latest else "unknown", latest[0] if latest else None,
+                          aal if isinstance(aal, str) else None)
+
+
 def supabase_resolver(platform: Any, verifier: SupabaseVerifier | None = None) -> Callable[[Any], Any]:
     verifier = verifier or SupabaseVerifier.from_env()
 
     def resolve(request: Any) -> Any:
+        from dataclasses import replace
         claims = verifier.verify(request.headers.get("authorization"))
+        return replace(_context(request, claims), authentication=sign_in_assertion(claims))
+
+    def _context(request: Any, claims: dict[str, Any]) -> Any:
         tenant = verifier.tenant
         requested = request.headers.get("x-organization-id")
         if requested and requested.startswith("demo_"):

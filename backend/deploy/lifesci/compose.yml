@@ -12,6 +12,10 @@ x-app: &app
     LIFESCI_DATABASE_URL: postgresql://lifesci_app:${LIFESCI_APP_PASSWORD:?Set runtime password}@db:5432/lifesci
     LIFESCI_DB_MIGRATE: "0"
     LIFESCI_TENANTS: ${LIFESCI_TENANTS:-demo-northfield}
+    # Development sign-in trusts identity headers. The API port below is published on host loopback only;
+    # requests arrive from the Docker bridge, so the local-only check is relaxed here. Never publish this
+    # port more widely without setting LIFESCI_AUTH_MODE=supabase or oidc.
+    LIFESCI_DEV_AUTH_ALLOW_REMOTE: ${LIFESCI_DEV_AUTH_ALLOW_REMOTE:-1}
     TEMPORAL_ADDRESS: temporal:7233
     LIVEKIT_URL: ${LIVEKIT_URL:-}
     LIVEKIT_API_URL: ${LIVEKIT_API_URL:-}

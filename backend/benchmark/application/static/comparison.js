@@ -109,8 +109,8 @@ async function init() {
   try {
     state.index = await fetchJSON("/api/case-comparison");
   } catch (error) {
-    document.getElementById("caseStatus").innerHTML =
-      `<span>CASE STATUS</span><strong>Unavailable</strong><small>${error.message}</small>`;
+    clear(document.getElementById("caseStatus")).append(
+      el("span", { text: "CASE STATUS" }), el("strong", { text: "Unavailable" }), el("small", { text: error.message }));
     return;
   }
   renderClassificationLegend();
@@ -768,7 +768,7 @@ async function loadChoSeries(experimentId, variable, process) {
       fetchJSON(`/api/case-comparison/cho/series?cultivation=${encodeURIComponent(item.id)}&variables=${encodeURIComponent(variable)}&max_points=300`)));
     drawChoPlot(plot, variable, first, second);
   } catch (error) {
-    plot.innerHTML = `<p class="muted" style="padding:20px">Could not load series: ${error.message}</p>`;
+    clear(plot).append(el("p", { class: "muted", style: "padding:20px", text: `Could not load series: ${error.message}` }));
   }
 }
 
