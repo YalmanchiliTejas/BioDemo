@@ -755,16 +755,30 @@ class IngestionService:
                 group[name]=row['value']; group[name+'_unit']=row['unit']
                 group[name+'_sources']=group.get(name+'_sources','')+row['source']+'\n'
             rows=list(groups.values())
+        return self.table(rows,format=format,title='Verified measurements')
+
+    def table(self,rows,*,format='csv',title='Values'):
+        """Rows as a CSV or XLSX file, with spreadsheet formulas neutralized."""
         headers=list(dict.fromkeys(k for row in rows for k in row)) or ['batch','time','parameter','value','unit','source']
         if format=='xlsx':
             from openpyxl import Workbook
-            book=Workbook(); sheet=book.active; sheet.title='Verified measurements'; sheet.append(headers)
+            book=Workbook(); sheet=book.active; sheet.title=title; sheet.append(headers)
             for row in rows: sheet.append([self.safe_cell(row.get(h,'')) for h in headers])
             output=io.BytesIO(); book.save(output); return output.getvalue()
         if format!='csv': raise ValueError('Unsupported export format')
         output=io.StringIO(newline=''); writer=csv.DictWriter(output,fieldnames=headers); writer.writeheader()
         writer.writerows({k:self.safe_cell(v) for k,v in row.items()} for row in rows)
         return output.getvalue().encode()
+
+    def trend_export(self,*,parameters=None,keys=None,layout='long',format='csv'):
+        """Accepted values across deliveries as one file. Every source behind an exported value is
+        checked against its recorded hash first, exactly as a single-delivery export does."""
+        from . import trends
+        chosen=trends.select(trends.batches(self.runs()),parameters=parameters,keys=keys)
+        for entry in chosen:
+            for source_id in {r['measurement']['source_id'] for r in entry['rows']}:
+                self.original(entry['run_id'],source_id,run=entry['run'])
+        return self.table(trends.export_rows(chosen,layout),format=format,title='Batch values')
 
     @staticmethod
     def safe_cell(value):

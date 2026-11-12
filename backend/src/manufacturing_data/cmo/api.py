@@ -17,7 +17,7 @@ from typing import Literal
 from contextvars import ContextVar
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
@@ -633,6 +633,25 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
                      'X-Package-Complete':str(run['summary']['verified_package']).lower(),
                      'X-Open-Issues':str(run['summary']['open_issues']),
                      'X-Values-Pending':str(run['summary']['needs_review'])})
+
+    @api.get('/trends')
+    def trend_data(parameter:str|None=None):
+        """Accepted values across every current delivery. Without ``parameter``: what can be plotted.
+        With it: each batch's points and summary for that parameter."""
+        from . import trends
+        entries=trends.batches(service.runs())
+        result=trends.catalogue(entries)
+        if parameter is not None:
+            if parameter not in {p['id'] for p in result['parameters']}: raise HTTPException(404,'No accepted values for this parameter')
+            result['parameter']=parameter; result['series']=trends.series(entries,parameter)
+        return result
+
+    @api.get('/trends/export')
+    def trend_export(format:str='csv',layout:str='long',parameter:list[str]|None=Query(default=None),batch:list[str]|None=Query(default=None)):
+        # Repeated ?parameter= and ?batch= (the batch key from /trends); leaving one out means all of them.
+        content=guard(lambda:service.trend_export(parameters=parameter,keys=batch,layout=layout,format=format))
+        return Response(content,media_type='text/csv' if format=='csv' else 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={'Content-Disposition':f'attachment; filename="batch-values-{layout}.{format}"'})
 
     def verified_payload(run_id:str,tenant:str|None=None):
         if tenant is not None:

@@ -47,8 +47,8 @@ function auth(env, session=null, updateUser=async()=>({error:null}), local=null)
     {tenant_id:'local-test',actor_id:'demo-visitor-fixture'});
   assert.equal(productionWithLocalData.authMode(),'supabase');
   await assert.rejects(productionWithLocalData.authHeaders(), /not configured/);
-  for(const next of ['//external.test','/\\external.test','/bad path','https://external.test']) assert.equal(production.safeNext(next),'/dashboard/');
-  assert.equal(production.safeNext(null), '/dashboard/');
+  for(const next of ['//external.test','/\\external.test','/bad path','https://external.test']) assert.equal(production.safeNext(next),'/trends/');
+  assert.equal(production.safeNext(null), '/trends/');
   assert.equal(production.safeNext('/cmo/?run=fixture'), '/cmo/?run=fixture');
   const orgModule = {exports:{}};
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(require.resolve('../lib/organizations-api.ts'), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {
@@ -57,8 +57,8 @@ function auth(env, session=null, updateUser=async()=>({error:null}), local=null)
   const destination = orgModule.exports.organizationDestination;
   const organization = {roles:['admin'], onboarding_complete:false};
   assert.equal(destination(organization), '/onboarding/start/');
-  assert.equal(destination({...organization, onboarding_complete:true}), '/dashboard/');
+  assert.equal(destination({...organization, onboarding_complete:true}), '/trends/');
   assert.equal(destination({...organization, onboarding_complete:true}, '/cmo/?run=fixture'), '/cmo/?run=fixture');
-  assert.equal(destination({...organization, roles:['viewer']}), '/dashboard/');
+  assert.equal(destination({...organization, roles:['viewer']}), '/trends/');
   console.log('PASS production fails closed; authenticated headers select organization; development headers stay in development; return paths remain local');
 })().catch(e=>{console.error(e);process.exitCode=1;});

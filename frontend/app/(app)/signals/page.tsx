@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, ArrowLeft, ArrowUpRight, Check, FolderOpen, MessageSquare, X } from 'lucide-react';
 import { Button, Callout, EvidenceChip, Pill, table } from '@/components/ui';
 import { useOptionalCompanion } from '@/lib/companion-context';
+import { SignalEvidence } from '@/components/trends/SignalEvidence';
 import { acknowledgeSignal, dismissSignal, getSignal, KIND_LABEL, listSignals, openCaseFromSignal, SEVERITY_RANK, SEVERITY_TONE, type Signal, type SignalStatus } from '@/lib/signals-api';
 
 const STATUS_LABEL: Record<SignalStatus, string> = { open: 'open', acknowledged: 'acknowledged', case_opened: 'case opened', dismissed: 'dismissed' };
@@ -105,8 +106,8 @@ function SignalDetail({ id }: { id: string }) {
       <div className="flex items-end gap-2"><Button size="sm" variant="primary" type="submit" disabled={busy || !caseForm.owner.trim() || !caseForm.qa.trim()}>Open case</Button><Button size="sm" variant="ghost" onClick={() => setCaseForm(null)}>Cancel</Button></div>
       <p className="text-[12px] text-text-tertiary sm:col-span-3">Opens a formal deviation case pre-filled with this signal's evidence. This is your decision; the assistant can only propose it.</p></form>}
 
-    <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_340px]">
-      <section className="space-y-4">
+    <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <section className="min-w-0 space-y-4">
         <div className="rounded-card border border-border-hairline bg-surface p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">What fired</p>
           <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
@@ -118,7 +119,11 @@ function SignalDetail({ id }: { id: string }) {
           </dl>
         </div>
         <div className="rounded-card border border-border-hairline bg-surface p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Evidence</p>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-tertiary">The values behind it</p>
+          <SignalEvidence signal={signal} />
+        </div>
+        <div className="rounded-card border border-border-hairline bg-surface p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Evidence records</p>
           {signal.evidence_refs?.length ? <div className="mt-3 flex flex-wrap gap-1.5">{signal.evidence_refs.map(r => <EvidenceChip key={`${r.kind}:${r.id}`} id={r.id} label={`${r.kind} · ${r.id}`} />)}</div>
             : <p className="mt-2 text-sm text-text-tertiary">No linked evidence records.</p>}
         </div>

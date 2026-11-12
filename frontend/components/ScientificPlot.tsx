@@ -38,7 +38,7 @@ export interface ScientificPlotProps {
 
 const M = { top: 10, right: 52, bottom: 24, left: 48 };
 
-function niceTicks(min: number, max: number, count = 5) {
+export function niceTicks(min: number, max: number, count = 5) {
   const span = max - min || 1;
   const step0 = span / count;
   const mag = 10 ** Math.floor(Math.log10(step0));

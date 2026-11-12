@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Eye, EyeOff, ShieldCheck, Loader2 } from 'lucide-react';
 import { BrandMark } from '@/components/shell/BrandMark';
-import { authMode, localAccounts, safeNext, sendPasswordReset, signIn, signInAvailable, signOut, SIGNED_OUT_MESSAGE, useSession, type LocalAccount } from '@/lib/auth';
+import { authMode, LANDING, localAccounts, safeNext, sendPasswordReset, signIn, signInAvailable, signOut, SIGNED_OUT_MESSAGE, useSession, type LocalAccount } from '@/lib/auth';
 export default function SignInPage() {
     const router = useRouter();
     const { email: signedIn, loading } = useSession();
-    const [next, setNext] = useState('/dashboard/');
+    const [next, setNext] = useState(LANDING);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [visible, setVisible] = useState(false);

@@ -7,6 +7,7 @@ import { PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { useWorkspace } from '@/lib/workspace-context';
 import { navGroups, locate } from '@/lib/navigation';
 import { useDemo } from '@/lib/demo-api';
+import { LANDING } from '@/lib/auth';
 import { BrandMark } from './BrandMark';
 
 export function Sidebar() {
@@ -35,7 +36,7 @@ export function Sidebar() {
   return <>
     {mobileOpen && <button type="button" tabIndex={-1} className="navigation-scrim" aria-label="Close navigation overlay" onClick={dismiss} />}
     <aside ref={sidebar} id="workspace-navigation" className={`workspace-sidebar ${collapsed ? 'is-collapsed' : ''} ${mobileOpen ? 'is-open' : ''}`} role={mobileOpen ? 'dialog' : undefined} aria-modal={mobileOpen || undefined} aria-label="Workspace navigation">
-      <div className="sidebar-brand"><BrandMark href="/dashboard/" label={!collapsed || mobileOpen} /><button type="button" className="chrome-icon mobile-only" aria-label="Close navigation" onClick={dismiss}><X size={18} /></button></div>
+      <div className="sidebar-brand"><BrandMark href={LANDING} label={!collapsed || mobileOpen} /><button type="button" className="chrome-icon mobile-only" aria-label="Close navigation" onClick={dismiss}><X size={18} /></button></div>
       <nav aria-label="Primary" className="sidebar-nav">
         {navGroups(!!demo).map(group => <div className={`sidebar-group ${group.id === 'settings' ? 'sidebar-group-end' : ''}`} key={group.id}>
           <h2>{group.label}</h2>
