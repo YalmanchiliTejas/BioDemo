@@ -287,3 +287,46 @@ def bound_tenant():
     """Service-level calls here run outside a request; bind a tenant explicitly (there is no default any more)."""
     from src.manufacturing_data.cmo.persistence import tenant_scope
     with tenant_scope('test-cdmo'): yield
+
+
+def test_api_rows_around_a_value_and_file_previews(tmp_path,monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from openpyxl import Workbook
+    from src.manufacturing_data.cmo.api import router
+    runtime=tmp_path/'runtime'; service=IngestionService(runtime)
+    raw=process(tmp_path,'raw',[['LOCAL-1',h,35+h,7] for h in range(40)])
+    write_pdf(raw/'batch_record.pdf',['Page 1 of 1','Batch: LOCAL | Hour: 1 | pH [pH]: 7'])
+    (raw/'note.txt').write_text('Operator note: probe recalibrated at hour 12.')
+    book=Workbook(); book.active.title='Lab'; book.active.append(['batch_id','elapsed_h','pH [pH]']); book.active.append(['LOCAL-1',1,7.0])
+    book.create_sheet('Notes').append(['comment']); book.save(raw/'lab.xlsx')
+    run=service.run(raw,'local')
+    sources={d['path']:d['source_id'] for d in run['documents']}
+    m=next(m for m in run['measurements'] if m['source']['path']=='bioreactor.csv' and m['source']['row']==20)
+    monkeypatch.setenv('CMO_INGESTION_ROOT',str(runtime)); monkeypatch.delenv('CMO_API_TOKEN',raising=False); monkeypatch.setenv('CMO_ALLOW_UNAUTHENTICATED_TENANT_HEADER','1')
+    app=FastAPI(); app.include_router(router(tmp_path)); client=TestClient(app,headers={'X-Tenant-Id':'test-cdmo'})
+    base=f'/api/cmo-ingestion/runs/{run["id"]}'
+    near=client.get(f'{base}/rows/{sources["bioreactor.csv"]}',params={'row':20,'around':3}).json()
+    assert [r['row'] for r in near['rows']]==list(range(17,24)) and near['headers'][0]=='batch_id'
+    assert near['rows'][3]['values'][1]=='18' and near['total_rows']==41 and near['source_sha256']==m['source_sha256']
+    start=client.get(f'{base}/rows/{sources["bioreactor.csv"]}',params={'row':2,'around':3}).json()
+    assert [r['row'] for r in start['rows']]==[2,3,4,5]          # the header is never repeated as a data row
+    assert len(client.get(f'{base}/rows/{sources["bioreactor.csv"]}',params={'row':40,'around':10000}).json()['rows'])==27   # window is capped at 25 rows each side: rows 15 to 41
+    lab=client.get(f'{base}/rows/{sources["lab.xlsx"]}',params={'row':2}).json()
+    assert lab['sheet']=='Lab' and lab['sheet_assumed'] and lab['sheets']==['Lab','Notes'] and lab['rows'][0]['values'][0]=='LOCAL-1'
+    assert not client.get(f'{base}/rows/{sources["lab.xlsx"]}',params={'row':2,'sheet':'Lab'}).json()['sheet_assumed']
+    assert client.get(f'{base}/rows/{sources["lab.xlsx"]}',params={'sheet':'Nope'}).status_code==404
+    assert client.get(f'{base}/rows/{sources["batch_record.pdf"]}').status_code==400
+    assert client.get(f'{base}/rows/unknown').status_code==404
+    table=client.get(f'{base}/preview/{sources["bioreactor.csv"]}').json()
+    assert table['kind']=='table' and [r['row'] for r in table['rows']]==list(range(2,11)) and table['doc_type']
+    assert client.get(f'{base}/preview/{sources["batch_record.pdf"]}').json()|{'path':0,'doc_type':0,'source_sha256':0}=={'kind':'pdf','pages':1,'path':0,'doc_type':0,'source_sha256':0}
+    assert 'probe recalibrated' in client.get(f'{base}/preview/{sources["note.txt"]}').json()['text']
+    small=client.get(f'{base}/pages/{sources["batch_record.pdf"]}/1',params={'scale':.3}); full=client.get(f'{base}/pages/{sources["batch_record.pdf"]}/1')
+    assert small.content.startswith(b'\x89PNG') and len(small.content)<len(full.content)
+    assert client.get(f'{base}/pages/{sources["batch_record.pdf"]}/1',params={'scale':9}).status_code==400
+    assert client.get(f'{base}/images/{sources["bioreactor.csv"]}').status_code==400
+    # A changed original is refused, not shown.
+    path,_=service.original(run['id'],sources['bioreactor.csv']); path.chmod(0o600); path.write_text('changed')
+    assert client.get(f'{base}/rows/{sources["bioreactor.csv"]}').status_code==400
+    assert TestClient(app,headers={'X-Tenant-Id':'someone-else'}).get(f'{base}/preview/{sources["note.txt"]}').status_code==404

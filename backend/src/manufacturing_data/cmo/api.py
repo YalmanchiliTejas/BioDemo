@@ -604,8 +604,32 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
         else: raise HTTPException(400,'Use the original PDF viewer for this measurement')
         return {'source':ref,'headers':headers,'values':[None if v is None else str(v) for v in values],'source_sha256':doc['sha256']}
 
+    @api.get('/runs/{run_id}/rows/{source_id}')
+    def rows(run_id:str,source_id:str,row:int|None=None,sheet:str|None=None,around:int=5):
+        """The header and the rows around ``row`` of a delivered table (or its first rows), as stored in the original file."""
+        from . import excerpts
+        path,doc=guard(lambda:service.original(run_id,source_id))
+        return {**guard(lambda:excerpts.table_rows(path,sheet=sheet,row=row,around=around)),'path':doc['path'],'source_sha256':doc['sha256']}
+
+    @api.get('/runs/{run_id}/preview/{source_id}')
+    def preview(run_id:str,source_id:str):
+        """Enough of one delivered file to recognise it without opening it: opening rows, opening text or page count."""
+        from . import excerpts
+        path,doc=guard(lambda:service.original(run_id,source_id))
+        return {**guard(lambda:excerpts.preview(path)),'path':doc['path'],'doc_type':doc.get('doc_type'),'source_sha256':doc['sha256']}
+
+    @api.get('/runs/{run_id}/images/{source_id}')
+    def image(run_id:str,source_id:str):
+        from . import excerpts
+        path,_doc=guard(lambda:service.original(run_id,source_id))
+        media=excerpts.IMAGES.get(path.suffix.lower())
+        if not media: raise HTTPException(400,'Source is not an image')
+        # Served as the stored bytes under their own type, never sniffed, so an image cannot run as a page.
+        return FileResponse(path,media_type=media,headers={'X-Content-Type-Options':'nosniff'})
+
     @api.get('/runs/{run_id}/pages/{source_id}/{page}')
-    def page_image(run_id:str,source_id:str,page:int):
+    def page_image(run_id:str,source_id:str,page:int,scale:float=1.5):
+        if not .2<=scale<=2: raise HTTPException(400,'Scale must be between 0.2 and 2')
         path,_doc=guard(lambda:service.original(run_id,source_id))
         if path.suffix.lower()!='.pdf': raise HTTPException(400,'Source is not a PDF')
         import pypdfium2
@@ -615,7 +639,7 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
             selected=pdf[page-1]
             try:
                 width,height=selected.get_size()
-                bitmap=selected.render(scale=1.5)
+                bitmap=selected.render(scale=scale)
                 try:
                     output=io.BytesIO(); bitmap.to_pil().save(output,format='PNG')
                     return Response(output.getvalue(),media_type='image/png',
