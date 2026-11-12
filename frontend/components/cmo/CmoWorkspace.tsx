@@ -18,6 +18,7 @@ import { useOptionalCompanion } from '@/lib/companion-context';
 import { processRequest } from '@/lib/process-api';
 import { cached } from '@/lib/cache';
 import { DataView } from './DataView';
+import { DeliveryFiles } from './DeliveryFiles';
 import { Links } from './Links';
 import { Mappings } from './Mappings';
 import { SourceViewer } from './SourceViewer';
@@ -438,6 +439,7 @@ function Delivery({ runId }: { runId: string }) {
             </div>
           </header>
           <NextDemoStep run={run} />
+          <DeliveryFiles run={run} />
           {pendingLayouts.length > 0 && <Mappings run={run} layouts={pendingLayouts} parameters={parameters} reviewer={reviewer} onApplied={go} />}
           <ToCheck run={run} reviewer={reviewer} mappingPending={pendingLayouts.length > 0} onChanged={refresh} onInspect={setInspect} />
           <DataView run={run} onInspect={setInspect} />
