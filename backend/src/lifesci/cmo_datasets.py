@@ -11,7 +11,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from statistics import fmean
+from statistics import fmean, median
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -64,6 +64,46 @@ def _source_label(source: dict[str, Any] | None) -> str:
     return str(source.get("path", ""))
 
 
+def standouts(per_batch: dict[str, dict[str, list[dict[str, Any]]]], *, top: int = 3) -> dict[str, Any]:
+    """Where runs differ most, calculated from measured values at measured times only (nothing is interpolated).
+
+    Per parameter: the largest changes between consecutive samples of one run, with the typical change for scale,
+    and the largest differences from the other runs sampled at exactly the same time (three or more runs).
+    A reader should not have to work these out from the series by hand, and should not get them wrong."""
+    by_parameter: dict[str, dict[str, list[tuple[float, float]]]] = {}
+    for batch, params in per_batch.items():
+        for name, items in params.items():
+            points = sorted((t, m["value"]) for m in items if (t := _hours(m["time"])) is not None
+                            and isinstance(m["value"], (int, float)) and not isinstance(m["value"], bool))
+            if points:
+                by_parameter.setdefault(name, {})[batch] = points
+    out: dict[str, Any] = {}
+    for name, runs in sorted(by_parameter.items()):
+        steps = [{"batch": b, "from_h": t0, "to_h": t1, "from": v0, "to": v1, "change": round(v1 - v0, 6)}
+                 for b, pts in runs.items() for (t0, v0), (t1, v1) in zip(pts, pts[1:]) if t1 > t0]
+        at_time: dict[float, dict[str, float]] = {}
+        for b, pts in runs.items():
+            for t, v in pts:
+                at_time.setdefault(t, {})[b] = v
+        apart = []
+        for t, values in at_time.items():
+            if len(values) < 3:
+                continue  # with two runs there is a difference but no "others" to stand out from
+            for b, v in values.items():
+                rest = median(x for k, x in values.items() if k != b)
+                apart.append({"time_h": t, "batch": b, "value": v, "median_of_other_runs": round(rest, 6),
+                              "difference": round(v - rest, 6), "runs_at_this_time": len(values)})
+        entry: dict[str, Any] = {}
+        if steps:
+            entry["largest_changes_between_consecutive_samples"] = sorted(steps, key=lambda s: -abs(s["change"]))[:top]
+            entry["typical_change_between_samples"] = round(median(abs(s["change"]) for s in steps), 6)
+        if apart:
+            entry["largest_same_time_differences"] = sorted(apart, key=lambda a: -abs(a["difference"]))[:2]
+        if entry:
+            out[name] = entry
+    return out
+
+
 SERIES_MAX = 3000  # ponytail: beyond this, page the raw rows; a per-run downsample would be the upgrade
 
 
@@ -100,6 +140,9 @@ def summarize(data: dict[str, Any], *, sample_rows: int = 40, series: bool = Fal
     extra: dict[str, Any] = {}
     if series and len(rows) <= SERIES_MAX:
         # Every value as [time_h, value] per run and parameter: answers "when did it diverge" without paging raw rows.
+        # First, so it is never the part cut off when a long result is shortened for the model.
+        extra["standouts"] = {"basis": "calculated from the series at measured times; not an interpretation",
+                              **standouts(per_batch)}
         extra["series"] = {b: {name: [[_hours(m["time"]), m["value"]] for m in sorted(items, key=lambda m: _hours(m["time"]) or 0.0)]
                                for name, items in params.items()} for b, params in sorted(per_batch.items())}
         extra["series_units"] = {p["parameter"]: p["unit"] for p in parameters}

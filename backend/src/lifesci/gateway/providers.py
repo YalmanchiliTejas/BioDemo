@@ -203,6 +203,11 @@ class ModalProvider(_HTTPProvider):
         except ValueError:
             floor = 32_000
         self._min_max_tokens = max(floor, 1)
+        # Unset: the model decides how long to think (the behaviour every stored evaluation was run with).
+        # Measured 2026-11-11 on the tool loop: "low" answered in 15-18 s instead of 50-90 s, but picked the
+        # wrong run on a comparison it had to work out itself. Set it only with an evaluation behind it.
+        effort = env.get("MODAL_REASONING_EFFORT", "").strip().lower()
+        self._reasoning_effort = effort if effort in ("low", "medium", "high") else None
 
     def _check_configuration(self) -> None:
         if not self._base:
@@ -255,6 +260,8 @@ class ModalProvider(_HTTPProvider):
         body: dict[str, Any] = {"model": model, "max_tokens": max(max_output_tokens, self._min_max_tokens), "messages": messages}
         if tools:
             body.update(tools=tools, tool_choice=tool_choice)
+        if self._reasoning_effort:
+            body["reasoning_effort"] = self._reasoning_effort
         # Tool-loop steps are small: honour the caller's timeout (the planner's floor is for one huge call).
         data = self._post("/chat/completions", body, {"Authorization": f"Bearer {self._key}"}, timeout_s)
         choice = (data.get("choices") or [{}])[0]

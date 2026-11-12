@@ -187,3 +187,26 @@ def test_shared_cmo_email_becomes_searchable_unverified_evidence(platform_client
     assert [d['path'] for d in listed] == ['DV-58/message.txt']
     other = {'X-Tenant-Id': 'other-customer', 'X-Actor-Id': 'priya'}
     assert client.post('/v1/cmo-documents', json={'run_id': run['id']}, headers=other).status_code in (403, 404)
+
+
+def test_standouts_are_calculated_at_measured_times_only():
+    from src.lifesci.cmo_datasets import standouts, summarize
+
+    def rows(batch, points, parameter="viability"):
+        return [{"id": f"{batch}-{t}", "batch": batch, "time": str(t), "parameter": parameter, "value": v, "unit": "%"} for t, v in points]
+    measurements = (rows("A", [(0, 90), (24, 91), (48, 89), (72, 88)]) + rows("B", [(0, 89), (24, 90), (48, 12), (72, 3)])
+                    + rows("C", [(0, 91), (24, 92), (50, 90)]) + rows("D", [(10, 1.0)], "glucose"))
+    found = summarize({"measurements": measurements, "guarantee": {"holds": True, "checks": []}}, series=True)["standouts"]
+    assert list(found)[0] == "basis" and "calculated" in found["basis"]
+    top = found["viability"]["largest_changes_between_consecutive_samples"][0]
+    assert top == {"batch": "B", "from_h": 24.0, "to_h": 48.0, "from": 90, "to": 12, "change": -78}
+    assert found["viability"]["typical_change_between_samples"] == 1.5   # the scale a 78-point drop is read against
+    apart = found["viability"]["largest_same_time_differences"]
+    # Only times where three or more runs were sampled; run C's 50 h reading is never matched to 48 h.
+    assert {a["time_h"] for a in apart} <= {0.0, 24.0} and all(a["runs_at_this_time"] == 3 for a in apart)
+    assert "glucose" not in found   # one reading: nothing to compare
+    per_batch = {}
+    for m in measurements:
+        per_batch.setdefault(m["batch"], {}).setdefault(m["parameter"], []).append(m)
+    assert standouts(per_batch) == {k: v for k, v in found.items() if k != "basis"}
+    assert "standouts" not in summarize({"measurements": measurements, "guarantee": {"holds": True, "checks": []}})

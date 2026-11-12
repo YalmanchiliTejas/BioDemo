@@ -25,7 +25,7 @@ CONTEXT_CHARS, KEEP_RECENT_RESULTS, HARD_CHARS = 100_000, 4, 240_000  # ~25k / ~
 RECENT_TURNS = 2  # always in context, for follow-ups ("and the other run?"); older turns are indexed and loaded on demand
 RECALL, OPEN, REMEMBER, OPEN_MEMORY = 'recall', 'open_result', 'remember', 'open_memory'
 CALL_SECONDS = 150.  # one loop step is small; a call that hangs this long is cut off (live: 300 s hangs, 1,223 s turn)
-RESULT_CHARS = 16000  # what the model sees of one tool result (a delivery summary with its series fits); the full result is saved
+RESULT_CHARS = 20000  # what the model sees of one tool result (a delivery summary with its standouts and series fits); the full result is saved
 ASK = 'ask_user'
 INTERNAL_ID = re.compile(r'^[a-z]+_[0-9A-Z]{16,}$')
 
@@ -57,6 +57,7 @@ Answering:
 - If a check you needed did not run, say no conclusion is possible yet and why; never substitute your own estimate for it.
 - Attribute findings to records, not to people or teams; no blame and no opinions. Write the final answer cleanly: no self-corrections ("wait —"), no restating these instructions.
 - To compare runs, use measured values with their times (per_batch min/max with min_at_h/max_at_h, or the series), never values in between samples.
+- For which run stands out and when, start from the summary's standouts: they are calculated from the series (the largest changes between consecutive samples, and the largest differences from other runs at the same time). Report them with their times; do not recompute them, and check the series only for what they do not cover.
 
 Questions and actions:
 - Ask only when you cannot give a useful answer without the person's input: use the ask_user tool, once, with one question. Missing records are unknowns to state, not questions to ask. Never ask permission for what the person already asked for: do it.
