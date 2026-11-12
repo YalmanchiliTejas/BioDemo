@@ -1,5 +1,5 @@
 'use client';
-import { useEffect,useState } from 'react';
+import { useEffect,useRef,useState } from 'react';
 import { useDemo } from '@/lib/demo-api';
 import { processRequest } from '@/lib/process-api';
 import { ModelLibraryResult,type LibraryResult } from './ModelLibraryResult';
@@ -20,7 +20,8 @@ const TRANSFER:Record<string,{criteria:object[];tolerance:object;toleranceLabel:
  toleranceLabel:'Jacket heat transfer coefficient (U) not measured yet: check over ±30 %'}};
 const operations=['simulate','compare','fit','sensitivity','train_hybrid','adapt_hybrid','calibrate_intervals','predict_intervals','evaluate_intervals','assess_transfer','experiments'] as const;
 
-export default function PharmaceuticalModelLibrary(){
+/** autoTransferCheck: each new number starts the pre-transfer check once the example configurations have loaded. */
+export default function PharmaceuticalModelLibrary({autoTransferCheck=0}:{autoTransferCheck?:number}){
  const { demo } = useDemo();
  const [models,setModels]=useState<Passport[]>([]),[contexts,setContexts]=useState<Context[]>([]),[modelId,setModelId]=useState(''),[contextId,setContextId]=useState('');
  const [operation,setOperation]=useState<string>('simulate'),[options,setOptions]=useState('{}'),[datasetId,setDatasetId]=useState(''),[checkpointId,setCheckpointId]=useState(''),[calibrationId,setCalibrationId]=useState(''),[receiverId,setReceiverId]=useState('');
@@ -41,6 +42,10 @@ export default function PharmaceuticalModelLibrary(){
   const tolerances=unmeasured?[{...tol,low:+(nominal*scale[0]).toFixed(6),high:+(nominal*scale[1]).toFixed(6),applies_to:'receiver'}]:[];
   const plan=await processRequest<{id:string}>('/v1/process-model/pipelines',{mode:'model_library',simulation_id:contextId,receiver_context_id:receiver.id,model_id:modelId,objective:'Pre-transfer check: can the receiving equipment run this recipe and keep yield and impurity within limits?',operation:'assess_transfer',options:{criteria:preset.criteria,tolerances},max_solver_calls:64,max_wall_seconds:60});
   setRecord(await processRequest<LibraryResult>(`/v1/process-model/pipelines/${plan.id}/execute`,{}));});}
+ const started=useRef(0),resultRef=useRef<HTMLDivElement>(null),shownFor=useRef(0);
+ // A check started from an example ends far below the forms: bring its result into view once.
+ useEffect(()=>{if(record&&started.current>shownFor.current){shownFor.current=started.current;resultRef.current?.scrollIntoView({behavior:'smooth',block:'start'});}},[record]);
+ useEffect(()=>{if(autoTransferCheck>started.current&&preset&&receivers.length&&currentContext&&!busy){started.current=autoTransferCheck;void transferCheck();}});
  async function work(action:()=>Promise<void>){setBusy(true);setError('');try{await action();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
  async function execute(){await work(async()=>{const plan=await processRequest<{id:string}>('/v1/process-model/pipelines',{mode:'model_library',simulation_id:contextId,model_id:modelId,objective:'Evaluate this evidence-backed pharmaceutical model and its transfer limitations.',operation,options:JSON.parse(options),...(datasetId?{dataset_id:datasetId}:{}),...(checkpointId?{checkpoint_id:checkpointId}:{}),...(calibrationId?{calibration_id:calibrationId}:{}),...(receiverId?{receiver_context_id:receiverId}:{}),max_solver_calls:256,max_wall_seconds:120});const result=await processRequest<LibraryResult>(`/v1/process-model/pipelines/${plan.id}/execute`,{});setRecord(result);});}
  return <div className="space-y-6" data-testid="pharmaceutical-model-library">
@@ -73,6 +78,6 @@ export default function PharmaceuticalModelLibrary(){
    <button className={button+' mt-2'} disabled={busy||!extension} onClick={()=>work(async()=>{const r=await processRequest<{proposal_id:string}>('/v1/process-model/model-extension-proposals',JSON.parse(extension));setProposalId(r.proposal_id);})}>Submit for engineering review</button>
    {proposalId&&<p role="status" className="mt-3 text-xs">Proposal <code>{proposalId}</code> saved for engineering review. Nothing in the registered model has changed.</p>}
   </details>
-  {record&&<ModelLibraryResult data={record}/>}
+  <div ref={resultRef} className="scroll-mt-4">{record&&<ModelLibraryResult data={record}/>}</div>
  </div>;
 }

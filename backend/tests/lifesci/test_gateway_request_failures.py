@@ -81,3 +81,25 @@ def test_an_exhausted_output_budget_is_sampled_once_more(gateway):
     result = gw.run(TaskRequest('short_summary', ctx, prompt='Long reasoning', use_cache=False))
     assert result.status == 'completed' and len(result.attempts) == 2
     assert provider.calls[1]['max_output_tokens'] == 48_000  # more room to finish reasoning
+
+
+@pytest.mark.parametrize('setting,expected', [(None, None), ('low', 'low'), (' HIGH ', 'high'), ('fastest', None)])
+def test_modal_reasoning_effort_is_sent_only_when_explicitly_set(monkeypatch, setting, expected):
+    import httpx
+    sent = []
+
+    def post(url, json, **kwargs):
+        sent.append(json)
+        return httpx.Response(200, json={'choices': [{'message': {'content': 'ok'}, 'finish_reason': 'stop'}], 'usage': {}})
+
+    monkeypatch.setattr(httpx, 'post', post)
+    environ = {'MODAL_PROXY_TOKEN': 'wk-test.ws-secret', 'MODAL_BASE_URL': 'https://test.modal.direct/v1'}
+    if setting is not None:
+        environ['MODAL_REASONING_EFFORT'] = setting
+    provider = ModalProvider(environ=environ)
+    provider.chat(model='test-model', messages=[{'role': 'user', 'content': 'q'}], tools=[], tool_choice='auto',
+                  max_output_tokens=100, timeout_s=1)
+    assert sent[0].get('reasoning_effort') == expected
+    # The single-call planner path is unchanged: its evaluations were run without an effort setting.
+    provider.complete(model='test-model', system='s', prompt='p', max_output_tokens=100, timeout_s=1)
+    assert 'reasoning_effort' not in sent[1]
