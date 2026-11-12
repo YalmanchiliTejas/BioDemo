@@ -262,3 +262,23 @@ def test_two_full_budget_pre_transfer_checks_both_run_in_one_answer(env):
     assert [s['status'] for s in turn['steps'] if s['title'].startswith('Model library')].count('blocked') == 0
     assert len(results) == 2 and all(r.state['execution_status'] == 'completed' for r in results)
     assert sorted(r.state['spec']['options'] == {'criteria': criteria} for r in results) == [True, True]
+
+
+def test_answer_links_come_from_the_records_a_turn_read():
+    from src.lifesci.process_engineering.open_links import open_links
+
+    def read(kind, record_id, status='completed', task='workspace_read'):
+        return {'task_kind': task, 'status': status, 'payload': {'kind': kind, 'record_id': record_id}}
+    records = {'cmo-verified-delivery:run1': {'metadata': {'parameters': ['viable_cell_density', 'pH']}},
+               'cmo-verified-delivery:demo': {'metadata': {'synthetic': True, 'parameters': ['pH']}}}
+    steps = [read('deviation_signal', 'sig_1'), read('deviation_signal', 'sig_1'), read('deviation_signal', 'sig_2', status='blocked'),
+             read('evidence', 'cmo-verified-delivery:run1'), read('evidence', 'cmo-verified-delivery:demo'),
+             read('evidence', 'cmo-verified-delivery:hidden'), read('case', 'DEV-12'), read('evidence', 'cmo-verified-delivery:run1', task='workspace_search')]
+    links = open_links(steps, evidence=records.get, question='How did viable cell density compare?', answer='pH was steady.')
+    assert links == [{'label': 'Open the signal and its chart', 'href': '/signals/?id=sig_1'},
+                     {'label': 'Plot viable cell density across batches', 'href': '/trends/?parameter=viable_cell_density'},
+                     {'label': 'Open the delivery and its source files', 'href': '/cmo/?run=run1'}]
+    # No parameter named: the page still opens; nothing is guessed.
+    assert open_links(steps[3:4], evidence=records.get, question='Anything odd?')[0] == {'label': 'Plot this data across batches', 'href': '/trends/'}
+    # A record the person cannot read, a synthetic dataset and a failed step give no link.
+    assert open_links([steps[2], steps[4], steps[5]], evidence=records.get) == []

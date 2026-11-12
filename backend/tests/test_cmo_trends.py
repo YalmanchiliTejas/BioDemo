@@ -120,3 +120,44 @@ def test_routes(tmp_path, monkeypatch, service):
     assert client.get('/api/cmo-ingestion/trends/export', params={'batch': 'nope'}).status_code == 400
     # Another workspace sees none of it.
     assert TestClient(app, headers={'X-Tenant-Id': 'someone-else'}).get('/api/cmo-ingestion/trends').json()['batches'] == []
+
+
+def test_export_options_columns_units_time_window_and_json(service):
+    import json
+
+    def rows(**kw): return service.trend_rows(**kw)
+    chosen = rows(parameters=['temperature'], columns=['batch', 'time_h', 'value', 'unit'], celsius=True, time_from=1, time_to=1)
+    assert chosen == [{'batch': 'B-1', 'time_h': 1.0, 'value': 36.0, 'unit': '°C'}, {'batch': 'B-2', 'time_h': 1.0, 'value': 39.0, 'unit': '°C'}]
+    stored = rows(parameters=['temperature'], time_from=1, time_to=1)[0]
+    assert stored['value'] == pytest.approx(309.15) and stored['unit'] == 'K' and stored['value_as_printed'] == '36'   # as printed is never converted
+    assert rows(parameters=['pH'], celsius=True)[0]['unit'] == 'pH'                      # only kelvin is converted
+    summary = rows(layout='summary', parameters=['temperature'], celsius=True)
+    assert [(r['batch'], r['maximum'], r['unit']) for r in summary] == [('B-1', 37.0, '°C'), ('B-2', 39.0, '°C')]
+    wide = rows(layout='wide', celsius=True, time_to=0)
+    assert [(r['batch'], r['temperature'], r['temperature_unit']) for r in wide] == [('B-1', 35.0, '°C'), ('B-2', 34.0, '°C')]
+    assert rows(verified_only=True) == [] or all(r['delivery_verified'] for r in rows(verified_only=True))
+    with pytest.raises(ValueError, match='Unknown column: nope'): rows(columns=['batch', 'nope'])
+    exported = json.loads(service.trend_export(format='json', parameters=['pH'], columns=['batch', 'value']))
+    assert len(exported) == 5 and exported[0] == {'batch': 'B-1', 'value': 7.0}
+
+
+def test_preview_shows_the_first_rows_of_the_same_file_and_trends_carry_standouts(tmp_path, monkeypatch, service):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from src.manufacturing_data.cmo.api import router
+    monkeypatch.setenv('CMO_INGESTION_ROOT', str(tmp_path / 'store')); monkeypatch.delenv('CMO_API_TOKEN', raising=False)
+    monkeypatch.setenv('CMO_ALLOW_UNAUTHENTICATED_TENANT_HEADER', '1')
+    app = FastAPI(); app.include_router(router(tmp_path))
+    client = TestClient(app, headers={'X-Tenant-Id': 'test-cdmo'})
+    query = [('parameter', 'temperature'), ('column', 'batch'), ('column', 'value'), ('celsius', 'true')]
+    preview = client.get('/api/cmo-ingestion/trends/export', params=[*query, ('preview', '2')]).json()
+    assert preview == {'columns': ['batch', 'value'], 'rows': [{'batch': 'B-1', 'value': 35.0}, {'batch': 'B-1', 'value': 36.0}], 'total_rows': 5}
+    full = client.get('/api/cmo-ingestion/trends/export', params=[*query, ('format', 'json')])
+    assert full.headers['content-type'].startswith('application/json') and full.json()[:2] == preview['rows'] and len(full.json()) == 5
+    assert client.get('/api/cmo-ingestion/trends/export', params={'preview': 500}).status_code == 422
+    assert client.get('/api/cmo-ingestion/trends/export', params={'format': 'pdf'}).status_code == 400
+    found = client.get('/api/cmo-ingestion/trends', params={'parameter': 'temperature'}).json()['standouts']
+    top = found['largest_changes_between_consecutive_samples'][0]
+    assert (top['batch'], top['from_h'], top['to_h'], round(top['change'], 2)) == ('B-2', 0.0, 1.0, 5.0) and ':' in top['key']
+    assert found['typical_change_between_samples'] == 1.0 and found['from_sampled_profiles'] is False
+    assert 'largest_same_time_differences' not in found    # two batches: nothing to stand out from

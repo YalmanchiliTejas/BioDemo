@@ -770,15 +770,25 @@ class IngestionService:
         writer.writerows({k:self.safe_cell(v) for k,v in row.items()} for row in rows)
         return output.getvalue().encode()
 
-    def trend_export(self,*,parameters=None,keys=None,layout='long',format='csv'):
-        """Accepted values across deliveries as one file. Every source behind an exported value is
-        checked against its recorded hash first, exactly as a single-delivery export does."""
+    def trend_rows(self,*,parameters=None,keys=None,layout='long',columns=None,time_from=None,time_to=None,
+                   celsius=False,verified_only=False,check_sources=True):
+        """Accepted values across deliveries, shaped as chosen. With ``check_sources`` every source behind a
+        value is checked against its recorded hash first, exactly as a single-delivery export does."""
         from . import trends
-        chosen=trends.select(trends.batches(self.runs()),parameters=parameters,keys=keys)
-        for entry in chosen:
-            for source_id in {r['measurement']['source_id'] for r in entry['rows']}:
-                self.original(entry['run_id'],source_id,run=entry['run'])
-        return self.table(trends.export_rows(chosen,layout),format=format,title='Batch values')
+        chosen=trends.select(trends.batches(self.runs()),parameters=parameters,keys=keys,time_from=time_from,
+                             time_to=time_to,verified_only=verified_only)
+        if check_sources:
+            for entry in chosen:
+                for source_id in {r['measurement']['source_id'] for r in entry['rows']}:
+                    self.original(entry['run_id'],source_id,run=entry['run'])
+        return trends.choose_columns(trends.export_rows(chosen,layout,celsius=celsius),columns)
+
+    def trend_export(self,*,format='csv',**options):
+        """The chosen values as one CSV, XLSX or JSON file."""
+        if format not in {'csv','xlsx','json'}: raise ValueError('Unsupported export format')
+        rows=self.trend_rows(**options)
+        if format=='json': return json.dumps(rows,ensure_ascii=False,indent=1).encode()
+        return self.table(rows,format=format,title='Batch values')
 
     @staticmethod
     def safe_cell(value):
