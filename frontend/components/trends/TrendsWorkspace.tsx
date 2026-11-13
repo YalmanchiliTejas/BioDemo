@@ -9,7 +9,8 @@ import { cn } from '@/lib/cn';
 import { parameterLabel } from '@/lib/cmo-api';
 import { processRequest } from '@/lib/process-api';
 import { EXPORT_HANDOFF, formatValue, getTrends, statistic, STATISTICS, type Standouts, type Statistic, type TrendCatalogue, type TrendData, type TrendSeries } from '@/lib/trends-api';
-import { BatchComparisonChart, BatchProfileChart, outside, SERIES_COLORS, type Limits } from './TrendCharts';
+import { outside, SERIES_COLORS, type Limits } from './TrendCharts';
+import { A2uiTrendChart } from './A2uiTrendChart';
 
 type Spec = Limits & { spec_id: string; parameter: string; unit: string | null; version: number; equipment_id: string | null; product_id: string | null };
 const REMEMBERED = 'trends.parameter';
@@ -145,7 +146,7 @@ export function TrendsWorkspace() {
               <select className={select} value={stat} onChange={e => setStat(e.target.value as Statistic)} data-testid="trend-statistic">
                 {STATISTICS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}</select></label>
           </div>
-          <div className="px-3 py-3"><BatchComparisonChart rows={rows} unit={unit} limits={limits} selected={selected} onSelect={toggleHighlight} /></div>
+          <div className="px-3 py-3"><A2uiTrendChart kind="comparison" chart={{ rows, unit, limits, selected, onSelect: toggleHighlight }} /></div>
         </section>
 
         <section className="rounded-2xl border border-border-hairline bg-white">
@@ -159,7 +160,7 @@ export function TrendsWorkspace() {
               {notice && <span role="status" className="text-[11px] text-amber-700">{notice}</span>}
             </div>
           </div>
-          <div className="px-3 py-3"><BatchProfileChart series={shown} unit={unit} limits={limits} colors={colors} onSelect={toggleHighlight} /></div>
+          <div className="px-3 py-3"><A2uiTrendChart kind="profile" chart={{ series: shown, unit, limits, colors, onSelect: toggleHighlight }} /></div>
           {(sampled > 0 || untimed > 0 || converted > 0) && <ul className="space-y-0.5 border-t border-border-hairline px-5 py-2.5 text-xs text-text-tertiary">
             {converted > 0 && <li>{converted} {converted === 1 ? 'batch was' : 'batches were'} recorded with clock timestamps; {converted === 1 ? 'it is' : 'they are'} placed on hours since {converted === 1 ? 'its' : 'their'} first reading.</li>}
             {sampled > 0 && <li>{sampled} long {sampled === 1 ? 'profile is' : 'profiles are'} drawn from a regular sample of the readings. The table and exports use every reading.</li>}
