@@ -9,6 +9,13 @@ from .registry import ModelProfile
 PROVIDERS = ('anthropic', 'openai', 'modal')
 
 ENGINEERING_TASKS = {'investigation_planning': 'planner', 'comparison_explanation': 'interpreter'}
+INTERPRETER_PROVIDER = 'modal-interpreter'
+
+
+def interpreter_effort(environ: Mapping[str, str]) -> str | None:
+    """LIFESCI_INTERPRETER_REASONING_EFFORT=low|medium|high, for the explanation role only."""
+    effort = environ.get('LIFESCI_INTERPRETER_REASONING_EFFORT', '').strip().lower()
+    return effort if effort in ('low', 'medium', 'high') else None
 
 
 def configure_engineering_llms(registry, environ: Mapping[str, str]) -> dict[str, str]:
@@ -53,6 +60,10 @@ def configure_engineering_llms(registry, environ: Mapping[str, str]) -> dict[str
         price_source = 'operator_configured_estimate' if all(supplied) else (
             'self_hosted_compute_cost_not_priced' if selected_provider == 'modal'
             else 'development_budget_assumptions_not_provider_prices')
+        # The bounded explanation of a calculated result may run at its own reasoning effort on a Modal deployment,
+        # leaving open-ended investigation at the deployment's default. Unset: both roles behave as before.
+        effort = interpreter_effort(environ) if role == 'interpreter' and selected_provider == 'modal' else None
+        provider_key = INTERPRETER_PROVIDER if effort else selected_provider
         profile_id = f'engineering-{role}'
         # Tier is the existing task floor, never evidence of model quality.
         if selected_provider == 'modal':
@@ -60,8 +71,8 @@ def configure_engineering_llms(registry, environ: Mapping[str, str]) -> dict[str
         else:
             endpoint = environ.get(f'{selected_provider.upper()}_BASE_URL', 'provider_default')
         version = content_hash({'provider': selected_provider, 'model': selected_model, 'rates': rates,
-            'endpoint': endpoint})[:16]
-        registry.add_profile(ModelProfile(profile_id, selected_provider, selected_model, registry.policies[task].min_tier,
+            'endpoint': endpoint, **({'reasoning_effort': effort} if effort else {})})[:16]
+        registry.add_profile(ModelProfile(profile_id, provider_key, selected_model, registry.policies[task].min_tier,
             rates['INPUT'], rates['OUTPUT'], rates['CACHED_INPUT'], price_source=price_source, version=version))
         bindings[task] = profile_id
     return bindings

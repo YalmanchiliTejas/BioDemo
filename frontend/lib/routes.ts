@@ -62,6 +62,7 @@ export const SETTINGS_NAV: NavItem = { label: 'Settings & Governance', href: '/s
 
 /** All 32 frames, used by the command palette. */
 export const SCREENS: Array<{ id: string; href: string; title: string; keywords?: string }> = [
+  { id: 'WORKBENCH', href: '/workbench', title: 'Workbench · data in view, findings and next steps', keywords: 'work plan compare batches gaps evidence request action proposal' },
   { id: 'DASHBOARD', href: '/dashboard', title: 'Workspace dashboard', keywords: 'status recent deliveries tutorial connections' },
   { id: 'PROCESS-SIMULATION', href: '/process-simulation', title: 'Predictive process engineering', keywords: 'freeze drying lyophilization transfer CDMO simulation' },
   { id: 'CMO-01', href: '/cmo', title: 'CDMO deliveries · review and aggregate', keywords: 'cmo cdmo upload ingestion aggregate filter verify export batch CoA' },

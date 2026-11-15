@@ -50,7 +50,10 @@ function GroundingNote({ g }: { g: Grounding }) {
     </ul>
   </details>;
 }
-type Turn = { open_in?: Array<{ label: string; href: string }>; origin?: string; triage_signal_id?: string | null; responsibility_objective?: string; display_context?: DisplayContext | null; id: string; user_text: string; status: string; reply: string | null; questions: string[]; system_message?: string; issues: string[]; artifacts: ArtifactRef[]; steps?: Step[]; elapsed_seconds?: number; basis_status?: string; grounding?: Grounding | null; context_used?: ContextUsed | null; held_back?: string[]; gateway_runs: { route?: { unqualified?: boolean } | null; [key: string]: unknown }[] };
+type Turn = { open_in?: Array<{ label: string; href: string }>; origin?: string; triage_signal_id?: string | null; responsibility_objective?: string; display_context?: DisplayContext | null; id: string; user_text: string; status: string; reply: string | null; questions: string[]; system_message?: string; issues: string[]; artifacts: ArtifactRef[]; steps?: Step[]; elapsed_seconds?: number; basis_status?: string; grounding?: Grounding | null; context_used?: ContextUsed | null; held_back?: string[]; gateway_runs: { route?: { unqualified?: boolean } | null; [key: string]: unknown }[];
+  /** `timing` is the wait the person experienced; a `direct_task` reply is computed by the host from the records, with no model call. */
+  timing?: { answer_seconds: number; working_seconds?: number; waiting_seconds?: number; model_seconds?: number; model_calls?: number; tool_seconds?: number; tool_calls?: number; path?: 'direct' | 'assistant' | 'saved_example'; target_seconds: number; within_target: boolean; completed_at?: string };
+  response_mode?: 'direct_task' | 'bounded_explanation' | 'deterministic_demo'; routing?: { route: 'direct' | 'assistant'; basis: 'host_rules' | 'decision_model'; reason: string; suggested_task?: unknown; decisions?: unknown[] } | null };
 type ContextUsed = { rules: { rule_id: string; scope: string; text: string }[]; corrections: { correction_id: string; text: string }[]; earlier_corrections: { correction_id: string; text: string }[] };
 type Thread = { id: string; site_id?: string; mission_id?: string; revision: number; title: string; turns: Turn[]; turn_ids: string[]; demo_enabled: boolean; source_ids: string[]; dataset_ids?: string[]; responsibility?: Responsibility | null; mission_status?: string };
 type PublishedDataset = { id: string; cmo: string; delivery_name: string | null; measurements: number; batches: string[] };
@@ -129,12 +132,14 @@ function WorkLog({ turn, threadId, running }: { turn: Turn; threadId: string; ru
   const reads = turn.artifacts.filter(a => a.kind === 'assistant_workspace_result');
   const steps = turn.steps ?? [];
   if (!steps.length && !reads.length && !turn.gateway_runs.length) return null;
+  const timing = turn.timing, took = timing?.answer_seconds ?? turn.elapsed_seconds, over = timing?.within_target === false;
   const parts = [steps.length && `${steps.length} step${steps.length === 1 ? '' : 's'}`, reads.length && `${reads.length} record lookup${reads.length === 1 ? '' : 's'}`,
-    turn.elapsed_seconds != null && `${turn.elapsed_seconds.toFixed(1)} s`].filter(Boolean).join(' · ');
+    took != null && !over && `${took.toFixed(1)} s`].filter(Boolean).join(' · ');
   return <details className="group mt-4 text-xs">
     <summary className="flex cursor-pointer list-none items-center gap-2 text-text-tertiary hover:text-text-secondary">
-      <Workflow size={14} />{running ? `Working${steps.find(x => x.status !== 'completed') ? ` · ${steps.find(x => x.status !== 'completed')!.title}` : ''}` : 'How I worked this out'}{parts && <span className="text-text-muted">· {parts}</span>}<ChevronDown size={12} className="transition-transform group-open:rotate-180" /></summary>
+      <Workflow size={14} />{running ? `Working${steps.find(x => x.status !== 'completed') ? ` · ${steps.find(x => x.status !== 'completed')!.title}` : ''}` : 'How I worked this out'}{parts && <span className="text-text-muted">· {parts}</span>}{over && took != null && <span className="text-status-warning">· {took.toFixed(took >= 100 ? 0 : 1)} s · over the {timing!.target_seconds} s target</span>}<ChevronDown size={12} className="transition-transform group-open:rotate-180" /></summary>
     <div className="mt-3 space-y-3 rounded-card bg-surface p-4 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+      {turn.routing?.reason && <p className="text-text-secondary">{turn.routing.route === 'direct' ? 'Calculated directly' : 'Handled by the assistant'}: {turn.routing.reason}</p>}
       {!!steps.length && <ol className="space-y-2">{steps.map(step => <li className="flex gap-2.5" key={step.node_id}>
         {step.status === 'completed' ? <Check size={14} className="mt-0.5 shrink-0 text-status-success" /> : running && step.status !== 'blocked' ? <Loader2 size={14} className="mt-0.5 shrink-0 text-brand-teal motion-safe:animate-spin" /> : <Circle size={14} className={`mt-0.5 shrink-0 ${step.status === 'blocked' ? 'text-status-critical' : 'text-text-muted'}`} />}
         <div><p className="text-text-primary">{step.title}
@@ -555,6 +560,8 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border-hairline bg-surface p-4"><div><p className="text-sm font-medium">{turn.status === 'blocked' ? 'Saved work needs attention' : 'Your work is ready to inspect'}</p><p className="mt-1 text-xs text-text-tertiary">Chart, source table, checks and next review step.</p></div><Link href={`/workspaces/#${encodeURIComponent(turn.id)}`} className="inline-flex items-center gap-1.5 rounded-control bg-brand-teal px-3 py-2 text-xs font-medium text-white">Open workspace<ArrowUpRight size={14} /></Link></div>
               {turn.reply && <details className="mt-3 text-xs text-text-secondary"><summary className="cursor-pointer">Read the assistant’s explanation</summary><Markdown className="mt-3" text={turn.reply} /></details>}
             </> : turn.reply && <Markdown text={turn.reply} />}
+            {turn.response_mode === 'bounded_explanation' && turn.reply && <p className="mt-2 text-xs text-text-tertiary">Explained from the comparison calculated for your question · every figure was checked against it · no other record was read</p>}
+            {turn.response_mode === 'direct_task' && turn.reply && <p className="mt-2 text-xs text-text-tertiary">Calculated directly from the records · no model wrote this answer{turn.routing?.basis === 'decision_model' ? ' · the decision model matched your words to the task' : ''}</p>}
             {!!turn.open_in?.length && turn.reply && !active(turn) && <nav aria-label="Continue in the workspace" className="mt-3 flex flex-wrap gap-2" data-testid="answer-links">
               {turn.open_in.map(link => <Link key={link.href} href={link.href} className="inline-flex items-center gap-1 rounded-control border border-border-strong px-2.5 py-1.5 text-[12.5px] font-medium text-brand-teal hover:bg-brand-teal-light">{link.label}<ArrowUpRight size={13} /></Link>)}</nav>}
             {turn.grounding && turn.reply && <GroundingNote g={turn.grounding} />}

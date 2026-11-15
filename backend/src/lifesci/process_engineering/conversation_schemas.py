@@ -39,6 +39,8 @@ class MessageIn(StrictModel):
     # Verified CMO delivery datasets published as platform evidence (cmo-verified-delivery:<run>).
     dataset_ids: list[str] = Field(default_factory=list, max_length=5)
     display_context: DisplayContext | None = None
+    # The person chose to include deliveries that are still in review for this message. Never set by the assistant.
+    include_unverified: bool = False
 
 class WorkflowNode(StrictModel):
     node_id: str = Field(pattern=r'^[a-z][a-z0-9_]{0,49}$')

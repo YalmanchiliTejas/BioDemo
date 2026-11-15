@@ -24,7 +24,11 @@ SCALES = (1.0, 1e-6, 1e-3, 1e3, 1e6, 100.0, 0.01)
 
 
 def _numbers(text):
-    return {float(m) for m in NUMBER.findall(THOUSANDS.sub('', str(text)))}
+    """Numbers a source can vouch for. A comma is read both ways: as a thousands separator ("9,626,667") and as a
+    field delimiter ("S-009-R01-16,231.00" is two CSV fields; reading it only as 16231.00 hid the real 231.00)."""
+    text = str(text)
+    return ({float(m) for m in NUMBER.findall(THOUSANDS.sub('', text))}
+            | {float(m) for m in NUMBER.findall(text.replace(',', ' '))})
 
 
 def _shown(text):
@@ -167,6 +171,8 @@ if __name__ == '__main__':
     # A calculated number counts only when its inputs are in the answer; otherwise almost any number would pass.
     assert check_reply('Viability fell 83.08 points.', [], fc)['unsupported_numbers'] == [83.08]
     assert check_reply('Viable density 9,626,667 cells/mL.', [], {'S': 'vcd 9626667'})['status'] == 'no_claims'
+    # A CSV row: the comma separates a sample id from a value; it is not a thousands separator.
+    assert check_reply('The sample was taken at 231.00 h.', [], {'C': 'sample,time_h\nS-009-R01-16,231.00'})['status'] == 'no_claims'
     wrong = check_reply('DO read 61 %, 44 %, 33 %, 24 % (the last three below a 30 % limit).', [], {'H': '61 44 33 24 30'})
     assert wrong['status'] == 'contradicted' and wrong['contradictions'][0]['but'] == '44 %, 33 %, 24 %', wrong
     print('ok')

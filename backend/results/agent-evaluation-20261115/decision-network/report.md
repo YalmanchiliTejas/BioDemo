@@ -1,0 +1,47 @@
+# Skill benchmarks
+
+Started 2026-11-15T20:28:17.095943+00:00.
+
+| Skill | Arm | Cases | Correct | 95% interval | Wrong answers | Cannot do yet | Slowest |
+|---|---|---:|---:|---|---:|---:|---:|
+| Decide or abstain (decision model) | decision_model | 1200 | 1152 (96%) | 95%–97% | 19 | 29 | 0.02 s |
+
+### Decide or abstain (decision model) · decision_model
+
+Asked which of 20 intents a real request means, does the decision model pick the right one, say "unknown" for a request that fits none, and is its probability a usable signal?
+
+How it fails: wrong value 5, should have abstained 14, declined although answerable 29.
+
+| Condition | Cases | Correct | What goes wrong |
+|---|---:|---:|---|
+| fits one of the intents | 600 | 566 (94%) | declined although answerable 29, wrong value 5 |
+| fits none of the intents | 600 | 586 (98%) | should have abstained 14 |
+
+Most common reasons:
+- 29 × declined although answerable: said unknown for a request that fits an intent
+- 14 × should have abstained: chose an intent for a request that fits none
+- 5 × wrong value: chose the wrong intent
+
+### Can the decision model act without a person?
+
+| Act when probability is at least | Acted on | Right | Precision | In-scope requests handled |
+|---:|---:|---:|---:|---:|
+| 0.50 | 583 | 565 | 96.9% | 94% |
+| 0.60 | 571 | 556 | 97.4% | 93% |
+| 0.70 | 548 | 535 | 97.6% | 89% |
+| 0.80 | 520 | 510 | 98.1% | 85% |
+| 0.90 | 475 | 468 | 98.5% | 78% |
+| 0.95 | 442 | 436 | 98.6% | 73% |
+| 0.99 | 359 | 357 | 99.4% | 60% |
+
+| Probability band | Answers | Right | Observed rate |
+|---|---:|---:|---:|
+| 0.00-0.50 | 2 | 1 | 50% |
+| 0.50-0.60 | 12 | 9 | 75% |
+| 0.60-0.70 | 23 | 21 | 91% |
+| 0.70-0.80 | 28 | 25 | 89% |
+| 0.80-0.90 | 45 | 42 | 93% |
+| 0.90-0.95 | 33 | 32 | 97% |
+| 0.95-1.00 | 442 | 436 | 99% |
+
+Limits: Public data from laboratories, one manufacturer and regulators; not your sites. The data was loaded directly as deliveries in review. Reading messy files is measured elsewhere. Specifications and readable names were added where the report says so; nothing else was. Host-arm cases use no model. They say nothing about the assistant.

@@ -1,0 +1,52 @@
+{
+  "schema": "recurring-work-evaluation-v1",
+  "authorship": "Our authored synthetic cases and deterministic scoring",
+  "mode": "live_agent",
+  "cases": [
+    {
+      "id": "hourly",
+      "every_minutes": 60,
+      "triggers": [],
+      "prompt": "Save a routine named Hourly case list that lists case records at BENCH-SITE every hour, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+    },
+    {
+      "id": "quarter-hour",
+      "every_minutes": 15,
+      "triggers": [],
+      "prompt": "Save a routine named Quarter-hour case list that lists case records at BENCH-SITE every 15 minutes, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+    },
+    {
+      "id": "daily-interval",
+      "every_minutes": 1440,
+      "triggers": [],
+      "prompt": "Save a routine named Daily case list that lists case records at BENCH-SITE every 24 hours, for at most 2 runs. Use only the interval, with no event triggers. Leave it as a draft for me to activate."
+    },
+    {
+      "id": "case-event",
+      "every_minutes": null,
+      "triggers": [
+        "case"
+      ],
+      "prompt": "Save a routine named Changed case list that lists case records at BENCH-SITE when case records change, for at most 2 runs. Use case events only, with no periodic schedule. Leave it as a draft for me to activate."
+    }
+  ],
+  "model": "zai-org/GLM-5.3",
+  "estimated_budget_usd": 2,
+  "max_provider_requests": 24,
+  "limits": [
+    "Four explicit requests, not general natural-language accuracy.",
+    "Host lifecycle checks are separate from live definition correctness.",
+    "SQLite reconstruction, not OS crash or deployed scheduler validation.",
+    "Worker tenant explicitly configured with LIFESCI_TENANTS; local due times advanced by the harness.",
+    "Relative intervals only, not time zones, DST or wall-clock recurrence.",
+    "No semantic judge; final wording requires review.",
+    "Token-rate estimates do not reconcile hosted compute billing."
+  ],
+  "source_hashes": {
+    "benchmarks/skills/recurring.py": "8702bb58b3473c7fac83d09e3876799a1eeee7f85bf877ef476def3f44da2a35",
+    "src/lifesci/assistant_routines.py": "6249de4e90605b58a856dcf733efd3081d2a39253cb65626012335b4144ed792",
+    "src/lifesci/process_engineering/tool_loop.py": "de5503b82d087c3cf3350f0d54ed0940ff42ccd92413a4a8bb2b656cff4b6c9f",
+    "src/lifesci/process_engineering/conversation.py": "f8dcd65b77807b181ab6250f81009ea8e69f39309d604bc242278d2189cfe12b",
+    "src/lifesci/missions.py": "2571e5a260d64f230b59debdee9af484de69a9769891ecde1aeabec2816e86a7"
+  }
+}

@@ -97,6 +97,9 @@ class Platform:
         providers = self.providers if self.providers is not None else self._env_providers()
         self.gateway = ModelGateway(s, self.identity, registry, providers,
                                     router=Router(registry, allow_unqualified=self.allow_unqualified, task_profile_bindings=bindings))
+        # Optional bounded decision model (trial option C): off unless LIFESCI_DECISION_ADAPTER=jev and a key are set.
+        from .gateway.decisions import DecisionAdapter
+        self.gateway.decisions = DecisionAdapter.from_env(self.gateway)
         from .lyophilization.service import ProcessModelService, register_handlers
         self.process_models = ProcessModelService(self)
         register_handlers(self.gateway)
@@ -121,6 +124,8 @@ class Platform:
         self.assistant_responsibilities = AssistantResponsibilities(self)
         from .assistant_routines import AssistantRoutineService
         self.assistant_routines = AssistantRoutineService(self)
+        from .work_plans import WorkPlanService
+        self.work_plans = WorkPlanService(self)
         from .investigations import InvestigationService
         self.investigations = InvestigationService(self)
         # Deviation signals: detection on committed events, then alerts and assistant triage (docs/architecture/deviation-signals-and-alerts.md).
@@ -161,6 +166,11 @@ class Platform:
             out["openai"] = OpenAIProvider()
         if all(modal_settings()):
             out["modal"] = ModalProvider()
+            from .gateway.configuration import INTERPRETER_PROVIDER, interpreter_effort
+            effort = interpreter_effort(os.environ)
+            if effort:  # the same deployment, with this effort, for the explanation role only
+                out[INTERPRETER_PROVIDER] = ModalProvider(environ={**os.environ, "MODAL_COMPLETION_REASONING_EFFORT": effort,
+                                                                    "MODAL_COMPLETION_JSON": "1"})
         return out
 
     @classmethod

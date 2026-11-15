@@ -208,6 +208,12 @@ class ModalProvider(_HTTPProvider):
         # wrong run on a comparison it had to work out itself. Set it only with an evaluation behind it.
         effort = env.get("MODAL_REASONING_EFFORT", "").strip().lower()
         self._reasoning_effort = effort if effort in ("low", "medium", "high") else None
+        # Single completions (no tools) keep the deployment's default unless this is set. It is set only for the
+        # explanation role, whose figures are calculated by the host and checked against the result afterwards.
+        completion_effort = env.get("MODAL_COMPLETION_REASONING_EFFORT", "").strip().lower()
+        self._completion_effort = completion_effort if completion_effort in ("low", "medium", "high") else None
+        # The explanation role asks the endpoint for a JSON object, so a stray sentence cannot cost a correction call.
+        self._completion_json = env.get("MODAL_COMPLETION_JSON", "").strip() == "1"
 
     def _check_configuration(self) -> None:
         if not self._base:
@@ -235,6 +241,10 @@ class ModalProvider(_HTTPProvider):
             # This endpoint rejects the 'developer' role.
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
         }
+        if self._completion_effort:
+            body["reasoning_effort"] = self._completion_effort
+        if self._completion_json:
+            body["response_format"] = {"type": "json_object"}
         data = self._post("/chat/completions", body, {"Authorization": f"Bearer {self._key}"}, max(timeout_s, self._timeout))
         choices = data.get("choices") or []
         choice = choices[0] if choices else {}

@@ -38,6 +38,8 @@ ASSISTANT_EXCLUDED = {
     'workspace_task_result': 'private computed work, accessed through workbench results',
     'assistant_routine': 'private reusable task definition, accessed through routines',
     'assistant_routine_run': 'private routine execution history, accessed through routines',
+    'work_plan': "a person's private working file of next steps, opened from the workbench",
+    'workspace_prepared_delivery': 'a calculated profile of a delivery; the delivery itself is searchable',
 }
 FIELDS = {
     'assistant_alarm': ('title', 'description', 'severity', 'source_refs', 'record_refs', 'created_at'),
@@ -120,6 +122,22 @@ def _overlap(query_tokens, text):
 class WorkspaceTools:
     def __init__(self, platform):
         self.p = platform
+        # Search text per record revision, so a search does not re-serialize every record it scans. A changed record
+        # has a new revision and so a new entry; access is still checked on every search.
+        # ponytail: a bounded in-process cache over a linear scan; move to the FTS index when sites hold more
+        # records than a scan should read.
+        self._search_text: dict[tuple, tuple[str, str, frozenset]] = {}
+
+    def _searchable(self, tenant_id, rec):
+        key = (tenant_id, rec.kind, rec.id, rec.revision)
+        hit = self._search_text.get(key)
+        if hit is None:
+            text = json.dumps({k: rec.state[k] for k in FIELDS[rec.kind] if k in rec.state}, ensure_ascii=False)
+            hit = (text, text.casefold(), frozenset(_tokens(text)))
+            if len(self._search_text) >= 20_000:
+                self._search_text.clear()
+            self._search_text[key] = hit
+        return hit
 
     def _authorize(self, ctx, thread, rec):
         if self.p.process_models.analysis.is_library_record(rec.kind,rec.state):
@@ -182,9 +200,9 @@ class WorkspaceTools:
                     ref = self._authorize(ctx, thread, rec)
                 except (PermissionError, ValueError, KeyError):
                     continue
-                searchable = json.dumps({k: rec.state[k] for k in FIELDS[kind] if k in rec.state}, ensure_ascii=False)
-                score = _overlap(query_tokens, searchable)
-                if query and query.casefold() not in searchable.casefold() and score < 0.5:
+                searchable, folded, tokens = self._searchable(ctx.tenant_id, rec)
+                score = len(query_tokens & tokens) / len(query_tokens) if query_tokens else 0.0
+                if query and query.casefold() not in folded and score < 0.5:
                     # Source-system identifiers often contain no domain terms.
                     # Search authorized text originals as well as their metadata;
                     # retain explicit workspace_read for inspecting source content.
@@ -207,7 +225,7 @@ class WorkspaceTools:
                         continue
                     exact = query.casefold() in original.casefold()
                 else:
-                    exact = not query or query.casefold() in searchable.casefold()
+                    exact = not query or query.casefold() in folded
                 out.append({**self._summary(rec, ref), 'match': 'exact' if exact else 'words', 'word_overlap': round(score, 2)})
         # Literal matches keep the established newest-first order; word matches follow, best overlap first.
         out.sort(key=lambda r: (r['time'] or '', r['id']), reverse=True)

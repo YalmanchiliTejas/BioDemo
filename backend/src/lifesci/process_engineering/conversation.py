@@ -8,6 +8,7 @@ from contextvars import ContextVar
 import hashlib
 import json
 import logging
+import os
 from pathlib import Path
 from time import monotonic
 
@@ -18,7 +19,8 @@ from ..cmo_datasets import conversation_source, require_dataset
 from ..evidence import EvidenceRef
 from ..flows import node_order
 from ..gateway import TaskRequest
-from ..ids import iso, new_id, utc_now
+from ..ids import iso, new_id, parse_iso, utc_now
+from ..latency import ANSWER_TARGET_SECONDS
 from ..store import ConflictError, LeaseError, NotFoundError
 from .conversation_schemas import (BioForecast, ChatDecision, ChatPipelineSpec, ChoForecast, Compare, ConversationIn, ConversationUpdate,
     DemoCase, DemoInputs, MessageIn, PlanId, ResultId, Variant, WorkspaceSearch, WorkspaceRead, WorkspaceProposal,
@@ -29,7 +31,7 @@ from . import tool_loop
 from .grounding import check_reply, source_text
 from .schemas import AdapterProposalIn
 from .library_schemas import ConfigurationIn,DatasetIn,LibraryPipelineSpec,LibraryPlanId,LibraryCatalogIn,LibraryReadIn,LibraryContextId,ModelExtensionIn
-from ..workspace_tasks import TaskSpec
+from ..workspace_tasks import TaskSpec, describe
 from ..assistant_routines import RoutineIn
 
 
@@ -344,7 +346,7 @@ class EngineeringConversationService:
             ref = {'kind': 'evidence', 'id': ev['evidence_id'], 'revision': ev['revision'], 'site_id': rec.state['site_id']}
             tx.put(ctx.tenant_id, 'engineering_chat_turn', tid,
                 {'id': tid, 'conversation_id': thread_id, 'site_id': rec.state['site_id'], 'user_text': text,
-                 'display_context': display_context,
+                 'display_context': display_context, 'include_unverified': request.include_unverified,
                  'user_ref': ref, 'status': 'queued', 'reply': None, 'questions': [], 'artifacts': [],
                  'issues': [], 'flow_run_id': None, 'flow_run_ids': [], 'planning_calls_admitted': 0,
                  'gateway_runs': [], 'planning_attempts': [], 'created_at': iso(utc_now()),
@@ -491,8 +493,11 @@ class EngineeringConversationService:
                     encoded = json.dumps(data, ensure_ascii=False)
                     allowance = min(8000, workspace_char_budget)
                     if len(encoded) > allowance:
-                        data = {'id': artifact['id'], 'excerpt': encoded[:allowance], 'truncated': True,
-                            'note': 'Working context is bounded; original and full provenance remain in the saved artifact. Use targeted workspace reads for missing values.'}
+                        # Shortened in place, never cut mid-structure: each shortened list says how much is not shown,
+                        # so the assistant knows which values to fetch instead of answering from a fragment.
+                        from .bounding import bounded
+                        data = {'id': artifact['id'], 'outline': json.loads(bounded(data, max(allowance, 400))[0]), 'truncated': True,
+                            'note': 'Working context is bounded; lists marked not_shown are saved in full in the artifact. Use targeted workspace reads for those values.'}
                     workspace_char_budget -= min(len(encoded), allowance)
                 if artifact['kind'].startswith('bioprocess_') and data.get('status') not in ('stale', 'quarantined'):
                     summaries.append(_bounded(artifact['kind'], data))
@@ -641,6 +646,8 @@ class EngineeringConversationService:
                 if demo is not None:
                     checkpoint(**demo)
                     return self.get(ctx, thread_id)
+                if self._answer_directly(ctx, thread, turn, checkpoint):
+                    return self.get(ctx, thread_id)
             if tool_loop.enabled(ctx) and not turn['flow_run_id']:
                 self.tool_loop.run(ctx, thread, turn_id, checkpoint)
                 return self.get(ctx, thread_id)
@@ -717,12 +724,167 @@ class EngineeringConversationService:
             try:
                 with self.p.store.transaction(ctx.actor_id) as tx:
                     tx.check_lease(ctx.tenant_id, 'engineering_chat_turn', turn_id, worker, token)
-                    self._update_turn(ctx, turn_id, elapsed_seconds=round(elapsed_before + monotonic()-started, 3))
+                    elapsed = round(elapsed_before + monotonic()-started, 3)
+                    self._update_turn(ctx, turn_id, elapsed_seconds=elapsed,
+                                      **({} if continue_round else self._turn_timing(ctx, turn_id, elapsed)))
                     tx.expire_lease(ctx.tenant_id, 'engineering_chat_turn', turn_id)
                 self._after_turn(ctx, thread, turn_id)
             finally:
                 _TURN_EXECUTION.reset(execution_context)
         return self.run_turn(ctx, thread_id, turn_id) if continue_round else self.get(ctx, thread_id)
+
+    def _answer_directly(self, ctx, thread, turn, checkpoint):
+        """A typed request that is exactly one routine task is calculated by the host and answered at once.
+
+        The router is strict: one task, one delivery, recorded names, no words left over. Questions, causes and
+        anything ambiguous go to the assistant unchanged. Nothing is approximated to be fast: every figure in the
+        reply is computed from the cited records, and the saved result holds the rows behind it."""
+        if (os.environ.get('ASSISTANT_DIRECT_ROUTE', 'on').strip().lower() in ('off', '0', 'false', 'no')
+                or turn.get('display_context') or turn.get('origin') == 'background' or turn.get('routing')):
+            return False
+        try:
+            route = self.p.workspace_tasks.route(ctx, thread['site_id'], turn['user_text'],
+                                                 dataset_ids=thread.get('dataset_ids', []),
+                                                 include_unverified=bool(turn.get('include_unverified')))
+        except (PermissionError, ValueError, KeyError, LookupError):
+            return False
+        routing = {k: route[k] for k in ('route', 'basis', 'reason', 'suggested_task', 'decisions', 'timing')}
+        if route['route'] != 'direct':
+            checkpoint(routing=routing)
+            if route.get('prepared_task'):
+                record, step = self._prepare_for_assistant(ctx, turn, route['prepared_task'], checkpoint)
+                if record is not None and self._explain_first(ctx, thread, turn, record, step, checkpoint):
+                    return True
+            return False
+        step = {'node_id': new_id('direct'), 'task_kind': 'workspace_run_task', 'depends_on': [], 'payload': route['task'],
+                'title': tool_loop.title('workspace_run_task', route['task']), 'status': 'running', 'issues': [],
+                'started_at': iso(utc_now()), 'ended_at': None}
+        checkpoint(routing=routing, tool_steps=[step])
+        try:
+            record = self.p.workspace_tasks.execute(ctx, route['task'],
+                commit_guard=lambda tx: self._active_turn(ctx, turn, tx),
+                on_commit=lambda tx, result: self._remember(ctx, turn, 'workspace_task_result', result, result['summary']))
+        except ConflictError:
+            raise  # stopped or superseded: never publish more work
+        except (ValidationError, PermissionError, ValueError, KeyError, LookupError) as exc:
+            # The direct task could not run: the assistant takes the request, and the record says why.
+            checkpoint(tool_steps=[], routing={**routing, 'route': 'assistant',
+                                               'reason': f'the direct task did not run: {str(exc).splitlines()[0][:200]}'})
+            return False
+        done = {**step, 'status': 'completed', 'ended_at': iso(utc_now()), 'result_id': record['id']}
+        reply = describe(record)
+        checkpoint(reply=reply, questions=[], tool_steps=[done], status='completed', system_message=None, issues=[],
+                   response_mode='direct_task', harness='direct-route-v1', answer_basis=record['source_refs'])
+        try:  # searchable by meaning from now on, like any other answer
+            self.p.agent_memory._index(ctx.tenant_id, thread['owner_id'], 'engineering_chat_turn', turn['id'],
+                                       f"Q: {turn.get('user_text', '')}\nA: {reply}", thread['site_id'])
+        except Exception:
+            logging.getLogger(__name__).exception('indexing a direct answer deferred')
+        return True
+
+    def _prepare_for_assistant(self, ctx, turn, task, checkpoint):
+        """The question names one delivery and one recorded parameter: calculate that now and hand it to the assistant
+        with the question. The assistant still answers; it starts from complete computed figures instead of spending
+        several model calls finding and paging them. A failure here changes nothing: the assistant works as before."""
+        step = {'node_id': new_id('prepared'), 'task_kind': 'workspace_run_task', 'depends_on': [], 'payload': task,
+                'title': 'Calculated before asking the assistant · ' + tool_loop.title('workspace_run_task', task),
+                'status': 'running', 'issues': [], 'started_at': iso(utc_now()), 'ended_at': None}
+        try:
+            record = self.p.workspace_tasks.execute(ctx, task,
+                commit_guard=lambda tx: self._active_turn(ctx, turn, tx),
+                on_commit=lambda tx, result: self._remember(ctx, turn, 'workspace_task_result', result, result['summary']))
+        except ConflictError:
+            raise
+        except (ValidationError, PermissionError, ValueError, KeyError, LookupError):
+            return None, None
+        step = {**step, 'status': 'completed', 'ended_at': iso(utc_now()), 'result_id': record['id']}
+        checkpoint(prepared_result_id=record['id'], tool_steps=[step])
+        return record, step
+
+    def _explain_first(self, ctx, thread, turn, record, step, checkpoint):
+        """Answer a question about one delivery and parameter first from the comparison the host just calculated:
+        one model call whose every number must appear in that calculation. It reads no other record, and says so.
+        A follow-up goes to the assistant, which can search further. If the explanation is withheld or the model is
+        unavailable, the assistant takes the question as before."""
+        if os.environ.get('ASSISTANT_QUICK_ANSWERS', 'on').strip().lower() in ('off', '0', 'false', 'no'):
+            return False
+        earlier = thread['turn_ids'][:-1]
+        if earlier and self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', earlier[-1]).state.get(
+                'response_mode') == 'bounded_explanation':
+            return False  # the person is following up on a quick answer: this one is the assistant's
+        from ..gateway.router import RoutingError
+        try:  # no explanation model is available: go straight to the assistant, without a failed call on record
+            self.p.gateway.router.route('comparison_explanation', unavailable=self.p.gateway.unavailable)
+        except RoutingError:
+            return False
+        started = iso(utc_now())
+        try:
+            answer = self.p.workspace_tasks.explain(ctx, record['id'], turn['user_text'])
+        except ConflictError:
+            raise
+        except (ValidationError, PermissionError, ValueError, KeyError, LookupError):
+            return False
+        trace = self.p.store.read().get(ctx.tenant_id, 'model_run', answer['run_id'])
+        runs = [{k: trace.state.get(k) for k in ('run_id', 'status', 'attempts', 'cost_usd', 'issues', 'route')}] if trace else []
+        explain_step = {'node_id': new_id('explain'), 'task_kind': 'comparison_explanation', 'depends_on': [step['node_id']],
+                        'payload': {}, 'title': 'Explained the calculated comparison', 'issues': [],
+                        'status': 'completed' if answer['status'] == 'completed' else 'blocked',
+                        'started_at': started, 'ended_at': iso(utc_now())}
+        if answer['status'] != 'completed':
+            # Keep what happened visible, then let the assistant answer with the calculation attached.
+            checkpoint(gateway_runs=runs, tool_steps=[step, {**explain_step, 'issues': [str(answer.get('reason'))[:300]]}])
+            return False
+        parts = [answer['explanation']]
+        if answer['hypotheses']:
+            parts.append('**Possible explanations to check**\n' + '\n'.join(
+                f"- {h['statement']} Check: {h['check']}" for h in answer['hypotheses']))
+        if answer['unknowns']:
+            parts.append('**What this cannot tell**\n' + '\n'.join(f'- {u}' for u in answer['unknowns']))
+        if answer.get('cautions'):
+            parts.append('Check the wording against the figures: ' + '; '.join(answer['cautions']) + '.')
+        parts.append('This answer uses only the comparison calculated for your question; no other record was read. '
+                     'Ask me to look further and I will search the related records.')
+        reply = '\n\n'.join(parts)
+        checkpoint(reply=reply, questions=[], tool_steps=[step, explain_step], gateway_runs=runs, status='completed',
+                   system_message=None, issues=[], response_mode='bounded_explanation', harness='explain-first-v1',
+                   answer_basis=record['source_refs'])
+        try:
+            self.p.agent_memory._index(ctx.tenant_id, thread['owner_id'], 'engineering_chat_turn', turn['id'],
+                                       f"Q: {turn.get('user_text', '')}\nA: {reply}", thread['site_id'])
+        except Exception:
+            logging.getLogger(__name__).exception('indexing a quick answer deferred')
+        return True
+
+    def _turn_timing(self, ctx, turn_id, working_seconds):
+        """How long the person waited for this answer and where the time went. Measured, never enforced: an answer
+        that takes longer than the target is still delivered, and is counted as over the target."""
+        state = self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', turn_id).state
+        if state['status'] in ('queued', 'running'):
+            return {}
+        now = utc_now()
+        try:
+            waited = max((now - parse_iso(state['created_at'])).total_seconds(), working_seconds)
+        except (TypeError, ValueError, KeyError):
+            waited = working_seconds
+        attempts = [a for run in state.get('gateway_runs', []) for a in run.get('attempts', []) if 'model' in a]
+        tool_seconds = 0.
+        for step in state.get('tool_steps') or []:
+            try:
+                tool_seconds += (parse_iso(step['ended_at']) - parse_iso(step['started_at'])).total_seconds()
+            except (TypeError, ValueError, KeyError):
+                continue
+        return {'timing': {
+            'answer_seconds': round(waited, 3), 'working_seconds': working_seconds,
+            'waiting_seconds': round(max(waited - working_seconds, 0.), 3),
+            'model_seconds': round(sum(a.get('latency_ms') or 0. for a in attempts) / 1000, 3), 'model_calls': len(attempts),
+            'tool_seconds': round(tool_seconds, 3), 'tool_calls': len(state.get('tool_steps') or []),
+            'path': 'direct' if state.get('response_mode') == 'direct_task' else
+                    'explanation' if state.get('response_mode') == 'bounded_explanation' else
+                    'saved_example' if state.get('response_mode') == 'deterministic_demo' else 'assistant',
+            'target_seconds': ANSWER_TARGET_SECONDS, 'within_target': waited <= ANSWER_TARGET_SECONDS,
+            'completed_at': iso(now),
+            'basis': 'answer_seconds runs from when the message was sent to when this answer was saved; '
+                     'waiting_seconds is time queued or between retries.'}}
 
     def _after_turn(self, ctx, thread, turn_id):
         """Work that follows a finished answer, done once here instead of by scanning every minute (live: the
@@ -943,6 +1105,9 @@ class EngineeringConversationService:
             elif name == 'workspace_run_task':
                 if payload.site_id != thread['site_id']:
                     raise PermissionError('task site must match the conversation')
+                if payload.include_unverified and not turn.get('include_unverified'):
+                    # Only a person chooses to calculate on unreviewed values; the assistant cannot opt in on its own.
+                    raise PermissionError('values still in review can be included only when the person chose that for this message')
                 record = self.p.workspace_tasks.execute(ctx, payload,
                     commit_guard=lambda tx: self._active_turn(ctx, turn, tx),
                     on_commit=lambda tx, result: self._remember(ctx, turn, 'workspace_task_result', result, result['summary']))

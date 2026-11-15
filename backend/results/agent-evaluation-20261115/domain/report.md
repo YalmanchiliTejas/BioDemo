@@ -1,0 +1,146 @@
+# Skill benchmarks
+
+Started 2026-11-15T20:25:23.627051+00:00.
+
+| Skill | Arm | Cases | Correct | 95% interval | Wrong answers | Cannot do yet | Slowest |
+|---|---|---:|---:|---|---:|---:|---:|
+| Analyst questions | host | 216 | 96 (44%) | 38%–51% | 0 | 120 | 0.00 s |
+| Compare runs | host | 158 | 155 (98%) | 95%–99% | 0 | 3 | 0.28 s |
+| Catch a deviation | host | 168 | 6 (4%) | 2%–8% | 128 | 0 | 7.33 s |
+| Fair comparison | host | 150 | 150 (100%) | 98%–100% | 0 | 0 | 0.12 s |
+| Find a record by lot number | host | 150 | 150 (100%) | 98%–100% | 0 | 0 | 0.09 s |
+| Missing results | host | 76 | 15 (20%) | 12%–30% | 61 | 0 | 0.03 s |
+| Point at the change | host | 184 | 89 (48%) | 41%–56% | 0 | 37 | 0.40 s |
+| Rank possible causes | host | 124 | 3 (2%) | 1%–7% | 120 | 0 | 1.50 s |
+| Link records by lot number | host | 150 | 29 (19%) | 14%–26% | 0 | 0 | 0.14 s |
+| Trace a lot through batches | host | 117 | 117 (100%) | 97%–100% | 0 | 0 | 0.32 s |
+
+### Analyst questions · host
+
+Does the product state the answer to the questions an engineer asks of a run: a value at a time, the peak and when, an average over a window, when a threshold was crossed, how much it changed?
+
+How it fails: not supported 120.
+
+| Condition | Cases | Correct | What goes wrong |
+|---|---:|---:|---|
+| average over a window | 24 | 0 (0%) | not supported 24 |
+| change over the run | 24 | 0 (0%) | not supported 24 |
+| when a threshold was crossed | 24 | 0 (0%) | not supported 24 |
+| when the highest value occurred | 24 | 0 (0%) | not supported 24 |
+| which run peaked higher | 24 | 0 (0%) | not supported 24 |
+
+Most common reasons:
+- 24 × not supported: when the highest value occurred
+- 24 × not supported: the average of the values in a time window
+- 24 × not supported: when a value first crossed a threshold (no way to give one)
+- 24 × not supported: the change between two times of one run
+- 24 × not supported: which run had the higher peak
+
+### Compare runs · host
+
+Given two runs and a parameter, are the differences the product reports the right ones?
+
+How it fails: not supported 3.
+
+Most common reasons:
+- 3 × not supported: the data is larger than a direct task accepts
+
+### Catch a deviation · host
+
+Replaying a real run with a labelled anomaly through the product's own check, is a signal raised during the anomaly, and not before it?
+
+How it fails: missed 2, false alarm 128, error 32.
+
+| Condition | Cases | Correct | What goes wrong |
+|---|---:|---:|---|
+| pressure sensor | 44 | 0 (0%) | false alarm 34, error 8, missed 2 |
+| run labelled normal | 18 | 0 (0%) | false alarm 18 |
+| temperature sensor | 76 | 2 (3%) | false alarm 62, error 12 |
+| limits: range of one normal run | 84 | 3 (4%) | false alarm 64, error 16, missed 1 |
+| limits: that range widened by half | 84 | 3 (4%) | false alarm 64, error 16, missed 1 |
+| unconfirmed anomaly | 146 | 6 (4%) | false alarm 106, error 32, missed 2 |
+
+Most common reasons:
+- 69 × false alarm: the trend rule raised a signal before the anomaly began
+- 41 × false alarm: a limit raised a signal before the anomaly began
+- 32 × error: ValueError: zero or invalid variation in baseline; control limits undefined
+- 14 × false alarm: the trend rule raised a signal on a run the operators labelled normal
+- 4 × false alarm: a limit raised a signal on a run the operators labelled normal
+- 2 × missed: the first signal came only after the anomaly had ended
+
+### Missing results · host
+
+Against what the site requires for every batch, does the product report exactly the results that are missing?
+
+How it fails: false alarm 61.
+
+| Condition | Cases | Correct | What goes wrong |
+|---|---:|---:|---|
+| a result is really missing | 46 | 0 (0%) | false alarm 46 |
+| results without a stated unit | 61 | 0 (0%) | false alarm 61 |
+| nothing is missing | 30 | 15 (50%) | false alarm 15 |
+
+Most common reasons:
+- 15 × false alarm: reported 90 results as required missing that are present in the delivery
+- 6 × false alarm: reported 75 results as required missing that are present in the delivery
+- 5 × false alarm: reported 84 results as required missing that are present in the delivery
+- 4 × false alarm: reported 87 results as required missing that are present in the delivery
+- 3 × false alarm: reported 88 results as required missing that are present in the delivery
+- 3 × false alarm: reported 83 results as required missing that are present in the delivery
+
+### Point at the change · host
+
+Of the largest changes the Trends page lists for a series, does one fall inside the labelled anomaly, and can it say when a run is unremarkable?
+
+How it fails: missed 58, not supported 37.
+
+| Condition | Cases | Correct | What goes wrong |
+|---|---:|---:|---|
+| run labelled normal | 37 | 0 (0%) | not supported 37 |
+| flow sensor | 36 | 18 (50%) | missed 18 |
+| temperature sensor | 82 | 50 (61%) | missed 32 |
+| uncategorised anomaly | 144 | 89 (62%) | missed 55 |
+| unconfirmed anomaly | 144 | 89 (62%) | missed 55 |
+| pressure sensor | 29 | 21 (72%) | missed 8 |
+
+Most common reasons:
+- 58 × missed: none of the three largest changes falls inside the labelled anomaly
+- 37 × not supported: it always lists the largest changes; it cannot say that a run is unremarkable
+
+### Rank possible causes · host
+
+Asked what might have caused a labelled anomaly, is the action that actually caused it among the first candidates?
+
+How it fails: wrong value 120, missed 1.
+
+| Condition | Cases | Correct | What goes wrong |
+|---|---:|---:|---|
+| 11 to 30 earlier events in the log | 43 | 0 (0%) | wrong value 43 |
+| Compromised sensor output (noise) | 10 | 0 (0%) | wrong value 10 |
+| Increased main heat input to reboiler vessel (V001) | 6 | 0 (0%) | wrong value 6 |
+| Leaking into system (inert gas ingress) | 12 | 0 (0%) | wrong value 12 |
+| Leaking out of system (reflux egress) | 6 | 0 (0%) | wrong value 6 |
+| Reduced main heat input to reboiler vessel (V001) | 32 | 0 (0%) | wrong value 32 |
+
+Most common reasons:
+- 120 × wrong value: the true cause is listed, but not among the first three: candidates are in time order, with nothing to rank them
+- 1 × missed: the action that caused the anomaly was linked but set aside
+
+### Link records by lot number · host
+
+Given the same lot number, does tracing return the reports that mention it, as mentions?
+
+How it fails: missed 121.
+
+| Condition | Cases | Correct | What goes wrong |
+|---|---:|---:|---|
+| lot is digits only | 62 | 0 (0%) | missed 62 |
+| lot mixes letters and digits | 9 | 0 (0%) | missed 9 |
+| lot starts with a digit | 28 | 0 (0%) | missed 28 |
+| lot has a separator | 27 | 5 (19%) | missed 22 |
+| named in one report | 148 | 29 (20%) | missed 119 |
+
+Most common reasons:
+- 121 × missed: the lot number, as written in the report, is not recognised as an identifier
+
+Limits: Public data from laboratories, one manufacturer and regulators; not your sites. The data was loaded directly as deliveries in review. Reading messy files is measured elsewhere. Specifications and readable names were added where the report says so; nothing else was. Host-arm cases use no model. They say nothing about the assistant.

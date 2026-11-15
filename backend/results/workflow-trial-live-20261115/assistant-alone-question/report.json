@@ -1,0 +1,290 @@
+{
+  "schema_version": "workflow-trial-live-v1",
+  "started_at": "2026-11-15T08:59:24.579898+00:00",
+  "question": "What does this comparison show, and what should be checked next?",
+  "protocol": {
+    "evidence": "The three held-out CHO deliveries of the offline trial, shared as provisional evidence; every arm starts from a fresh application holding the same deliveries.",
+    "scoring": "Reference figures from the answer keys (largest difference, its time, mean difference, both batch names). No judge model. Figures are necessary for a right answer, not sufficient: reasoning needs a qualified reader.",
+    "timing": "Time of the call that produces the answer, in process, one request per model call (no retries). A call during which the machine slept is kept in the rows, marked, and left out of the timing figures.",
+    "limits": [
+      "Small sample; one attempt per case; differences between candidates are indications, not rankings.",
+      "Public laboratory data in fictional deliveries; not manufacturing validation.",
+      "Token counts are as reported by each provider; cost depends on your contract and is not estimated here."
+    ]
+  },
+  "candidates": {
+    "glm": {
+      "provider": "modal",
+      "model": "zai-org/GLM-5.3",
+      "label": "zai-org/GLM-5.3 (current)",
+      "settings": {}
+    },
+    "glm-low-effort": {
+      "provider": "modal",
+      "model": "zai-org/GLM-5.3",
+      "label": "zai-org/GLM-5.3, low reasoning effort",
+      "settings": {
+        "MODAL_COMPLETION_REASONING_EFFORT": "low"
+      }
+    },
+    "haiku": {
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "label": "Claude Haiku 5.5",
+      "settings": {}
+    },
+    "sonnet": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-5-5",
+      "label": "Claude Sonnet 5.5",
+      "settings": {}
+    },
+    "luna": {
+      "provider": "openai",
+      "model": "gpt-6-luna",
+      "label": "GPT-6 Luna",
+      "settings": {}
+    },
+    "sol": {
+      "provider": "openai",
+      "model": "gpt-6.1-sol",
+      "label": "GPT-6.1 Sol",
+      "settings": {}
+    }
+  },
+  "explanation": {
+    "by_candidate": [],
+    "rows": []
+  },
+  "assistant": {
+    "by_arm": [
+      {
+        "arm": "assistant alone",
+        "requests": 3,
+        "statuses": {
+          "completed": 3
+        },
+        "answered": 3,
+        "all_reference_figures": 0,
+        "largest_difference": 0,
+        "its_time": 0,
+        "mean_difference": 0,
+        "both_batches": 3,
+        "time": {
+          "n": 3,
+          "mean": 127.46565601365485,
+          "min": 72.76950145798037,
+          "max": 214.64906333299587,
+          "p50": 94.97840324998833,
+          "p95": 214.64906333299587,
+          "target_seconds": 10.0,
+          "within_target": 0,
+          "over_target": 3
+        },
+        "timings_set_aside_for_sleep": 0,
+        "input_tokens": 570909,
+        "output_tokens": 64317,
+        "by_kind": [
+          {
+            "kind": "question",
+            "requests": 3,
+            "statuses": {
+              "completed": 3
+            },
+            "answered": 3,
+            "all_reference_figures": 0,
+            "largest_difference": 0,
+            "its_time": 0,
+            "mean_difference": 0,
+            "both_batches": 3,
+            "time": {
+              "n": 3,
+              "mean": 127.46565601365485,
+              "min": 72.76950145798037,
+              "max": 214.64906333299587,
+              "p50": 94.97840324998833,
+              "p95": 214.64906333299587,
+              "target_seconds": 10.0,
+              "within_target": 0,
+              "over_target": 3
+            },
+            "timings_set_aside_for_sleep": 0,
+            "input_tokens": 570909,
+            "output_tokens": 64317
+          }
+        ]
+      }
+    ],
+    "rows": [
+      {
+        "arm": "assistant alone",
+        "case": "cho-returning:glucose",
+        "kind": "question",
+        "text": "Why is glucose different between CHO-004-R01 and CHO-004-R02?",
+        "status": "completed",
+        "started_at": "2026-11-15T08:59:31.104690+00:00",
+        "interrupted_by_sleep": false,
+        "wall_clock_seconds": 72.8,
+        "seconds": 72.76950145798037,
+        "timing": {
+          "answer_seconds": 72.771,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T09:00:43.871836+00:00",
+          "model_calls": 10,
+          "model_seconds": 72.246,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 11,
+          "tool_seconds": 0.232,
+          "waiting_seconds": 0.004,
+          "within_target": false,
+          "working_seconds": 72.767
+        },
+        "reply": "No conclusion is possible yet. The read of the Northfield October delivery was cut off before any CHO-004-R02 data appeared, so the only glucose values I actually saw were CHO-004-R01's: 6.897 g/L at elapsed 0.00 h from the offline LIMS results file (auto-accepted at ingest, from a provisional delivery that is still in review with 55 open issues, 47 of them missing-field flags — treat the number as unreviewed). I never saw a single glucose reading for CHO-004-R02, so I cannot even say where in the run the two diverge, let alone why.\n\nWhat I could not check:\n\n- The full glucose series for both runs, so no same-time comparison, per-run min/max or divergence point exists in this answer.\n- The cause-suggestion pass on the glucose signal — the step that would return linked records in time order, candidate causes, and similar closed cases. No investigation cases exist at this site yet, so that pass, not stored precedent, would carry the candidates.\n- Feed delivery: the October delivery contains no feed-added parameter (the Northfield November delivery does), so the usual first hypothesis — a feed-rate or bolus difference between the runs — cannot be tested from this dataset alone.\n- Whether the runs already differ at inoculation or only later, and whether offline LIMS samples were taken at the same elapsed hours in both runs.\n\nWhat would settle it: run the glucose comparison for CHO-004-R01 vs CHO-004-R02 on the complete series at matched elapsed times, then the cause-suggestion pass on that signal; if feed timing or amount is implicated, the November delivery's feed-added data and the site's feed records are the confirming check.",
+        "path": "assistant",
+        "model_calls": 10,
+        "input_tokens": 166850,
+        "output_tokens": 10251,
+        "steps": [
+          "Find records linked to CHO-004-R01",
+          "Find records linked to CHO-004-R02",
+          "Read evidence cmo-provisional-delivery:8d84e8432c884f6fbdb625fa40a4a44e",
+          "Search physical analysis context, physical model dataset, physical analysis result, process simulation for “Northfield CHO glucose fed-batch”",
+          "Model library catalog",
+          "Model library catalog",
+          "Model library import runs",
+          "Model library import runs",
+          "Model library import runs",
+          "Model library import runs",
+          "Search case, deviation signal, batch, sample for “glucose CHO-004 R01 R02 difference Northfield”"
+        ],
+        "issues": [],
+        "unsupported_numbers": [],
+        "grounding_status": "no_claims",
+        "facts": {
+          "largest_difference": false,
+          "its_time": false,
+          "mean_difference": false,
+          "both_batches": true
+        }
+      },
+      {
+        "arm": "assistant alone",
+        "case": "cho-changed:glucose",
+        "kind": "question",
+        "text": "Why is glucose different between CHO-007-R01 and CHO-007-R02?",
+        "status": "completed",
+        "started_at": "2026-11-15T08:59:31.105726+00:00",
+        "interrupted_by_sleep": false,
+        "wall_clock_seconds": 214.6,
+        "seconds": 214.64906333299587,
+        "timing": {
+          "answer_seconds": 214.648,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T09:03:05.750295+00:00",
+          "model_calls": 10,
+          "model_seconds": 214.05,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 17,
+          "tool_seconds": 0.216,
+          "waiting_seconds": 0.001,
+          "within_target": false,
+          "working_seconds": 214.647
+        },
+        "reply": "**I can't give you a cause yet: the cause-suggestion check on this glucose difference never ran, and in the portions of the Northfield November delivery I read I saw glucose values only for CHO-007-R02 — none for CHO-007-R01.** Everything below is provisional and unreviewed: the package is not verified, 2,103 of its 2,113 values are still pending review, and it carries 79 open issues (67 missing fields, 1 duplicate conflict, 1 missing batch document, 2 layout changes, among others).\n\nWhat the delivery text I read shows (all from the Northfield November delivery, elapsed hours):\n\n- CHO-007-R02 glucose: 4.2 g/L at 90 h (offline results file). I did not see any CHO-007-R01 glucose value; its 169 h offline sample appeared with ammonium, cell diameter, lactate, osmolality, viability and cell density but no glucose entry — possibly one of the 67 missing fields, or simply in a part of the ~1.17 MB file I didn't reach.\n- Neither run shows any feed at the times I read: cumulative feed 0.0 g at every observed point (R01 at 60–174 h; R02 at 78–192 h).\n- The cultures differ markedly: R02 at 186 h had 9.69% viability and 1.49×10⁶ cells/mL, with lactate down to 0.134 g/L from 2.109 g/L at 90 h; R01 at 169 h had 38.53% viability and 6.09×10⁶ cells/mL, lactate 0.527 g/L. These are different elapsed times, so not a like-for-like comparison.\n\nHypotheses, none established, each with the check that would settle it:\n\n1. **Different biomass state → different glucose consumption** (R02's culture collapsed and would draw down glucose differently). Settled by locating R01's glucose series and comparing both runs at matched elapsed times.\n2. **No feed in either run**, so glucose reflects the initial charge and consumption rate; a difference implies different starting glucose or uptake. Settled by the early-run glucose values and feed-added across the full runs — in parts of the file I didn't read.\n3. **A delivery data problem** (missing, duplicated or shifted values) rather than a real process difference. Settled by working the package's open review issues against the source files.\n\nWhat I could not check: the cause-suggestion task on this pair (it would return linked records in time order, candidates the recorded times weaken, and similar closed cases); the rest of the delivery text beyond the windows I read; any separate batch records for these runs — my searches of batch, sample, dataset and simulation kinds returned none, so the delivery is the only record naming them that I found. The natural next step is that cause-suggestion run plus a targeted read of the glucose rows for both runs.",
+        "path": "assistant",
+        "model_calls": 10,
+        "input_tokens": 183410,
+        "output_tokens": 38559,
+        "steps": [
+          "Find records linked to CHO-007-R01",
+          "Search batch, sample, physical model dataset, process simulation for “CHO-007”",
+          "Search physical model dataset for “Northfield November runs”",
+          "Read evidence cmo-provisional-delivery:b3594e34c2254007ae4fc72cfea50121",
+          "Model library import runs",
+          "Model library import runs",
+          "Read evidence cmo-provisional-delivery:b3594e34c2254007ae4fc72cfea50121",
+          "Read evidence cmo-provisional-delivery:b3594e34c2254007ae4fc72cfea50121",
+          "Model library catalog",
+          "Search physical model dataset, physical analysis context, physical analysis plan, physical analysis result, physical model checkpoint, physical interval calibration, process simulation, specification, deviation signal",
+          "Read evidence cmo-provisional-delivery:b3594e34c2254007ae4fc72cfea50121",
+          "Read evidence cmo-provisional-delivery:b3594e34c2254007ae4fc72cfea50121",
+          "Read evidence cmo-provisional-delivery:b3594e34c2254007ae4fc72cfea50121",
+          "Read evidence cmo-provisional-delivery:b3594e34c2254007ae4fc72cfea50121",
+          "Reopen an earlier result",
+          "Reopen an earlier result",
+          "Reopen an earlier result"
+        ],
+        "issues": [],
+        "unsupported_numbers": [],
+        "grounding_status": "no_claims",
+        "facts": {
+          "largest_difference": false,
+          "its_time": false,
+          "mean_difference": false,
+          "both_batches": true
+        }
+      },
+      {
+        "arm": "assistant alone",
+        "case": "cho-unseen:glucose",
+        "kind": "question",
+        "text": "Why is glucose different between CHO-010-R01 and CHO-010-R02?",
+        "status": "completed",
+        "started_at": "2026-11-15T08:59:31.105541+00:00",
+        "interrupted_by_sleep": false,
+        "wall_clock_seconds": 95.0,
+        "seconds": 94.97840324998833,
+        "timing": {
+          "answer_seconds": 94.978,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T09:01:06.081132+00:00",
+          "model_calls": 10,
+          "model_seconds": 94.284,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 18,
+          "tool_seconds": 0.233,
+          "waiting_seconds": 0.002,
+          "within_target": false,
+          "working_seconds": 94.976
+        },
+        "reply": "**No record establishes why the two runs differ in glucose — and from what I managed to read, I could not even confirm the difference itself.** The case index for this site is empty, and my search across cases, deviation signals and claims for these two batches returned nothing. The only authorized source containing both runs is the Harborview CDMO fed-batch delivery, and every value in it is unreviewed (all 842 measurements are pending review, with 54 missing-field issues open), so nothing below is verified.\n\nWhat the delivery does show (all values marked needs review):\n\n- **CHO-010-R02** glucose falls steadily through the run: 6.838 g/L at 0 h, 6.052 g/L at 41 h, 4.889 g/L at 117 h, 3.77 g/L at 185.5 h, 1.74 g/L at 209 h and 1.085 g/L at 217.5 h. Over the same period cumulative feed rises from 0 g (still 0 g at 65.5 h) to 143.7 g at 117 h and 712 g at 233.5 h, lactate climbs from 0.24 g/L (17.5 h) to 6.495 g/L (217.5 h), and viable cell density grows from 483,000 cells/mL (0 h) to about 16.2 million cells/mL (209 h). So in R02, consumption visibly outpaces the feed that starts in earnest around 117 h.\n- **CHO-010-R01** — I only read its last row (time 328.5 h: viability 20.78 %, viable cell density 2.26 million cells/mL, 36.99 °C). Its glucose values were not in the portions I read, so I cannot say how R01's glucose behaves, whether it is fed earlier/differently, or where the two runs diverge.\n\nWhat I could not check, plainly: R01's glucose series (and most of its data) in the same delivery; a cause analysis on the glucose signal, which would return linked records and ranked hypotheses with the checks that would settle each; any Harborview batch records beyond this delivery (maintenance, calibration or specification records); and whether the apparent difference is a real process difference or a data artifact — with 54 missing fields and everything pending review, that remains open.\n\nTo settle it: read R01's glucose and feed rows from the same delivery at matching time points, then run a cause analysis on the glucose difference. Given the unreviewed status, I would treat any conclusion as provisional until the package is verified.",
+        "path": "assistant",
+        "model_calls": 10,
+        "input_tokens": 220649,
+        "output_tokens": 15507,
+        "steps": [
+          "Find records linked to CHO-010-R01",
+          "Find records linked to CHO-010-R02",
+          "Read evidence cmo-provisional-delivery:6c8e9db28f1448ea9769fcbc335e675c",
+          "Search case, deviation signal, claim, proposal, assistant alarm for “glucose CHO-010 Harborview fed-batch R01 R02 diffe”",
+          "Search earlier conversations for “glucose difference between CHO-010-R01 and CHO-010”",
+          "Model library catalog",
+          "Read evidence cmo-provisional-delivery:6c8e9db28f1448ea9769fcbc335e675c",
+          "Read evidence cmo-provisional-delivery:6c8e9db28f1448ea9769fcbc335e675c",
+          "Read evidence cmo-provisional-delivery:6c8e9db28f1448ea9769fcbc335e675c",
+          "Read evidence cmo-provisional-delivery:6c8e9db28f1448ea9769fcbc335e675c",
+          "Read evidence cmo-provisional-delivery:6c8e9db28f1448ea9769fcbc335e675c",
+          "Read evidence cmo-provisional-delivery:6c8e9db28f1448ea9769fcbc335e675c",
+          "Read evidence cmo-provisional-delivery:6c8e9db28f1448ea9769fcbc335e675c",
+          "Read evidence cmo-provisional-delivery:6c8e9db28f1448ea9769fcbc335e675c",
+          "Read evidence cmo-provisional-delivery:6c8e9db28f1448ea9769fcbc335e675c",
+          "Read evidence cmo-provisional-delivery:6c8e9db28f1448ea9769fcbc335e675c",
+          "Read evidence cmo-provisional-delivery:6c8e9db28f1448ea9769fcbc335e675c",
+          "Read evidence cmo-provisional-delivery:6c8e9db28f1448ea9769fcbc335e675c"
+        ],
+        "issues": [],
+        "unsupported_numbers": [],
+        "grounding_status": "no_claims",
+        "facts": {
+          "largest_difference": false,
+          "its_time": false,
+          "mean_difference": false,
+          "both_batches": true
+        }
+      }
+    ]
+  }
+}

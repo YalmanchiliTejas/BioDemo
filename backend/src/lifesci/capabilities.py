@@ -19,8 +19,9 @@ class Pack:
     roles: tuple[str, ...] = ()
 
 
-CORE = Pack('core', 'Find and read authorized records; follow identifiers; propose standing rules.',
-            ('workspace_search', 'workspace_read', 'workspace_propose_rule', 'workspace_propose_action'),
+CORE = Pack('core', 'Find and read authorized records; run bounded tasks; inspect saved results; propose rules and routines.',
+            ('workspace_search', 'workspace_read', 'workspace_propose_rule', 'workspace_propose_action',
+             'workspace_run_task', 'workspace_open_task_result', 'workspace_propose_routine'),
             'Search and read before asking. Follow identifier links (workspace_search mode=links) for any batch, lot, '
             'equipment, material or deviation ID.')
 
