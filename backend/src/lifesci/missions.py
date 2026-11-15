@@ -284,17 +284,61 @@ class MissionService:
                 self.scheduler.schedule_wakeup(tenant_id, rec.id, "events")
         return woke
 
-    @staticmethod
-    def _subscribed(state: dict[str, Any], event: Any) -> bool:
+    def _subscribed(self, state: dict[str, Any], event: Any) -> bool:
         for sub in state["subscriptions"]:
             if sub.get("type") and not event.type.startswith(sub["type"]):
                 continue
             if sub.get("aggregate_id") and sub["aggregate_id"] != event.aggregate_id:
                 continue
-            if sub.get("site_id") and event.payload.get("site_id") not in (None, sub["site_id"]):
+            source = self.store.read().get(event.tenant_id, event.aggregate_kind, event.aggregate_id)
+            source_state = source.state if source else {}
+            # Event labels never override the actual record's scope. Legacy generic
+            # subscriptions may accept site-less events; assistant work requires a site.
+            site = source_state.get('site_id') or event.payload.get('site_id')
+            if sub.get("site_id") and site not in (None, sub["site_id"]):
+                continue
+            if sub.get('require_site') and (not source or source_state.get('site_id') != sub.get('site_id')):
+                continue
+            if source_state.get('site_id') and event.payload.get('site_id') not in (None, source_state['site_id']):
+                continue
+            if sub.get('owner_id') and source_state.get('owner_id') != sub['owner_id']:
+                continue
+            if sub.get('authorized_owner_id'):
+                owner = self.identity.context_for(event.tenant_id, sub['authorized_owner_id'])
+                if (not source or not self.identity.check(owner, 'read', event.aggregate_kind, event.aggregate_id, site_id=site)
+                        or not self.memory.readable(owner, event.aggregate_kind, source_state)):
+                    continue
+                if event.aggregate_kind == 'evidence' and source_state.get('source_system') in (
+                    'engineering-user-instruction', 'scientific-model-catalog',
+                    'process-analysis-assumptions', 'pharmaceutical-run-packet', 'assistant-routine', 'workspace-task'):
+                    continue
+                if event.aggregate_kind in ('workspace_task_request', 'workspace_task_result',
+                    'assistant_routine', 'assistant_routine_run'):
+                    continue
+            subjects = set(sub.get('subjects') or [])
+            if subjects and not subjects.intersection(self._event_subjects(event, source_state)):
                 continue
             return True
         return False
+
+    @staticmethod
+    def _event_subjects(event: Any, state: dict[str, Any]) -> set[str]:
+        """Explicit identifiers only: a free-text mention is not a subject relationship."""
+        subjects = {event.aggregate_id}
+        fields = ('batch_id', 'batch', 'sample_id', 'case_id', 'equipment_id', 'dataset_id', 'source_record_id')
+        for data in (state, state.get('metadata') or {}):
+            for key in fields:
+                value = data.get(key)
+                if isinstance(value, (str, int)):
+                    subjects.add(str(value))
+            for key in ('batches', 'batch_ids', 'dataset_ids'):
+                subjects.update(str(v) for v in data.get(key) or [] if isinstance(v, (str, int)))
+            subject = data.get('subject') or {}
+            if isinstance(subject, dict) and subject.get('id'):
+                subjects.add(str(subject['id']))
+            for key in ('record_refs', 'source_refs', 'evidence_refs', 'inputs'):
+                subjects.update(str(ref['id']) for ref in data.get(key) or [] if isinstance(ref, dict) and ref.get('id'))
+        return subjects
 
     # --- activations, checkpoints, merging ------------------------------------------------
     def activate(self, ctx: AccessContext, mission_id: str, worker_id: str, ttl_seconds: int = 900) -> Activation:

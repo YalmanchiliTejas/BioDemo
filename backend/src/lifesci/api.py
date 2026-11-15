@@ -454,7 +454,10 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
                 if platform.process_models.analysis.is_library_record(kind,r.state):
                     try:platform.process_models.analysis._library_memory(ctx,kind,r.state)
                     except PermissionError:continue
-                visible.append({"id": r.id, "revision": r.revision, "state": r.state})
+                state = r.state
+                if kind == 'workspace_task_result':
+                    state = {k: v for k, v in platform.workspace_tasks.get(ctx, r.id).items() if k not in ('id', 'revision')}
+                visible.append({"id": r.id, "revision": r.revision, "state": state})
                 if len(visible) == limit:
                     break
         next_cursor = visible[-1]["id"] if len(visible) == limit else None
@@ -472,6 +475,8 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
         platform.identity.require(ctx, "read", kind, record_id, site_id=rec.state.get("site_id"))
         if not platform.memory.readable(ctx, kind, rec.state):
             raise MemoryAccessDenied()
+        if kind == 'workspace_task_result':
+            return platform.workspace_tasks.get(ctx, record_id)
         if rec.state.get("inputs") is not None:
             return platform.evidence.read_derived(ctx, kind, record_id)
         return {"id": rec.id, "revision": rec.revision, "state": rec.state,

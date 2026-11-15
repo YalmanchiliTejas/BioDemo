@@ -4,6 +4,7 @@ This is a bounded POC interpreter, not a Python/SQL sandbox or an instrument
 gateway. A flow can calculate or draft; it has no manufacturing command API.
 """
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from .gateway.gateway import TaskRequest
@@ -49,12 +50,42 @@ class FlowService:
     def __init__(self, platform: Any) -> None:
         self.p = platform
         self.operators: dict[str, tuple[str, Any]] = {}
+        self.parallel_safe: set[str] = set()
 
-    def register_operator(self, name: str, version: str, handler: Any) -> None:
-        """Host-owned, context-aware domain adapters; never load user code."""
+    def register_operator(self, name: str, version: str, handler: Any, *, parallel_safe: bool = False) -> None:
+        """Host-owned adapters. Only explicitly read/compute-only handlers may run concurrently."""
         if name in self.operators or name in self.p.gateway.registry.policies:
             raise ValueError(f"operator already registered: {name}")
         self.operators[name] = (version, handler)
+        if parallel_safe:
+            self.parallel_safe.add(name)
+
+    def _compute_node(self, ctx, node, definition, state):
+        started = iso(utc_now())
+        try:
+            payload = resolve(node.get('payload', {}), state['results'], set(node.get('depends_on', [])))
+            name = node['task_kind']
+            pinned = definition.get('operator_versions', {}).get(name)
+            if pinned:
+                registered = self.operators.get(name)
+                if not registered or registered[0] != pinned:
+                    raise ValueError('domain operator changed; prepare a new flow')
+                result = registered[1](ctx, payload)
+            else:
+                result = self.p.gateway.run(TaskRequest(name, ctx, prompt=node.get('prompt', ''),
+                    payload=payload, inputs=state['inputs'], timeout_s=60)).to_dict()
+        except (KeyError, IndexError, TypeError, ValueError, PermissionError) as exc:
+            result = {'status': 'blocked', 'output': None, 'issues': [f"node {node['node_id']}: {exc}"]}
+        return {**result, 'started_at': started, 'ended_at': iso(utc_now())}
+
+    def _authorize_run(self, ctx, state, tx):
+        from .memory import principal
+        owner = self.p.identity.context_for(ctx.tenant_id, principal(ctx),
+            actor_kind='person' if ctx.delegated_from else ctx.actor_kind, partner_org_id=ctx.partner_org_id)
+        for actor in (ctx, owner):
+            self.p.identity.require(actor, 'propose', 'data_flow', state['flow_id'], site_id=state['site_id'], tx=tx)
+            self.p.identity.validate_refs(actor, state['inputs'], require_current=True, tx=tx)
+        return owner
 
     def save(self, ctx: Any, flow_id: str, *, site_id: str, nodes: list[dict[str, Any]],
              expected_revision: int | None = None) -> dict[str, Any]:
@@ -103,7 +134,7 @@ class FlowService:
         owner = new_id("flowworker")
         with self.p.store.transaction(ctx.actor_id) as tx:
             rec = tx.require(ctx.tenant_id, "data_flow_run", rid)
-            self.p.identity.require(ctx, "propose", "data_flow", rec.state["flow_id"], site_id=rec.state["site_id"], tx=tx)
+            self._authorize_run(ctx, rec.state, tx)
             if rec.state["status"] in ("stale", "quarantined"):
                 raise ValueError("flow inputs were invalidated; prepare a new run")
             self.p.identity.validate_refs(ctx, rec.state["inputs"], require_current=True, tx=tx)
@@ -111,38 +142,50 @@ class FlowService:
         try:
             definition = rec.state["definition"]
             by_id = {n["node_id"]: n for n in definition["nodes"]}
+            prepared = {}
             for nid in definition["order"]:
                 state = self.p.store.read().require(ctx.tenant_id, "data_flow_run", rid).state
                 if state["results"].get(nid, {}).get("status") == "completed":
                     continue
                 node = by_id[nid]
                 self.p.identity.validate_refs(ctx, state["inputs"], require_current=True)
-                started = iso(utc_now())
-                try:
-                    payload = resolve(node.get("payload", {}), state["results"], set(node.get("depends_on", [])))
-                    name = node["task_kind"]
-                    pinned = definition.get("operator_versions", {}).get(name)
-                    if pinned:
-                        registered = self.operators.get(name)
-                        if not registered or registered[0] != pinned:
-                            raise ValueError("domain operator changed; prepare a new flow")
-                        result = registered[1](ctx, payload)
+                if nid not in prepared:
+                    # Bounded batches of independent pure reads; never reorder across
+                    # a dependency or a potentially mutating/model-backed operator.
+                    ready = []
+                    completed = {k for k, v in state['results'].items() if v.get('status') == 'completed'}
+                    for candidate in definition['order'][definition['order'].index(nid):]:
+                        if candidate in completed:
+                            continue
+                        item = by_id[candidate]
+                        if item['task_kind'] not in self.parallel_safe or not set(item.get('depends_on', [])) <= completed:
+                            break
+                        ready.append(candidate)
+                        if len(ready) == 4:
+                            break
+                    if len(ready) > 1:
+                        with ThreadPoolExecutor(max_workers=len(ready), thread_name_prefix='flow-read') as pool:
+                            futures = {key: pool.submit(self._compute_node, ctx, by_id[key], definition, state) for key in ready}
+                            prepared.update({key: future.result() for key, future in futures.items()})
                     else:
-                        result = self.p.gateway.run(TaskRequest(name, ctx, prompt=node.get("prompt", ""),
-                            payload=payload, inputs=state["inputs"], timeout_s=60)).to_dict()
-                except (KeyError, IndexError, TypeError, ValueError, PermissionError) as exc:
-                    result = {"status": "blocked", "output": None, "issues": [f"node {nid}: {exc}"]}
-                # Shown to the person following the work; not part of the result's evidence content.
-                result = {**result, "started_at": started, "ended_at": iso(utc_now())}
+                        prepared[nid] = self._compute_node(ctx, node, definition, state)
+                result = prepared.pop(nid)
                 with self.p.store.transaction(ctx.actor_id) as tx:
                     tx.check_lease(ctx.tenant_id, "data_flow_run", rid, owner, token)
                     current = tx.require(ctx.tenant_id, "data_flow_run", rid)
                     if current.state["status"] in ("stale", "quarantined"):
                         raise PermissionError("flow invalidated during processing")
-                    self.p.identity.require(ctx, "propose", "data_flow", state["flow_id"], site_id=state["site_id"], tx=tx)
-                    self.p.identity.validate_refs(ctx, state["inputs"], require_current=True, tx=tx)
+                    current_owner = self._authorize_run(ctx, current.state, tx)
+                    discovered = (result.get('output') or {}).get('source_refs', []) if isinstance(result.get('output'), dict) else []
+                    discovered = self.p.identity.validate_refs(ctx, discovered, require_current=True, tx=tx) if discovered else []
+                    if discovered:
+                        self.p.identity.validate_refs(current_owner, discovered, require_current=True, tx=tx)
+                    manifest = {(r['kind'], r['id'], r['revision']): r for r in [*current.state['inputs'], *discovered]}
+                    for ref in discovered:
+                        tx.add_edge(ctx.tenant_id, (ref['kind'], ref['id']), ('data_flow_run', rid), 'flow_input')
                     ok = result["status"] == "completed"
                     out = {**current.state, "results": {**current.state["results"], nid: result},
+                           "inputs": list(manifest.values()),
                            "status": "running" if ok else "blocked", "issues": result.get("issues", [])}
                     tx.put(ctx.tenant_id, "data_flow_run", rid, out, expected_revision=current.revision,
                            action="checkpoint_flow_node", event_type="flow.node_completed" if ok else "flow.node_blocked")
@@ -154,7 +197,7 @@ class FlowService:
                 current = tx.require(ctx.tenant_id, "data_flow_run", rid)
                 if current.state["status"] in ("stale", "quarantined"):
                     raise PermissionError("flow invalidated during processing")
-                self.p.identity.validate_refs(ctx, current.state["inputs"], require_current=True, tx=tx)
+                self._authorize_run(ctx, current.state, tx)
                 out = {**current.state, "status": "completed", "issues": []}
                 tx.put(ctx.tenant_id, "data_flow_run", rid, out, expected_revision=current.revision,
                        action="complete_flow", event_type="flow.completed")

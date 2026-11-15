@@ -1,0 +1,210 @@
+{
+  "schema_version": "initial-workflow-evaluation-summary-v1",
+  "created_at": "2026-11-15T04:34:16.555507+00:00",
+  "local_run_date": "2026-11-14",
+  "timezone": "America/Phoenix",
+  "scope": "Fresh local CHO ingestion baseline, workflow contracts and exploratory four-case current-agent pilot. No deployment or production validation.",
+  "reasoning": {
+    "model": "zai-org/GLM-5.3",
+    "planned": 4,
+    "original_strict_passed": 1,
+    "original_strict_failed": 3,
+    "original_strict_pass_rate": 0.25,
+    "ungraded": 0,
+    "diagnostic_ai_audit_correct_core_outcomes": 2,
+    "diagnostic_ai_audit_scope": "Independent AI inspection of source CSVs and returned answers; not human review or a replacement for frozen original grades.",
+    "mean_answer_seconds": 222.2897719690227,
+    "median_answer_seconds": 227.73310864603263,
+    "min_answer_seconds": 148.748560292006,
+    "max_answer_seconds": 284.9443102920195,
+    "answers_at_or_below_10_seconds": 0,
+    "campaign_seconds_including_judging": 674.9195060420316,
+    "cases": [
+      {
+        "case": "authored-01-returning-glucose-lactate--r1",
+        "original_status": "FAIL",
+        "original_failures": [
+          "required_reads",
+          "semantic_judge"
+        ],
+        "answer_seconds": 271.16870083403774,
+        "including_judge_seconds": 295.4313189589884,
+        "diagnostic_ai_audit": "incomplete",
+        "explanation": "Located the delivery but did not open it; no requested values or differences returned."
+      },
+      {
+        "case": "authored-02-unseen-fedbatch-comparison--r1",
+        "original_status": "FAIL",
+        "original_failures": [
+          "semantic_judge"
+        ],
+        "answer_seconds": 184.29751645802753,
+        "including_judge_seconds": 220.6756036670413,
+        "diagnostic_ai_audit": "incomplete",
+        "explanation": "Only one lot was reported. The application clipped the model-visible artifact, and the planning limit prevented completing retrieval. The judge incorrectly treated the full stored artifact as model-visible; missing requested values still justify task failure."
+      },
+      {
+        "case": "authored-03-changed-duplicate-conflict--r1",
+        "original_status": "PASS",
+        "original_failures": [],
+        "answer_seconds": 148.748560292006,
+        "including_judge_seconds": 169.44212724996032,
+        "diagnostic_ai_audit": "correct_core_outcome",
+        "explanation": "Reported both values and the same-sample conflict, withheld confirmation and proposed QC reconciliation."
+      },
+      {
+        "case": "authored-04-changed-missing-certificate--r1",
+        "original_status": "FAIL",
+        "original_failures": [
+          "runtime_grounding",
+          "semantic_judge"
+        ],
+        "answer_seconds": 284.9443102920195,
+        "including_judge_seconds": 378.37185104202945,
+        "diagnostic_ai_audit": "correct_core_outcome_with_evaluator_disagreement",
+        "explanation": "Identified the correct missing certificate and refused to substitute LIMS values. Both failed gates have reproduced defects: full-artifact/model-excerpt visibility mismatch and CSV delimiter removal that hides the actual 231.00 h value."
+      }
+    ],
+    "provider_error_count": 0,
+    "provider_usage_by_purpose": {
+      "agent": {
+        "requests": 15,
+        "accounted_estimate_usd": 1.2646832000000001,
+        "unknown_usage_requests": 0,
+        "prompt_tokens": 180048,
+        "completion_tokens": 230140,
+        "total_provider_seconds": 888.0672529151198
+      },
+      "judge": {
+        "requests": 4,
+        "accounted_estimate_usd": 0.2789092,
+        "unknown_usage_requests": 0,
+        "prompt_tokens": 61086,
+        "completion_tokens": 43952,
+        "total_provider_seconds": 174.7454032920068
+      }
+    },
+    "estimated_token_cost_usd": 1.5435924,
+    "actual_invoice_cost_usd": null
+  },
+  "cho_ingestion": {
+    "calibration_service_seconds": 2.22051391704008,
+    "cultivations": 18,
+    "expected_present_fields": 4791,
+    "extracted_fields": 4798,
+    "f1": 0.9992699968714152,
+    "matched_fields": 4791,
+    "packages": 3,
+    "precision": 0.9985410587744894,
+    "raw_files": 16,
+    "recall": 1.0,
+    "target_service_seconds": 3.6542371249524876,
+    "verified_packages": 0,
+    "verified_payload_409_count": 3,
+    "exact_matched_value_unit_source_correct": 4791,
+    "injected_defects_detected": 4,
+    "injected_defects_expected": 4,
+    "mean_target_service_seconds": 1.2180790416508291,
+    "provider_calls": 0,
+    "provider_inference_cost_usd": 0,
+    "scope": "Real CHO cultivation measurements from Zenodo record 20829178 (CC BY 4.0), repackaged as fictional CMO deliveries. Company names, layouts, sample IDs and certificates are invented. Injected defects are artificial.",
+    "zero_silent_omissions": true,
+    "zero_incorrect_auto_acceptances": true,
+    "unresolved_issues_by_condition": {
+      "unseen": 54,
+      "returning": 55,
+      "changed": 79
+    }
+  },
+  "regression": {
+    "tests": 55,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "synthetic_replay": {
+    "attempts": 6,
+    "passed": 6,
+    "failed": 0,
+    "outcomes": {
+      "passed": 6
+    },
+    "task_statuses": {
+      "completed": 3,
+      "needs_information": 3
+    },
+    "all_run_wall_seconds": {
+      "n": 6,
+      "min": 0.0020331250270828605,
+      "max": 1.634895583963953,
+      "mean": 0.2743662293360103,
+      "p50": 0.0023509160382673144,
+      "p90": 1.634895583963953,
+      "p95": 1.634895583963953,
+      "p99": 1.634895583963953
+    },
+    "service_wall_seconds": {
+      "n": 6,
+      "min": 0.0005025829887017608,
+      "max": 0.0019105829996988177,
+      "mean": 0.0008747359970584512,
+      "p50": 0.0005509579787030816,
+      "p90": 0.0019105829996988177,
+      "p95": 0.0019105829996988177,
+      "p99": 0.0019105829996988177
+    },
+    "campaign_wall_seconds": 1.6705091659678146,
+    "provider_calls": 0,
+    "blocked_inference_attempts": 0,
+    "provider_inference_cost_usd": 0,
+    "total_compute_cost_usd": null
+  },
+  "limits": [
+    "Only four newly authored agent cases, one attempt each, with same-model automated judging; neither expert-reviewed nor externally held out.",
+    "Descriptive source identifiers leak task-category hints; exact answers were not seeded as agent instructions.",
+    "Public CHO laboratory values are authentic; CMO companies, forms, IDs, inventories and defects are constructed.",
+    "The three ingestion evaluation packages were held out from the mapping calibration in this run; they are existing repository fixtures and are not an untouched external test set.",
+    "Extraction and regression scores do not measure causal diagnosis, downstream impact, approval execution, real user effort or manufacturing qualification.",
+    "All three ingestion packages remain blocked from verified publication. No review or verification flags were fabricated.",
+    "No real-data numerical direct-task resolution was scored because those packages did not pass the verification gate. The direct replay is two synthetic contract tasks repeated three times.",
+    "No official PRONTO, DABstep, BIRD or RCAEval campaign ran; their adapters remain future work.",
+    "Timing is local service/application time, not browser/deployment/network-load SLO evidence. There is no paired Parker-query speedup measurement.",
+    "Provider cost is a conservative token estimate, not a reconciled invoice; infrastructure and human review costs remain unmeasured."
+  ],
+  "artifacts": [
+    {
+      "path": "backend/results/evaluation-20261114/cho-ingestion-5ci_it3p/summary.json",
+      "sha256": "8aaf80c13d712d0be606c965404bb872ed83477de6f2297844c4b48092698e27"
+    },
+    {
+      "path": "backend/results/evaluation-20261114/cho-ingestion-5ci_it3p/audit.json",
+      "sha256": "d596a663f04b65027d69a5972b2e27daf68fd953915a0e6b8d693365adf677b3"
+    },
+    {
+      "path": "backend/results/evaluation-20261114/reasoning/measured-summary.json",
+      "sha256": "cd42707716848188734d43d38e0d5b2df6e5715256e16561f41a56fb38d88d70"
+    },
+    {
+      "path": "backend/results/evaluation-20261114/contracts/run-wjcq0qcl/replay-smoke.json",
+      "sha256": "9b78a97b33f5cf2fc4290b069a010d193eeee7240e25d05b2f9782111c8f4df2"
+    },
+    {
+      "path": "backend/results/evaluation-20261114/reasoning/run/report.json",
+      "sha256": "4775046160392d717e5d75e26c2d519985599c42c54961e56d8ca8ee05fd528d"
+    },
+    {
+      "path": "backend/results/evaluation-20261114/reasoning/private/prompt-visibility-audit.json",
+      "sha256": "dd4a08cd25a319c97bc3486f9276e7a9077ea1bcf238072430fd55d5fb3538e3"
+    },
+    {
+      "path": "backend/results/evaluation-20261114/reasoning/private/grounding-number-audit.json",
+      "sha256": "9b853a01d366b03f0e9e1f9fedb1d355197bc3ce5cbac36cd5b252c1e94985b4"
+    }
+  ],
+  "next_priorities": [
+    "Use deterministic discovery and row-level retrieval for procedural work, with source scope and revisions preserved.",
+    "Preserve paging/truncation state through the model context and allow required retrieval to complete before finalizing.",
+    "Fix CSV-aware numeric grounding and grade the exact evidence visible to the model.",
+    "Evaluate useful partial results and explicit review requests without pretending an unresolved delivery is fully verified."
+  ]
+}

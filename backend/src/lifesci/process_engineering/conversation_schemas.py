@@ -13,7 +13,7 @@ Operator = Literal['model_library_catalog','model_library_configure','model_libr
     'physical_analysis_review', 'physical_model_adapter_propose',
     'bioprocess_demo_case', 'bioprocess_forecast', 'cho_dataset_forecast',
     'workspace_search', 'workspace_read', 'workspace_propose_action', 'workspace_propose_rule',
-    'workspace_propose_investigation']
+    'workspace_propose_investigation', 'workspace_run_task', 'workspace_open_task_result', 'workspace_propose_routine']
 
 class ConversationIn(StrictModel):
     site_id: str = Field(default='NF1', min_length=1, max_length=100)
@@ -96,7 +96,7 @@ class ChatDecision(StrictModel):
         return self
 
 WorkspaceKind = Literal['case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
-    'proposal', 'physical_analysis_context', 'physical_model_dataset', 'physical_model_checkpoint', 'physical_interval_calibration', 'physical_analysis_result', 'process_simulation', 'engineering_chat_turn', 'deviation_signal', 'specification']
+    'proposal', 'physical_analysis_context', 'physical_model_dataset', 'physical_model_checkpoint', 'physical_interval_calibration', 'physical_analysis_result', 'process_simulation', 'engineering_chat_turn', 'deviation_signal', 'specification', 'assistant_alarm', 'assistant_work_request']
 
 class WorkspaceSearch(StrictModel):
     """mode=search: records by kind and query. mode=links: records sharing an identifier with record_id (record_kind
@@ -163,7 +163,7 @@ class WatchIn(StrictModel):
     enabled: bool
     expected_revision: int = Field(ge=1)
     objective: str = Field(default='', max_length=2000)
-    kinds: list[Literal['case', 'evidence', 'batch', 'sample']] = Field(default_factory=lambda: ['case'])
+    kinds: list[Literal['case', 'evidence', 'batch', 'sample', 'deviation', 'alarm', 'team_request']] = Field(default_factory=lambda: ['case'])
     max_runs: int = Field(default=3, ge=1, le=10)
     every_minutes: int | None = Field(default=None, ge=15, le=10080)
     # Count limits bound inference admissions, not unknown Modal monetary billing.

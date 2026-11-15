@@ -28,7 +28,7 @@ async function fixture(browser) {
     localStorage.setItem('sievance.local-session.v1', JSON.stringify({
       tenant_id: 'stop-fixture', actor_id: 'fixture-user', email: 'fixture@example.test', name: 'UI fixture' }));
     localStorage.setItem('sievance.organization:fixture-user', 'stop-fixture');
-    localStorage.setItem('biodemo.engineering.conversation.v1', 'A');
+    localStorage.setItem('biodemo.engineering.conversation.v1:fixture-user:stop-fixture', 'A');
   });
   const headers = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' };
@@ -41,6 +41,8 @@ async function fixture(browser) {
     if (path === '/v1/account') return respond(route, { actor_id: 'fixture-user', organizations: [{
       id: 'stop-fixture', name: 'Local UI fixture', roles: ['admin'], site_ids: ['NF1'], onboarding_complete: true }] });
     if (path === '/v1/me') return respond(route, { tenant_id: 'stop-fixture', actor_id: 'fixture-user', roles: ['admin'], auth_mode: 'development' });
+    if (path === '/v1/notifications') return respond(route, { items: [], unread: 0 });
+    if (path === '/v1/demo/workspace') return respond(route, { detail: 'No demo workspace in this fixture' }, 404);
     if (path === '/v1/process-model/conversations') return respond(route, {
       conversations: Object.values(threads).map(({ id, title }) => ({ id, title })) });
     const match = path.match(/^\/v1\/process-model\/conversations\/([AB])(?:\/(stop))?$/);
@@ -109,6 +111,7 @@ async function main() {
         assert(await f.chat.getByRole('button', { name: 'Send message', exact: true }).isDisabled());
         // Another conversation retains its own Stop control during A's pending acknowledgment.
         await f.open('B');
+        await f.chat.getByLabel('Describe your process problem or follow up', { exact: true }).fill('B follow-up');
         const b = f.stopGate('B');
         assert(await f.chat.getByRole('button', { name: 'Stop work', exact: true }).isEnabled());
         await f.chat.getByRole('button', { name: 'Stop work', exact: true }).click();

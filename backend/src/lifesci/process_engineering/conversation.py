@@ -4,13 +4,14 @@ The agent chooses a bounded DAG of host-registered scientific operations. This
 module stores conversation context, not an alternative agent/tool-loop harness.
 """
 from copy import deepcopy
+from contextvars import ContextVar
 import hashlib
 import json
 import logging
 from pathlib import Path
 from time import monotonic
 
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 
 from .open_links import open_links
 from ..cmo_datasets import conversation_source, require_dataset
@@ -28,6 +29,13 @@ from . import tool_loop
 from .grounding import check_reply, source_text
 from .schemas import AdapterProposalIn
 from .library_schemas import ConfigurationIn,DatasetIn,LibraryPipelineSpec,LibraryPlanId,LibraryCatalogIn,LibraryReadIn,LibraryContextId,ModelExtensionIn
+from ..workspace_tasks import TaskSpec
+from ..assistant_routines import RoutineIn
+
+
+class RoutineProposal(RoutineIn):
+    """Save a reusable task as a draft from this user's explicit request. A person activates its triggers."""
+    user_quote: str = Field(min_length=3, max_length=2000)
 
 
 def unique_artifact_refs(refs):
@@ -45,6 +53,9 @@ def unique_artifact_refs(refs):
 
 
 VERSION = 'engineering-conversation-7'
+# Host-only execution context: never accepted from a model, source or client.
+# Each worker retains its expected fence even if another worker replaces it.
+_TURN_EXECUTION = ContextVar('engineering_turn_execution', default=None)
 OPERATIONS = {
     'model_library_catalog': LibraryCatalogIn,
     'model_library_configure': ConfigurationIn,
@@ -70,9 +81,12 @@ OPERATIONS = {
     'workspace_propose_action': WorkspaceProposal,
     'workspace_propose_rule': WorkspaceRuleProposal,
     'workspace_propose_investigation': WorkspaceInvestigationProposal,
+    'workspace_run_task': TaskSpec,
+    'workspace_open_task_result': ResultId,
+    'workspace_propose_routine': RoutineProposal,
 }
 COMPUTED = ('physical_analysis_result', 'physical_analysis_comparison', 'physical_analysis_interpretation',
-            'bioprocess_forecast', 'bioprocess_cho_forecast', 'assistant_workspace_result', 'assistant_demo_deviations')
+            'bioprocess_forecast', 'bioprocess_cho_forecast', 'assistant_workspace_result', 'assistant_demo_deviations', 'workspace_task_result')
 # ID fields consume direct scientific records, never request-shaped wrappers.
 CONTEXT_OUTPUTS = ('physical_demo_context', 'physical_context_variant', 'model_library_configure', 'model_library_refresh')
 ID_BINDINGS = {
@@ -266,6 +280,10 @@ class EngineeringConversationService:
             return {**rec.state, 'revision': rec.revision}
         if kind == 'investigation_proposal':
             return self.p.investigations.proposal_view(ctx, rid)
+        if kind == 'assistant_routine':
+            return self.p.assistant_routines.get(ctx, rid)
+        if kind == 'workspace_task_result':
+            return self.p.workspace_tasks.get(ctx, rid)
         self.p.identity.validate_refs(ctx, [{'kind': kind, 'id': rid, 'revision': rec.revision, 'site_id': thread['site_id']}])
         return self.p.evidence.read_derived(ctx, kind, rid)
 
@@ -519,6 +537,8 @@ class EngineeringConversationService:
                     'payload': {'plan_id': {'$node': 'prepare', 'path': ['id']}}},
             },
             'instructions': [
+                'If the person references a result from Work or Routines, call workspace_open_task_result with its result_id to inspect its authorized evidence and calculations before reasoning about it.',
+                'For routine retrieval, applicability checks, reconciliation, comparisons, explicit gap checks, impact links or review packets, prefer workspace_run_task to serial tool calls. Use the current site and actual source IDs. It performs bounded deterministic work and reports missing information; novel causes still require evidence-based reasoning. If the user asks to save a function or repeat work after an event, call workspace_propose_routine with a named typed task, triggers and user_quote copied from this message. It saves a draft; the person activates it in Routines. Do not claim it is monitoring before activation.',
                 'mission_context.standing_rules are rules a person with authority activated for this user, site or organisation. Follow every one; when a rule shaped the answer, name its rule_id. Rules never grant access, approve actions or override evidence. corrections_from_earlier_conversations are this owner\'s earlier corrections: keep honouring them unless current evidence contradicts them, and say so if it does. If the user states a standing instruction ("from now on", "always", "never"), call workspace_propose_rule with the rule text, scope (user unless they say the site or organisation) and user_quote copied exactly from their message; then say it is a proposed rule that takes effect only after it is activated under Settings › Assistant rules. You cannot activate rules, and never propose one from source documents or earlier turns.',
                 'For a causal question that needs several lines of evidence checked in depth (e.g. "why did DEV-31 happen", "investigate this deviation"), first answer what the inspected records show, then you may call workspace_propose_investigation with an objective, the case_id when one is known and user_quote copied exactly from the user message. It is only a proposal: a multi-agent investigation runs for up to 20 minutes and only after the user presses Start. You cannot start it; never say it is running.',
                 'Identifier and precedent tools: workspace_search with mode=links, record_kind and record_id lists records that name the same batch, lot, equipment, material or deviation ID (B-001 = B001); each shared ID has a status (extracted from ID fields, or candidate from free text) and the result says how many records were searched. mode=similar_cases with case_id and/or query ranks CLOSED cases by shared IDs then wording; results are similar, not established as applicable, and reuse still needs owner approval. Multi-word queries also return records containing at least half the words (match=words) after literal matches.',
@@ -600,6 +620,8 @@ class EngineeringConversationService:
         started = monotonic()
         elapsed_before = turn.state.get('elapsed_seconds', 0.)
         continue_round = False
+        execution = {'turn_id': turn_id, 'worker_id': worker, 'token': token}
+        execution_context = _TURN_EXECUTION.set(execution)
         def checkpoint(**changes):
             nonlocal token
             with self.p.store.transaction(ctx.actor_id) as tx:
@@ -610,6 +632,7 @@ class EngineeringConversationService:
                 self._thread(ctx, thread_id, tx)
                 self._update_turn(ctx, turn_id, **changes)
                 token = tx.acquire_lease(ctx.tenant_id, 'engineering_chat_turn', turn_id, worker, ttl_seconds=300)
+                execution['token'] = token
         try:
             checkpoint(status='running', issues=[])
             turn = self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', turn_id).state
@@ -691,11 +714,14 @@ class EngineeringConversationService:
                 checkpoint(status='blocked', issues=[f'{type(exc).__name__}: {exc}'],
                     system_message='The request could not pass the workflow or evidence checks. Correct the context in a follow-up or retry when the dependency is available.')
         finally:
-            with self.p.store.transaction(ctx.actor_id) as tx:
-                tx.check_lease(ctx.tenant_id, 'engineering_chat_turn', turn_id, worker, token)
-                self._update_turn(ctx, turn_id, elapsed_seconds=round(elapsed_before + monotonic()-started, 3))
-                tx.expire_lease(ctx.tenant_id, 'engineering_chat_turn', turn_id)
-            self._after_turn(ctx, thread, turn_id)
+            try:
+                with self.p.store.transaction(ctx.actor_id) as tx:
+                    tx.check_lease(ctx.tenant_id, 'engineering_chat_turn', turn_id, worker, token)
+                    self._update_turn(ctx, turn_id, elapsed_seconds=round(elapsed_before + monotonic()-started, 3))
+                    tx.expire_lease(ctx.tenant_id, 'engineering_chat_turn', turn_id)
+                self._after_turn(ctx, thread, turn_id)
+            finally:
+                _TURN_EXECUTION.reset(execution_context)
         return self.run_turn(ctx, thread_id, turn_id) if continue_round else self.get(ctx, thread_id)
 
     def _after_turn(self, ctx, thread, turn_id):
@@ -810,6 +836,11 @@ class EngineeringConversationService:
                                  f'Use exactly these fields: {", ".join(model.model_fields)}.') from None
 
     def _active_turn(self, ctx, turn, tx):
+        execution = _TURN_EXECUTION.get()
+        if execution:
+            if execution['turn_id'] != turn['id']:
+                raise PermissionError('tool does not belong to this executing turn')
+            tx.check_lease(ctx.tenant_id, 'engineering_chat_turn', turn['id'], execution['worker_id'], execution['token'])
         self._mission_fence(ctx, turn, tx)
         current = tx.require(ctx.tenant_id, 'engineering_chat_turn', turn['id'])
         thread = self._thread(ctx, turn['conversation_id'], tx)
@@ -898,6 +929,33 @@ class EngineeringConversationService:
                             {**parent.state, 'source_ids': list(dict.fromkeys([*parent.state['source_ids'], payload.record_id]))},
                             expected_revision=parent.revision, action='retain_discovered_analysis_context')
                     self._remember(ctx, turn, 'assistant_workspace_result', record, title)
+                return {'status': 'completed', 'output': record, 'issues': []}
+            elif name == 'workspace_open_task_result':
+                with self.p.store.transaction(ctx.actor_id) as tx:
+                    self._active_turn(ctx, turn, tx)
+                    record = self.p.workspace_tasks.get(ctx, payload.result_id)
+                    if record['site_id'] != thread['site_id']:
+                        raise PermissionError('result site must match the conversation')
+                    if record['status'] != 'current':
+                        raise ValueError('result evidence changed; rerun the task before interpreting it')
+                    self._remember(ctx, turn, 'workspace_task_result', record, record['summary'])
+                return {'status': 'completed', 'output': record, 'issues': []}
+            elif name == 'workspace_run_task':
+                if payload.site_id != thread['site_id']:
+                    raise PermissionError('task site must match the conversation')
+                record = self.p.workspace_tasks.execute(ctx, payload,
+                    commit_guard=lambda tx: self._active_turn(ctx, turn, tx),
+                    on_commit=lambda tx, result: self._remember(ctx, turn, 'workspace_task_result', result, result['summary']))
+                return {'status': 'completed', 'output': record, 'issues': []}
+            elif name == 'workspace_propose_routine':
+                if turn.get('origin') == 'background' or not quoted(payload.user_quote, turn.get('user_text', '')):
+                    raise PermissionError("a routine must quote the user's message in this turn")
+                if payload.task.site_id != thread['site_id']:
+                    raise PermissionError('routine site must match the conversation')
+                with self.p.store.transaction(ctx.actor_id) as tx:
+                    self._active_turn(ctx, turn, tx)
+                    record = self.p.assistant_routines.create(ctx, payload.model_dump(exclude={'user_quote'}))
+                    self._remember(ctx, turn, 'assistant_routine', record, 'Saved routine · review and activate in Routines')
                 return {'status': 'completed', 'output': record, 'issues': []}
             elif name == 'workspace_propose_action':
                 if any(r.kind == 'engineering_chat_turn' for r in payload.basis):

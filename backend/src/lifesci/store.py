@@ -35,8 +35,13 @@ DEFAULT_INDEXES: dict[str, tuple[str, ...]] = {
     "role_assignment": ("actor_id",),
     "approval": ("proposal_id",),
     "outcome": ("proposal_id",),
-    "proposal": ("mission_id",),
+    "proposal": ("mission_id", "site_id"),
     "signature": ("record_id",),
+    **{kind: ("site_id",) for kind in (
+        "case", "evidence", "batch", "sample", "procedure_instance", "claim",
+        "physical_analysis_context", "physical_model_dataset", "physical_model_checkpoint",
+        "physical_interval_calibration", "physical_analysis_result", "process_simulation",
+        "engineering_chat_turn", "deviation_signal", "specification", "assistant_alarm", "assistant_work_request")},
 }
 
 
@@ -484,6 +489,19 @@ class Transaction:
             raise CrossTenantError("a transaction cannot switch its tenant through a read handle")
         self._db.bind_tenant(tenant_id, self._writable or outer is not None)
         self.tenant_id = tenant_id
+
+    def lock_command(self, tenant_id: str, command_key: str) -> None:
+        """Serialize the same replay key across processes until this transaction commits.
+
+        SQLite's write transaction already serializes writers. PostgreSQL needs
+        a transaction-scoped lock before reading a receipt that may not exist yet.
+        """
+        if not self._writable:
+            raise RuntimeError('command locking requires a write transaction')
+        self._bind(tenant_id)
+        if self.store.backend == 'postgresql':
+            lock_id = int.from_bytes(bytes.fromhex(content_hash([tenant_id, command_key])[:16]), 'big', signed=True)
+            self._db.execute('SELECT pg_advisory_xact_lock(?)', (lock_id,))
 
     @_locked_read
     def get(self, tenant_id: str, kind: str, id: str) -> Record | None:

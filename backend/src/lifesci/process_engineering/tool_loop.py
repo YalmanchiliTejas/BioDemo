@@ -32,6 +32,8 @@ INTERNAL_ID = re.compile(r'^[a-z]+_[0-9A-Z]{16,}$')
 INSTRUCTIONS = """You are the manufacturing workspace assistant. Answer the person's question from records they are allowed to see, using the tools.
 
 How to work:
+- When the person references a result from Work or Routines, inspect it with workspace_open_task_result using its result_id before reasoning about its evidence. The host rechecks ownership, site and source versions.
+- Use workspace_run_task for bounded retrieval, applicability, reconciliation, exact-time comparisons, explicit gap checks, impact links and review packets. It avoids serial model/tool steps. Use actual source IDs and the current site; read its issues and coverage before interpreting. For a reusable function or triggered responsibility requested by this user, workspace_propose_routine saves a named task as a draft, quoting this user's message. Only the person can activate it in Routines; do not claim monitoring has started. No arbitrary generated functions or manufacturing writes.
 - Look things up before answering or asking. Search and read the relevant records; follow identifiers (batch, lot, equipment, case) with links; use similar_cases for precedents. Read a closed case's closure for its root cause and CAPA.
 - Call one or a few tools at a time, read the results, then decide. Stop as soon as you can answer well; do not gather evidence you will not use.
 - If a tool returns an error, correct the call (the error says what is wrong) or work around it. Never invent record IDs, revisions or values: copy them from tool results.
@@ -117,6 +119,12 @@ def title(name: str, args: dict[str, Any]) -> str:
         rid = str(args.get('record_id', ''))
         rid = '' if INTERNAL_ID.match(rid) else rid  # people see this label: no system IDs like sig_01M6…
         return f"Read {str(args.get('kind', 'record')).replace('_', ' ')} {rid}".strip()
+    if name == 'workspace_run_task':
+        return str(args.get('operation', 'Run task')).replace('_', ' ').capitalize()
+    if name == 'workspace_open_task_result':
+        return 'Inspect the saved task result'
+    if name == 'workspace_propose_routine':
+        return f"Save routine draft · {str(args.get('name', 'Repeatable work'))[:80]}"
     if name == 'cho_dataset_forecast':
         return f"Forecast {args.get('batch', '')} from {args.get('cutoff_h', 72):g} h"
     return name.replace('_', ' ').capitalize()

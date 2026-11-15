@@ -33,7 +33,7 @@ export function Companion({ home }: { home: boolean }) {
         <div className="flex items-center gap-2.5"><span className="companion-mark" aria-hidden /><h2 className="text-sm font-medium">Companion</h2></div>
         <div className="flex gap-1"><button type="button" onClick={() => setExpanded(!expanded)} className="companion-icon-button" aria-label={expanded ? 'Reduce companion' : 'Expand companion'}>{expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button><button type="button" onClick={dismiss} className="companion-icon-button" aria-label="Minimize companion"><X size={17} /></button></div>
       </div>}
-      <div className={home ? '' : 'min-h-0 flex-1 overflow-y-auto'}>
+      <div className={home ? '' : 'flex min-h-0 flex-1 overflow-hidden'}>
         {activated && <EngineeringChat companion compact={!home} />}
       </div>
     </section>

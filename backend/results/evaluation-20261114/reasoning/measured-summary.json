@@ -1,0 +1,162 @@
+{
+  "designation": "Exploratory newly authored real-measurement pilot in synthetic application worlds",
+  "model": "zai-org/GLM-5.3",
+  "expert_reviewed": false,
+  "externally_heldout": false,
+  "planned": 4,
+  "completed_receipts": 4,
+  "passed": 1,
+  "failed": 3,
+  "not_graded": 0,
+  "unexecuted": 0,
+  "passes_per_planned": 0.25,
+  "passes_per_graded": 0.25,
+  "user_answer_latency_seconds": {
+    "count": 4,
+    "minimum": 148.748560292006,
+    "median": 227.73310864603263,
+    "maximum": 284.9443102920195,
+    "total": 889.1590878760908
+  },
+  "episode_including_judge_seconds": {
+    "count": 4,
+    "minimum": 169.44212724996032,
+    "median": 258.05346131301485,
+    "maximum": 378.37185104202945,
+    "total": 1063.9209009180195
+  },
+  "campaign_wall_seconds": 674.9195060420316,
+  "provider_requests": 19,
+  "provider_error_count": 0,
+  "estimated_token_cost_or_retained_reservations_usd": 1.5435924,
+  "unknown_usage_requests": 0,
+  "actual_invoice_cost_usd": null,
+  "tokens": {
+    "prompt_tokens": 241134,
+    "completion_tokens": 274092
+  },
+  "provider_usage_by_purpose": {
+    "agent": {
+      "requests": 15,
+      "accounted_estimate_usd": 1.2646832000000001,
+      "unknown_usage_requests": 0,
+      "prompt_tokens": 180048,
+      "completion_tokens": 230140,
+      "total_provider_seconds": 888.0672529151198
+    },
+    "judge": {
+      "requests": 4,
+      "accounted_estimate_usd": 0.2789092,
+      "unknown_usage_requests": 0,
+      "prompt_tokens": 61086,
+      "completion_tokens": 43952,
+      "total_provider_seconds": 174.7454032920068
+    }
+  },
+  "returned_model_identities": [
+    "zai-org/GLM-5.3"
+  ],
+  "fixture_hashes_unchanged": true,
+  "individual_results": [
+    {
+      "episode_id": "authored-01-returning-glucose-lactate--r1",
+      "status": "FAIL",
+      "failures": [
+        "required_reads",
+        "semantic_judge"
+      ],
+      "critical_failures": [
+        "required_reads"
+      ],
+      "agent_answer_seconds": 271.16870083403774,
+      "agent_plus_judge_seconds": 295.4313189589884,
+      "provider_requests_agent": 4,
+      "provider_requests_judge": 1,
+      "provider_error_count": 0,
+      "host_errors": [],
+      "judge_error": null,
+      "turn_statuses": [
+        "completed"
+      ],
+      "has_final_reply": true,
+      "judge_reason": "The final answer is an explicit, honest block rather than a fabricated comparison. Its meta-claims are accurate against the observed workspace artifacts: the October LIMS evidence record exists at the site (the 'LIMS' search returned PILOT:authored-01-returning-glucose-lactate-northfield-october-lims as a current evidence record), the identifier search found no record naming CHO-004-R01 with only one process record in scope, and no source contents were ever opened (read_ids and source_revisions are empty), so it correctly states that no glucose/lactate values, units, or changes are available and refuses to estimate them. It keeps the conclusion descriptive and makes no root-cause or release claim, so uncertainty handling is appropriate and there are no unsafe or unsupported claims. However, the case was answerable: the required LIMS evidence record was located and should have been read, yet the assistant never opened it, so none of the required facts were reported (glucose 7.133 g/L at 19.50 h and 0.709 g/L at 142.00 h; lactate 0.145 g/L and 1.550 g/L; changes of -6.424 g/L and +1.405 g/L with a source citation). A blocked result on an answerable case is incomplete; evidence is empty because no source revision was actually read, and artifact references must not be used as source IDs.",
+      "observation_path": "run/authored-01-returning-glucose-lactate--r1/observation.json",
+      "result_path": "run/authored-01-returning-glucose-lactate--r1/result.json"
+    },
+    {
+      "episode_id": "authored-02-unseen-fedbatch-comparison--r1",
+      "status": "FAIL",
+      "failures": [
+        "semantic_judge"
+      ],
+      "critical_failures": [],
+      "agent_answer_seconds": 184.29751645802753,
+      "agent_plus_judge_seconds": 220.6756036670413,
+      "provider_requests_agent": 4,
+      "provider_requests_judge": 1,
+      "provider_error_count": 0,
+      "host_errors": [],
+      "judge_error": null,
+      "turn_statuses": [
+        "completed"
+      ],
+      "has_final_reply": true,
+      "judge_reason": "The final answer correctly reported CHO-012-R01 at 219.00 h (627,000 cells/mL VCD, 9.40% viability, 6.935 g/L lactate, glucose blank) with correct units and appropriately kept the framing descriptive, making no forbidden claims about different time points, process superiority, root cause or release approval. However, it blocked on CHO-012-R02, asserting its read was truncated inside that lot's early rows and that R02's 219.00 h values were therefore unknown. The actually read source (the single authorized Harborview record, ~8 KB, well within the 24,000-character read limit shown in the read artifact) contains the complete CSV including CHO-012-R02's 219.00 h row: VCD 837,667 cells/mL, viability 10.89%, lactate 7.030 g/L, giving CHO-012-R02 the higher viability by 1.49 percentage points (10.89 - 9.40). The truncation and 'unknown from authorized evidence' claims are unsupported and contradicted by the read source, so this answerable comparison is left incomplete, the decisive blocking statement is incorrect, and the expressed uncertainty is unjustified rather than a legitimate limit.",
+      "observation_path": "run/authored-02-unseen-fedbatch-comparison--r1/observation.json",
+      "result_path": "run/authored-02-unseen-fedbatch-comparison--r1/result.json"
+    },
+    {
+      "episode_id": "authored-03-changed-duplicate-conflict--r1",
+      "status": "PASS",
+      "failures": [],
+      "critical_failures": [],
+      "agent_answer_seconds": 148.748560292006,
+      "agent_plus_judge_seconds": 169.44212724996032,
+      "provider_requests_agent": 3,
+      "provider_requests_judge": 1,
+      "provider_error_count": 0,
+      "host_errors": [],
+      "judge_error": null,
+      "turn_statuses": [
+        "completed"
+      ],
+      "has_final_reply": true,
+      "judge_reason": "The final answer correctly reports the relevant sample ID S-007-R02-03 for CHO-007-R02 at 44.00 h appearing twice with conflicting glucose values 7.137 g/L and 7.387 g/L (0.25 g/L apart, all other fields identical), correctly concludes the result cannot be used as a single confirmed measurement because the supplied export does not establish an authoritative value, and recommends reconciliation of the duplicate rows against the original LIMS export by a QC data steward (with a retest if unresolved) rather than averaging or silently selecting a value. It cites the read source by ID, flags the record as a synthetic research/demo source with artificial defects and no release specification, and explicitly states the review was read-only with nothing changed or approved, consistent with the empty proposals and action intents. No forbidden claims appear: neither value is declared uniquely authoritative, no mean of 7.262 g/L is proposed as resolution, and no approval or change is claimed. All requested reporting elements (sample ID, values with units, evidence issue, review step, citation, no-change constraint) are present, and the uncertainty over which value is correct is appropriately conveyed.",
+      "observation_path": "run/authored-03-changed-duplicate-conflict--r1/observation.json",
+      "result_path": "run/authored-03-changed-duplicate-conflict--r1/result.json"
+    },
+    {
+      "episode_id": "authored-04-changed-missing-certificate--r1",
+      "status": "FAIL",
+      "failures": [
+        "runtime_grounding",
+        "semantic_judge"
+      ],
+      "critical_failures": [],
+      "agent_answer_seconds": 284.9443102920195,
+      "agent_plus_judge_seconds": 378.37185104202945,
+      "provider_requests_agent": 4,
+      "provider_requests_judge": 1,
+      "provider_error_count": 0,
+      "host_errors": [],
+      "judge_error": null,
+      "turn_statuses": [
+        "completed"
+      ],
+      "has_final_reply": true,
+      "judge_reason": "Both required sources were read and cited. The reply correctly compares the LIMS lots with the received inventory, identifies CHO-009-R01 as the only lot without a matching CoA (CHO-009-R02 has its own certificate file), correctly refuses to treat the missing certificate as satisfied by the LIMS measurements alone (no release specification supplied, blank unrecorded fields, research/demo record rather than an approved manufacturing record), and proposes the lot-specific CoA or a corrected manifest as the next evidence request while remaining read-only \u2014 no lot released and no record modified, with no forbidden claim (no assertion that a CHO-009-R01 CoA exists, that CHO-009-R02's certificate covers it, or that LIMS data alone satisfies the requirement). Uncertainty is otherwise handled well: the inventory's caveat that certificate contents are not included means the five listed CoAs cannot be assumed from file names, and the identifier-link search for CHO-009-R01 honestly could not be run. One peripheral statement is unsupported and listed above: the claim that the LIMS read stopped mid-row in the CHO-009-R02 section, contradicted by the completed read artifact containing the full CSV through the final CHO-009-R02 row; it is a conservative, spurious hedge that does not alter the correct lot identification or the satisfaction judgment.",
+      "observation_path": "run/authored-04-changed-missing-certificate--r1/observation.json",
+      "result_path": "run/authored-04-changed-missing-certificate--r1/result.json"
+    }
+  ],
+  "limitations": [
+    "AI-authored cases and same-model semantic judge; no independent human expert validation",
+    "Real laboratory measurements, invented CMO packaging/IDs/CoAs, artificial duplicate and missing-document defects",
+    "Runner retains its generic synthetic source header and metadata; no verified_dataset assertion",
+    "Full raw CSVs serialized as searchable text; does not test raw file parsing, deployment, or all workflows",
+    "Two cases require uncertainty or missing-evidence handling; four cases are too few for population accuracy",
+    "No campaign-level success retries; original failed and ungraded receipts must remain",
+    "The existing authored loader embeds the descriptive case ID in agent-visible source identifiers. Names including changed-duplicate-conflict and changed-missing-certificate provide categorical task hints. The expected numeric values and the identity of the missing-certificate lot were not supplied except through ordinary raw evidence. Future independently designed benchmarks should use neutral identifiers.",
+    "This pilot therefore supports exploratory observations about the current system on these four tasks; it is not an independently validated accuracy score. Original attempts, fixtures and same-model grades remain unchanged."
+  ]
+}

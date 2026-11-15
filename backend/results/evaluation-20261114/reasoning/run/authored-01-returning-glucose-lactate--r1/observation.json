@@ -1,0 +1,712 @@
+{
+  "turns": [
+    {
+      "artifacts": [
+        {
+          "id": "assi_01M7EPZVKMBS7XZZG20Y44ANJX",
+          "kind": "assistant_workspace_result",
+          "title": "Linked records · CHO-004-R01",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M7EQ252JXZFYYB1AXPS148QX",
+          "kind": "assistant_workspace_result",
+          "title": "Linked records · CHO-004-R01",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M7EQ252Q57RBBFSWE6VSGHRP",
+          "kind": "assistant_workspace_result",
+          "title": "Workspace search",
+          "status": "current"
+        }
+      ],
+      "capabilities_used": [
+        "core",
+        "quality",
+        "process"
+      ],
+      "claims": [
+        {
+          "kind": "observed",
+          "quote": "PILOT:authored-01-returning-glucose-lactate-northfield-october-lims",
+          "source_id": "assi_01M7EQ252Q57RBBFSWE6VSGHRP",
+          "text": "The Northfield October LIMS delivery was located as a current evidence record at this site."
+        },
+        {
+          "kind": "observed",
+          "quote": "There is no record CHO-004-R01 in this workspace; these are records that name CHO-004-R01.",
+          "source_id": "assi_01M7EQ252JXZFYYB1AXPS148QX",
+          "text": "The identifier search found no record naming CHO-004-R01."
+        },
+        {
+          "kind": "observed",
+          "quote": "Searched 1 authorized process records at this site; records you cannot access, saved chats and text originals were not searched.",
+          "source_id": "assi_01M7EQ252JXZFYYB1AXPS148QX",
+          "text": "That identifier search covered one authorized process record; inaccessible records, saved chats and text originals were not searched."
+        }
+      ],
+      "context_used": {
+        "corrections": [],
+        "earlier_corrections": [],
+        "rules": []
+      },
+      "continue_after_workflow": false,
+      "conversation_id": "engchat_01M7EPW47QRWTDRVCZADVMYQKF",
+      "created_at": "2026-11-15T04:19:00.473364+00:00",
+      "display_context": null,
+      "elapsed_seconds": 271.152,
+      "flow_run_id": null,
+      "flow_run_ids": [
+        "flowrun_01M7EPZVKFA8AGMCPMRF2XAD0A",
+        "flowrun_01M7EQ252CC3QHBGAAZPN48B5E"
+      ],
+      "gateway_runs": [
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 0,
+              "cost_usd": 0.0,
+              "input_tokens": 8424,
+              "latency_ms": 122148.38837500429,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 31709,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "2fb989be05bd4080b106302cdb159245",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "claims": [],
+            "continue_after_workflow": true,
+            "questions": [],
+            "reply": "I'll search the workspace for records naming CHO-004-R01 to locate the Northfield October LIMS delivery, then read that record at its current revision for the recorded glucose and lactate values at 19.50 h and 142.00 h. From the inspected source I'll report each value with its units, the absolute change (142.00 h minus 19.50 h) for each analyte, and the source citation, flagging any missing timepoint as a gap rather than estimating it. The summary stays descriptive — recorded values and arithmetic only, with no root-cause or release conclusion.",
+            "workflow": [
+              {
+                "depends_on": [],
+                "node_id": "find_lims_delivery",
+                "payload": {
+                  "limit": 20,
+                  "mode": "links",
+                  "record_id": "CHO-004-R01"
+                },
+                "task_kind": "workspace_search",
+                "title": "Find workspace records naming CHO-004-R01"
+              },
+              {
+                "depends_on": [
+                  "find_lims_delivery"
+                ],
+                "node_id": "read_lims_delivery",
+                "payload": {
+                  "kind": {
+                    "$node": "find_lims_delivery",
+                    "path": [
+                      "kind"
+                    ]
+                  },
+                  "record_id": {
+                    "$node": "find_lims_delivery",
+                    "path": [
+                      "id"
+                    ]
+                  },
+                  "revision": {
+                    "$node": "find_lims_delivery",
+                    "path": [
+                      "revision"
+                    ]
+                  }
+                },
+                "task_kind": "workspace_read",
+                "title": "Read the October LIMS delivery record for CHO-004-R01"
+              }
+            ]
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M7EPW4A0NPDAMSZ4NR502WG5",
+          "status": "completed"
+        },
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 0,
+              "cost_usd": 0.0,
+              "input_tokens": 8961,
+              "latency_ms": 75154.65579100419,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 21070,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "db8a2610cca44d448b78daa789a4febf",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "claims": [
+              {
+                "kind": "observed",
+                "quote": "There is no record CHO-004-R01 in this workspace; these are records that name CHO-004-R01.",
+                "source_id": "assi_01M7EPZVKMBS7XZZG20Y44ANJX",
+                "text": "No authorized process record at this site names CHO-004-R01."
+              },
+              {
+                "kind": "observed",
+                "quote": "Searched 1 authorized process records at this site; records you cannot access, saved chats and text originals were not searched.",
+                "source_id": "assi_01M7EPZVKMBS7XZZG20Y44ANJX",
+                "text": "The identifier search covered only the authorized process records; saved chats and records you cannot access were not searched."
+              },
+              {
+                "kind": "observed",
+                "quote": "No link here does not establish that none exist.",
+                "source_id": "assi_01M7EPZVKMBS7XZZG20Y44ANJX",
+                "text": "An empty identifier search does not establish that no related record exists."
+              }
+            ],
+            "continue_after_workflow": true,
+            "questions": [],
+            "reply": "The identifier search came back empty — no authorized process record at this site names CHO-004-R01, and saved chats and records you cannot access were not searched — so I can't yet cite the October LIMS delivery, though an empty search doesn't prove no related record exists. I'm now extending the identifier search across every record kind and looking for that delivery by name in the evidence, batch and sample records. If it turns up, I'll report each recorded glucose and lactate value with units at 19.50 h and 142.00 h plus the absolute change (142.00 h minus 19.50 h) per analyte, flagging any missing timepoint rather than estimating; if it doesn't, I'll state that gap and ask where the delivery lives — descriptive only, no root-cause or release conclusion.",
+            "workflow": [
+              {
+                "depends_on": [],
+                "node_id": "search_cho_links",
+                "payload": {
+                  "limit": 20,
+                  "mode": "links",
+                  "record_id": "CHO-004-R01",
+                  "site_id": "NF1"
+                },
+                "task_kind": "workspace_search",
+                "title": "Find records naming CHO-004-R01 across all record kinds"
+              },
+              {
+                "depends_on": [],
+                "node_id": "search_lims_delivery",
+                "payload": {
+                  "kinds": [
+                    "evidence",
+                    "batch",
+                    "sample"
+                  ],
+                  "limit": 20,
+                  "mode": "search",
+                  "query": "LIMS",
+                  "site_id": "NF1"
+                },
+                "task_kind": "workspace_search",
+                "title": "Search evidence, batch and sample records for the LIMS delivery"
+              }
+            ]
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M7EPZVNF47X8J8KQD8PNZF9T",
+          "status": "completed"
+        },
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 832,
+              "cost_usd": 0.0,
+              "input_tokens": 10031,
+              "latency_ms": 54744.09266700968,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 15134,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "3b991312842340f191d2f99e8855c5b6",
+              "rejected_output": {
+                "claims": [
+                  {
+                    "kind": "observed",
+                    "quote": "authored-01-returning-glucose-lactate-northfield-october-lims",
+                    "source_id": "assi_01M7EQ252Q57RBBFSWE6VSGHRP",
+                    "text": "The Northfield October LIMS delivery was located as a current evidence record at this site."
+                  },
+                  {
+                    "kind": "observed",
+                    "quote": "There is no record CHO-004-R01 in this workspace; these are records that name CHO-004-R01.",
+                    "source_id": "assi_01M7EQ252JXZFYYB1AXPS148QX",
+                    "text": "The identifier search found no record naming CHO-004-R01."
+                  },
+                  {
+                    "kind": "observed",
+                    "quote": "Searched 1 authorized process records at this site; records you cannot access, saved chats and text originals were not searched.",
+                    "source_id": "assi_01M7EQ252JXZFYYB1AXPS148QX",
+                    "text": "That identifier search covered one process record; inaccessible records, saved chats and text originals were not searched."
+                  }
+                ],
+                "continue_after_workflow": true,
+                "questions": [],
+                "reply": "The Northfield October LIMS delivery is on file here as a current evidence record, and I'm reading it now. From it I'll report each recorded glucose and lactate value with units for CHO-004-R01 at 19.50 h and 142.00 h plus the absolute change (later minus earlier) per analyte, citing this delivery as the source and flagging any missing timepoint or batch rather than estimating — descriptive only, with no root-cause or release inference. No record searched so far names CHO-004-R01 (one process record covered; saved chats and text originals were not), so the delivery's own contents will confirm the batch.",
+                "workflow": [
+                  {
+                    "depends_on": [],
+                    "node_id": "read_lims_delivery",
+                    "payload": {
+                      "kind": "evidence",
+                      "record_id": "PILOT:authored-01-returning-glucose-lactate-northfield-october-lims",
+                      "revision": 1
+                    },
+                    "task_kind": "workspace_read",
+                    "title": "Read October LIMS delivery evidence"
+                  }
+                ]
+              },
+              "validation": [
+                "host response contract: This is the final planning call: return an empty workflow and answer now from the evidence and results already in the conversation, naming anything you could not read or run."
+              ]
+            },
+            {
+              "attempt": 0,
+              "cached_tokens": 0,
+              "cost_usd": 0.0,
+              "input_tokens": 11142,
+              "latency_ms": 18868.0731250206,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 5856,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "83cece77d34747de9f392e6eff779ead",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [
+            "host response contract: This is the final planning call: return an empty workflow and answer now from the evidence and results already in the conversation, naming anything you could not read or run."
+          ],
+          "output": {
+            "claims": [
+              {
+                "kind": "observed",
+                "quote": "PILOT:authored-01-returning-glucose-lactate-northfield-october-lims",
+                "source_id": "assi_01M7EQ252Q57RBBFSWE6VSGHRP",
+                "text": "The Northfield October LIMS delivery was located as a current evidence record at this site."
+              },
+              {
+                "kind": "observed",
+                "quote": "There is no record CHO-004-R01 in this workspace; these are records that name CHO-004-R01.",
+                "source_id": "assi_01M7EQ252JXZFYYB1AXPS148QX",
+                "text": "The identifier search found no record naming CHO-004-R01."
+              },
+              {
+                "kind": "observed",
+                "quote": "Searched 1 authorized process records at this site; records you cannot access, saved chats and text originals were not searched.",
+                "source_id": "assi_01M7EQ252JXZFYYB1AXPS148QX",
+                "text": "That identifier search covered one authorized process record; inaccessible records, saved chats and text originals were not searched."
+              }
+            ],
+            "continue_after_workflow": false,
+            "questions": [],
+            "reply": "I could not complete the comparison this turn: the Northfield October LIMS delivery is on file here as a current evidence record, but I could not open its contents, so no recorded glucose or lactate values at 19.50 h or 142.00 h — nor their units or the absolute changes (later minus earlier) — are available in this conversation, and I won't estimate them. The identifier search found no record naming CHO-004-R01 (one process record in scope; saved chats and text originals were not searched), so batch attribution rests on the delivery's own contents, which remain unread. Descriptive status only — nothing here supports a root-cause or release conclusion.",
+            "workflow": []
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M7EQ254FN0H8H44H5KX3FDPZ",
+          "status": "completed"
+        }
+      ],
+      "grounding": {
+        "claims": [
+          {
+            "kind": "observed",
+            "problem": null,
+            "quote": "PILOT:authored-01-returning-glucose-lactate-northfield-october-lims",
+            "source_id": "assi_01M7EQ252Q57RBBFSWE6VSGHRP",
+            "text": "The Northfield October LIMS delivery was located as a current evidence record at this site.",
+            "verified": true
+          },
+          {
+            "kind": "observed",
+            "problem": null,
+            "quote": "There is no record CHO-004-R01 in this workspace; these are records that name CHO-004-R01.",
+            "source_id": "assi_01M7EQ252JXZFYYB1AXPS148QX",
+            "text": "The identifier search found no record naming CHO-004-R01.",
+            "verified": true
+          },
+          {
+            "kind": "observed",
+            "problem": null,
+            "quote": "Searched 1 authorized process records at this site; records you cannot access, saved chats and text originals were not searched.",
+            "source_id": "assi_01M7EQ252JXZFYYB1AXPS148QX",
+            "text": "That identifier search covered one authorized process record; inaccessible records, saved chats and text originals were not searched.",
+            "verified": true
+          }
+        ],
+        "contradictions": [],
+        "derived_numbers": [],
+        "method": "verbatim quote in inspected source + number provenance; not semantic support",
+        "status": "grounded",
+        "unsupported_numbers": []
+      },
+      "held_back": [],
+      "id": "engturn_01M7EPW47SE6DTZQE6T612ATVS",
+      "issues": [],
+      "planning_attempts": [
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M7EPW4A0NPDAMSZ4NR502WG5",
+          "status": "accepted",
+          "validation_error": null
+        },
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M7EPZVNF47X8J8KQD8PNZF9T",
+          "status": "accepted",
+          "validation_error": null
+        },
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M7EQ254FN0H8H44H5KX3FDPZ",
+          "status": "rejected",
+          "validation_error": "host response contract: This is the final planning call: return an empty workflow and answer now from the evidence and results already in the conversation, naming anything you could not read or run."
+        },
+        {
+          "attempt_index": 1,
+          "gateway_run_id": "run_01M7EQ254FN0H8H44H5KX3FDPZ",
+          "status": "accepted",
+          "validation_error": null
+        }
+      ],
+      "planning_calls_admitted": 3,
+      "planning_gateway_run_id": "run_01M7EQ254FN0H8H44H5KX3FDPZ",
+      "questions": [],
+      "reply": "I could not complete the comparison this turn: the Northfield October LIMS delivery is on file here as a current evidence record, but I could not open its contents, so no recorded glucose or lactate values at 19.50 h or 142.00 h — nor their units or the absolute changes (later minus earlier) — are available in this conversation, and I won't estimate them. The identifier search found no record naming CHO-004-R01 (one process record in scope; saved chats and text originals were not searched), so batch attribution rests on the delivery's own contents, which remain unread. Descriptive status only — nothing here supports a root-cause or release conclusion.",
+      "site_id": "NF1",
+      "solver_calls_admitted": 0,
+      "solver_calls_used": 0,
+      "status": "completed",
+      "system_message": null,
+      "user_ref": {
+        "id": "engineering-user-instruction:engturn_01M7EPW47SE6DTZQE6T612ATVS",
+        "kind": "evidence",
+        "revision": 1,
+        "site_id": "NF1"
+      },
+      "user_text": "Using the Northfield October LIMS delivery, compare glucose and lactate for CHO-004-R01 at 19.50 h and 142.00 h. Give each recorded value with units, the absolute change (later minus earlier) for each analyte, and cite the source. Keep the conclusion descriptive; do not infer a root cause or release decision.",
+      "workflow_status": "completed",
+      "basis_status": "current",
+      "steps": [
+        {
+          "depends_on": [],
+          "node_id": "search_cho_links",
+          "payload": {
+            "limit": 20,
+            "mode": "links",
+            "record_id": "CHO-004-R01",
+            "site_id": "NF1"
+          },
+          "task_kind": "workspace_search",
+          "title": "Find records naming CHO-004-R01 across all record kinds",
+          "status": "completed",
+          "issues": [],
+          "started_at": "2026-11-15T04:22:17.937327+00:00",
+          "ended_at": "2026-11-15T04:22:17.940222+00:00"
+        },
+        {
+          "depends_on": [],
+          "node_id": "search_lims_delivery",
+          "payload": {
+            "kinds": [
+              "evidence",
+              "batch",
+              "sample"
+            ],
+            "limit": 20,
+            "mode": "search",
+            "query": "LIMS",
+            "site_id": "NF1"
+          },
+          "task_kind": "workspace_search",
+          "title": "Search evidence, batch and sample records for the LIMS delivery",
+          "status": "completed",
+          "issues": [],
+          "started_at": "2026-11-15T04:22:17.942969+00:00",
+          "ended_at": "2026-11-15T04:22:17.945267+00:00"
+        }
+      ],
+      "open_in": []
+    }
+  ],
+  "read_ids": [],
+  "source_revisions": [],
+  "artifacts": [
+    {
+      "kind": "assistant_workspace_result",
+      "id": "assi_01M7EPZVKMBS7XZZG20Y44ANJX",
+      "value": {
+        "id": "assi_01M7EPZVKMBS7XZZG20Y44ANJX",
+        "revision": 1,
+        "basis_hash": "c691db259b0531fe36cc40a3cf0afb541b09affbe1fbbdbf5911cb3e5be173ae",
+        "coverage": "Searched 1 authorized process records at this site; records you cannot access, saved chats and text originals were not searched. No link here does not establish that none exist.",
+        "identifiers": [
+          {
+            "canonical": "CHO004R01",
+            "field": "record_id",
+            "raw": "CHO-004-R01",
+            "structured": true
+          }
+        ],
+        "identity_rule": "IDs match after ignoring case and - _ . / separators (B-001 = B001); leading zeros are kept.",
+        "inputs": [
+          {
+            "id": "engineering-user-instruction:engturn_01M7EPW47SE6DTZQE6T612ATVS",
+            "kind": "evidence",
+            "revision": 1,
+            "site_id": "NF1"
+          }
+        ],
+        "matching_count": 0,
+        "produced_by": {
+          "actor_id": "priya",
+          "method": "authorized_workspace_tools:v1"
+        },
+        "records": [],
+        "records_searched": 1,
+        "site_id": "NF1",
+        "stale_reasons": [],
+        "status": "current",
+        "target": null,
+        "target_missing": "There is no record CHO-004-R01 in this workspace; these are records that name CHO-004-R01.",
+        "title": "Linked records · CHO-004-R01",
+        "truncated": false
+      }
+    },
+    {
+      "kind": "assistant_workspace_result",
+      "id": "assi_01M7EQ252JXZFYYB1AXPS148QX",
+      "value": {
+        "id": "assi_01M7EQ252JXZFYYB1AXPS148QX",
+        "revision": 1,
+        "basis_hash": "c691db259b0531fe36cc40a3cf0afb541b09affbe1fbbdbf5911cb3e5be173ae",
+        "coverage": "Searched 1 authorized process records at this site; records you cannot access, saved chats and text originals were not searched. No link here does not establish that none exist.",
+        "identifiers": [
+          {
+            "canonical": "CHO004R01",
+            "field": "record_id",
+            "raw": "CHO-004-R01",
+            "structured": true
+          }
+        ],
+        "identity_rule": "IDs match after ignoring case and - _ . / separators (B-001 = B001); leading zeros are kept.",
+        "inputs": [
+          {
+            "id": "engineering-user-instruction:engturn_01M7EPW47SE6DTZQE6T612ATVS",
+            "kind": "evidence",
+            "revision": 1,
+            "site_id": "NF1"
+          }
+        ],
+        "matching_count": 0,
+        "produced_by": {
+          "actor_id": "priya",
+          "method": "authorized_workspace_tools:v1"
+        },
+        "records": [],
+        "records_searched": 1,
+        "site_id": "NF1",
+        "stale_reasons": [],
+        "status": "current",
+        "target": null,
+        "target_missing": "There is no record CHO-004-R01 in this workspace; these are records that name CHO-004-R01.",
+        "title": "Linked records · CHO-004-R01",
+        "truncated": false
+      }
+    },
+    {
+      "kind": "assistant_workspace_result",
+      "id": "assi_01M7EQ252Q57RBBFSWE6VSGHRP",
+      "value": {
+        "id": "assi_01M7EQ252Q57RBBFSWE6VSGHRP",
+        "revision": 1,
+        "basis_hash": "c6a28596cf7849cff4feedd5c906976c13aa7629daeb7317d3a71166365d1107",
+        "content_search_gaps": [],
+        "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+        "inputs": [
+          {
+            "id": "PILOT:authored-01-returning-glucose-lactate-northfield-october-lims",
+            "kind": "evidence",
+            "revision": 1,
+            "site_id": "NF1"
+          },
+          {
+            "id": "engineering-user-instruction:engturn_01M7EPW47SE6DTZQE6T612ATVS",
+            "kind": "evidence",
+            "revision": 1,
+            "site_id": "NF1"
+          }
+        ],
+        "matching_count": 1,
+        "matching_count_is_lower_bound": false,
+        "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+        "produced_by": {
+          "actor_id": "priya",
+          "method": "authorized_workspace_tools:v1"
+        },
+        "query": "LIMS",
+        "records": [
+          {
+            "classification": null,
+            "id": "PILOT:authored-01-returning-glucose-lactate-northfield-october-lims",
+            "kind": "evidence",
+            "label": "authored-01-returning-glucose-lactate-northfield-october-lims",
+            "match": "exact",
+            "revision": 1,
+            "site_id": "NF1",
+            "status": "current",
+            "time": "2026-10-20T10:00:00+00:00",
+            "time_basis": "event_time",
+            "timeline_events": null,
+            "word_overlap": 0.0
+          }
+        ],
+        "scope": {
+          "authorized_records_only": true,
+          "site_id": "NF1"
+        },
+        "searched_kinds": [
+          "evidence",
+          "batch",
+          "sample"
+        ],
+        "site_id": "NF1",
+        "stale_reasons": [],
+        "status": "current",
+        "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+        "title": "Workspace search",
+        "truncated": false,
+        "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+      }
+    }
+  ],
+  "proposals": [],
+  "action_intents": [],
+  "background_turns": 0,
+  "errors": [],
+  "mission": {
+    "attempts": 0,
+    "budget_usd": null,
+    "checkpoint": null,
+    "constraints": [
+      "Registered tools and versioned evidence only",
+      "A draft or simulation is not a production action"
+    ],
+    "corrections": [],
+    "created_at": "2026-11-15T04:19:00.471813+00:00",
+    "created_by": "priya",
+    "findings": [],
+    "history_refs": [],
+    "last_event_seq": 25,
+    "mission_id": "msn_01M7EPW47QBHS2Y8FSJKR053TG",
+    "notes": [
+      {
+        "at": "2026-11-15T04:19:00.474686+00:00",
+        "author": "priya",
+        "body": "Using the Northfield October LIMS delivery, compare glucose and lactate for CHO-004-R01 at 19.50 h and 142.00 h. Give each recorded value with units, the absolute change (later minus earlier) for each analyte, and cite the source. Keep the conclusion descriptive; do not infer a root cause or release decision.",
+        "note_id": "note_01M7EPW47T0Q0H4B2QGN6MDS78"
+      }
+    ],
+    "objective": "Assist with authorized manufacturing work",
+    "obligations": [],
+    "owner_id": "priya",
+    "pending_decisions": [],
+    "pending_event_ids": [],
+    "plan": {
+      "steps": [],
+      "version": 0
+    },
+    "rejected_hypotheses": [],
+    "remaining_work": [],
+    "scope": {
+      "site_ids": [
+        "NF1"
+      ]
+    },
+    "status": "active",
+    "status_reason": null,
+    "subscriptions": [],
+    "summary": null,
+    "revision": 18,
+    "updated_at": "2026-11-15T04:23:31.618859+00:00"
+  },
+  "events": [],
+  "provider_requests": 4,
+  "timing": {
+    "elapsed_seconds": 271.16870083403774
+  },
+  "restart_performed": false
+}

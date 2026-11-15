@@ -11,6 +11,62 @@ def env():
     return p, p.identity.context_for("T", "msat")
 
 
+def test_only_declared_independent_compute_runs_concurrently_and_dependencies_wait():
+    from threading import Barrier
+    p, ctx = env()
+    barrier = Barrier(2, timeout=3)
+    calls = []
+    def read(context, payload):
+        barrier.wait()  # fails if these independent reads are serialized
+        calls.append(payload['value'])
+        return {'status': 'completed', 'output': payload['value'], 'issues': []}
+    def combine(context, payload):
+        assert sorted(calls) == [2, 3]
+        return {'status': 'completed', 'output': payload['left'] + payload['right'], 'issues': []}
+    p.flows.register_operator('test.read', 'v1', read, parallel_safe=True)
+    p.flows.register_operator('test.combine', 'v1', combine)
+    p.flows.save(ctx, 'parallel', site_id='S1', nodes=[
+        {'node_id': 'a', 'task_kind': 'test.read', 'payload': {'value': 2}},
+        {'node_id': 'b', 'task_kind': 'test.read', 'payload': {'value': 3}},
+        {'node_id': 'c', 'task_kind': 'test.combine', 'depends_on': ['a', 'b'],
+         'payload': {'left': {'$node': 'a'}, 'right': {'$node': 'b'}}}])
+    run = p.flows.create_run(ctx, 'parallel', inputs=[])
+    done = p.flows.run(ctx, run['run_id'])
+    assert done['results']['c']['output'] == 5
+    p.flows.run(ctx, run['run_id'])
+    assert len(calls) == 2
+
+
+def test_discovered_sources_invalidate_completed_flow():
+    p, ctx = env()
+    p.evidence.ingest(ctx, source_system='file', source_record_id='D', content=b'old', site_id='S1', media_type='text/plain', event_time=None)
+    def discover(context, payload):
+        return {'status': 'completed', 'output': {'source_refs': [{'kind': 'evidence', 'id': 'file:D', 'revision': 1, 'site_id': 'S1'}]}, 'issues': []}
+    p.flows.register_operator('test.discover', 'v1', discover, parallel_safe=True)
+    p.flows.save(ctx, 'discover', site_id='S1', nodes=[{'node_id': 'a', 'task_kind': 'test.discover'}])
+    run = p.flows.create_run(ctx, 'discover', inputs=[])
+    p.flows.run(ctx, run['run_id'])
+    p.evidence.ingest(ctx, source_system='file', source_record_id='D', content=b'new', site_id='S1', media_type='text/plain', event_time=None)
+    assert p.store.read().require('T', 'data_flow_run', run['run_id']).state['status'] == 'stale'
+
+
+def test_direct_compute_cannot_commit_after_owner_role_revocation(monkeypatch):
+    p, ctx = env()
+    original = p.workspace_tasks.compute
+    def compute_then_revoke(actor, request):
+        result = original(actor, request)
+        p.identity.revoke_role('T', 'msat', 'msat', site_id='S1')
+        return result
+    monkeypatch.setattr(p.workspace_tasks, 'compute', compute_then_revoke)
+    p.flows.save(ctx, 'revoked', site_id='S1', nodes=[{'node_id': 'read', 'task_kind': 'workspace_task_compute',
+        'payload': {'operation': 'find_records', 'site_id': 'S1', 'query': 'test'}}])
+    run = p.flows.create_run(ctx, 'revoked', inputs=[])
+    with pytest.raises(PermissionError):
+        p.flows.run(ctx, run['run_id'])
+    saved = p.store.read().require('T', 'data_flow_run', run['run_id'])
+    assert saved.state['results'] == {}
+
+
 def nodes():
     return [{"node_id": "oee", "task_kind": "statistics", "payload": {"method": "oee", "params": {
         "planned_time": 480, "run_time": 432, "ideal_cycle_time": 1, "total_count": 400, "good_count": 392}}},

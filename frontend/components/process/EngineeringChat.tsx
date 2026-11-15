@@ -22,6 +22,10 @@ import { projectThread } from '@/lib/work-results';
 import { WorkspaceArtifact } from './WorkspaceArtifact';
 import { DemoDeviationsArtifact } from './DemoDeviationsArtifact';
 import { AssistantResponsibility, type Responsibility } from './AssistantResponsibility';
+import { useAssistantDraft } from '@/lib/assistant-draft';
+import type { TaskContext, TaskSpec } from '@/lib/assistant-workflows';
+import { AssistantTaskWork, SavedTaskResult } from './AssistantTaskWork';
+import { AssistantRoutines } from './AssistantRoutines';
 
 type Step = { node_id: string; title: string; task_kind: string; depends_on: string[]; status: string; issues: string[]; started_at?: string | null; ended_at?: string | null };
 const seconds = (a?: string | null, b?: string | null) => a && b ? Math.max(0, (new Date(b).getTime() - new Date(a).getTime()) / 1000) : null;
@@ -127,7 +131,7 @@ function WorkLog({ turn, threadId, running }: { turn: Turn; threadId: string; ru
   if (!steps.length && !reads.length && !turn.gateway_runs.length) return null;
   const parts = [steps.length && `${steps.length} step${steps.length === 1 ? '' : 's'}`, reads.length && `${reads.length} record lookup${reads.length === 1 ? '' : 's'}`,
     turn.elapsed_seconds != null && `${turn.elapsed_seconds.toFixed(1)} s`].filter(Boolean).join(' · ');
-  return <details className="group mt-4 text-xs" open={running}>
+  return <details className="group mt-4 text-xs">
     <summary className="flex cursor-pointer list-none items-center gap-2 text-text-tertiary hover:text-text-secondary">
       <Workflow size={14} />{running ? `Working${steps.find(x => x.status !== 'completed') ? ` · ${steps.find(x => x.status !== 'completed')!.title}` : ''}` : 'How I worked this out'}{parts && <span className="text-text-muted">· {parts}</span>}<ChevronDown size={12} className="transition-transform group-open:rotate-180" /></summary>
     <div className="mt-3 space-y-3 rounded-card bg-surface p-4 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
@@ -218,8 +222,6 @@ function ConversationList({ recent, currentId, actions }: { recent: Recent[]; cu
 
 export function EngineeringChat({ companion = false, compact = false }: { companion?: boolean; compact?: boolean }) {
   const companionState = useOptionalCompanion();
-  const selection = companionState?.selection;
-  const pending = companionState?.datasets ?? [];
   const pathname = usePathname().replace(/\/$/, '');
   const pageName = SCREENS.find(s => s.href === pathname)?.title ?? 'Current workspace';
   // Last known data renders immediately on navigation; the mount effect refetches it.
@@ -229,9 +231,23 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
     try { const saved = localStorage.getItem(storageKey); return saved ? cached<Thread>(`/v1/process-model/conversations/${saved}`) ?? null : null; }
     catch { return null; }
   });
+  const [resultContext, setResultContext] = useState<{ threadId: string; excludedIds: string[]; excludedSelection: DisplayContext | null } | null>(null);
+  const resultOnly = resultContext?.threadId === thread?.id;
+  const selection = resultOnly && companionState?.selection === resultContext?.excludedSelection ? null : companionState?.selection;
+  const pending = (companionState?.datasets ?? []).filter(dataset => !resultOnly || !resultContext?.excludedIds.includes(dataset.id));
   const [recent, setRecent] = useState<Recent[]>(() => cached<{ conversations: Recent[] }>('/v1/process-model/conversations')?.conversations ?? []);
-  const [draft, setDraft] = useState('');
+  const { draft, draftKey, setDraft, clearSubmitted, moveTo, writeForConversation } = useAssistantDraft(storageKey, thread?.id ?? null);
+  const [localView, setLocalView] = useState<'chat' | 'work' | 'routines'>('chat');
+  const view = companionState?.view ?? localView;
+  const setView = companionState?.setView ?? setLocalView;
+  const [visited, setVisited] = useState({ work: false, routines: false });
+  const [routineDraft, setRoutineDraft] = useState<TaskSpec | null>(null);
+  const [routineId, setRoutineId] = useState<string | null>(null);
+  const [routineSite, setRoutineSite] = useState<string | null>(null);
+  useEffect(() => { if (view !== 'chat') setVisited(previous => ({ ...previous, [view]: true })); }, [view]);
   const [sending, setSending] = useState(false);
+  const [openingResult, setOpeningResult] = useState(false);
+  const handoffInFlight = useRef(false);
   const [stoppingTurns, setStoppingTurns] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState('');
   const [sources, setSources] = useState<Source[]>(() => cached<{ sources: Source[] }>('/v1/process-model/conversation-sources')?.sources ?? []);
@@ -273,10 +289,18 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
   const current = useRef<string | null>(null);
   const inFlight = useRef(false);
   const end = useRef<HTMLDivElement>(null);
+  const scroll = useRef<HTMLDivElement>(null);
+  const followLatest = useRef(true);
+  const [newActivity, setNewActivity] = useState(false);
   const composer = useRef<HTMLTextAreaElement>(null);
   const last = thread?.turns.at(-1);
-  const busy = sending || active(last) || (!!last && stoppingTurns.has(last.id));
+  const busy = sending || openingResult || active(last) || (!!last && stoppingTurns.has(last.id));
   const structuredWork = useMemo(() => new Set(thread ? projectThread(thread).map(r => r.id) : []), [thread]);
+  const siteId = thread?.site_id ?? workspaceState.organization?.site_ids?.[0] ?? 'NF1';
+  const taskSiteId = companionState?.taskContext?.task.site_id ?? siteId;
+  const routineSiteId = routineSite ?? taskSiteId;
+  const taskContext: TaskContext = companionState?.taskContext ?? { label: pending.length ? pending.map(dataset => dataset.label).join(', ') : thread?.dataset_ids?.length ? 'Conversation deliveries' : pageName,
+    task: { dataset_ids: [...new Set([...(thread?.dataset_ids ?? []), ...pending.map(dataset => dataset.id)])] } };
 
   function adopt(data: Thread) {
     current.current = data.id; setThread(data);
@@ -322,9 +346,13 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
     }, active(last) ? 1000 : 5000);
     return () => { mounted = false; window.clearInterval(timer); };
   }, [thread?.id, last?.status, thread?.responsibility?.enabled, thread?.mission_status]);
+  useEffect(() => { followLatest.current = true; setNewActivity(false); if (view === 'chat' && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }, [thread?.id]);
   useEffect(() => {
-    end.current?.scrollIntoView({ behavior: 'auto', block: 'nearest' });
-  }, [thread?.turns.length, last?.status]);
+    if (view !== 'chat') { setNewActivity(true); return; }
+    if (followLatest.current) { if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }
+    else setNewActivity(true);
+  }, [thread?.turns.length, last?.status, last?.reply, last?.steps?.length]);
+  useEffect(() => { if (view === 'chat' && followLatest.current && scroll.current) { scroll.current.scrollTop = scroll.current.scrollHeight; setNewActivity(false); } }, [view]);
   useEffect(() => {
     if (composer.current) {
       composer.current.style.height = 'auto';
@@ -336,10 +364,10 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
     companionState?.setBusy(busy);
   }, [busy, companionState?.setBusy]);
   useEffect(() => {
-    if (selection) composer.current?.focus();
+    if (selection && view === 'chat') composer.current?.focus({ preventScroll: true });
   }, [selection]);
   useEffect(() => {
-    if (compact && companionState?.open) composer.current?.focus();
+    if (compact && companionState?.open && view === 'chat') composer.current?.focus({ preventScroll: true });
   }, [compact, companionState?.open]);
 
   async function send(text = draft, enableDemo = false) {
@@ -347,21 +375,32 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
     inFlight.current = true;
     wantScenarios.current = false; setScenariosOpen(false);
     const sentSelection = selection;
+    const sentPending = pending;
+    const sentAttachment = attachment;
+    const submittedDraft = text === draft ? draft : null;
+    let submittedKey = draftKey;
+    const origin = current.current;
     setSending(true); setError('');
     try {
       let target = thread;
       if (!target) {
-        target = await processRequest<Thread>('/v1/process-model/conversations', {});
-        adopt(target);
+        target = await processRequest<Thread>('/v1/process-model/conversations', { site_id: siteId });
+        submittedKey = moveTo(submittedKey, target.id);
+        if (current.current === origin) adopt(target);
       }
       const id = target.id;
       const data = await processRequest<Thread>(`/v1/process-model/conversations/${id}/messages`, {
         text: text.trim(), expected_revision: target.revision, enable_demo: enableDemo || demoConsent,
-        source_ids: attachment ? [attachment] : [],
-        dataset_ids: pending.map(d => d.id),
+        source_ids: sentAttachment ? [sentAttachment] : [],
+        dataset_ids: sentPending.map(d => d.id),
         ...(sentSelection ? { display_context: sentSelection } : {}),
       });
-      if (current.current === id) { adopt(data); setDraft(''); setAttachment(''); companionState?.removeDataset(); if (sentSelection) companionState?.clearSelection(sentSelection); }
+      if (submittedDraft !== null) clearSubmitted(submittedKey, submittedDraft);
+      if (current.current === id) {
+        adopt(data); setAttachment(value => value === sentAttachment ? '' : value);
+        sentPending.forEach(dataset => companionState?.removeDataset(dataset.id));
+        if (sentSelection) companionState?.clearSelection(sentSelection);
+      }
       const updated = await processRequest<{ conversations: Recent[] }>('/v1/process-model/conversations');
       setRecent(updated.conversations);
       if (demo) refreshDemo();
@@ -400,9 +439,9 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
     finally { setStoppingTurns(value => { const remaining = new Set(value); remaining.delete(turnId); return remaining; }); }
   }
   function newConversation() {
-    current.current = null; setThread(null); setDraft(''); setAttachment(''); setDemoConsent(false); setError('');
+    current.current = null; setThread(null); setAttachment(''); setDemoConsent(false); setError('');
     try { localStorage.removeItem(storageKey); } catch { /* Storage is optional. */ }
-    companionState?.clearSelection(); composer.current?.focus();
+    companionState?.clearSelection(); composer.current?.focus({ preventScroll: true });
   }
   async function loadSources() {
     setSourcesOpen(!sourcesOpen);
@@ -436,14 +475,37 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
   };
   const history = <ConversationList recent={recent} currentId={thread?.id ?? null} actions={listActions} />;
 
-  return <div className={`flex w-full ${compact ? 'min-h-full' : 'min-h-[calc(100dvh-7rem)]'}`} data-testid="engineering-chat">
-    {!compact && !historyHidden && <aside className="sticky top-0 hidden max-h-[calc(100dvh-7rem)] w-64 shrink-0 self-start border-r border-border-hairline py-4 pl-2 pr-3 md:flex md:flex-col">
+  const askAbout = (text: string, resultSite?: string) => {
+    setView('chat');
+    if (!resultSite || thread?.site_id === resultSite) {
+      setDraft(draft ? `${draft}\n\n${text}` : text); requestAnimationFrame(() => composer.current?.focus({ preventScroll: true })); return;
+    }
+    if (handoffInFlight.current) return;
+    handoffInFlight.current = true; setOpeningResult(true); setError('');
+    const origin = current.current;
+    const excludedIds = (companionState?.datasets ?? []).map(dataset => dataset.id);
+    const excludedSelection = companionState?.selection ?? null;
+    void (async () => {
+      try {
+        const target = await processRequest<Thread>('/v1/process-model/conversations', { site_id: resultSite });
+        // Keep the existing site's draft and pending context; the handoff contains only this saved result.
+        writeForConversation(target.id, text);
+        if (current.current === origin) {
+          setResultContext({ threadId: target.id, excludedIds, excludedSelection }); setAttachment(''); adopt(target);
+        }
+        await refreshRecent();
+      } catch (e) { if (current.current === origin) setError((e as Error).message); }
+      finally { handoffInFlight.current = false; setOpeningResult(false); }
+    })();
+  };
+  return <div className={`flex w-full min-h-0 ${compact ? 'h-full' : 'h-[calc(100dvh-9rem)] min-h-[360px]'}`} data-testid="engineering-chat">
+    {!compact && !historyHidden && view === 'chat' && <aside className="hidden w-56 shrink-0 border-r border-border-hairline py-4 pl-2 pr-3 md:flex md:flex-col">
       <button type="button" onClick={() => setHistoryHidden(true)} aria-label="Hide conversation history" title="Hide conversation history"
         className="mb-2 flex items-center gap-1.5 self-end rounded-control px-2 py-1 text-[11px] text-text-tertiary hover:bg-surface-secondary hover:text-text-secondary"><PanelLeftClose size={14} />Hide</button>
       <div className="min-h-0 flex-1">{history}</div>
     </aside>}
-    <div className={`mx-auto flex w-full min-w-0 flex-col ${compact ? 'px-4' : 'max-w-4xl px-2 sm:px-8'}`}>
-    <header className={`sticky z-20 flex items-center justify-between gap-3 py-3 ${compact ? 'top-0 bg-surface' : '-top-7 bg-canvas'}`}>
+    <div className={`mx-auto flex min-h-0 w-full min-w-0 flex-col ${compact ? 'px-4' : 'max-w-4xl px-2 sm:px-8'}`}>
+    <header className={`relative z-20 flex shrink-0 items-center justify-between gap-3 py-3 ${compact ? 'bg-surface' : 'bg-canvas'}`}>
       <div className="flex min-w-0 items-center gap-2">
         <span className={`flex items-center ${compact || historyHidden ? '' : 'md:hidden'}`}>
           <button type="button" onClick={toggleHistory} aria-expanded={historyOpen || (!compact && !historyHidden)} aria-label="Conversation history"
@@ -467,9 +529,15 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
         <div className="absolute left-0 top-full z-30 max-h-[70vh] w-72 overflow-y-auto rounded-card border border-border-hairline bg-surface p-2 shadow-lg">{history}</div>
       </>}
     </header>
-    {thread && !demo && <AssistantResponsibility key={thread.id} thread={thread} onChange={adopt} />}
-
-    <div className="flex-1 pb-10">
+    <nav aria-label="Assistant views" className="mb-2 flex shrink-0 gap-1 border-b border-border-hairline pb-2">{(['chat', 'work', 'routines'] as const).map(name => <button key={name} type="button" aria-pressed={view === name} onClick={() => setView(name)} className={`${action} ${view === name ? 'bg-brand-teal-light font-medium text-brand-teal' : ''}`}>{name === 'chat' ? 'Chat' : name === 'work' ? 'Work' : 'Routines'}</button>)}</nav>
+    {visited.work && <div className="min-h-0 flex-1 overflow-y-auto" style={{ display: view === 'work' ? undefined : 'none' }}><AssistantTaskWork key={`${storageKey}:${taskSiteId}`} storageScope={storageKey} siteId={taskSiteId} context={taskContext} onAsk={askAbout} onRoutine={task => { setRoutineSite(task.site_id); setRoutineDraft(task); setRoutineId(null); setView('routines'); }} /></div>}
+    {visited.routines && <div className="min-h-0 flex-1 overflow-y-auto" style={{ display: view === 'routines' ? undefined : 'none' }}><AssistantRoutines key={`${storageKey}:${routineSiteId}`} siteId={routineSiteId} context={routineSiteId === taskSiteId ? taskContext : { label: 'Selected routine site', task: {} }} draftTask={routineDraft} reviewId={routineId} visible={view === 'routines'} onAsk={askAbout} onReviewConsumed={() => setRoutineId(null)} onDraftConsumed={() => setRoutineDraft(null)} /></div>}
+    <div className="flex min-h-0 flex-1 flex-col" style={{ display: view === 'chat' ? undefined : 'none' }}>
+    <div ref={scroll} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4" data-testid="conversation-scroll" onScroll={e => {
+      const element = e.currentTarget; followLatest.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+      if (followLatest.current) setNewActivity(false);
+    }}>
+      {thread && !demo && <AssistantResponsibility key={thread.id} thread={thread} onChange={adopt} />}
       {!thread?.turns.length && <section className={`mx-auto max-w-2xl ${compact ? 'pb-5 pt-8' : scenarios.length ? 'pb-6 pt-8' : 'pb-8 pt-16 sm:pt-24'}`}>
         <h2 className={`font-medium leading-tight tracking-tight text-text-primary ${compact ? 'text-2xl' : 'text-3xl sm:text-[38px]'}`}>{pending.length ? 'Ask about this delivery.' : selection ? 'Let’s look at this together.' : scenarios.length ? 'Pick a scenario, or ask your own question.' : companion ? 'What are we working on?' : 'What process problem are you working on?'}</h2>
         <p className="mt-4 max-w-lg text-sm leading-6 text-text-secondary">{pending.length ? 'The verified values, their batches and source files are attached below. Ask about trends, gaps or differences between batches.' : selection ? 'Your selection is attached below. Ask a question or describe what you’d like to do.' : scenarios.length ? 'This workspace has sample batch, lab and deviation data. Try a scenario written for your role, then tell us how realistic and useful it was.' : companion ? 'Bring a question, explore an idea, or select something in your workspace. We’ll take it from there.' : 'Describe the decision you need to make. The agent will identify the evidence and models needed.'}</p>
@@ -502,16 +570,29 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
             {!!turn.questions.length && (index === (thread?.turns.length ?? 0) - 1 && !active(turn)
               ? <QuestionCard key={`questions-${turn.id}`} questions={turn.questions} disabled={busy} onAnswer={text => void send(text)} />
               : <div className="mt-3 rounded-card bg-surface-secondary/60 px-4 py-3 text-xs text-text-secondary"><p className="font-medium">{active(turn) ? 'I may need to ask you' : 'I asked'}</p><ul className="mt-1.5 list-disc space-y-1 pl-4">{turn.questions.map(q => <li key={q}>{q}</li>)}</ul></div>)}
-            {(active(turn) || stoppingTurns.has(turn.id)) && <div><p role="status" className="mt-3 flex items-center gap-2 text-sm text-brand-teal"><Loader2 size={15} className="motion-safe:animate-spin" />{stoppingTurns.has(turn.id) ? 'Stopping…' : turn.steps?.length ? 'Working through the steps…' : 'Looking through your records…'}</p><button type="button" disabled={stoppingTurns.has(turn.id)} onClick={() => void stop()} className={action}>{stoppingTurns.has(turn.id) ? 'Stopping…' : 'Stop work'}</button><details className="mt-2 text-xs text-text-tertiary"><summary className="cursor-pointer">Work interrupted?</summary><p className="mt-2">Your work is saved. If it stopped, resume from the last completed step.</p><button type="button" disabled={sending || stoppingTurns.has(turn.id)} className={action} onClick={() => void retry()}><RotateCcw size={13} />Resume saved work</button></details></div>}
+            {(active(turn) || stoppingTurns.has(turn.id)) && <div><p role="status" className="mt-3 flex items-center gap-2 text-sm text-brand-teal"><Loader2 size={15} className="motion-safe:animate-spin" />{stoppingTurns.has(turn.id) ? 'Stopping work…' : turn.steps?.length ? 'Working through the steps…' : 'Looking through your records…'}</p><button type="button" disabled={stoppingTurns.has(turn.id)} onClick={() => void stop()} className={action}>{stoppingTurns.has(turn.id) ? 'Stopping…' : 'Stop work'}</button><details className="mt-2 text-xs text-text-tertiary"><summary className="cursor-pointer">Work interrupted?</summary><p className="mt-2">Your work is saved. If it stopped, resume from the last completed step.</p><button type="button" disabled={sending || stoppingTurns.has(turn.id)} className={action} onClick={() => void retry()}><RotateCcw size={13} />Resume saved work</button></details></div>}
             {friendlyNote(turn) && <div className={`mt-3 rounded-card px-4 py-3 text-sm leading-6 ${turn.status === 'agent_unavailable' || turn.status === 'blocked' ? 'bg-status-warning-bg/70 text-text-primary' : 'bg-brand-teal-light/60 text-text-secondary'}`}><p>{friendlyNote(turn)}</p>{index === (thread?.turns.length ?? 0)-1 && ['agent_unavailable', 'blocked'].includes(turn.status) && <button type="button" disabled={busy} onClick={() => void retry()} className={`${action} mt-2 bg-surface shadow-[0_1px_2px_rgba(16,24,40,0.06)]`}><RotateCcw size={13} />Try again</button>}</div>}
-            {turn.artifacts.filter(a => a.kind !== 'assistant_workspace_result').map(artifact => { if (artifact.kind === 'investigation_proposal') return <InvestigationProposal key={artifact.id} threadId={thread.id} siteId={thread.site_id ?? 'NF1'} artifact={artifact} />; if (artifact.kind === 'assistant_rule') return <p key={artifact.id} className="my-1.5 text-xs text-text-secondary">{artifact.title} · <a className="underline" href="/settings/assistant-rules/">Review rule</a></p>; const View = artifact.kind === 'assistant_demo_deviations' ? DemoDeviationsArtifact : artifact.kind.startsWith('bioprocess_') ? BioprocessArtifact : AnalysisArtifact; return ['physical_analysis_plan', 'physical_analysis_context', 'bioprocess_case'].includes(artifact.kind) ? <details className="my-3 text-xs" key={artifact.id}><summary className="cursor-pointer text-text-secondary">{artifact.title}</summary><View threadId={thread.id} artifact={artifact} /></details> : <View key={artifact.id} threadId={thread.id} artifact={artifact} />; })}
+            {turn.artifacts.filter(a => a.kind !== 'assistant_workspace_result').map(artifact => { if (artifact.kind === 'investigation_proposal') return <InvestigationProposal key={artifact.id} threadId={thread.id} siteId={thread.site_id ?? 'NF1'} artifact={artifact} />; if (['workspace_task_result', 'task_result'].includes(artifact.kind)) return <SavedTaskResult key={artifact.id} id={artifact.id} onAsk={askAbout} />; if (artifact.kind === 'assistant_routine') return <div key={artifact.id} className="my-3 rounded-card border border-border-hairline bg-surface p-3"><p className="text-sm font-medium">{artifact.title}</p><p className="mt-1 text-xs text-text-tertiary">Routine draft · review its scope before activating.</p><button type="button" className={`${action} mt-2 border border-border-strong`} onClick={() => { setRoutineSite(thread.site_id ?? siteId); setRoutineDraft(null); setRoutineId(artifact.id); setView('routines'); }}>Review routine</button></div>; if (artifact.kind === 'assistant_rule') return <p key={artifact.id} className="my-1.5 text-xs text-text-secondary">{artifact.title} · <a className="underline" href="/settings/assistant-rules/">Review rule</a></p>; const View = artifact.kind === 'assistant_demo_deviations' ? DemoDeviationsArtifact : artifact.kind.startsWith('bioprocess_') ? BioprocessArtifact : AnalysisArtifact; return ['physical_analysis_plan', 'physical_analysis_context', 'bioprocess_case'].includes(artifact.kind) ? <details className="my-3 text-xs" key={artifact.id}><summary className="cursor-pointer text-text-secondary">{artifact.title}</summary><View threadId={thread.id} artifact={artifact} /></details> : <View key={artifact.id} threadId={thread.id} artifact={artifact} />; })}
           </div></div>
         </article>)}
         <div ref={end} />
       </div>
+    {!thread?.turns.length && <div className={`mx-auto w-full max-w-2xl ${compact ? 'pb-5' : 'pb-10 pt-4'}`}>
+      {companion && !compact && !scenarios.length && <div className="mb-6 grid gap-3 sm:grid-cols-2">
+        <Link href="/workbench/AN-104" className="flex items-center justify-between border-b border-border-hairline py-3 text-xs text-text-secondary hover:text-brand-teal">Explore the sample workbench<ArrowUpRight size={14} /></Link>
+        <Link href="/reviews/REV-01" className="flex items-center justify-between border-b border-border-hairline py-3 text-xs text-text-secondary hover:text-brand-teal">2 sample items awaiting review<ArrowUpRight size={14} /></Link>
+      </div>}
+      {scenarios.length ? null : <>
+      <p className="text-xs text-text-tertiary">Or start from an example <span className="text-text-muted">(published or simulated data)</span></p>
+      <div className="mt-2 flex flex-wrap gap-2">{EXAMPLES.map(e => <button key={e.label} type="button" disabled={busy} onClick={() => void send(e.prompt, true)} className={`${action} border border-border-hairline`}><FlaskConical size={14} />{e.label}</button>)}</div>
+      </>}
+    </div>}
     </div>
 
-    <div className={`sticky bottom-0 z-10 pb-4 pt-2 ${compact ? 'bg-surface' : 'bg-canvas'}`}>
+    <div className={`z-10 shrink-0 pb-4 pt-2 ${compact ? 'bg-surface' : 'bg-canvas'}`}>
+      {openingResult && <p role="status" className="mb-2 text-xs text-brand-teal">Preparing a conversation in the result’s site…</p>}
+      <p className="mb-2 text-[11px] text-text-tertiary">Conversation site · {siteId}</p>
+      {newActivity && <button type="button" className={`${action} mb-2 w-full justify-center bg-brand-teal-light`} onClick={() => { followLatest.current = true; setNewActivity(false); if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }}>New activity · jump to latest</button>}
       {error && <p role="alert" className="mb-3 rounded-control bg-status-critical-bg p-3 text-xs text-status-critical">{error}</p>}
       {limitNote && <p role="status" className="mb-3 rounded-control bg-status-warning-bg p-3 text-xs text-text-primary">{limitNote}{' '}
         {CONTACT_URL ? <a href={CONTACT_URL} className="font-medium text-brand-teal underline">Talk to us to keep going</a> : 'Thanks for trying it.'}
@@ -533,16 +614,8 @@ export function EngineeringChat({ companion = false, compact = false }: { compan
         <div className="mt-2 flex items-center justify-between"><button type="button" onClick={() => void loadSources()} className={action} aria-expanded={sourcesOpen}><Paperclip size={14} />{attachment || pending.length ? 'Context attached' : 'Context'}</button><div className="flex items-center gap-3"><span className="hidden text-[11px] text-text-muted sm:inline">{busy ? 'Work in progress · saved as it runs' : 'Enter to send · Shift + Enter for a new line'}</span><button type="submit" aria-label="Send message" disabled={!draft.trim() || busy} className="flex h-9 w-9 items-center justify-center rounded-control bg-brand-teal text-white hover:bg-brand-teal-dark disabled:opacity-40"><ArrowUp size={18} /></button></div></div>
       </form>
     </div>
-    {!thread?.turns.length && <div className={`mx-auto w-full max-w-2xl ${compact ? 'pb-5' : 'pb-10 pt-4'}`}>
-      {companion && !compact && !scenarios.length && <div className="mb-6 grid gap-3 sm:grid-cols-2">
-        <Link href="/workbench/AN-104" className="flex items-center justify-between border-b border-border-hairline py-3 text-xs text-text-secondary hover:text-brand-teal">Explore the sample workbench<ArrowUpRight size={14} /></Link>
-        <Link href="/reviews/REV-01" className="flex items-center justify-between border-b border-border-hairline py-3 text-xs text-text-secondary hover:text-brand-teal">2 sample items awaiting review<ArrowUpRight size={14} /></Link>
-      </div>}
-      {scenarios.length ? null : <>
-      <p className="text-xs text-text-tertiary">Or start from an example <span className="text-text-muted">(published or simulated data)</span></p>
-      <div className="mt-2 flex flex-wrap gap-2">{EXAMPLES.map(e => <button key={e.label} type="button" disabled={busy} onClick={() => void send(e.prompt, true)} className={`${action} border border-border-hairline`}><FlaskConical size={14} />{e.label}</button>)}</div>
-      </>}
-    </div>}
+
+    </div>
     </div>
   </div>;
 }

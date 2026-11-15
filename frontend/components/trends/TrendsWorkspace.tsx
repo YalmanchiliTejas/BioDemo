@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, PackageCheck } from 'lucide-react';
 import { WorkspacePageHeader } from '@/components/shell/WorkspacePageHeader';
 import { Button, Callout, Pill, table } from '@/components/ui';
@@ -11,6 +11,8 @@ import { processRequest } from '@/lib/process-api';
 import { EXPORT_HANDOFF, formatValue, getTrends, statistic, STATISTICS, type Standouts, type Statistic, type TrendCatalogue, type TrendData, type TrendSeries } from '@/lib/trends-api';
 import { outside, SERIES_COLORS, type Limits } from './TrendCharts';
 import { A2uiTrendChart } from './A2uiTrendChart';
+import { useOptionalCompanion } from '@/lib/companion-context';
+import { useWorkspace } from '@/lib/workspace-context';
 
 type Spec = Limits & { spec_id: string; parameter: string; unit: string | null; version: number; equipment_id: string | null; product_id: string | null };
 const REMEMBERED = 'trends.parameter';
@@ -20,6 +22,11 @@ const unitOf = (units: Array<string | null>) => units.filter(Boolean).join(' / '
 
 /** Any accepted parameter across every delivery, chosen from a list: no question to type and no model call to wait for. */
 export function TrendsWorkspace() {
+  const companion = useOptionalCompanion();
+  const workspace = useWorkspace();
+  const [preparingTask, setPreparingTask] = useState(false);
+  const [taskNotice, setTaskNotice] = useState('');
+  const taskRequest = useRef(0);
   const [catalogue, setCatalogue] = useState<TrendCatalogue | null>(null);
   const [parameter, setParameter] = useState('');
   const [data, setData] = useState<TrendData | null>(null);
@@ -80,6 +87,12 @@ export function TrendsWorkspace() {
   const colors = useMemo(() => Object.fromEntries(Object.entries(slots).map(([key, slot]) => [key, SERIES_COLORS[slot]])), [slots]);
   const selected = useMemo(() => new Set(Object.keys(slots)), [slots]);
   const rows = useMemo(() => shown.map(series => ({ series, value: statistic(series.summary, stat), at: stat === 'mean' ? null : series.summary[stat].time_h })), [shown, stat]);
+  const highlighted = shown.filter(series => selected.has(series.key));
+  const taskSeries = highlighted.length ? highlighted : shown;
+  const taskSite = workspace.organization?.site_ids?.[0] ?? 'NF1';
+  const selectedScope = JSON.stringify([taskSite, parameter, taskSeries.map(series => [series.key, series.run_id, series.delivery_verified])]);
+  const scopeNow = useRef(selectedScope); scopeNow.current = selectedScope;
+  useEffect(() => () => { taskRequest.current++; }, []);
 
   function toggleHighlight(key: string) {
     setNotice('');
@@ -98,6 +111,40 @@ export function TrendsWorkspace() {
     } catch { /* the Export page then starts from everything */ }
   }
   const toggleShown = (key: string) => setHidden(prev => { const next = new Set(prev); if (!next.delete(key)) next.add(key); return next; });
+  async function prepareTask(operation: 'compare' | 'check_gaps') {
+    if (!companion || preparingTask) return;
+    const request = ++taskRequest.current, scope = selectedScope;
+    const stillSelected = () => taskRequest.current === request && scopeNow.current === scope;
+    setPreparingTask(true); setTaskNotice('');
+    const chosen = taskSeries, siteId = taskSite;
+    try {
+      if (chosen.some(series => !series.delivery_verified)) throw new Error('Some selected deliveries still need source verification. Review those deliveries before running this task.');
+      const runs = [...new Set(chosen.map(series => series.run_id))];
+      if (chosen.length > 30 || runs.length > 10) throw new Error('Highlight up to 30 batches from at most 10 deliveries for one bounded task.');
+      type Published = { id: string; run_id: string; revision: number; site_id: string; status: string };
+      const { datasets } = await processRequest<{ datasets: Published[] }>(`/v1/cmo-datasets?site_id=${encodeURIComponent(siteId)}`);
+      if (!stillSelected()) return;
+      const sources: Published[] = [];
+      for (const runId of runs) {
+        if (!stillSelected()) return;
+        let dataset = datasets.find(dataset => dataset.run_id === runId && dataset.status === 'current');
+        // An explicit task click may publish an already verified source snapshot.
+        // The server repeats the verification and permission checks before publishing.
+        if (!dataset) dataset = await processRequest<Published>('/v1/cmo-datasets', { run_id: runId, site_id: siteId });
+        if (!stillSelected()) return;
+        if (dataset.status !== 'current' || dataset.site_id !== siteId || !Number.isInteger(dataset.revision) || dataset.revision < 1) throw new Error('The selected source could not be prepared as current verified evidence. Review the delivery and retry.');
+        sources.push(dataset);
+      }
+      if (!stillSelected()) return;
+      companion.showWork({ label: `${parameterLabel(parameter)} · ${chosen.length} selected batches from Trends`, task: {
+        operation, site_id: siteId, parameter, dataset_ids: sources.map(dataset => dataset.id),
+        series: chosen.map(series => ({ dataset_id: sources.find(dataset => dataset.run_id === series.run_id)!.id, batch: series.batch })),
+        record_refs: sources.map(dataset => ({ kind: 'evidence', id: dataset.id, revision: dataset.revision, site_id: siteId })),
+        batches: [...new Set(chosen.map(series => series.batch))], expected_parameters: operation === 'check_gaps' ? [parameter] : [],
+      } });
+    } catch (e) { if (stillSelected()) setTaskNotice((e as Error).message); }
+    finally { if (taskRequest.current === request) { setPreparingTask(false); if (scopeNow.current !== scope) setTaskNotice('Selection changed. Start the task again to use the current batches and parameter.'); } }
+  }
 
   const sampled = shown.filter(s => s.sampled_every > 1).length;
   const untimed = shown.reduce((n, s) => n + s.points_without_time, 0);
@@ -135,6 +182,7 @@ export function TrendsWorkspace() {
       {current && !shown.length && <Callout tone="info" title="No batches match these filters">Clear a filter or tick a batch in the table to bring it back.</Callout>}
 
       {current && !!shown.length && <div className="space-y-4">
+        {companion && <div className="flex flex-wrap items-center gap-2 rounded-control border border-border-hairline bg-surface p-3" aria-label="Tasks for selected trends"><span className="mr-auto text-xs text-text-secondary">Use {highlighted.length ? 'highlighted' : 'shown'} batches and source values</span><button type="button" className="chrome-button" disabled={preparingTask} onClick={() => void prepareTask('compare')}>Compare selected</button><button type="button" className="chrome-button" disabled={preparingTask} onClick={() => void prepareTask('check_gaps')}>Check gaps</button>{preparingTask && <><span role="status" className="text-xs text-text-tertiary">Preparing verified sources…</span><button type="button" className="text-xs text-brand-teal underline" onClick={() => { taskRequest.current++; setPreparingTask(false); setTaskNotice('Task preparation cancelled. Any published source snapshot remains available.'); }}>Cancel task preparation</button></>}{taskNotice && <p role="status" className="w-full text-xs text-status-warning">{taskNotice}</p>}</div>}
         <StandoutsPanel found={current.standouts} shown={new Set(shown.map(s => s.key))} unit={unit} colors={colors} onSelect={key => { if (!colors[key]) toggleHighlight(key); }} />
         <section className="rounded-2xl border border-border-hairline bg-white">
           <div className="flex flex-wrap items-center gap-3 border-b border-border-hairline px-5 py-3">
