@@ -51,6 +51,9 @@ def owner_of(store, tenant_id: str, kind: str, state: dict[str, Any]) -> tuple[s
         return _conversation_owner(store, tenant_id, (state.get('metadata') or {}).get('conversation_id')), 'conversations'
     if kind in ('investigation_run', 'investigation_proposal', 'investigation_report'):
         return state.get('owner_id', ''), 'conversations'
+    if kind in ('workspace_task_request', 'workspace_task_result', 'assistant_routine',
+                'assistant_routine_run', 'assistant_work_request'):
+        return state.get('owner_id', ''), 'conversations'
     if state.get('conversation_id') and kind in ('assistant_workspace_result', 'data_flow_run'):
         return _conversation_owner(store, tenant_id, state.get('conversation_id')), 'conversations'
     return None

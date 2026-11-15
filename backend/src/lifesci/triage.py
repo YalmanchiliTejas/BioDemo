@@ -6,7 +6,8 @@ message or concludes a cause: proposals wait for a person. Skips are recorded wi
 """
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, Literal
+from pydantic import BaseModel, Field
 
 from .ids import iso, utc_now
 from .roles import agent_context_for
@@ -17,6 +18,12 @@ DEFAULTS = {'min_severity': 'critical', 'daily_cap': 5, 'paused': False}  # cost
 SETTINGS, TRIAGE, USAGE = 'triage_settings', 'signal_triage', 'triage_usage'
 TERMINAL_TURN = {'completed': 'ready', 'needs_information': 'ready', 'blocked': 'failed',
                  'agent_unavailable': 'failed', 'cancelled': 'failed'}
+
+
+class TriageSettingsIn(BaseModel):
+    min_severity: Literal['warning', 'action', 'critical'] | None = None
+    daily_cap: int | None = Field(default=None, ge=0, le=200)
+    paused: bool | None = None
 
 
 class TriageService:
@@ -172,14 +179,7 @@ class TriageService:
 
 
 def triage_routes(app, platform, ctx_dep) -> None:
-    from typing import Literal
     from fastapi import Depends
-    from pydantic import BaseModel, Field
-
-    class TriageSettingsIn(BaseModel):
-        min_severity: Literal['warning', 'action', 'critical'] | None = None
-        daily_cap: int | None = Field(default=None, ge=0, le=200)
-        paused: bool | None = None
 
     @app.get('/v1/triage-settings/{site_id}')
     def get_triage_settings(site_id: str, ctx=Depends(ctx_dep)):

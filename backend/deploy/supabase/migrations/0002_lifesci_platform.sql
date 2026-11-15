@@ -73,6 +73,7 @@ CREATE INDEX IF NOT EXISTS revisions_by_grantee_id ON aggregate_revisions (tenan
 CREATE INDEX IF NOT EXISTS revisions_by_mission_id ON aggregate_revisions (tenant_id, kind, ((state::jsonb) ->> 'mission_id'));
 CREATE INDEX IF NOT EXISTS revisions_by_proposal_id ON aggregate_revisions (tenant_id, kind, ((state::jsonb) ->> 'proposal_id'));
 CREATE INDEX IF NOT EXISTS revisions_by_record_id ON aggregate_revisions (tenant_id, kind, ((state::jsonb) ->> 'record_id'));
+CREATE INDEX IF NOT EXISTS revisions_by_site_id ON aggregate_revisions (tenant_id, kind, ((state::jsonb) ->> 'site_id'));
 
 -- 3. Tenant row-level security and append-only history ------------------------
 DO $$ DECLARE t text; BEGIN

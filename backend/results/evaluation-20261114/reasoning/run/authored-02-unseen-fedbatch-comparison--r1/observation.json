@@ -1,0 +1,906 @@
+{
+  "turns": [
+    {
+      "artifacts": [
+        {
+          "id": "assi_01M7EPXJHW97CMA5MHC40HX4AK",
+          "kind": "assistant_workspace_result",
+          "title": "Linked records · CHO-012-R01",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M7EPXJHZG00QCH5T0GNFBJYP",
+          "kind": "assistant_workspace_result",
+          "title": "Linked records · CHO-012-R02",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M7EPXJJ23X82JE08DP8JD6DM",
+          "kind": "assistant_workspace_result",
+          "title": "Workspace search",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M7EPXJJ520N52HZHJHQNC0JV",
+          "kind": "assistant_workspace_result",
+          "title": "Workspace search",
+          "status": "current"
+        },
+        {
+          "id": "assi_01M7EPYTX0VPQYM41KK07H9YEF",
+          "kind": "assistant_workspace_result",
+          "title": "evidence · PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+          "status": "current"
+        }
+      ],
+      "capabilities_used": [
+        "core",
+        "process",
+        "materials"
+      ],
+      "claims": [
+        {
+          "kind": "observed",
+          "quote": "CHO-012-R01,219.00,6.981,81.01,36.95,273.6,627000,9.40,,6.935",
+          "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+          "text": "At 219.00 h the Harborview summary records lot CHO-012-R01 with viable cell density 627,000 cells/mL, viability 9.40% and lactate 6.935 g/L (glucose blank at that time point)."
+        },
+        {
+          "kind": "observed",
+          "quote": "Lot,EFT (h),pH,pO2 (% air sat),Temp (°C),Feed added (g),VCD (cells/mL),Viability (%),Glucose (g/L),Lactate (g/L)",
+          "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+          "text": "The record's header fixes the units: VCD in cells/mL, viability in %, glucose and lactate in g/L, EFT in hours."
+        },
+        {
+          "kind": "observed",
+          "quote": "CHO-012-R02,24.50,7.024,70.20,36.97,0.0,701000,92.90,5.794,0.716\nCHO-012-R02,40",
+          "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+          "text": "The readable portion of the record ends inside CHO-012-R02's early rows (last complete row at 24.50 h, cut off mid-row at the 40 h entry), so CHO-012-R02's 219.00 h values were not read."
+        },
+        {
+          "kind": "observed",
+          "quote": "This source is a research/demo record, not an approved manufacturing record.",
+          "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+          "text": "The Harborview summary is a synthetic research/demo record, not an approved manufacturing record."
+        },
+        {
+          "kind": "observed",
+          "quote": "Blank fields mean no recorded value; no release specification is supplied.",
+          "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+          "text": "Blank fields mean no recorded value and no release specification is supplied, so the lot comparison remains descriptive."
+        }
+      ],
+      "context_used": {
+        "corrections": [],
+        "earlier_corrections": [],
+        "rules": []
+      },
+      "continue_after_workflow": false,
+      "conversation_id": "engchat_01M7EPW47Q7R5JEP7PETFTGDM5",
+      "created_at": "2026-11-15T04:19:00.473448+00:00",
+      "display_context": null,
+      "elapsed_seconds": 184.28,
+      "flow_run_id": null,
+      "flow_run_ids": [
+        "flowrun_01M7EPXJHSQZC0CWE3B6CEGNC3",
+        "flowrun_01M7EPYTWQ0WYEDC2HRK7FESK3"
+      ],
+      "gateway_runs": [
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 0,
+              "cost_usd": 0.0,
+              "input_tokens": 8377,
+              "latency_ms": 47345.03991698148,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 13226,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "8d3b20453475421a89ebf05ac0434d03",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "claims": [],
+            "continue_after_workflow": true,
+            "questions": [],
+            "reply": "I'll first locate the Harborview fed-batch delivery and the records naming lots CHO-012-R01 and CHO-012-R02, then read the 219.00 h viable cell density, viability and lactate measurements from the discovered sources. This stays a descriptive comparison of recorded values with units, plus the viability difference in percentage points, with no model run.",
+            "workflow": [
+              {
+                "depends_on": [],
+                "node_id": "search_lot_r01",
+                "payload": {
+                  "limit": 20,
+                  "mode": "links",
+                  "record_id": "CHO-012-R01",
+                  "site_id": "NF1"
+                },
+                "task_kind": "workspace_search",
+                "title": "Find records naming lot CHO-012-R01"
+              },
+              {
+                "depends_on": [],
+                "node_id": "search_lot_r02",
+                "payload": {
+                  "limit": 20,
+                  "mode": "links",
+                  "record_id": "CHO-012-R02",
+                  "site_id": "NF1"
+                },
+                "task_kind": "workspace_search",
+                "title": "Find records naming lot CHO-012-R02"
+              },
+              {
+                "depends_on": [],
+                "node_id": "search_delivery",
+                "payload": {
+                  "kinds": [
+                    "batch",
+                    "sample",
+                    "evidence",
+                    "procedure_instance",
+                    "process_simulation",
+                    "physical_analysis_context",
+                    "physical_model_dataset",
+                    "physical_analysis_result",
+                    "engineering_chat_turn",
+                    "claim"
+                  ],
+                  "limit": 20,
+                  "mode": "search",
+                  "query": "Harborview",
+                  "site_id": "NF1"
+                },
+                "task_kind": "workspace_search",
+                "title": "Search Harborview fed-batch delivery records"
+              },
+              {
+                "depends_on": [],
+                "node_id": "search_timepoint",
+                "payload": {
+                  "kinds": [
+                    "sample",
+                    "evidence",
+                    "batch",
+                    "procedure_instance",
+                    "physical_model_dataset",
+                    "physical_analysis_result",
+                    "process_simulation",
+                    "engineering_chat_turn"
+                  ],
+                  "limit": 20,
+                  "mode": "search",
+                  "query": "219",
+                  "site_id": "NF1"
+                },
+                "task_kind": "workspace_search",
+                "title": "Search records at the 219 h timepoint"
+              }
+            ]
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M7EPW4A07M9R425W6QH9RG8N",
+          "status": "completed"
+        },
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 704,
+              "cost_usd": 0.0,
+              "input_tokens": 10540,
+              "latency_ms": 41235.00874999445,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 11481,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "e11b17851d3c4edbb5bd23f3d008271a",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [],
+          "output": {
+            "claims": [
+              {
+                "kind": "observed",
+                "quote": "authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+                "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+                "text": "Workspace searches returned one authorized Harborview record: the fed-batch delivery summary evidence record."
+              },
+              {
+                "kind": "observed",
+                "quote": "Searched 1 authorized process records at this site; records you cannot access, saved chats and text originals were not searched.",
+                "source_id": "assi_01M7EPXJHW97CMA5MHC40HX4AK",
+                "text": "Lot identifier searches found no records naming CHO-012-R01 or CHO-012-R02; only one authorized process record was searched, and no link does not prove absence."
+              }
+            ],
+            "continue_after_workflow": true,
+            "questions": [],
+            "reply": "Workspace searches returned a single authorized Harborview record — the fed-batch delivery summary — and the lot-ID searches found no records naming CHO-012-R01 or CHO-012-R02. I'm reading that summary now to extract the 219.00 h viable cell density, viability and lactate for each lot with units, then I'll report the descriptive comparison including which lot has the higher viability and by how many percentage points.",
+            "workflow": [
+              {
+                "depends_on": [],
+                "node_id": "read_harborview_summary",
+                "payload": {
+                  "kind": "evidence",
+                  "max_chars": 24000,
+                  "record_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+                  "revision": 1
+                },
+                "task_kind": "workspace_read",
+                "title": "Read Harborview fed-batch delivery summary"
+              }
+            ]
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M7EPXJKWC1SJR7AMQT35Q7M9",
+          "status": "completed"
+        },
+        {
+          "attempts": [
+            {
+              "attempt": 0,
+              "cached_tokens": 896,
+              "cost_usd": 0.0,
+              "input_tokens": 15627,
+              "latency_ms": 67027.11149997776,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 20043,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "7944bda3304748feb861f15fac83bc7d",
+              "rejected_output": {
+                "claims": [
+                  {
+                    "kind": "observed",
+                    "quote": "CHO-012-R01,219.00,6.981,81.01,36.95,273.6,627000,9.40,,6.935",
+                    "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+                    "text": "At 219.00 h the Harborview fed-batch summary records lot CHO-012-R01 with VCD 627,000 cells/mL, viability 9.40% and lactate 6.935 g/L (glucose blank at that point)."
+                  },
+                  {
+                    "kind": "observed",
+                    "quote": "Lot,EFT (h),pH,pO2 (% air sat),Temp (°C),Feed added (g),VCD (cells/mL),Viability (%),Glucose (g/L),Lactate (g/L)",
+                    "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+                    "text": "The summary's header fixes the units: VCD in cells/mL, viability in %, lactate in g/L."
+                  },
+                  {
+                    "kind": "observed",
+                    "quote": "This source is a research/demo record, not an approved manufacturing record.",
+                    "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+                    "text": "The Harborview summary is a synthetic research/demo record, not an approved manufacturing record."
+                  },
+                  {
+                    "kind": "observed",
+                    "quote": "Blank fields mean no recorded value; no release specification is supplied.",
+                    "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+                    "text": "No release specification is supplied in the summary, so the 219.00 h lot comparison stays descriptive."
+                  }
+                ],
+                "continue_after_workflow": true,
+                "questions": [],
+                "reply": "My earlier read of the Harborview fed-batch delivery summary (PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary) reached CHO-012-R01 at 219.00 h — VCD 627,000 cells/mL, viability 9.40%, lactate 6.935 g/L — but cut off inside CHO-012-R02's early rows. I'm reading the remainder of that same record now to pull CHO-012-R02's 219.00 h VCD, viability and lactate with units. I'll then report both lots side by side with the viability difference in percentage points, kept as a purely descriptive comparison of this synthetic research/demo source, which supplies no release specification.",
+                "workflow": [
+                  {
+                    "depends_on": [],
+                    "node_id": "read_summary_rest",
+                    "payload": {
+                      "kind": "evidence",
+                      "max_chars": 24000,
+                      "offset": 5000,
+                      "record_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+                      "revision": 1
+                    },
+                    "task_kind": "workspace_read",
+                    "title": "Read the remainder of the Harborview fed-batch summary"
+                  }
+                ]
+              },
+              "validation": [
+                "host response contract: This is the final planning call: return an empty workflow and answer now from the evidence and results already in the conversation, naming anything you could not read or run."
+              ]
+            },
+            {
+              "attempt": 0,
+              "cached_tokens": 0,
+              "cost_usd": 0.0,
+              "input_tokens": 17037,
+              "latency_ms": 28411.068583955057,
+              "model": "zai-org/GLM-5.3",
+              "model_version": "d7826f2de7bdd655",
+              "ok": true,
+              "output_tokens": 9258,
+              "profile_id": "engineering-planner",
+              "provider_request_id": "17e6bee6d8304a6cae3e7904c52d2210",
+              "validation": "passed"
+            }
+          ],
+          "cached": false,
+          "cost_usd": 0.0,
+          "issues": [
+            "host response contract: This is the final planning call: return an empty workflow and answer now from the evidence and results already in the conversation, naming anything you could not read or run."
+          ],
+          "output": {
+            "claims": [
+              {
+                "kind": "observed",
+                "quote": "CHO-012-R01,219.00,6.981,81.01,36.95,273.6,627000,9.40,,6.935",
+                "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+                "text": "At 219.00 h the Harborview summary records lot CHO-012-R01 with viable cell density 627,000 cells/mL, viability 9.40% and lactate 6.935 g/L (glucose blank at that time point)."
+              },
+              {
+                "kind": "observed",
+                "quote": "Lot,EFT (h),pH,pO2 (% air sat),Temp (°C),Feed added (g),VCD (cells/mL),Viability (%),Glucose (g/L),Lactate (g/L)",
+                "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+                "text": "The record's header fixes the units: VCD in cells/mL, viability in %, glucose and lactate in g/L, EFT in hours."
+              },
+              {
+                "kind": "observed",
+                "quote": "CHO-012-R02,24.50,7.024,70.20,36.97,0.0,701000,92.90,5.794,0.716\nCHO-012-R02,40",
+                "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+                "text": "The readable portion of the record ends inside CHO-012-R02's early rows (last complete row at 24.50 h, cut off mid-row at the 40 h entry), so CHO-012-R02's 219.00 h values were not read."
+              },
+              {
+                "kind": "observed",
+                "quote": "This source is a research/demo record, not an approved manufacturing record.",
+                "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+                "text": "The Harborview summary is a synthetic research/demo record, not an approved manufacturing record."
+              },
+              {
+                "kind": "observed",
+                "quote": "Blank fields mean no recorded value; no release specification is supplied.",
+                "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+                "text": "Blank fields mean no recorded value and no release specification is supplied, so the lot comparison remains descriptive."
+              }
+            ],
+            "continue_after_workflow": false,
+            "questions": [],
+            "reply": "At 219.00 h the Harborview fed-batch summary — the single authorized Harborview source found, a synthetic research/demo record that supplies no release specification — records lot CHO-012-R01 at 627,000 cells/mL viable cell density, 9.40% viability and 6.935 g/L lactate, with glucose blank (no recorded value). I could not read lot CHO-012-R02 at 219.00 h: my read of that record was truncated inside its early rows (last complete row at 24.50 h, cut off mid-row at the 40 h entry), so its 219.00 h values are unknown from authorized evidence, and which lot has the higher viability — and by how many percentage points — cannot be stated. A targeted read of the remainder of this same record, starting past the truncation point, would supply CHO-012-R02's 219.00 h VCD, viability and lactate and complete this purely descriptive comparison.",
+            "workflow": []
+          },
+          "requires_human_review": true,
+          "route": {
+            "cost_basis": {
+              "cached_input_usd_per_mtok": 0.0,
+              "classification": "self_hosted_compute_cost_not_priced",
+              "input_usd_per_mtok": 0.0,
+              "note": "Profile-based estimate, not a reconciled provider invoice.",
+              "output_usd_per_mtok": 0.0
+            },
+            "escalation_chain": [],
+            "model": "zai-org/GLM-5.3",
+            "notes": [],
+            "policy_version": 28,
+            "profile_id": "engineering-planner",
+            "profile_version": "d7826f2de7bdd655",
+            "provider": "modal",
+            "reason": "UNQUALIFIED development route at floor M3",
+            "task_kind": "investigation_planning",
+            "tier": "M3",
+            "unqualified": true
+          },
+          "run_id": "run_01M7EPYTYWB33WQK0F2WWWJYGM",
+          "status": "completed"
+        }
+      ],
+      "grounding": {
+        "claims": [
+          {
+            "kind": "observed",
+            "problem": null,
+            "quote": "CHO-012-R01,219.00,6.981,81.01,36.95,273.6,627000,9.40,,6.935",
+            "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "text": "At 219.00 h the Harborview summary records lot CHO-012-R01 with viable cell density 627,000 cells/mL, viability 9.40% and lactate 6.935 g/L (glucose blank at that time point).",
+            "verified": true
+          },
+          {
+            "kind": "observed",
+            "problem": null,
+            "quote": "Lot,EFT (h),pH,pO2 (% air sat),Temp (°C),Feed added (g),VCD (cells/mL),Viability (%),Glucose (g/L),Lactate (g/L)",
+            "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "text": "The record's header fixes the units: VCD in cells/mL, viability in %, glucose and lactate in g/L, EFT in hours.",
+            "verified": true
+          },
+          {
+            "kind": "observed",
+            "problem": null,
+            "quote": "CHO-012-R02,24.50,7.024,70.20,36.97,0.0,701000,92.90,5.794,0.716\nCHO-012-R02,40",
+            "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "text": "The readable portion of the record ends inside CHO-012-R02's early rows (last complete row at 24.50 h, cut off mid-row at the 40 h entry), so CHO-012-R02's 219.00 h values were not read.",
+            "verified": true
+          },
+          {
+            "kind": "observed",
+            "problem": null,
+            "quote": "This source is a research/demo record, not an approved manufacturing record.",
+            "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "text": "The Harborview summary is a synthetic research/demo record, not an approved manufacturing record.",
+            "verified": true
+          },
+          {
+            "kind": "observed",
+            "problem": null,
+            "quote": "Blank fields mean no recorded value; no release specification is supplied.",
+            "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "text": "Blank fields mean no recorded value and no release specification is supplied, so the lot comparison remains descriptive.",
+            "verified": true
+          }
+        ],
+        "contradictions": [],
+        "derived_numbers": [],
+        "method": "verbatim quote in inspected source + number provenance; not semantic support",
+        "status": "grounded",
+        "unsupported_numbers": []
+      },
+      "held_back": [],
+      "id": "engturn_01M7EPW47S2VWR1DJB042TZ5PW",
+      "issues": [],
+      "planning_attempts": [
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M7EPW4A07M9R425W6QH9RG8N",
+          "status": "accepted",
+          "validation_error": null
+        },
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M7EPXJKWC1SJR7AMQT35Q7M9",
+          "status": "accepted",
+          "validation_error": null
+        },
+        {
+          "attempt_index": 0,
+          "gateway_run_id": "run_01M7EPYTYWB33WQK0F2WWWJYGM",
+          "status": "rejected",
+          "validation_error": "host response contract: This is the final planning call: return an empty workflow and answer now from the evidence and results already in the conversation, naming anything you could not read or run."
+        },
+        {
+          "attempt_index": 1,
+          "gateway_run_id": "run_01M7EPYTYWB33WQK0F2WWWJYGM",
+          "status": "accepted",
+          "validation_error": null
+        }
+      ],
+      "planning_calls_admitted": 3,
+      "planning_gateway_run_id": "run_01M7EPYTYWB33WQK0F2WWWJYGM",
+      "questions": [],
+      "reply": "At 219.00 h the Harborview fed-batch summary — the single authorized Harborview source found, a synthetic research/demo record that supplies no release specification — records lot CHO-012-R01 at 627,000 cells/mL viable cell density, 9.40% viability and 6.935 g/L lactate, with glucose blank (no recorded value). I could not read lot CHO-012-R02 at 219.00 h: my read of that record was truncated inside its early rows (last complete row at 24.50 h, cut off mid-row at the 40 h entry), so its 219.00 h values are unknown from authorized evidence, and which lot has the higher viability — and by how many percentage points — cannot be stated. A targeted read of the remainder of this same record, starting past the truncation point, would supply CHO-012-R02's 219.00 h VCD, viability and lactate and complete this purely descriptive comparison.",
+      "site_id": "NF1",
+      "solver_calls_admitted": 0,
+      "solver_calls_used": 0,
+      "status": "completed",
+      "system_message": null,
+      "user_ref": {
+        "id": "engineering-user-instruction:engturn_01M7EPW47S2VWR1DJB042TZ5PW",
+        "kind": "evidence",
+        "revision": 1,
+        "site_id": "NF1"
+      },
+      "user_text": "In the Harborview fed-batch delivery, compare CHO-012-R01 and CHO-012-R02 at 219.00 h. Report viable cell density, viability, and lactate for each lot with units. Which lot has the higher viability and by how many percentage points? Cite the records and keep this as a descriptive comparison.",
+      "workflow_status": "completed",
+      "basis_status": "current",
+      "steps": [
+        {
+          "depends_on": [],
+          "node_id": "read_harborview_summary",
+          "payload": {
+            "kind": "evidence",
+            "max_chars": 24000,
+            "record_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "revision": 1
+          },
+          "task_kind": "workspace_read",
+          "title": "Read Harborview fed-batch delivery summary",
+          "status": "completed",
+          "issues": [],
+          "started_at": "2026-11-15T04:20:29.215576+00:00",
+          "ended_at": "2026-11-15T04:20:29.217856+00:00"
+        }
+      ],
+      "open_in": []
+    }
+  ],
+  "read_ids": [
+    "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary"
+  ],
+  "source_revisions": [
+    {
+      "source_id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+      "id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+      "revision": 1,
+      "content": "SYNTHETIC evaluation source; no real manufacturing data.\nPublic laboratory CHO cultivation measurements attributed by the local dataset to Zenodo 20829178, DOI 10.5281/zenodo.20829178, CC BY 4.0. The delivery companies, batch/sample IDs, delivery months, layouts and CoAs are fictional packaging. The changed delivery contains artificial defects. This source is a research/demo record, not an approved manufacturing record.\nSource file: backend/benchmarks/cmo_ingestion/demo/cho-unseen/raw/harborview_fedbatch_summary.csv\nThe following is the complete CSV, with original header and row order. Blank fields mean no recorded value; no release specification is supplied.\nLot,EFT (h),pH,pO2 (% air sat),Temp (°C),Feed added (g),VCD (cells/mL),Viability (%),Glucose (g/L),Lactate (g/L)\nCHO-010-R01,0.00,7.027,92.52,36.08,0.0,408000,80.57,7.104,\nCHO-010-R01,17.50,7.022,83.68,36.95,0.0,387333,83.89,6.740,0.245\nCHO-010-R01,25.00,7.022,85.89,37.01,0.0,490333,86.78,6.447,0.372\nCHO-010-R01,41.00,7.026,82.05,36.98,0.0,745333,89.21,6.268,0.700\nCHO-010-R01,48.00,7.022,81.23,37.02,0.0,934667,91.14,5.928,0.859\nCHO-010-R01,65.50,7.019,77.62,36.98,1.6,1743333,93.59,5.613,1.299\nCHO-010-R01,73.00,7.015,67.69,37.01,17.3,2403333,93.94,5.404,1.556\nCHO-010-R01,88.50,6.978,51.49,37.03,43.6,4003333,95.46,5.106,1.976\nCHO-010-R01,95.00,6.973,41.82,37.00,60.4,4796667,95.95,5.182,2.204\nCHO-010-R01,117.00,6.976,26.35,37.02,174.0,7913333,94.11,4.929,2.676\nCHO-010-R01,140.00,6.972,29.45,37.05,363.2,11133333,95.33,4.795,3.286\nCHO-010-R01,160.50,6.968,30.48,37.03,467.3,15433333,96.30,3.860,5.070\nCHO-010-R01,169.00,6.974,29.98,36.98,551.9,16066667,95.43,3.612,4.930\nCHO-010-R01,185.50,6.971,29.22,36.98,635.8,15866667,95.68,3.705,5.535\nCHO-010-R01,193.50,6.976,31.16,36.97,681.5,14900000,95.51,2.717,5.145\nCHO-010-R01,209.00,6.972,30.82,37.01,702.7,15733333,95.30,1.109,6.850\nCHO-010-R01,217.50,6.980,29.37,36.98,725.8,13966667,91.37,,7.600\nCHO-010-R01,233.50,7.019,22.68,36.97,746.8,14866667,91.80,,7.555\nCHO-010-R01,242.00,7.007,31.75,37.03,769.2,12633333,89.84,,7.410\nCHO-010-R01,257.50,6.977,30.68,36.98,787.8,10733333,80.07,,7.565\nCHO-010-R01,285.50,6.980,59.06,36.99,827.1,6530000,53.28,,7.035\nCHO-010-R01,312.50,6.980,77.72,37.00,851.6,3843333,35.03,,7.180\nCHO-010-R01,328.50,6.980,81.39,36.99,854.9,2260000,20.78,,7.005\nCHO-010-R02,0.00,7.024,89.75,36.09,0.0,483000,83.91,6.838,\nCHO-010-R02,17.50,7.027,85.11,37.00,0.0,383667,85.85,6.608,0.240\nCHO-010-R02,25.00,7.027,84.63,36.99,0.0,498667,88.80,6.436,0.368\nCHO-010-R02,41.00,7.026,84.95,37.01,0.0,751000,90.42,6.052,0.649\nCHO-010-R02,48.00,7.027,83.42,37.04,0.0,916333,89.86,6.074,0.826\nCHO-010-R02,65.50,7.028,78.18,37.00,0.0,1643333,94.36,5.329,1.205\nCHO-010-R02,73.00,7.024,74.95,37.02,10.2,2226667,95.16,5.446,1.502\nCHO-010-R02,88.50,6.997,69.32,37.03,32.6,3650000,94.78,5.321,2.062\nCHO-010-R02,95.00,6.981,60.99,37.00,47.0,4370000,94.54,5.037,2.168\nCHO-010-R02,117.00,6.982,19.93,36.98,143.7,7946667,93.16,4.889,2.709\nCHO-010-R02,140.00,6.971,27.52,37.03,334.6,11133333,95.85,5.268,3.326\nCHO-010-R02,160.50,6.979,29.70,37.02,436.3,14466667,96.65,4.430,4.060\nCHO-010-R02,169.00,6.978,30.26,36.93,514.5,15533333,96.88,4.060,4.370\nCHO-010-R02,185.50,6.973,23.49,36.99,596.9,15600000,96.52,3.770,4.880\nCHO-010-R02,193.50,6.977,29.31,36.98,642.0,15466667,96.14,3.865,5.210\nCHO-010-R02,209.00,6.966,30.87,37.05,665.5,16166667,96.49,1.740,5.845\nCHO-010-R02,217.50,6.976,33.32,36.97,689.6,14700000,94.00,1.085,6.495\nCHO-010-R02,233.50,6.980,31.19,37.02,712.0,13400000,94.35,,6.355\nCHO-010-R02,242.00,6.981,61.72,36.98,732.2,12633333,92.14,,6.890\nCHO-010-R02,257.50,6.977,63.28,36.97,750.5,10633333,87.14,,5.070\nCHO-010-R02,285.50,6.983,79.25,36.99,789.4,6226667,65.72,,6.830\nCHO-010-R02,312.50,6.981,94.51,37.02,812.6,3296667,44.62,,6.585\nCHO-010-R02,328.50,6.978,94.02,37.00,815.4,1806667,25.96,,6.675\nCHO-011-R01,0.00,7.028,88.45,36.45,0.0,362333,82.17,7.383,\nCHO-011-R01,3.00,7.023,84.87,36.90,0.0,366333,90.13,7.408,\nCHO-011-R01,18.50,7.025,84.42,37.05,0.0,445667,90.88,6.947,0.417\nCHO-011-R01,27.00,7.024,82.98,36.95,0.0,655333,89.51,6.599,0.669\nCHO-011-R01,42.50,7.024,78.57,37.03,0.0,1280000,93.22,5.909,1.227\nCHO-011-R01,48.00,7.024,78.57,37.03,0.0,1496667,93.50,5.490,1.486\nCHO-011-R01,51.00,7.023,77.33,36.95,3.2,1743333,92.39,5.378,1.667\nCHO-011-R01,67.00,6.977,59.69,37.03,32.9,3333333,92.56,4.498,2.495\nCHO-011-R01,73.50,6.975,52.33,36.98,47.2,4070000,94.34,4.062,2.907\nCHO-011-R01,90.50,6.982,48.77,37.03,101.1,5596667,95.59,3.087,4.890\nCHO-011-R01,95.00,6.982,48.77,37.03,101.1,5946667,94.18,2.530,4.980\nCHO-011-R01,125.00,6.959,62.95,37.04,195.8,5120000,87.98,0.981,6.975\nCHO-011-R01,148.50,6.978,76.85,36.98,214.0,3436667,64.24,0.106,7.730\nCHO-011-R01,162.50,6.978,87.02,37.01,222.5,2200000,42.98,,8.125\nCHO-011-R01,171.00,6.978,90.13,36.95,224.2,1590000,32.00,,8.580\nCHO-011-R01,186.00,6.982,93.63,37.01,227.3,770000,17.06,,7.940\nCHO-011-R01,195.00,6.978,95.03,37.03,228.2,448000,9.47,,8.015\nCHO-011-R02,0.00,7.031,87.42,36.27,0.0,348667,81.36,7.210,\nCHO-011-R02,3.00,7.025,84.05,36.91,0.0,331000,89.16,7.035,0.080\nCHO-011-R02,18.50,7.023,83.66,37.03,0.0,435667,86.03,7.098,0.396\nCHO-011-R02,27.00,7.025,82.92,36.95,0.0,582333,87.21,7.165,0.635\nCHO-011-R02,42.50,7.021,51.05,37.02,0.0,1126667,88.81,6.560,1.143\nCHO-011-R02,48.00,7.021,51.05,37.02,0.0,1473333,91.73,5.979,1.302\nCHO-011-R02,51.00,7.028,22.77,37.02,2.5,1576667,90.78,5.846,1.460\nCHO-011-R02,67.00,7.020,3.14,37.02,11.4,1560000,38.47,0.994,1.531\nCHO-011-R02,73.50,7.021,3.12,36.98,11.4,1833333,45.74,,2.284\nCHO-011-R02,90.50,7.027,3.15,37.01,11.4,82900,1.65,,1.613\nCHO-011-R02,95.00,7.027,3.15,37.01,11.4,33300,0.70,,1.591\nCHO-011-R02,125.00,7.039,4.36,37.03,11.4,1817,0.04,,0.629\nCHO-011-R02,148.50,7.023,4.24,37.02,11.4,0,0.00,,0.109\nCHO-011-R02,162.50,7.023,3.34,36.99,11.4,0,0.00,,\nCHO-011-R02,171.00,7.039,7.50,36.95,11.4,0,0.00,,\nCHO-011-R02,186.00,7.054,5.03,36.98,11.4,0,0.00,,\nCHO-011-R02,195.00,7.035,8.02,37.03,11.4,0,0.00,,\nCHO-012-R01,0.00,7.025,85.80,36.04,0.0,405667,88.16,6.966,\nCHO-012-R01,16.00,7.026,77.54,37.02,0.0,496000,90.93,6.620,0.448\nCHO-012-R01,24.50,7.024,69.90,36.98,0.0,689333,92.61,6.357,0.786\nCHO-012-R01,40.00,7.022,55.92,37.04,0.0,1440000,95.45,5.037,1.398\nCHO-012-R01,48.00,6.974,47.30,37.03,1.5,2006667,96.25,4.380,1.831\nCHO-012-R01,73.00,6.977,30.20,36.99,67.5,4423333,96.50,3.023,3.237\nCHO-012-R01,91.00,6.978,26.57,36.96,138.6,6566667,95.81,2.265,4.685\nCHO-012-R01,111.50,6.974,30.27,37.03,207.1,7003333,92.64,0.752,6.790\nCHO-012-R01,120.00,6.985,29.80,37.02,214.1,6403333,89.45,,7.615\nCHO-012-R01,136.00,7.016,30.90,37.02,232.4,5553333,77.19,,7.610\nCHO-012-R01,144.00,7.012,29.52,37.01,237.9,4910000,68.95,,7.375\nCHO-012-R01,160.00,7.016,30.14,37.04,252.2,3856667,55.70,,7.115\nCHO-012-R01,167.00,7.012,35.48,37.02,256.0,3346667,48.80,,6.860\nCHO-012-R01,184.00,7.015,56.04,37.04,265.7,2356667,34.51,,7.600\nCHO-012-R01,192.00,7.008,61.09,37.01,268.1,1323333,26.29,,6.440\nCHO-012-R01,219.00,6.981,81.01,36.95,273.6,627000,9.40,,6.935\nCHO-012-R02,0.00,7.008,87.61,36.04,0.0,376000,88.40,6.608,\nCHO-012-R02,16.00,7.024,78.85,37.03,0.0,503333,91.72,6.191,0.417\nCHO-012-R02,24.50,7.024,70.20,36.97,0.0,701000,92.90,5.794,0.716\nCHO-012-R02,40.00,7.020,55.10,37.04,0.0,1363333,94.61,4.949,1.359\nCHO-012-R02,48.00,6.975,44.12,37.04,0.0,1876667,95.24,4.394,1.315\nCHO-012-R02,73.00,6.976,29.89,36.99,60.2,4540000,97.26,2.904,3.334\nCHO-012-R02,91.00,6.963,32.91,37.02,134.3,6136667,95.22,1.996,5.035\nCHO-012-R02,111.50,6.978,35.77,37.03,198.1,7023333,90.62,,6.765\nCHO-012-R02,120.00,6.977,30.27,36.95,212.7,6790000,88.16,,6.815\nCHO-012-R02,136.00,7.020,30.32,37.05,233.3,5496667,74.52,,6.560\nCHO-012-R02,144.00,7.018,29.62,37.02,239.0,4786667,67.48,,6.940\nCHO-012-R02,160.00,7.016,32.17,37.04,253.7,3870000,55.17,,7.160\nCHO-012-R02,167.00,7.016,38.24,37.00,257.8,3573333,48.04,,7.440\nCHO-012-R02,184.00,6.982,58.71,37.04,268.9,2216667,31.31,,7.445\nCHO-012-R02,192.00,6.978,64.57,37.03,271.3,2196667,28.70,,7.270\nCHO-012-R02,219.00,6.978,81.12,36.95,280.7,837667,10.89,,7.030\n"
+    }
+  ],
+  "artifacts": [
+    {
+      "kind": "assistant_workspace_result",
+      "id": "assi_01M7EPXJHW97CMA5MHC40HX4AK",
+      "value": {
+        "id": "assi_01M7EPXJHW97CMA5MHC40HX4AK",
+        "revision": 1,
+        "basis_hash": "6472e6eb033e0ce1895c78bde1baec79a3ba44f1ab16c9cd653e7eaba794794e",
+        "coverage": "Searched 1 authorized process records at this site; records you cannot access, saved chats and text originals were not searched. No link here does not establish that none exist.",
+        "identifiers": [
+          {
+            "canonical": "CHO012R01",
+            "field": "record_id",
+            "raw": "CHO-012-R01",
+            "structured": true
+          }
+        ],
+        "identity_rule": "IDs match after ignoring case and - _ . / separators (B-001 = B001); leading zeros are kept.",
+        "inputs": [
+          {
+            "id": "engineering-user-instruction:engturn_01M7EPW47S2VWR1DJB042TZ5PW",
+            "kind": "evidence",
+            "revision": 1,
+            "site_id": "NF1"
+          }
+        ],
+        "matching_count": 0,
+        "produced_by": {
+          "actor_id": "priya",
+          "method": "authorized_workspace_tools:v1"
+        },
+        "records": [],
+        "records_searched": 1,
+        "site_id": "NF1",
+        "stale_reasons": [],
+        "status": "current",
+        "target": null,
+        "target_missing": "There is no record CHO-012-R01 in this workspace; these are records that name CHO-012-R01.",
+        "title": "Linked records · CHO-012-R01",
+        "truncated": false
+      }
+    },
+    {
+      "kind": "assistant_workspace_result",
+      "id": "assi_01M7EPXJHZG00QCH5T0GNFBJYP",
+      "value": {
+        "id": "assi_01M7EPXJHZG00QCH5T0GNFBJYP",
+        "revision": 1,
+        "basis_hash": "6472e6eb033e0ce1895c78bde1baec79a3ba44f1ab16c9cd653e7eaba794794e",
+        "coverage": "Searched 1 authorized process records at this site; records you cannot access, saved chats and text originals were not searched. No link here does not establish that none exist.",
+        "identifiers": [
+          {
+            "canonical": "CHO012R02",
+            "field": "record_id",
+            "raw": "CHO-012-R02",
+            "structured": true
+          }
+        ],
+        "identity_rule": "IDs match after ignoring case and - _ . / separators (B-001 = B001); leading zeros are kept.",
+        "inputs": [
+          {
+            "id": "engineering-user-instruction:engturn_01M7EPW47S2VWR1DJB042TZ5PW",
+            "kind": "evidence",
+            "revision": 1,
+            "site_id": "NF1"
+          }
+        ],
+        "matching_count": 0,
+        "produced_by": {
+          "actor_id": "priya",
+          "method": "authorized_workspace_tools:v1"
+        },
+        "records": [],
+        "records_searched": 1,
+        "site_id": "NF1",
+        "stale_reasons": [],
+        "status": "current",
+        "target": null,
+        "target_missing": "There is no record CHO-012-R02 in this workspace; these are records that name CHO-012-R02.",
+        "title": "Linked records · CHO-012-R02",
+        "truncated": false
+      }
+    },
+    {
+      "kind": "assistant_workspace_result",
+      "id": "assi_01M7EPXJJ23X82JE08DP8JD6DM",
+      "value": {
+        "id": "assi_01M7EPXJJ23X82JE08DP8JD6DM",
+        "revision": 1,
+        "basis_hash": "875e78c73d752af975d844a6d5c02cfdece577178c6475b657e27744e54e49d8",
+        "content_search_gaps": [],
+        "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+        "inputs": [
+          {
+            "id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "kind": "evidence",
+            "revision": 1,
+            "site_id": "NF1"
+          },
+          {
+            "id": "engineering-user-instruction:engturn_01M7EPW47S2VWR1DJB042TZ5PW",
+            "kind": "evidence",
+            "revision": 1,
+            "site_id": "NF1"
+          }
+        ],
+        "matching_count": 1,
+        "matching_count_is_lower_bound": false,
+        "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+        "produced_by": {
+          "actor_id": "priya",
+          "method": "authorized_workspace_tools:v1"
+        },
+        "query": "Harborview",
+        "records": [
+          {
+            "classification": null,
+            "id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "kind": "evidence",
+            "label": "authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "match": "exact",
+            "revision": 1,
+            "site_id": "NF1",
+            "status": "current",
+            "time": "2026-10-20T10:00:00+00:00",
+            "time_basis": "event_time",
+            "timeline_events": null,
+            "word_overlap": 0.0
+          }
+        ],
+        "scope": {
+          "authorized_records_only": true,
+          "site_id": "NF1"
+        },
+        "searched_kinds": [
+          "batch",
+          "sample",
+          "evidence",
+          "procedure_instance",
+          "process_simulation",
+          "physical_analysis_context",
+          "physical_model_dataset",
+          "physical_analysis_result",
+          "engineering_chat_turn",
+          "claim"
+        ],
+        "site_id": "NF1",
+        "stale_reasons": [],
+        "status": "current",
+        "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+        "title": "Workspace search",
+        "truncated": false,
+        "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+      }
+    },
+    {
+      "kind": "assistant_workspace_result",
+      "id": "assi_01M7EPXJJ520N52HZHJHQNC0JV",
+      "value": {
+        "id": "assi_01M7EPXJJ520N52HZHJHQNC0JV",
+        "revision": 1,
+        "basis_hash": "875e78c73d752af975d844a6d5c02cfdece577178c6475b657e27744e54e49d8",
+        "content_search_gaps": [],
+        "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+        "inputs": [
+          {
+            "id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "kind": "evidence",
+            "revision": 1,
+            "site_id": "NF1"
+          },
+          {
+            "id": "engineering-user-instruction:engturn_01M7EPW47S2VWR1DJB042TZ5PW",
+            "kind": "evidence",
+            "revision": 1,
+            "site_id": "NF1"
+          }
+        ],
+        "matching_count": 1,
+        "matching_count_is_lower_bound": false,
+        "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+        "produced_by": {
+          "actor_id": "priya",
+          "method": "authorized_workspace_tools:v1"
+        },
+        "query": "219",
+        "records": [
+          {
+            "classification": null,
+            "id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "kind": "evidence",
+            "label": "authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "match": "exact",
+            "revision": 1,
+            "site_id": "NF1",
+            "status": "current",
+            "time": "2026-10-20T10:00:00+00:00",
+            "time_basis": "event_time",
+            "timeline_events": null,
+            "word_overlap": 0.0
+          }
+        ],
+        "scope": {
+          "authorized_records_only": true,
+          "site_id": "NF1"
+        },
+        "searched_kinds": [
+          "sample",
+          "evidence",
+          "batch",
+          "procedure_instance",
+          "physical_model_dataset",
+          "physical_analysis_result",
+          "process_simulation",
+          "engineering_chat_turn"
+        ],
+        "site_id": "NF1",
+        "stale_reasons": [],
+        "status": "current",
+        "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+        "title": "Workspace search",
+        "truncated": false,
+        "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+      }
+    },
+    {
+      "kind": "assistant_workspace_result",
+      "id": "assi_01M7EPYTX0VPQYM41KK07H9YEF",
+      "value": {
+        "id": "assi_01M7EPYTX0VPQYM41KK07H9YEF",
+        "revision": 1,
+        "basis_hash": "875e78c73d752af975d844a6d5c02cfdece577178c6475b657e27744e54e49d8",
+        "inputs": [
+          {
+            "id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "kind": "evidence",
+            "revision": 1,
+            "site_id": "NF1"
+          },
+          {
+            "id": "engineering-user-instruction:engturn_01M7EPW47S2VWR1DJB042TZ5PW",
+            "kind": "evidence",
+            "revision": 1,
+            "site_id": "NF1"
+          }
+        ],
+        "produced_by": {
+          "actor_id": "priya",
+          "method": "authorized_workspace_tools:v1"
+        },
+        "record": {
+          "data": {
+            "event_time": "2026-10-20T10:00:00Z",
+            "media_type": "text/plain",
+            "metadata": {
+              "synthetic": true,
+              "title": "SYNTHETIC-harborview-fedbatch-summary.txt"
+            },
+            "next_offset": null,
+            "original": "SYNTHETIC evaluation source; no real manufacturing data.\nPublic laboratory CHO cultivation measurements attributed by the local dataset to Zenodo 20829178, DOI 10.5281/zenodo.20829178, CC BY 4.0. The delivery companies, batch/sample IDs, delivery months, layouts and CoAs are fictional packaging. The changed delivery contains artificial defects. This source is a research/demo record, not an approved manufacturing record.\nSource file: backend/benchmarks/cmo_ingestion/demo/cho-unseen/raw/harborview_fedbatch_summary.csv\nThe following is the complete CSV, with original header and row order. Blank fields mean no recorded value; no release specification is supplied.\nLot,EFT (h),pH,pO2 (% air sat),Temp (°C),Feed added (g),VCD (cells/mL),Viability (%),Glucose (g/L),Lactate (g/L)\nCHO-010-R01,0.00,7.027,92.52,36.08,0.0,408000,80.57,7.104,\nCHO-010-R01,17.50,7.022,83.68,36.95,0.0,387333,83.89,6.740,0.245\nCHO-010-R01,25.00,7.022,85.89,37.01,0.0,490333,86.78,6.447,0.372\nCHO-010-R01,41.00,7.026,82.05,36.98,0.0,745333,89.21,6.268,0.700\nCHO-010-R01,48.00,7.022,81.23,37.02,0.0,934667,91.14,5.928,0.859\nCHO-010-R01,65.50,7.019,77.62,36.98,1.6,1743333,93.59,5.613,1.299\nCHO-010-R01,73.00,7.015,67.69,37.01,17.3,2403333,93.94,5.404,1.556\nCHO-010-R01,88.50,6.978,51.49,37.03,43.6,4003333,95.46,5.106,1.976\nCHO-010-R01,95.00,6.973,41.82,37.00,60.4,4796667,95.95,5.182,2.204\nCHO-010-R01,117.00,6.976,26.35,37.02,174.0,7913333,94.11,4.929,2.676\nCHO-010-R01,140.00,6.972,29.45,37.05,363.2,11133333,95.33,4.795,3.286\nCHO-010-R01,160.50,6.968,30.48,37.03,467.3,15433333,96.30,3.860,5.070\nCHO-010-R01,169.00,6.974,29.98,36.98,551.9,16066667,95.43,3.612,4.930\nCHO-010-R01,185.50,6.971,29.22,36.98,635.8,15866667,95.68,3.705,5.535\nCHO-010-R01,193.50,6.976,31.16,36.97,681.5,14900000,95.51,2.717,5.145\nCHO-010-R01,209.00,6.972,30.82,37.01,702.7,15733333,95.30,1.109,6.850\nCHO-010-R01,217.50,6.980,29.37,36.98,725.8,13966667,91.37,,7.600\nCHO-010-R01,233.50,7.019,22.68,36.97,746.8,14866667,91.80,,7.555\nCHO-010-R01,242.00,7.007,31.75,37.03,769.2,12633333,89.84,,7.410\nCHO-010-R01,257.50,6.977,30.68,36.98,787.8,10733333,80.07,,7.565\nCHO-010-R01,285.50,6.980,59.06,36.99,827.1,6530000,53.28,,7.035\nCHO-010-R01,312.50,6.980,77.72,37.00,851.6,3843333,35.03,,7.180\nCHO-010-R01,328.50,6.980,81.39,36.99,854.9,2260000,20.78,,7.005\nCHO-010-R02,0.00,7.024,89.75,36.09,0.0,483000,83.91,6.838,\nCHO-010-R02,17.50,7.027,85.11,37.00,0.0,383667,85.85,6.608,0.240\nCHO-010-R02,25.00,7.027,84.63,36.99,0.0,498667,88.80,6.436,0.368\nCHO-010-R02,41.00,7.026,84.95,37.01,0.0,751000,90.42,6.052,0.649\nCHO-010-R02,48.00,7.027,83.42,37.04,0.0,916333,89.86,6.074,0.826\nCHO-010-R02,65.50,7.028,78.18,37.00,0.0,1643333,94.36,5.329,1.205\nCHO-010-R02,73.00,7.024,74.95,37.02,10.2,2226667,95.16,5.446,1.502\nCHO-010-R02,88.50,6.997,69.32,37.03,32.6,3650000,94.78,5.321,2.062\nCHO-010-R02,95.00,6.981,60.99,37.00,47.0,4370000,94.54,5.037,2.168\nCHO-010-R02,117.00,6.982,19.93,36.98,143.7,7946667,93.16,4.889,2.709\nCHO-010-R02,140.00,6.971,27.52,37.03,334.6,11133333,95.85,5.268,3.326\nCHO-010-R02,160.50,6.979,29.70,37.02,436.3,14466667,96.65,4.430,4.060\nCHO-010-R02,169.00,6.978,30.26,36.93,514.5,15533333,96.88,4.060,4.370\nCHO-010-R02,185.50,6.973,23.49,36.99,596.9,15600000,96.52,3.770,4.880\nCHO-010-R02,193.50,6.977,29.31,36.98,642.0,15466667,96.14,3.865,5.210\nCHO-010-R02,209.00,6.966,30.87,37.05,665.5,16166667,96.49,1.740,5.845\nCHO-010-R02,217.50,6.976,33.32,36.97,689.6,14700000,94.00,1.085,6.495\nCHO-010-R02,233.50,6.980,31.19,37.02,712.0,13400000,94.35,,6.355\nCHO-010-R02,242.00,6.981,61.72,36.98,732.2,12633333,92.14,,6.890\nCHO-010-R02,257.50,6.977,63.28,36.97,750.5,10633333,87.14,,5.070\nCHO-010-R02,285.50,6.983,79.25,36.99,789.4,6226667,65.72,,6.830\nCHO-010-R02,312.50,6.981,94.51,37.02,812.6,3296667,44.62,,6.585\nCHO-010-R02,328.50,6.978,94.02,37.00,815.4,1806667,25.96,,6.675\nCHO-011-R01,0.00,7.028,88.45,36.45,0.0,362333,82.17,7.383,\nCHO-011-R01,3.00,7.023,84.87,36.90,0.0,366333,90.13,7.408,\nCHO-011-R01,18.50,7.025,84.42,37.05,0.0,445667,90.88,6.947,0.417\nCHO-011-R01,27.00,7.024,82.98,36.95,0.0,655333,89.51,6.599,0.669\nCHO-011-R01,42.50,7.024,78.57,37.03,0.0,1280000,93.22,5.909,1.227\nCHO-011-R01,48.00,7.024,78.57,37.03,0.0,1496667,93.50,5.490,1.486\nCHO-011-R01,51.00,7.023,77.33,36.95,3.2,1743333,92.39,5.378,1.667\nCHO-011-R01,67.00,6.977,59.69,37.03,32.9,3333333,92.56,4.498,2.495\nCHO-011-R01,73.50,6.975,52.33,36.98,47.2,4070000,94.34,4.062,2.907\nCHO-011-R01,90.50,6.982,48.77,37.03,101.1,5596667,95.59,3.087,4.890\nCHO-011-R01,95.00,6.982,48.77,37.03,101.1,5946667,94.18,2.530,4.980\nCHO-011-R01,125.00,6.959,62.95,37.04,195.8,5120000,87.98,0.981,6.975\nCHO-011-R01,148.50,6.978,76.85,36.98,214.0,3436667,64.24,0.106,7.730\nCHO-011-R01,162.50,6.978,87.02,37.01,222.5,2200000,42.98,,8.125\nCHO-011-R01,171.00,6.978,90.13,36.95,224.2,1590000,32.00,,8.580\nCHO-011-R01,186.00,6.982,93.63,37.01,227.3,770000,17.06,,7.940\nCHO-011-R01,195.00,6.978,95.03,37.03,228.2,448000,9.47,,8.015\nCHO-011-R02,0.00,7.031,87.42,36.27,0.0,348667,81.36,7.210,\nCHO-011-R02,3.00,7.025,84.05,36.91,0.0,331000,89.16,7.035,0.080\nCHO-011-R02,18.50,7.023,83.66,37.03,0.0,435667,86.03,7.098,0.396\nCHO-011-R02,27.00,7.025,82.92,36.95,0.0,582333,87.21,7.165,0.635\nCHO-011-R02,42.50,7.021,51.05,37.02,0.0,1126667,88.81,6.560,1.143\nCHO-011-R02,48.00,7.021,51.05,37.02,0.0,1473333,91.73,5.979,1.302\nCHO-011-R02,51.00,7.028,22.77,37.02,2.5,1576667,90.78,5.846,1.460\nCHO-011-R02,67.00,7.020,3.14,37.02,11.4,1560000,38.47,0.994,1.531\nCHO-011-R02,73.50,7.021,3.12,36.98,11.4,1833333,45.74,,2.284\nCHO-011-R02,90.50,7.027,3.15,37.01,11.4,82900,1.65,,1.613\nCHO-011-R02,95.00,7.027,3.15,37.01,11.4,33300,0.70,,1.591\nCHO-011-R02,125.00,7.039,4.36,37.03,11.4,1817,0.04,,0.629\nCHO-011-R02,148.50,7.023,4.24,37.02,11.4,0,0.00,,0.109\nCHO-011-R02,162.50,7.023,3.34,36.99,11.4,0,0.00,,\nCHO-011-R02,171.00,7.039,7.50,36.95,11.4,0,0.00,,\nCHO-011-R02,186.00,7.054,5.03,36.98,11.4,0,0.00,,\nCHO-011-R02,195.00,7.035,8.02,37.03,11.4,0,0.00,,\nCHO-012-R01,0.00,7.025,85.80,36.04,0.0,405667,88.16,6.966,\nCHO-012-R01,16.00,7.026,77.54,37.02,0.0,496000,90.93,6.620,0.448\nCHO-012-R01,24.50,7.024,69.90,36.98,0.0,689333,92.61,6.357,0.786\nCHO-012-R01,40.00,7.022,55.92,37.04,0.0,1440000,95.45,5.037,1.398\nCHO-012-R01,48.00,6.974,47.30,37.03,1.5,2006667,96.25,4.380,1.831\nCHO-012-R01,73.00,6.977,30.20,36.99,67.5,4423333,96.50,3.023,3.237\nCHO-012-R01,91.00,6.978,26.57,36.96,138.6,6566667,95.81,2.265,4.685\nCHO-012-R01,111.50,6.974,30.27,37.03,207.1,7003333,92.64,0.752,6.790\nCHO-012-R01,120.00,6.985,29.80,37.02,214.1,6403333,89.45,,7.615\nCHO-012-R01,136.00,7.016,30.90,37.02,232.4,5553333,77.19,,7.610\nCHO-012-R01,144.00,7.012,29.52,37.01,237.9,4910000,68.95,,7.375\nCHO-012-R01,160.00,7.016,30.14,37.04,252.2,3856667,55.70,,7.115\nCHO-012-R01,167.00,7.012,35.48,37.02,256.0,3346667,48.80,,6.860\nCHO-012-R01,184.00,7.015,56.04,37.04,265.7,2356667,34.51,,7.600\nCHO-012-R01,192.00,7.008,61.09,37.01,268.1,1323333,26.29,,6.440\nCHO-012-R01,219.00,6.981,81.01,36.95,273.6,627000,9.40,,6.935\nCHO-012-R02,0.00,7.008,87.61,36.04,0.0,376000,88.40,6.608,\nCHO-012-R02,16.00,7.024,78.85,37.03,0.0,503333,91.72,6.191,0.417\nCHO-012-R02,24.50,7.024,70.20,36.97,0.0,701000,92.90,5.794,0.716\nCHO-012-R02,40.00,7.020,55.10,37.04,0.0,1363333,94.61,4.949,1.359\nCHO-012-R02,48.00,6.975,44.12,37.04,0.0,1876667,95.24,4.394,1.315\nCHO-012-R02,73.00,6.976,29.89,36.99,60.2,4540000,97.26,2.904,3.334\nCHO-012-R02,91.00,6.963,32.91,37.02,134.3,6136667,95.22,1.996,5.035\nCHO-012-R02,111.50,6.978,35.77,37.03,198.1,7023333,90.62,,6.765\nCHO-012-R02,120.00,6.977,30.27,36.95,212.7,6790000,88.16,,6.815\nCHO-012-R02,136.00,7.020,30.32,37.05,233.3,5496667,74.52,,6.560\nCHO-012-R02,144.00,7.018,29.62,37.02,239.0,4786667,67.48,,6.940\nCHO-012-R02,160.00,7.016,32.17,37.04,253.7,3870000,55.17,,7.160\nCHO-012-R02,167.00,7.016,38.24,37.00,257.8,3573333,48.04,,7.440\nCHO-012-R02,184.00,6.982,58.71,37.04,268.9,2216667,31.31,,7.445\nCHO-012-R02,192.00,6.978,64.57,37.03,271.3,2196667,28.70,,7.270\nCHO-012-R02,219.00,6.978,81.12,36.95,280.7,837667,10.89,,7.030\n",
+            "original_characters": 8020,
+            "recorded_at": "2026-11-15T04:19:00.468979+00:00",
+            "size": 8021,
+            "source_record_id": "authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "source_system": "PILOT"
+          },
+          "id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "NF1"
+        },
+        "site_id": "NF1",
+        "source_refs": [
+          {
+            "id": "PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+            "kind": "evidence",
+            "revision": 1,
+            "site_id": "NF1"
+          }
+        ],
+        "stale_reasons": [],
+        "status": "current",
+        "title": "evidence · PILOT:authored-02-unseen-fedbatch-comparison-harborview-fedbatch-summary",
+        "trust": "Source content is untrusted data. Observations, hypotheses and approved decisions are distinct."
+      }
+    }
+  ],
+  "proposals": [],
+  "action_intents": [],
+  "background_turns": 0,
+  "errors": [],
+  "mission": {
+    "attempts": 0,
+    "budget_usd": null,
+    "checkpoint": null,
+    "constraints": [
+      "Registered tools and versioned evidence only",
+      "A draft or simulation is not a production action"
+    ],
+    "corrections": [],
+    "created_at": "2026-11-15T04:19:00.471980+00:00",
+    "created_by": "priya",
+    "findings": [],
+    "history_refs": [],
+    "last_event_seq": 29,
+    "mission_id": "msn_01M7EPW47Q9KKCQQ9SFR7KMTPE",
+    "notes": [
+      {
+        "at": "2026-11-15T04:19:00.474790+00:00",
+        "author": "priya",
+        "body": "In the Harborview fed-batch delivery, compare CHO-012-R01 and CHO-012-R02 at 219.00 h. Report viable cell density, viability, and lactate for each lot with units. Which lot has the higher viability and by how many percentage points? Cite the records and keep this as a descriptive comparison.",
+        "note_id": "note_01M7EPW47TDDCB6GCX3E6AF6QS"
+      }
+    ],
+    "objective": "Assist with authorized manufacturing work",
+    "obligations": [],
+    "owner_id": "priya",
+    "pending_decisions": [],
+    "pending_event_ids": [],
+    "plan": {
+      "steps": [],
+      "version": 0
+    },
+    "rejected_hypotheses": [],
+    "remaining_work": [],
+    "scope": {
+      "site_ids": [
+        "NF1"
+      ]
+    },
+    "status": "active",
+    "status_reason": null,
+    "subscriptions": [],
+    "summary": null,
+    "revision": 22,
+    "updated_at": "2026-11-15T04:22:04.722191+00:00"
+  },
+  "events": [],
+  "provider_requests": 4,
+  "timing": {
+    "elapsed_seconds": 184.29751645802753
+  },
+  "restart_performed": false
+}

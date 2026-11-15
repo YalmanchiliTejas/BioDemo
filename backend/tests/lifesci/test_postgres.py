@@ -62,6 +62,38 @@ class SimpleURLs:
         self.owner, self.app = owner, app
 
 
+def test_source_event_command_key_serializes_across_postgres_connections(pg, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from fastapi.testclient import TestClient
+    from src.lifesci.container import Platform
+    from src.lifesci.api import create_app
+    monkeypatch.setenv('LIFESCI_AUTH_MODE', 'development')
+    platforms = [Platform(RecordStore(pg.app, migrate=False), providers={}) for _ in range(2)]
+    p = platforms[0]
+    p.identity.assign_role('pg-event-replay', 'owner', 'msat', site_id='S1')
+    ctx = p.identity.context_for('pg-event-replay', 'owner')
+    source = p.evidence.ingest(ctx, source_system='sensor', source_record_id='1', content=b'Observed value',
+                              media_type='text/plain', site_id='S1', event_time=None)
+    clients = [TestClient(create_app(platform)) for platform in platforms]
+    barrier = Barrier(2, timeout=10)
+    body = {'site_id': 'S1', 'title': 'Review sensor alarm', 'record_refs': [
+        {'kind': 'evidence', 'id': source['evidence_id'], 'revision': 1}]}
+    headers = {'X-Tenant-Id': 'pg-event-replay', 'X-Actor-Id': 'owner', 'Idempotency-Key': 'same-event-command'}
+    def post(client):
+        barrier.wait()
+        return client.post('/v1/assistant-alarms', headers=headers, json=body)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first, second = list(pool.map(post, clients))
+        assert first.status_code == second.status_code == 200, (first.text, second.text)
+        assert first.json()['id'] == second.json()['id']
+        assert len(p.store.read().list('pg-event-replay', 'assistant_alarm')) == 1
+    finally:
+        for platform in platforms:
+            platform.store.release_connections()
+
+
 def test_core_flow_on_postgres_as_app_role(pg):
     s = RecordStore(pg.app, migrate=False)
     idn, own = IdentityService(s), OwnershipRegistry(s)

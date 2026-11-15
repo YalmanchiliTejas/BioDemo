@@ -1,0 +1,52 @@
+{
+  "schema_version": "workspace-tasks-replay-v1",
+  "suite_id": "workspace-tasks-synthetic-contract-smoke-v1",
+  "provenance": {
+    "kind": "synthetic_contract",
+    "description": "Hand-authored discovery and missing-input checks. No real manufacturing records or scientific accuracy claims."
+  },
+  "context": {
+    "tenant_id": "replay-smoke",
+    "actor_id": "fixture-reviewer",
+    "site_id": "TEST-SITE"
+  },
+  "sources": [
+    {
+      "path": "source.txt",
+      "sha256": "b8cf22b3b4c9272523f54d00899b3ac1175297eaabde8ddc6707559dc5591b6d",
+      "source_system": "synthetic-contract",
+      "source_record_id": "TEST-7",
+      "media_type": "text/plain",
+      "event_time": "2026-11-01T00:00:00Z",
+      "provenance": {
+        "kind": "synthetic_contract",
+        "citation": "Hand-authored BioDemo contract fixture, 2026-11-14; timestamp and equipment identifier are synthetic.",
+        "license": "Local test material; no third-party source. Redistribution rights have not been assessed."
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "find-synthetic-source",
+      "request": {
+        "site_id": "TEST-SITE",
+        "operation": "find_records",
+        "query": "TEST-7",
+        "kinds": ["evidence"]
+      },
+      "expected": {
+        "task_status": "completed",
+        "data": {"records": [{"id": "synthetic-contract:TEST-7"}]},
+        "source_refs": [{"kind": "evidence", "id": "synthetic-contract:TEST-7", "revision": 1, "site_id": "TEST-SITE"}]
+      }
+    },
+    {
+      "id": "request-missing-dataset",
+      "request": {"site_id": "TEST-SITE", "operation": "reconcile"},
+      "expected": {
+        "task_status": "needs_information",
+        "data": {"measurement_count": 0, "source_measurements_modified": false}
+      }
+    }
+  ]
+}

@@ -20,6 +20,7 @@ import os
 import re
 from typing import Any
 from urllib.parse import urlsplit
+from pydantic import BaseModel
 
 from .collab import ChannelError, ChannelMessage, EmailSMTPAdapter, NotificationService, SlackWebhookAdapter, TeamsWebhookAdapter
 from .identity import AccessContext
@@ -28,6 +29,11 @@ from .store import ConflictError
 
 CHANNEL, ROUTE, INBOX, SIGNAL = 'alert_channel', 'alert_route', 'alert_inbox', 'deviation_signal'
 SEVERITY = {'warning': 1, 'action': 2, 'critical': 3}
+
+
+class AlertTestIn(BaseModel):
+    recipient: str | None = None
+
 KINDS = {'email': ('host', 'port', 'from_addr'), 'slack': (), 'teams': ()}
 SECRET_FIELDS = {'email': ('username', 'password'), 'slack': ('webhook_url',), 'teams': ('webhook_url',)}
 # Webhooks only to the providers' own hosts: an admin-entered URL must not become a way to reach internal services.
@@ -310,7 +316,6 @@ class AlertService:
 
 def alert_routes(app, platform, ctx_dep) -> None:
     from fastapi import Depends, HTTPException
-    from pydantic import BaseModel
 
     def service() -> AlertService:
         if getattr(platform, 'alerts', None) is None:
@@ -326,9 +331,6 @@ def alert_routes(app, platform, ctx_dep) -> None:
             raise HTTPException(404, str(exc).strip("'")) from exc
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
-
-    class TestIn(BaseModel):
-        recipient: str | None = None
 
     @app.get('/v1/notifications')
     def notifications(ctx: AccessContext = Depends(ctx_dep)):
@@ -347,8 +349,8 @@ def alert_routes(app, platform, ctx_dep) -> None:
         return guard(lambda: service().save_channel(ctx, body))
 
     @app.post('/v1/alert-channels/{channel_id}/test')
-    def test_channel(channel_id: str, body: TestIn | None = None, ctx: AccessContext = Depends(ctx_dep)):
-        out = guard(lambda: service().test_channel(ctx, channel_id, (body or TestIn()).recipient))
+    def test_channel(channel_id: str, body: AlertTestIn | None = None, ctx: AccessContext = Depends(ctx_dep)):
+        out = guard(lambda: service().test_channel(ctx, channel_id, (body or AlertTestIn()).recipient))
         return {k: out.get(k) for k in ('status', 'channel', 'recipient', 'attempts')}
 
     @app.get('/v1/alert-routes')

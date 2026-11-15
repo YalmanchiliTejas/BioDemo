@@ -291,6 +291,10 @@ class IdentityService:
             if key in _seen:
                 raise PermissionError("cyclic source lineage is unavailable")
             current = tx.require(ctx.tenant_id, kind, rid)
+            # A role grants access to a record kind, not to another person's
+            # private assistant work. Apply the same policy to nested manifests.
+            from .memory import MemoryGrants
+            MemoryGrants(self.store, self).require_record(ctx, kind, current.state)
             site = current.state.get("site_id")
             if ref.get("site_id") is not None and ref["site_id"] != site:
                 raise PermissionError("source site does not match the stored record")
@@ -299,6 +303,7 @@ class IdentityService:
             source = tx.revision(ctx.tenant_id, kind, rid, revision)
             if source is None:
                 raise ValueError(f"source revision missing: {kind}:{rid}@{revision}")
+            MemoryGrants(self.store, self).require_record(ctx, kind, source.state)
             self.require(ctx, "read", kind, rid, site_id=source.state.get("site_id"), tx=tx)
             if require_current and (revision != current.revision or
                                     current.state.get("status") in ("stale", "quarantined", "superseded")):

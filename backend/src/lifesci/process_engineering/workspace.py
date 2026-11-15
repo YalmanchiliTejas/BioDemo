@@ -12,7 +12,7 @@ from ..cmo_datasets import CLASSIFICATION as DATASET, summarize
 from ..ids import iso, parse_iso
 
 KINDS = ('case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
-         'proposal', 'physical_analysis_context', 'physical_model_dataset', 'physical_model_checkpoint', 'physical_interval_calibration', 'physical_analysis_result', 'process_simulation', 'engineering_chat_turn', 'deviation_signal', 'specification')
+         'proposal', 'physical_analysis_context', 'physical_model_dataset', 'physical_model_checkpoint', 'physical_interval_calibration', 'physical_analysis_result', 'process_simulation', 'engineering_chat_turn', 'deviation_signal', 'specification', 'assistant_alarm', 'assistant_work_request')
 # Every other record type the product stores, and why the assistant does not search it. A new record type must be
 # added to KINDS (with FIELDS) or here: tests/lifesci/test_workspace_kinds.py fails otherwise, so a new kind of
 # process evidence can't silently stay invisible to the assistant (DO specifications did, 2026-11-10).
@@ -34,8 +34,14 @@ ASSISTANT_EXCLUDED = {
     'memory_page': 'assistant memory: reached through recall/open_memory with owner permissions',
     'memory_vector': 'assistant memory search index',
     'memory_state': 'assistant memory bookkeeping',
+    'workspace_task_request': 'private typed task instructions, accessed through the workbench',
+    'workspace_task_result': 'private computed work, accessed through workbench results',
+    'assistant_routine': 'private reusable task definition, accessed through routines',
+    'assistant_routine_run': 'private routine execution history, accessed through routines',
 }
 FIELDS = {
+    'assistant_alarm': ('title', 'description', 'severity', 'source_refs', 'record_refs', 'created_at'),
+    'assistant_work_request': ('title', 'description', 'severity', 'owner_id', 'requested_by', 'source_refs', 'record_refs', 'created_at'),
     'physical_model_dataset': ('label','partition_counts','packet_hash','limitations'),
     'physical_model_checkpoint': ('checkpoint','review_state','runner_manifest'),
     'physical_interval_calibration': ('interval_calibration','review_state','runner_manifest'),
@@ -166,7 +172,7 @@ class WorkspaceTools:
         out, content_search_gaps = [], []
         searched_bytes = 0
         for kind in kinds:
-            for rec in self.p.store.read().list(ctx.tenant_id, kind):
+            for rec in self.p.store.read().find(ctx.tenant_id, kind, 'site_id', thread['site_id']):
                 # User instructions are private conversation data, not process evidence.
                 if kind == 'evidence' and rec.state.get('source_system') == 'engineering-user-instruction':
                     continue
@@ -291,7 +297,7 @@ class WorkspaceTools:
     def _authorized(self, ctx, thread, kinds):
         """Authorized process records (never private instructions or saved chats) with their refs."""
         for kind in kinds:
-            for rec in self.p.store.read().list(ctx.tenant_id, kind):
+            for rec in self.p.store.read().find(ctx.tenant_id, kind, 'site_id', thread['site_id']):
                 if kind == 'evidence' and rec.state.get('source_system') == 'engineering-user-instruction':
                     continue
                 try:

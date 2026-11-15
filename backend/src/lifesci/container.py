@@ -115,8 +115,12 @@ class Platform:
         self.bioprocess = BioprocessService(self)
         from .process_engineering.conversation import EngineeringConversationService
         self.engineering_conversations = EngineeringConversationService(self)
+        from .workspace_tasks import WorkspaceTaskService
+        self.workspace_tasks = WorkspaceTaskService(self)
         from .process_engineering.responsibilities import AssistantResponsibilities
         self.assistant_responsibilities = AssistantResponsibilities(self)
+        from .assistant_routines import AssistantRoutineService
+        self.assistant_routines = AssistantRoutineService(self)
         from .investigations import InvestigationService
         self.investigations = InvestigationService(self)
         # Deviation signals: detection on committed events, then alerts and assistant triage (docs/architecture/deviation-signals-and-alerts.md).
@@ -176,6 +180,8 @@ class Platform:
         install_process_api(self, app, ctx_dep, idempotent)
         from .process_engineering.api import install_analysis_api
         install_analysis_api(self, app, ctx_dep, idempotent)
+        from .workspace_tasks_api import install_workspace_tasks_api
+        install_workspace_tasks_api(self, app, ctx_dep, idempotent)
         from .fermentation.api import install_fermentation_api
         install_fermentation_api(self, app, ctx_dep, idempotent)
         for extension in self.api_extensions:
