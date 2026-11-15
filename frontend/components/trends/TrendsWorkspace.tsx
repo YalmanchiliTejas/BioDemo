@@ -146,6 +146,17 @@ export function TrendsWorkspace() {
     finally { if (taskRequest.current === request) { setPreparingTask(false); if (scopeNow.current !== scope) setTaskNotice('Selection changed. Start the task again to use the current batches and parameter.'); } }
   }
 
+  // The workbench opens on this parameter with the highlighted (or shown) batches. It reads at most ten deliveries and thirty
+  // batches at once; a wider view hands over the parameter only, and the workbench starts from its newest verified delivery.
+  const workbenchRuns = [...new Set(taskSeries.map(series => series.run_id))];
+  const narrowed = highlighted.length > 0 || (!!current && shown.length < current.series.length);
+  const workbenchQuery = new URLSearchParams(parameter ? { parameter } : {});
+  if (workbenchRuns.length && workbenchRuns.length <= 10) {
+    workbenchQuery.set('datasets', workbenchRuns.join(','));
+    if (narrowed && taskSeries.length <= 30) workbenchQuery.set('batches', [...new Set(taskSeries.map(series => series.batch))].join(','));
+  }
+  const workbenchHref = `/workbench/?${workbenchQuery}`;
+
   const sampled = shown.filter(s => s.sampled_every > 1).length;
   const untimed = shown.reduce((n, s) => n + s.points_without_time, 0);
   const converted = shown.filter(s => s.time_basis === 'hours_since_first_reading').length;
@@ -153,7 +164,7 @@ export function TrendsWorkspace() {
 
   return <div className="workspace-page" data-testid="trends">
     <WorkspacePageHeader title="Trends" description="Any accepted value from your deliveries, across batches and over process time. Choose a parameter; nothing here waits on the assistant."
-      actions={catalogue?.parameters.length ? <Link href="/export/" onClick={handOff} className="chrome-button primary"><Download size={15} />Export</Link> : undefined} />
+      actions={catalogue?.parameters.length ? <><Link href={workbenchHref} className="chrome-button" data-testid="open-in-workbench">Open in workbench</Link><Link href="/export/" onClick={handOff} className="chrome-button primary"><Download size={15} />Export</Link></> : undefined} />
     {error && <Callout tone="critical" title="Trends could not be loaded" className="mb-4">{error}</Callout>}
     {!catalogue && !error && <p role="status" className="py-10 text-center text-sm text-text-secondary">Loading accepted values…</p>}
     {catalogue && !catalogue.parameters.length && <section className="rounded-2xl border border-border-hairline bg-white px-6 py-12 text-center">

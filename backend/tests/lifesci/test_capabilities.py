@@ -1,4 +1,6 @@
 """One assistant with capability packs: the request, roles and context choose the tools it is shown."""
+import pytest
+
 from src.lifesci import capabilities as cap
 from src.lifesci.container import Platform
 from src.lifesci.ids import iso, utc_now
@@ -57,3 +59,27 @@ def test_deviation_signals_are_searchable_workspace_records():
     thread = p.engineering_conversations.create(q, {'site_id': 'NF1'})
     found = p.engineering_conversations.workspace.search(q, thread, kinds=['deviation_signal'], query='')
     assert [r['id'] for r in found['records']] == ['SIG-1'] and 'DO 24 %' in found['records'][0]['label']
+
+
+@pytest.mark.parametrize('role,prompt', [
+    ('msat', 'Save a routine to list cases every hour'),
+    ('qa', 'Read the saved review result from Routines'),
+    ('operator', 'List the records for my shift'),
+])
+def test_agent_can_discover_direct_tasks_saved_results_and_routine_drafts(role, prompt):
+    """Capability filtering must not hide the tools the assistant is instructed to use."""
+    from src.lifesci.process_engineering.tool_loop import ToolLoop
+    p = Platform(RecordStore(), providers={})
+    try:
+        p.identity.assign_role('T', 'owner', role, site_id='NF1')
+        ctx = p.identity.context_for('T', 'owner')
+        thread = p.engineering_conversations.create(ctx, {'site_id': 'NF1'})
+        queued = p.engineering_conversations.enqueue(ctx, thread['id'], {
+            'text': prompt, 'expected_revision': thread['revision']})
+        _, tools, _, _, _ = ToolLoop(p.engineering_conversations)._setup(ctx, queued)
+        available = {tool['function']['name'] for tool in tools}
+        assert {'workspace_run_task', 'workspace_open_task_result', 'workspace_propose_routine'} <= available
+        # Discovery offers a proposal; it must not expose standing-work activation to the model.
+        assert 'workspace_activate_routine' not in available
+    finally:
+        p.store.release_connections()

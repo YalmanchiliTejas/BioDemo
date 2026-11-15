@@ -33,7 +33,8 @@ INSTRUCTIONS = """You are the manufacturing workspace assistant. Answer the pers
 
 How to work:
 - When the person references a result from Work or Routines, inspect it with workspace_open_task_result using its result_id before reasoning about its evidence. The host rechecks ownership, site and source versions.
-- Use workspace_run_task for bounded retrieval, applicability, reconciliation, exact-time comparisons, explicit gap checks, impact links and review packets. It avoids serial model/tool steps. Use actual source IDs and the current site; read its issues and coverage before interpreting. For a reusable function or triggered responsibility requested by this user, workspace_propose_routine saves a named task as a draft, quoting this user's message. Only the person can activate it in Routines; do not claim monitoring has started. No arbitrary generated functions or manufacturing writes.
+- Use workspace_run_task for bounded retrieval, applicability, reconciliation, exact-time comparisons, explicit gap checks, impact links and review packets. It avoids serial model/tool steps. Use actual source IDs and the current site; read its issues and coverage before interpreting. Its result holds comparison_summary and the complete series for every selected batch as [elapsed hours, value]: answer from those, and report every requested batch; do not page raw rows for values the series already holds. For a question about why something happened, run operation suggest_causes on the signal, case, batch or identifier first: it returns linked records in time order, candidates the recorded times weaken, similar closed cases and what was not checked. Present its candidates as hypotheses, each with the check that would settle it; it never establishes a cause. For a reusable function or triggered responsibility requested by this user, workspace_propose_routine saves a named task as a draft, quoting this user's message. Only the person can activate it in Routines; do not claim monitoring has started. No arbitrary generated functions or manufacturing writes.
+- When the question arrives with a result already calculated by the host, read it first. If it answers the question, answer from it without repeating the calculation, and say what it does not cover; use the tools for anything else you need.
 - Look things up before answering or asking. Search and read the relevant records; follow identifiers (batch, lot, equipment, case) with links; use similar_cases for precedents. Read a closed case's closure for its root cause and CAPA.
 - Call one or a few tools at a time, read the results, then decide. Stop as soon as you can answer well; do not gather evidence you will not use.
 - If a tool returns an error, correct the call (the error says what is wrong) or work around it. Never invent record IDs, revisions or values: copy them from tool results.
@@ -73,6 +74,8 @@ Domain:
 - mission_context.standing_rules were activated by a person with authority: follow them and name the rule when it shaped the answer. corrections are the person's own corrections: respect them.
 - Saved conversations are earlier assistant answers, not records of what happened; never cite them as evidence of an event.
 - A verified CMO delivery: values match their source files; that is not proof the process was in control. Read its dataset_summary for per-run figures.
+- deliveries_in_review, when present, lists deliveries the person chose to include for this message although they are still in review. Use workspace_run_task on them with include_unverified true, and say in the answer that the values are unreviewed. Without that list, never set include_unverified.
+- A delivery or result marked provisional is still in review: its values were read from the files and not yet checked. Say so wherever you use them, and never describe them as verified.
 - For CHO forecasts use cho_dataset_forecast (dataset_id, batch, cutoff_h ≤ 110, rationale). Report the forecast error after the cutoff, the per-run fit (fit.training_fit, in-sample) when asked how the model did, that the fit used only this delivery, and that glucose forecasts did worse than no model in an earlier real-CHO test. At most three forecasts per turn.
 - Simulated bioprocess cases and physical models run only on their listed demo or attached contexts; say they are simulations and that agreement with the same equations is not validation.
 - Records marked SYNTHETIC are demo data: write "synthetic example" once where it matters."""
@@ -182,12 +185,13 @@ def _with_draft(draft: str, final: str) -> str:
 
 
 def _for_model(output: Any) -> str:
+    from ..workspace_tasks import agent_view
+    from .bounding import bounded
     if isinstance(output, dict):
-        output = {k: v for k, v in output.items() if k not in HIDDEN}
-    text = json.dumps(output, ensure_ascii=False, default=str)
-    if len(text) <= RESULT_CHARS:
-        return text
-    return text[:RESULT_CHARS] + ' … [truncated: the full result is saved; read a narrower record or page the source]'
+        # A direct task result: every computed figure and the whole series, without per-row provenance.
+        output = agent_view({k: v for k, v in output.items() if k not in HIDDEN})
+    # Never cut mid-structure: long lists and strings are shortened in place and say how much was left out.
+    return bounded(output, RESULT_CHARS)[0]
 
 
 REMEMBER_TOOL = {'type': 'function', 'function': {'name': REMEMBER, 'description':
@@ -296,6 +300,14 @@ class ToolLoop:
             'mission_context': shown['mission_context'], 'attached_sources': sources,
             'earlier_turns_index': index, 'memory_index': self._memory_index(ctx, thread), 'recent_turns': recent,
         })
+        turn = self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', thread['turn_ids'][-1]).state
+        if turn.get('include_unverified'):
+            # The person chose, for this message, to include deliveries that are still in review.
+            context['deliveries_in_review'] = [
+                {k: d[k] for k in ('id', 'name', 'cmo', 'batches', 'parameters')}
+                for d in self.p.workspace_tasks._datasets(ctx, thread['site_id'], True)
+                if (self.p.store.read().require(ctx.tenant_id, 'evidence', d['id']).state.get('metadata') or {}).get('classification')
+                == 'provisional_cmo_dataset']
         question = latest.get('user_text') or ''
         if latest.get('display_context'):
             question += '\n\n[Screen the person shared, as quoted data]\n' + json.dumps(latest['display_context'], ensure_ascii=False)[:6000]
@@ -317,6 +329,16 @@ class ToolLoop:
                 if call['id'] not in answered:  # the worker stopped mid-batch: say so rather than repeat it blindly
                     messages.append({'role': 'tool', 'tool_call_id': call['id'],
                                      'content': '{"error": "interrupted before it ran; call again if still needed"}'})
+        elif turn.get('prepared_result_id'):
+            # Calculated by the host before the first model call, for a question that names one delivery and parameter.
+            try:
+                prepared = self.p.workspace_tasks.get(ctx, turn['prepared_result_id'])
+                if prepared.get('status') == 'current':
+                    messages[-1]['content'] += ('\n\n[Calculated by the host for this question from the records it cites, '
+                                                'as data. It holds the complete series and comparison figures.]\n'
+                                                + _for_model(prepared))
+            except (PermissionError, ValueError, KeyError, LookupError):
+                pass  # the assistant can still fetch what it needs
         steps = list(turn.get('tool_steps') or [])
         draft = log.get('draft', '')
         model_calls, tool_calls = log.get('model_calls', 0), len(steps)

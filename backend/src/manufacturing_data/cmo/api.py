@@ -779,7 +779,18 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
                 if text is not None: docs.append({'path':f['path'],'sha256':f['sha256'],'text':text})
             return {'cmo':item['cmo'],'delivery_name':item.get('name'),'package_id':item['id'],'documents':docs}
 
+    def provisional_payload(run_id:str,tenant:str):
+        """Values of a delivery that is still in review, for work a person explicitly runs on unreviewed data.
+        Never a substitute for verified_payload: see quality.provisional_payload."""
+        with tenant_scope(tenant):
+            run=guard(lambda:service.get(run_id))
+            if run['status']!='complete': raise HTTPException(409,'The delivery is still being read; no values are available yet')
+            payload=quality.provisional_payload(run)
+            for sid in {m['source_id'] for m in payload['measurements']}: guard(lambda:service.original(run_id,sid,run=run))
+            return payload
+
     api.verified_payload=verified_payload
+    api.provisional_payload=provisional_payload
     api.delivery_documents=delivery_documents
     api.ingestion_service=service
     return api

@@ -285,6 +285,39 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     from .tasks import TaskRunner
     app.state.tasks = TaskRunner()
     app.state.tasks.register("runtime_tick", lambda payload: runtime_tick(platform))
+    # How long each request took: a Server-Timing header for the browser and a recent window per route
+    # (GET /v1/latency). Measured only; nothing is cut off at the ten-second target.
+    import time as _time
+    from .latency import RequestLatency
+    app.state.latency = RequestLatency()
+
+    class RequestTiming:
+        """Plain ASGI wrapper: it never buffers a response or touches background work."""
+        def __init__(self, inner: Any) -> None:
+            self.inner = inner
+
+        async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
+            if scope["type"] != "http":
+                await self.inner(scope, receive, send)
+                return
+            started, status = _time.perf_counter(), 500
+
+            async def timed_send(message: dict[str, Any]) -> None:
+                nonlocal status
+                if message["type"] == "http.response.start":
+                    status = message["status"]
+                    duration = f"app;dur={(_time.perf_counter() - started) * 1000:.1f}".encode()
+                    message = {**message, "headers": [*message.get("headers", []), (b"server-timing", duration)]}
+                await send(message)
+            try:
+                await self.inner(scope, receive, timed_send)
+            finally:
+                route = scope.get("route")
+                app.state.latency.record(scope["method"], getattr(route, "path", None) or scope["path"],
+                                         _time.perf_counter() - started, status)
+
+    app.add_middleware(RequestTiming)
+
     # The statically exported Next workspace can connect to the existing API.
     # Production cross-origin access must be configured explicitly.
     from fastapi.middleware.cors import CORSMiddleware
@@ -292,7 +325,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     if origins:
         app.add_middleware(CORSMiddleware, allow_origins=origins.split(","), allow_methods=["GET", "POST"],
                            allow_headers=["Authorization", "Content-Type", "X-Tenant-Id", "X-Actor-Id", "Idempotency-Key", "X-CMO-Token", "X-Organization-Id", "X-Demo-Visitor"],
-                           expose_headers=["X-Package-Complete", "X-Open-Issues", "X-Values-Pending", "X-Page-Width",
+                           expose_headers=["Server-Timing", "X-Package-Complete", "X-Open-Issues", "X-Values-Pending", "X-Page-Width",
                                            "X-Page-Height", "X-Page-Count"])
 
     def ctx_dep(request: Request) -> AccessContext:

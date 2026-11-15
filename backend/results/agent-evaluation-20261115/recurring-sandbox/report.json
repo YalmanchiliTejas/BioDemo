@@ -1,0 +1,2963 @@
+{
+  "protocol": {
+    "schema": "recurring-work-evaluation-v2",
+    "authorship": "Our authored synthetic cases and deterministic scoring",
+    "mode": "live_agent",
+    "cases": [
+      {
+        "id": "hourly",
+        "name": "Hourly case list",
+        "every_minutes": 60,
+        "triggers": [],
+        "prompt": "Save a routine named Hourly case list that lists case records at BENCH-SITE every hour, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      {
+        "id": "quarter-hour",
+        "name": "Quarter-hour case list",
+        "every_minutes": 15,
+        "triggers": [],
+        "prompt": "Save a routine named Quarter-hour case list that lists case records at BENCH-SITE every 15 minutes, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      {
+        "id": "daily-interval",
+        "name": "Daily case list",
+        "every_minutes": 1440,
+        "triggers": [],
+        "prompt": "Save a routine named Daily case list that lists case records at BENCH-SITE every 24 hours, for at most 2 runs. Use only the interval, with no event triggers. Leave it as a draft for me to activate."
+      },
+      {
+        "id": "case-event",
+        "name": "Changed case list",
+        "every_minutes": null,
+        "triggers": [
+          "case"
+        ],
+        "prompt": "Save a routine named Changed case list that lists case records at BENCH-SITE when case records change, for at most 2 runs. Use case events only, with no periodic schedule. Leave it as a draft for me to activate."
+      }
+    ],
+    "repeats": 5,
+    "model": "zai-org/GLM-5.3",
+    "estimated_budget_usd": 3.0,
+    "max_provider_requests": 100,
+    "timing": "agent_seconds measures enqueue through completed turn retrieval, excluding fixture setup, scoring and future lifecycle checks. Failed attempts are timed too; repetitions use independent stores. Timings with wall/monotonic disagreement over 2 seconds are set aside.",
+    "functional_pass": "Correct saved draft and all lifecycle behavior checks; background memory inference is recorded separately in lifecycle_pass.",
+    "limits": [
+      "Four explicit requests, not general natural-language accuracy.",
+      "Host lifecycle checks are separate from live definition correctness.",
+      "SQLite reconstruction, not OS crash or deployed scheduler validation.",
+      "Worker tenant explicitly configured with LIFESCI_TENANTS; local due times advanced by the harness.",
+      "Relative intervals only, not time zones, DST or wall-clock recurrence.",
+      "No semantic judge; final wording requires review.",
+      "Token-rate estimates do not reconcile hosted compute billing."
+    ],
+    "source_hashes": {
+      "benchmarks/skills/recurring.py": "2d677624f92b67821691ff13c9e8b699ac7fb32075050eee731ac855ba4bebb7",
+      "src/lifesci/capabilities.py": "dc3ef0e4233cb60e68d061141e3c74bc9be272a6e8d74e5081eae64c537d625d",
+      "src/lifesci/assistant_routines.py": "6249de4e90605b58a856dcf733efd3081d2a39253cb65626012335b4144ed792",
+      "src/lifesci/process_engineering/tool_loop.py": "de5503b82d087c3cf3350f0d54ed0940ff42ccd92413a4a8bb2b656cff4b6c9f",
+      "src/lifesci/process_engineering/conversation.py": "f8dcd65b77807b181ab6250f81009ea8e69f39309d604bc242278d2189cfe12b",
+      "src/lifesci/missions.py": "2571e5a260d64f230b59debdee9af484de69a9769891ecde1aeabec2816e86a7",
+      "src/lifesci/runtime.py": "6110638988510e044a335ff66609ceb014582d6558ce09bd12e284dacdc75064",
+      "benchmarks/agent_pilot/runner.py": "20b097f328b798e3caaf31802d1ecf39360650cbdae12e52299720eb00bc86fb"
+    }
+  },
+  "rows": [
+    {
+      "id": "hourly-r1",
+      "case_id": "hourly",
+      "repeat": 1,
+      "mode": "live_agent",
+      "setup_seconds": 1.239449,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBGH8215EF9QM8XF6MCFH",
+        "created_at": "2026-11-15T20:28:36.265252+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.153,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "[Errno 8] nodename nor servname provided, or not known",
+                "error_kind": "unavailable",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "[Errno 8] nodename nor servname provided, or not known"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBGJR0TQH0GPN6FAVWE5S",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBGH9GYCDVN94RARBQSAD",
+        "include_unverified": false,
+        "issues": [
+          "[Errno 8] nodename nor servname provided, or not known"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0002,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.155,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:36.419809+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.002,
+          "within_target": true,
+          "working_seconds": 0.153
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBGH9GYCDVN94RARBQSAD",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Hourly case list that lists case records at BENCH-SITE every hour, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.155425,
+      "agent_wall_seconds": 0.155427,
+      "timing_interrupted": false,
+      "provider_requests": [
+        {
+          "index": 0,
+          "purpose": "agent",
+          "requested_model": "zai-org/GLM-5.3",
+          "status": "error",
+          "error_type": "ProviderError",
+          "elapsed_seconds": 0.10391787503613159
+        }
+      ],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 1.396
+    },
+    {
+      "id": "quarter-hour-r1",
+      "case_id": "quarter-hour",
+      "repeat": 1,
+      "mode": "live_agent",
+      "setup_seconds": 0.005301,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBGPAA1GN9ZQT7FACG8C9",
+        "created_at": "2026-11-15T20:28:36.427426+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.048,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "[Errno 8] nodename nor servname provided, or not known",
+                "error_kind": "unavailable",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "[Errno 8] nodename nor servname provided, or not known"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBGQJVS1KPJBSQSGY7V0J",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBGPBX9VK5RZ7DQSG2NJA",
+        "include_unverified": false,
+        "issues": [
+          "[Errno 8] nodename nor servname provided, or not known"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.05,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:36.477393+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.002,
+          "within_target": true,
+          "working_seconds": 0.048
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBGPBX9VK5RZ7DQSG2NJA",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Quarter-hour case list that lists case records at BENCH-SITE every 15 minutes, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.050869,
+      "agent_wall_seconds": 0.050871,
+      "timing_interrupted": false,
+      "provider_requests": [
+        {
+          "index": 1,
+          "purpose": "agent",
+          "requested_model": "zai-org/GLM-5.3",
+          "status": "error",
+          "error_type": "ProviderError",
+          "elapsed_seconds": 0.0068898749887011945
+        }
+      ],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.057
+    },
+    {
+      "id": "daily-interval-r1",
+      "case_id": "daily-interval",
+      "repeat": 1,
+      "mode": "live_agent",
+      "setup_seconds": 0.005353,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBGR43R7YEK9M1PFSV33H",
+        "created_at": "2026-11-15T20:28:36.485001+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.047,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "[Errno 8] nodename nor servname provided, or not known",
+                "error_kind": "unavailable",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "[Errno 8] nodename nor servname provided, or not known"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBGSBHWYJ6SMFQSP0F4BR",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBGR4GSH04967N5V4ZB76",
+        "include_unverified": false,
+        "issues": [
+          "[Errno 8] nodename nor servname provided, or not known"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.049,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:36.533604+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.002,
+          "within_target": true,
+          "working_seconds": 0.047
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBGR4GSH04967N5V4ZB76",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Daily case list that lists case records at BENCH-SITE every 24 hours, for at most 2 runs. Use only the interval, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.049465,
+      "agent_wall_seconds": 0.049466,
+      "timing_interrupted": false,
+      "provider_requests": [
+        {
+          "index": 2,
+          "purpose": "agent",
+          "requested_model": "zai-org/GLM-5.3",
+          "status": "error",
+          "error_type": "ProviderError",
+          "elapsed_seconds": 0.006652916956227273
+        }
+      ],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.055
+    },
+    {
+      "id": "case-event-r1",
+      "case_id": "case-event",
+      "repeat": 1,
+      "mode": "live_agent",
+      "setup_seconds": 0.005069,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBGSWC5Z1AZV42RG16Q4A",
+        "created_at": "2026-11-15T20:28:36.540805+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.052,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "[Errno 8] nodename nor servname provided, or not known",
+                "error_kind": "unavailable",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "[Errno 8] nodename nor servname provided, or not known"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBGV788R3CY6NCEB34SRS",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBGSWTXEMGD4QN8X003CS",
+        "include_unverified": false,
+        "issues": [
+          "[Errno 8] nodename nor servname provided, or not known"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.053,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:36.593922+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.001,
+          "within_target": true,
+          "working_seconds": 0.052
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBGSWTXEMGD4QN8X003CS",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Changed case list that lists case records at BENCH-SITE when case records change, for at most 2 runs. Use case events only, with no periodic schedule. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.054078,
+      "agent_wall_seconds": 0.05408,
+      "timing_interrupted": false,
+      "provider_requests": [
+        {
+          "index": 3,
+          "purpose": "agent",
+          "requested_model": "zai-org/GLM-5.3",
+          "status": "error",
+          "error_type": "ProviderError",
+          "elapsed_seconds": 0.0066647499916143715
+        }
+      ],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.06
+    },
+    {
+      "id": "hourly-r2",
+      "case_id": "hourly",
+      "repeat": 2,
+      "mode": "live_agent",
+      "setup_seconds": 0.005191,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBGVRQE9F7V7A2NEZ092Y",
+        "created_at": "2026-11-15T20:28:36.601440+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.049,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "[Errno 8] nodename nor servname provided, or not known",
+                "error_kind": "unavailable",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "[Errno 8] nodename nor servname provided, or not known"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBGWZ6NSK29V3SJNEPEVR",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBGVS8FNKB1JY2TGSQ8XQ",
+        "include_unverified": false,
+        "issues": [
+          "[Errno 8] nodename nor servname provided, or not known"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.05,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:36.651453+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.001,
+          "within_target": true,
+          "working_seconds": 0.049
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBGVS8FNKB1JY2TGSQ8XQ",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Hourly case list that lists case records at BENCH-SITE every hour, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.050975,
+      "agent_wall_seconds": 0.050977,
+      "timing_interrupted": false,
+      "provider_requests": [
+        {
+          "index": 4,
+          "purpose": "agent",
+          "requested_model": "zai-org/GLM-5.3",
+          "status": "error",
+          "error_type": "ProviderError",
+          "elapsed_seconds": 0.007474583981093019
+        }
+      ],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.057
+    },
+    {
+      "id": "quarter-hour-r2",
+      "case_id": "quarter-hour",
+      "repeat": 2,
+      "mode": "live_agent",
+      "setup_seconds": 0.006521,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBGXKM2K4THKXYAZY0H0Y",
+        "created_at": "2026-11-15T20:28:36.660574+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.05,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "[Errno 8] nodename nor servname provided, or not known",
+                "error_kind": "unavailable",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "[Errno 8] nodename nor servname provided, or not known"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBGYYNK8ZY3N470FJD09S",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBGXMG0D1A7ZE6XSQ6SJA",
+        "include_unverified": false,
+        "issues": [
+          "[Errno 8] nodename nor servname provided, or not known"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.052,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:36.712821+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.002,
+          "within_target": true,
+          "working_seconds": 0.05
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBGXMG0D1A7ZE6XSQ6SJA",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Quarter-hour case list that lists case records at BENCH-SITE every 15 minutes, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.053105,
+      "agent_wall_seconds": 0.053106,
+      "timing_interrupted": false,
+      "provider_requests": [
+        {
+          "index": 5,
+          "purpose": "agent",
+          "requested_model": "zai-org/GLM-5.3",
+          "status": "error",
+          "error_type": "ProviderError",
+          "elapsed_seconds": 0.006714958988595754
+        }
+      ],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.06
+    },
+    {
+      "id": "daily-interval-r2",
+      "case_id": "daily-interval",
+      "repeat": 2,
+      "mode": "live_agent",
+      "setup_seconds": 0.00515,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBGZFBWA91CAZ0839J9D0",
+        "created_at": "2026-11-15T20:28:36.720274+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.051,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "[Errno 8] nodename nor servname provided, or not known",
+                "error_kind": "unavailable",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "[Errno 8] nodename nor servname provided, or not known"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBH0QV10P2C4EQE8ESECR",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBGZGQGPQ6H8A49Z7YP8S",
+        "include_unverified": false,
+        "issues": [
+          "[Errno 8] nodename nor servname provided, or not known"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.052,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:36.772324+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.001,
+          "within_target": true,
+          "working_seconds": 0.051
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBGZGQGPQ6H8A49Z7YP8S",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Daily case list that lists case records at BENCH-SITE every 24 hours, for at most 2 runs. Use only the interval, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.052947,
+      "agent_wall_seconds": 0.052948,
+      "timing_interrupted": false,
+      "provider_requests": [
+        {
+          "index": 6,
+          "purpose": "agent",
+          "requested_model": "zai-org/GLM-5.3",
+          "status": "error",
+          "error_type": "ProviderError",
+          "elapsed_seconds": 0.006536082946695387
+        }
+      ],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.059
+    },
+    {
+      "id": "case-event-r2",
+      "case_id": "case-event",
+      "repeat": 2,
+      "mode": "live_agent",
+      "setup_seconds": 0.005808,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBH1DZEJRHSV9QZ29BC73",
+        "created_at": "2026-11-15T20:28:36.782614+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.041,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "estimated budget admission limit reached",
+                "error_kind": "error",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "estimated budget admission limit reached"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBH2PE3FYHG3WRMY1JV05",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBH1EAKNQ0P82M83NB4FW",
+        "include_unverified": false,
+        "issues": [
+          "estimated budget admission limit reached"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.043,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:36.825650+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.002,
+          "within_target": true,
+          "working_seconds": 0.041
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBH1EAKNQ0P82M83NB4FW",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Changed case list that lists case records at BENCH-SITE when case records change, for at most 2 runs. Use case events only, with no periodic schedule. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.043929,
+      "agent_wall_seconds": 0.043931,
+      "timing_interrupted": false,
+      "provider_requests": [],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.05
+    },
+    {
+      "id": "hourly-r3",
+      "case_id": "hourly",
+      "repeat": 3,
+      "mode": "live_agent",
+      "setup_seconds": 0.005352,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBH30JAW8FE4FB3GV0B9W",
+        "created_at": "2026-11-15T20:28:36.833450+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.041,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "estimated budget admission limit reached",
+                "error_kind": "error",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "estimated budget admission limit reached"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBH495FG7DBS92QXC1G2A",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBH31C5RS730H7Z2N1PA2",
+        "include_unverified": false,
+        "issues": [
+          "estimated budget admission limit reached"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.042,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:36.875936+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.001,
+          "within_target": true,
+          "working_seconds": 0.041
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBH31C5RS730H7Z2N1PA2",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Hourly case list that lists case records at BENCH-SITE every hour, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.043417,
+      "agent_wall_seconds": 0.043419,
+      "timing_interrupted": false,
+      "provider_requests": [],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.049
+    },
+    {
+      "id": "quarter-hour-r3",
+      "case_id": "quarter-hour",
+      "repeat": 3,
+      "mode": "live_agent",
+      "setup_seconds": 0.005557,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBH4KZE3PXM7S2V3NB8CD",
+        "created_at": "2026-11-15T20:28:36.884049+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.049,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "estimated budget admission limit reached",
+                "error_kind": "error",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "estimated budget admission limit reached"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBH5W7GYNJK6TGNMN8E7C",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBH4KA6J9CVVYM7HM36WX",
+        "include_unverified": false,
+        "issues": [
+          "estimated budget admission limit reached"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.05,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:36.934280+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.001,
+          "within_target": true,
+          "working_seconds": 0.049
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBH4KA6J9CVVYM7HM36WX",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Quarter-hour case list that lists case records at BENCH-SITE every 15 minutes, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.051208,
+      "agent_wall_seconds": 0.05121,
+      "timing_interrupted": false,
+      "provider_requests": [],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.057
+    },
+    {
+      "id": "daily-interval-r3",
+      "case_id": "daily-interval",
+      "repeat": 3,
+      "mode": "live_agent",
+      "setup_seconds": 0.005331,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBH6DGJNQQ5EZ2MP2EQCK",
+        "created_at": "2026-11-15T20:28:36.942283+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.043,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "estimated budget admission limit reached",
+                "error_kind": "error",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "estimated budget admission limit reached"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBH7QSQRGR1J7G21857EH",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBH6EE9XXSJVDGD84Y3JS",
+        "include_unverified": false,
+        "issues": [
+          "estimated budget admission limit reached"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.044,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:36.986418+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.001,
+          "within_target": true,
+          "working_seconds": 0.043
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBH6EE9XXSJVDGD84Y3JS",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Daily case list that lists case records at BENCH-SITE every 24 hours, for at most 2 runs. Use only the interval, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.045064,
+      "agent_wall_seconds": 0.045066,
+      "timing_interrupted": false,
+      "provider_requests": [],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.051
+    },
+    {
+      "id": "case-event-r3",
+      "case_id": "case-event",
+      "repeat": 3,
+      "mode": "live_agent",
+      "setup_seconds": 0.006229,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBH822QQKAQQYHJP835RX",
+        "created_at": "2026-11-15T20:28:36.995459+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.043,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "estimated budget admission limit reached",
+                "error_kind": "error",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "estimated budget admission limit reached"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBH9DBD1H377FTBRDYHWB",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBH83DJ1SQQ2BH15967HW",
+        "include_unverified": false,
+        "issues": [
+          "estimated budget admission limit reached"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.045,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:37.040120+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.002,
+          "within_target": true,
+          "working_seconds": 0.043
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBH83DJ1SQQ2BH15967HW",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Changed case list that lists case records at BENCH-SITE when case records change, for at most 2 runs. Use case events only, with no periodic schedule. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.045524,
+      "agent_wall_seconds": 0.045525,
+      "timing_interrupted": false,
+      "provider_requests": [],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.053
+    },
+    {
+      "id": "hourly-r4",
+      "case_id": "hourly",
+      "repeat": 4,
+      "mode": "live_agent",
+      "setup_seconds": 0.00549,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBH9QZBQ975JM0MT4T0YW",
+        "created_at": "2026-11-15T20:28:37.048237+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.043,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "estimated budget admission limit reached",
+                "error_kind": "error",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "estimated budget admission limit reached"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBHB11J1AEB6HKH6PF6MC",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBH9R73QTJRV3FB14JFJM",
+        "include_unverified": false,
+        "issues": [
+          "estimated budget admission limit reached"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0002,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.044,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:37.092433+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.001,
+          "within_target": true,
+          "working_seconds": 0.043
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBH9R73QTJRV3FB14JFJM",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Hourly case list that lists case records at BENCH-SITE every hour, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.045074,
+      "agent_wall_seconds": 0.045075,
+      "timing_interrupted": false,
+      "provider_requests": [],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.051
+    },
+    {
+      "id": "quarter-hour-r4",
+      "case_id": "quarter-hour",
+      "repeat": 4,
+      "mode": "live_agent",
+      "setup_seconds": 0.005172,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBHBBT4TW392G9T8BSG4W",
+        "created_at": "2026-11-15T20:28:37.100175+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.054,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "estimated budget admission limit reached",
+                "error_kind": "error",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "estimated budget admission limit reached"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBHD0J7DFYT8Y90SASJ68",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBHBCQCY8T1J8SQ9E237D",
+        "include_unverified": false,
+        "issues": [
+          "estimated budget admission limit reached"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.055,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:37.155384+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.001,
+          "within_target": true,
+          "working_seconds": 0.054
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBHBCQCY8T1J8SQ9E237D",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Quarter-hour case list that lists case records at BENCH-SITE every 15 minutes, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.056095,
+      "agent_wall_seconds": 0.056097,
+      "timing_interrupted": false,
+      "provider_requests": [],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.062
+    },
+    {
+      "id": "daily-interval-r4",
+      "case_id": "daily-interval",
+      "repeat": 4,
+      "mode": "live_agent",
+      "setup_seconds": 0.007038,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBHDC2XJ2JQ7KVXWMJZQT",
+        "created_at": "2026-11-15T20:28:37.165471+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.04,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "estimated budget admission limit reached",
+                "error_kind": "error",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "estimated budget admission limit reached"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBHEMDRTM5ZJ5BTTJ85MQ",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBHDDNJ0DKB94GCWW803Q",
+        "include_unverified": false,
+        "issues": [
+          "estimated budget admission limit reached"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0002,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.042,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:37.207618+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.002,
+          "within_target": true,
+          "working_seconds": 0.04
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBHDDNJ0DKB94GCWW803Q",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Daily case list that lists case records at BENCH-SITE every 24 hours, for at most 2 runs. Use only the interval, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.043111,
+      "agent_wall_seconds": 0.043112,
+      "timing_interrupted": false,
+      "provider_requests": [],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.051
+    },
+    {
+      "id": "case-event-r4",
+      "case_id": "case-event",
+      "repeat": 4,
+      "mode": "live_agent",
+      "setup_seconds": 0.005921,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBHEZ7ASBK8DAQBCTJ1GY",
+        "created_at": "2026-11-15T20:28:37.216244+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.04,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "estimated budget admission limit reached",
+                "error_kind": "error",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "estimated budget admission limit reached"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBHG6GCHEV3FAVH609AJT",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBHF09T37KGKC1E1BNHAW",
+        "include_unverified": false,
+        "issues": [
+          "estimated budget admission limit reached"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.041,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:37.257709+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.001,
+          "within_target": true,
+          "working_seconds": 0.04
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBHF09T37KGKC1E1BNHAW",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Changed case list that lists case records at BENCH-SITE when case records change, for at most 2 runs. Use case events only, with no periodic schedule. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.04236,
+      "agent_wall_seconds": 0.042362,
+      "timing_interrupted": false,
+      "provider_requests": [],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.049
+    },
+    {
+      "id": "hourly-r5",
+      "case_id": "hourly",
+      "repeat": 5,
+      "mode": "live_agent",
+      "setup_seconds": 0.005843,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBHGH5QCJ7DNCD8QRG9F3",
+        "created_at": "2026-11-15T20:28:37.266289+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.04,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "estimated budget admission limit reached",
+                "error_kind": "error",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "estimated budget admission limit reached"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBHHRP82VHR05WB94QRSQ",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBHGJA4SQ6CCE7MGV6AHS",
+        "include_unverified": false,
+        "issues": [
+          "estimated budget admission limit reached"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.042,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:37.307927+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.002,
+          "within_target": true,
+          "working_seconds": 0.04
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBHGJA4SQ6CCE7MGV6AHS",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Hourly case list that lists case records at BENCH-SITE every hour, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.042551,
+      "agent_wall_seconds": 0.042552,
+      "timing_interrupted": false,
+      "provider_requests": [],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.049
+    },
+    {
+      "id": "quarter-hour-r5",
+      "case_id": "quarter-hour",
+      "repeat": 5,
+      "mode": "live_agent",
+      "setup_seconds": 0.00555,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBHJ3GTWKRMAHKXJQ6PRE",
+        "created_at": "2026-11-15T20:28:37.316722+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.04,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "estimated budget admission limit reached",
+                "error_kind": "error",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "estimated budget admission limit reached"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBHKBC4KXXPE5ETN5QQDK",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBHJ486AD90GXN4CR974J",
+        "include_unverified": false,
+        "issues": [
+          "estimated budget admission limit reached"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.042,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:37.358406+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.002,
+          "within_target": true,
+          "working_seconds": 0.04
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBHJ486AD90GXN4CR974J",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Quarter-hour case list that lists case records at BENCH-SITE every 15 minutes, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.042525,
+      "agent_wall_seconds": 0.042526,
+      "timing_interrupted": false,
+      "provider_requests": [],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.049
+    },
+    {
+      "id": "daily-interval-r5",
+      "case_id": "daily-interval",
+      "repeat": 5,
+      "mode": "live_agent",
+      "setup_seconds": 0.005356,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBHKNTJRQTX326V16JX21",
+        "created_at": "2026-11-15T20:28:37.366462+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.053,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "estimated budget admission limit reached",
+                "error_kind": "error",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "estimated budget admission limit reached"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBHN9E61K9DF4G1F7CDRG",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBHKPTWRXE3AXVCM6BWB7",
+        "include_unverified": false,
+        "issues": [
+          "estimated budget admission limit reached"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0002,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.055,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:37.421127+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.002,
+          "within_target": true,
+          "working_seconds": 0.053
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBHKPTWRXE3AXVCM6BWB7",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Daily case list that lists case records at BENCH-SITE every 24 hours, for at most 2 runs. Use only the interval, with no event triggers. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.055622,
+      "agent_wall_seconds": 0.055624,
+      "timing_interrupted": false,
+      "provider_requests": [],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.062
+    },
+    {
+      "id": "case-event-r5",
+      "case_id": "case-event",
+      "repeat": 5,
+      "mode": "live_agent",
+      "setup_seconds": 0.005867,
+      "turn": {
+        "artifacts": [],
+        "capabilities_used": [
+          "core",
+          "quality",
+          "process"
+        ],
+        "context_used": {
+          "corrections": [],
+          "earlier_corrections": [],
+          "rules": []
+        },
+        "conversation_id": "engchat_01M7GEBHNNVF8X1HYR0Q0M0GXM",
+        "created_at": "2026-11-15T20:28:37.429893+00:00",
+        "display_context": null,
+        "elapsed_seconds": 0.041,
+        "flow_run_id": null,
+        "flow_run_ids": [],
+        "gateway_runs": [
+          {
+            "attempts": [
+              {
+                "attempt": 0,
+                "error": "estimated budget admission limit reached",
+                "error_kind": "error",
+                "model": "zai-org/GLM-5.3",
+                "ok": false,
+                "profile_id": "engineering-planner"
+              }
+            ],
+            "cached": false,
+            "cost_usd": 0.0,
+            "issues": [
+              "estimated budget admission limit reached"
+            ],
+            "output": null,
+            "requires_human_review": true,
+            "route": {
+              "cost_basis": {
+                "cached_input_usd_per_mtok": 0.0,
+                "classification": "self_hosted_compute_cost_not_priced",
+                "input_usd_per_mtok": 0.0,
+                "note": "Profile-based estimate, not a reconciled provider invoice.",
+                "output_usd_per_mtok": 0.0
+              },
+              "escalation_chain": [],
+              "model": "zai-org/GLM-5.3",
+              "notes": [],
+              "policy_version": 28,
+              "profile_id": "engineering-planner",
+              "profile_version": "d7826f2de7bdd655",
+              "provider": "modal",
+              "reason": "UNQUALIFIED development route at floor M3",
+              "task_kind": "investigation_planning",
+              "tier": "M3",
+              "unqualified": true
+            },
+            "run_id": "run_01M7GEBHPWX7SESXNCHJ8ZGP2X",
+            "status": "blocked"
+          }
+        ],
+        "id": "engturn_01M7GEBHNNW12G62RKAFW3QNYX",
+        "include_unverified": false,
+        "issues": [
+          "estimated budget admission limit reached"
+        ],
+        "planning_attempts": [],
+        "planning_calls_admitted": 1,
+        "questions": [],
+        "reply": null,
+        "routing": {
+          "basis": "host_rules",
+          "decisions": [],
+          "reason": "the request asks a question or for reasoning; that is the assistant's work",
+          "route": "assistant",
+          "suggested_task": null,
+          "timing": {
+            "phases": {
+              "authorize": 0.0001,
+              "route": 0.0
+            },
+            "seconds": 0.0,
+            "target_seconds": 10.0,
+            "within_target": true
+          }
+        },
+        "site_id": "BENCH-SITE",
+        "solver_calls_admitted": 0,
+        "solver_calls_used": 0,
+        "status": "agent_unavailable",
+        "system_message": "The assistant could not finish this answer. Your message and any results so far are saved; try again.",
+        "timing": {
+          "answer_seconds": 0.042,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T20:28:37.472254+00:00",
+          "model_calls": 1,
+          "model_seconds": 0.0,
+          "path": "assistant",
+          "target_seconds": 10.0,
+          "tool_calls": 0,
+          "tool_seconds": 0.0,
+          "waiting_seconds": 0.001,
+          "within_target": true,
+          "working_seconds": 0.041
+        },
+        "user_ref": {
+          "id": "engineering-user-instruction:engturn_01M7GEBHNNW12G62RKAFW3QNYX",
+          "kind": "evidence",
+          "revision": 1,
+          "site_id": "BENCH-SITE"
+        },
+        "user_text": "Save a routine named Changed case list that lists case records at BENCH-SITE when case records change, for at most 2 runs. Use case events only, with no periodic schedule. Leave it as a draft for me to activate."
+      },
+      "agent_seconds": 0.043415,
+      "agent_wall_seconds": 0.043417,
+      "timing_interrupted": false,
+      "provider_requests": [],
+      "definition_checks": {
+        "one_saved_routine": false
+      },
+      "definitions": [],
+      "definition_pass": false,
+      "lifecycle_status": "not_run_definition_failed",
+      "outcome": "error",
+      "functional_pass": false,
+      "seconds": 0.05
+    }
+  ],
+  "budget": {
+    "estimated_budget_usd": 3.0,
+    "hard_request_limit": 100,
+    "requests": 7,
+    "accounted_usd": 2.8000000000000003,
+    "unknown_usage_requests": 7,
+    "estimated_rates_per_million": {
+      "input": 1.4,
+      "output": 4.4
+    },
+    "provider_invoice_usd": null,
+    "invoice_coverage": "not reconciled; estimates are not a monetary guarantee",
+    "records": [
+      {
+        "index": 0,
+        "episode": "hourly-r1",
+        "purpose": "agent",
+        "accounted_usd": 0.4,
+        "reservation_usd": 0.4,
+        "status": "error",
+        "usage": null,
+        "usage_known": false,
+        "started_at": "2026-11-15T20:28:36.312840+00:00",
+        "requested_model": "zai-org/GLM-5.3",
+        "error_type": "ProviderError",
+        "elapsed_seconds": 0.10391787503613159,
+        "rates_per_million": [
+          1.4,
+          4.4
+        ]
+      },
+      {
+        "index": 1,
+        "episode": "quarter-hour-r1",
+        "purpose": "agent",
+        "accounted_usd": 0.4,
+        "reservation_usd": 0.4,
+        "status": "error",
+        "usage": null,
+        "usage_known": false,
+        "started_at": "2026-11-15T20:28:36.467335+00:00",
+        "requested_model": "zai-org/GLM-5.3",
+        "error_type": "ProviderError",
+        "elapsed_seconds": 0.0068898749887011945,
+        "rates_per_million": [
+          1.4,
+          4.4
+        ]
+      },
+      {
+        "index": 2,
+        "episode": "daily-interval-r1",
+        "purpose": "agent",
+        "accounted_usd": 0.4,
+        "reservation_usd": 0.4,
+        "status": "error",
+        "usage": null,
+        "usage_known": false,
+        "started_at": "2026-11-15T20:28:36.523907+00:00",
+        "requested_model": "zai-org/GLM-5.3",
+        "error_type": "ProviderError",
+        "elapsed_seconds": 0.006652916956227273,
+        "rates_per_million": [
+          1.4,
+          4.4
+        ]
+      },
+      {
+        "index": 3,
+        "episode": "case-event-r1",
+        "purpose": "agent",
+        "accounted_usd": 0.4,
+        "reservation_usd": 0.4,
+        "status": "error",
+        "usage": null,
+        "usage_known": false,
+        "started_at": "2026-11-15T20:28:36.584113+00:00",
+        "requested_model": "zai-org/GLM-5.3",
+        "error_type": "ProviderError",
+        "elapsed_seconds": 0.0066647499916143715,
+        "rates_per_million": [
+          1.4,
+          4.4
+        ]
+      },
+      {
+        "index": 4,
+        "episode": "hourly-r2",
+        "purpose": "agent",
+        "accounted_usd": 0.4,
+        "reservation_usd": 0.4,
+        "status": "error",
+        "usage": null,
+        "usage_known": false,
+        "started_at": "2026-11-15T20:28:36.640316+00:00",
+        "requested_model": "zai-org/GLM-5.3",
+        "error_type": "ProviderError",
+        "elapsed_seconds": 0.007474583981093019,
+        "rates_per_million": [
+          1.4,
+          4.4
+        ]
+      },
+      {
+        "index": 5,
+        "episode": "quarter-hour-r2",
+        "purpose": "agent",
+        "accounted_usd": 0.4,
+        "reservation_usd": 0.4,
+        "status": "error",
+        "usage": null,
+        "usage_known": false,
+        "started_at": "2026-11-15T20:28:36.703104+00:00",
+        "requested_model": "zai-org/GLM-5.3",
+        "error_type": "ProviderError",
+        "elapsed_seconds": 0.006714958988595754,
+        "rates_per_million": [
+          1.4,
+          4.4
+        ]
+      },
+      {
+        "index": 6,
+        "episode": "daily-interval-r2",
+        "purpose": "agent",
+        "accounted_usd": 0.4,
+        "reservation_usd": 0.4,
+        "status": "error",
+        "usage": null,
+        "usage_known": false,
+        "started_at": "2026-11-15T20:28:36.759926+00:00",
+        "requested_model": "zai-org/GLM-5.3",
+        "error_type": "ProviderError",
+        "elapsed_seconds": 0.006536082946695387,
+        "rates_per_million": [
+          1.4,
+          4.4
+        ]
+      }
+    ]
+  },
+  "planned": 20,
+  "completed": 20,
+  "definition_passes": 0,
+  "lifecycle_passes": 0,
+  "summary": {
+    "attempts": 20,
+    "definition_passes": 0,
+    "functional_passes": 0,
+    "full_lifecycle_passes": 0,
+    "cases_correct_every_repeat": 0,
+    "completion_seconds": {
+      "all": {
+        "n": 20,
+        "mean": 0.05333795,
+        "median": 0.0474945,
+        "p95": 0.056095
+      },
+      "correct": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "p95": null
+      },
+      "failed": {
+        "n": 20,
+        "mean": 0.05333795,
+        "median": 0.0474945,
+        "p95": 0.056095
+      }
+    },
+    "timings_set_aside": 0
+  },
+  "errors": 20
+}

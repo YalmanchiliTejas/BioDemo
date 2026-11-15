@@ -1,0 +1,251 @@
+{
+  "schema_version": "workflow-trial-live-v1",
+  "started_at": "2026-11-15T16:04:33.950726+00:00",
+  "question": "What does this comparison show, and what should be checked next?",
+  "protocol": {
+    "evidence": "The three held-out CHO deliveries of the offline trial, shared as provisional evidence; every arm starts from a fresh application holding the same deliveries.",
+    "scoring": "Reference figures from the answer keys (largest difference, its time, mean difference, both batch names). No judge model. Figures are necessary for a right answer, not sufficient: reasoning needs a qualified reader.",
+    "timing": "Time of the call that produces the answer, in process, one request per model call (no retries). A call during which the machine slept is kept in the rows, marked, and left out of the timing figures.",
+    "limits": [
+      "Small sample; one attempt per case; differences between candidates are indications, not rankings.",
+      "Public laboratory data in fictional deliveries; not manufacturing validation.",
+      "Token counts are as reported by each provider; cost depends on your contract and is not estimated here."
+    ]
+  },
+  "candidates": {
+    "glm": {
+      "provider": "modal",
+      "model": "zai-org/GLM-5.3",
+      "label": "zai-org/GLM-5.3 (current)",
+      "settings": {}
+    },
+    "glm-low-effort": {
+      "provider": "modal",
+      "model": "zai-org/GLM-5.3",
+      "label": "zai-org/GLM-5.3, low reasoning effort",
+      "settings": {
+        "MODAL_COMPLETION_REASONING_EFFORT": "low",
+        "MODAL_COMPLETION_JSON": "1"
+      }
+    },
+    "haiku": {
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "label": "Claude Haiku 5.5",
+      "settings": {}
+    },
+    "sonnet": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-5-5",
+      "label": "Claude Sonnet 5.5",
+      "settings": {}
+    },
+    "luna": {
+      "provider": "openai",
+      "model": "gpt-6-luna",
+      "label": "GPT-6 Luna",
+      "settings": {}
+    },
+    "sol": {
+      "provider": "openai",
+      "model": "gpt-6.1-sol",
+      "label": "GPT-6.1 Sol",
+      "settings": {}
+    }
+  },
+  "explanation": {
+    "by_candidate": [],
+    "rows": []
+  },
+  "assistant": {
+    "by_arm": [
+      {
+        "arm": "workbench path",
+        "requests": 3,
+        "statuses": {
+          "completed": 3
+        },
+        "answered": 3,
+        "all_reference_figures": 3,
+        "largest_difference": 3,
+        "its_time": 3,
+        "mean_difference": 3,
+        "both_batches": 3,
+        "time": {
+          "n": 3,
+          "mean": 3.2586211803136393,
+          "min": 3.0644890409894288,
+          "max": 3.3641698749852367,
+          "p50": 3.3472046249662526,
+          "p95": 3.3641698749852367,
+          "target_seconds": 10.0,
+          "within_target": 3,
+          "over_target": 0
+        },
+        "timings_set_aside_for_sleep": 0,
+        "input_tokens": 9160,
+        "output_tokens": 1657,
+        "by_kind": [
+          {
+            "kind": "question",
+            "requests": 3,
+            "statuses": {
+              "completed": 3
+            },
+            "answered": 3,
+            "all_reference_figures": 3,
+            "largest_difference": 3,
+            "its_time": 3,
+            "mean_difference": 3,
+            "both_batches": 3,
+            "time": {
+              "n": 3,
+              "mean": 3.2586211803136393,
+              "min": 3.0644890409894288,
+              "max": 3.3641698749852367,
+              "p50": 3.3472046249662526,
+              "p95": 3.3641698749852367,
+              "target_seconds": 10.0,
+              "within_target": 3,
+              "over_target": 0
+            },
+            "timings_set_aside_for_sleep": 0,
+            "input_tokens": 9160,
+            "output_tokens": 1657
+          }
+        ]
+      }
+    ],
+    "rows": [
+      {
+        "arm": "workbench path",
+        "case": "cho-returning:glucose",
+        "kind": "question",
+        "text": "Why is glucose different between CHO-004-R01 and CHO-004-R02?",
+        "status": "completed",
+        "started_at": "2026-11-15T16:04:43.962023+00:00",
+        "interrupted_by_sleep": false,
+        "wall_clock_seconds": 3.1,
+        "seconds": 3.0644890409894288,
+        "timing": {
+          "answer_seconds": 3.065,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T16:04:47.025936+00:00",
+          "model_calls": 1,
+          "model_seconds": 3.005,
+          "path": "explanation",
+          "target_seconds": 10.0,
+          "tool_calls": 2,
+          "tool_seconds": 3.057,
+          "waiting_seconds": 0.001,
+          "within_target": true,
+          "working_seconds": 3.064
+        },
+        "reply": "The comparison cannot establish a cause; it only shows that CHO-004-R02 glucose ran below CHO-004-R01 for most matched times. Across 11 exact-time matched pairs from 0.0 to 142.0 hours, the mean difference (R02 minus R01) was -0.2392 g/L with a largest gap of -0.944 g/L at 19.5 h (7.133 vs 6.189 g/L). Context attributes such as product, process version, equipment, scale and stage are not recorded, so no cause can be attributed, and the values are still in review.\n\n**Possible explanations to check**\n- CHO-004-R02 consumed glucose faster early in the run, widening the gap at 19.5 h before profiles reconverged. Check: Compare calculated consumption rates or feed records for the first 30 h of both runs.\n- The batches were run under different conditions (equipment, scale or process version) that shifted the glucose profile. Check: Recover the missing context attributes for both batches from batch records.\n- Analytical or sampling differences between the runs biased the R02 values downward. Check: Cross-check glucose assay standards and sample handling for both runs.\n\n**What this cannot tell**\n- Why glucose differs between the two batches cannot be established from this comparison alone.\n- Whether the unreviewed provisional delivery values are accurate.\n- What conditions each batch was run under, since context attributes are missing.\n\nThis answer uses only the comparison calculated for your question; no other record was read. Ask me to look further and I will search the related records.",
+        "path": "explanation",
+        "model_calls": 1,
+        "input_tokens": 2960,
+        "output_tokens": 505,
+        "steps": [
+          "Calculated before asking the assistant · Compare",
+          "Explained the calculated comparison"
+        ],
+        "issues": [],
+        "unsupported_numbers": null,
+        "grounding_status": null,
+        "facts": {
+          "largest_difference": true,
+          "its_time": true,
+          "mean_difference": true,
+          "both_batches": true
+        }
+      },
+      {
+        "arm": "workbench path",
+        "case": "cho-changed:glucose",
+        "kind": "question",
+        "text": "Why is glucose different between CHO-007-R01 and CHO-007-R02?",
+        "status": "completed",
+        "started_at": "2026-11-15T16:04:47.273171+00:00",
+        "interrupted_by_sleep": false,
+        "wall_clock_seconds": 3.3,
+        "seconds": 3.3472046249662526,
+        "timing": {
+          "answer_seconds": 3.347,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T16:04:50.619620+00:00",
+          "model_calls": 1,
+          "model_seconds": 3.308,
+          "path": "explanation",
+          "target_seconds": 10.0,
+          "tool_calls": 2,
+          "tool_seconds": 3.342,
+          "waiting_seconds": 0.001,
+          "within_target": true,
+          "working_seconds": 3.346
+        },
+        "reply": "Glucose in CHO-007-R02 runs below CHO-007-R01 at nearly every matched sample time, so the divergence is not a cause this result can establish but a persistent offset across the run. At 18.0 h the difference is -0.555 g/L (7.83 vs 7.275 g/L) and the mean difference over 9 matched times is -0.207 g/L; only the 0.0 h sample shows R02 higher (+0.066 g/L). The 44.0 h sample is excluded because CHO-007-R02 has conflicting duplicate measurements there, and all values come from a provisional delivery still in review.\n\n**Possible explanations to check**\n- R02 consumed glucose faster early in the run, establishing the offset by 18.0 h and persisting thereafter. Check: Resolve the conflicting 44.0 h duplicates for CHO-007-R02 and review the delivery values.\n- A difference in feeding, seed density or starting conditions between the batches drove the divergence. Check: Compare batch records for product, process version, equipment, scale and stage, none of which are recorded in this result.\n- Measurement or transcription error in the provisional delivery exaggerates the offset. Check: Complete verification of the delivery; 67 missing-field and other open checks remain.\n\n**What this cannot tell**\n- Product, process version, equipment, scale and process stage are not recorded, so batch conditions cannot be compared.\n- The conflicting CHO-007-R02 value at 44.0 h leaves the mid-run gap between 18.0 h and 74.0 h unassessed.\n- No significance test applies, since successive samples from one run are not independent.\n\nThis answer uses only the comparison calculated for your question; no other record was read. Ask me to look further and I will search the related records.",
+        "path": "explanation",
+        "model_calls": 1,
+        "input_tokens": 2805,
+        "output_tokens": 507,
+        "steps": [
+          "Calculated before asking the assistant · Compare",
+          "Explained the calculated comparison"
+        ],
+        "issues": [],
+        "unsupported_numbers": null,
+        "grounding_status": null,
+        "facts": {
+          "largest_difference": true,
+          "its_time": true,
+          "mean_difference": true,
+          "both_batches": true
+        }
+      },
+      {
+        "arm": "workbench path",
+        "case": "cho-unseen:glucose",
+        "kind": "question",
+        "text": "Why is glucose different between CHO-010-R01 and CHO-010-R02?",
+        "status": "completed",
+        "started_at": "2026-11-15T16:04:50.698544+00:00",
+        "interrupted_by_sleep": false,
+        "wall_clock_seconds": 3.4,
+        "seconds": 3.3641698749852367,
+        "timing": {
+          "answer_seconds": 3.364,
+          "basis": "answer_seconds runs from when the message was sent to when this answer was saved; waiting_seconds is time queued or between retries.",
+          "completed_at": "2026-11-15T16:04:54.061906+00:00",
+          "model_calls": 1,
+          "model_seconds": 3.329,
+          "path": "explanation",
+          "target_seconds": 10.0,
+          "tool_calls": 2,
+          "tool_seconds": 3.359,
+          "waiting_seconds": 0.001,
+          "within_target": true,
+          "working_seconds": 3.363
+        },
+        "reply": "The figures do not establish a cause; they show CHO-010-R02 ran higher on glucose late in the run. Across 16 exact-time matched samples from 0.0 h to 209.0 h, the mean difference (R02 minus R01) is 0.1652 g/L with a standard deviation of 0.3950 g/L, and the differences swing sign before 117.0 h. From 140.0 h onward R02 is higher every time, peaking at 1.148 g/L at 193.5 h (3.865 vs 2.717 g/L). Product, process version, equipment, scale and process stage are all not recorded for these batches, so no condition-based explanation can be tested here. All 33 values come from a provisional, unreviewed delivery.\n\n**Possible explanations to check**\n- A difference in feed timing or feed rate between the runs could have kept glucose higher in CHO-010-R02 late in the run. Check: Compare the fed-batch feeding schedules and rates recorded for each run.\n- Faster glucose consumption in CHO-010-R01, e.g. from higher viable cell density, could explain its steeper late-run glucose decline. Check: Compare cell density or consumption-rate profiles for both runs.\n- The late-run gap could be an artefact of unreviewed provisional values or of different sampling frequency near the end of the runs. Check: Complete the review of the delivery and confirm the late-run measurements for both batches.\n\n**What this cannot tell**\n- Whether the two batches shared product, process version, equipment, scale or process stage, since none of these are recorded.\n- Whether the observed differences are statistically meaningful, since successive samples within a run are not independent and no significance test is reported.\n- Whether the 193.5 h value of 2.717 g/L for CHO-010-R01 reflects a real drop or an unverified measurement, given all values are still in review.\n\nThis answer uses only the comparison calculated for your question; no other record was read. Ask me to look further and I will search the related records.",
+        "path": "explanation",
+        "model_calls": 1,
+        "input_tokens": 3395,
+        "output_tokens": 645,
+        "steps": [
+          "Calculated before asking the assistant · Compare",
+          "Explained the calculated comparison"
+        ],
+        "issues": [],
+        "unsupported_numbers": null,
+        "grounding_status": null,
+        "facts": {
+          "largest_difference": true,
+          "its_time": true,
+          "mean_difference": true,
+          "both_batches": true
+        }
+      }
+    ]
+  }
+}

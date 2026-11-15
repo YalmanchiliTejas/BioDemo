@@ -1,0 +1,2619 @@
+{
+  "protocol": {
+    "schema": "recurring-work-evaluation-v1",
+    "authorship": "Our authored synthetic cases and deterministic scoring",
+    "mode": "host_only_supplied_definitions",
+    "cases": [
+      {
+        "id": "hourly",
+        "name": "Hourly case list",
+        "every_minutes": 60,
+        "triggers": [],
+        "prompt": "Save a routine named Hourly case list that lists case records at BENCH-SITE every hour, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      {
+        "id": "quarter-hour",
+        "name": "Quarter-hour case list",
+        "every_minutes": 15,
+        "triggers": [],
+        "prompt": "Save a routine named Quarter-hour case list that lists case records at BENCH-SITE every 15 minutes, for at most 2 runs. Use only the schedule, with no event triggers. Leave it as a draft for me to activate."
+      },
+      {
+        "id": "daily-interval",
+        "name": "Daily case list",
+        "every_minutes": 1440,
+        "triggers": [],
+        "prompt": "Save a routine named Daily case list that lists case records at BENCH-SITE every 24 hours, for at most 2 runs. Use only the interval, with no event triggers. Leave it as a draft for me to activate."
+      },
+      {
+        "id": "case-event",
+        "name": "Changed case list",
+        "every_minutes": null,
+        "triggers": [
+          "case"
+        ],
+        "prompt": "Save a routine named Changed case list that lists case records at BENCH-SITE when case records change, for at most 2 runs. Use case events only, with no periodic schedule. Leave it as a draft for me to activate."
+      }
+    ],
+    "model": null,
+    "estimated_budget_usd": 0,
+    "max_provider_requests": 0,
+    "limits": [
+      "Four explicit requests, not general natural-language accuracy.",
+      "Host lifecycle checks are separate from live definition correctness.",
+      "SQLite reconstruction, not OS crash or deployed scheduler validation.",
+      "Worker tenant explicitly configured with LIFESCI_TENANTS; local due times advanced by the harness.",
+      "Relative intervals only, not time zones, DST or wall-clock recurrence.",
+      "No semantic judge; final wording requires review.",
+      "Token-rate estimates do not reconcile hosted compute billing."
+    ],
+    "source_hashes": {
+      "benchmarks/skills/recurring.py": "bc91f95301c4f4016b837b7e54b4474588f6e786924a395e2b855b3a6e54d49b",
+      "src/lifesci/capabilities.py": "dc3ef0e4233cb60e68d061141e3c74bc9be272a6e8d74e5081eae64c537d625d",
+      "src/lifesci/assistant_routines.py": "6249de4e90605b58a856dcf733efd3081d2a39253cb65626012335b4144ed792",
+      "src/lifesci/process_engineering/tool_loop.py": "de5503b82d087c3cf3350f0d54ed0940ff42ccd92413a4a8bb2b656cff4b6c9f",
+      "src/lifesci/process_engineering/conversation.py": "f8dcd65b77807b181ab6250f81009ea8e69f39309d604bc242278d2189cfe12b",
+      "src/lifesci/missions.py": "2571e5a260d64f230b59debdee9af484de69a9769891ecde1aeabec2816e86a7",
+      "src/lifesci/runtime.py": "6110638988510e044a335ff66609ceb014582d6558ce09bd12e284dacdc75064",
+      "benchmarks/agent_pilot/runner.py": "20b097f328b798e3caaf31802d1ecf39360650cbdae12e52299720eb00bc86fb"
+    }
+  },
+  "rows": [
+    {
+      "id": "hourly",
+      "mode": "host_only_supplied_definitions",
+      "definition_checks": {
+        "one_saved_routine": true,
+        "draft": true,
+        "owner": true,
+        "interval": true,
+        "triggers": true,
+        "max_runs": true,
+        "task": true,
+        "site": true,
+        "record_kinds": true,
+        "not_started": true,
+        "requested_name": true,
+        "unfiltered_listing": true,
+        "first_page": true,
+        "default_page_size": true
+      },
+      "definitions": [
+        {
+          "created_at": "2026-11-15T20:15:49.635405+00:00",
+          "created_by": "benchmark-owner",
+          "definition_version": 1,
+          "description": "",
+          "every_minutes": 60,
+          "id": "routine_01M7GDM3W301MFZKN83XM0HQHJ",
+          "latest_result_id": null,
+          "max_runs": 2,
+          "mission_id": "msn_01M7GDM3W3AXFK5TGCY2EXVB5A",
+          "name": "Hourly case list",
+          "owner_id": "benchmark-owner",
+          "run_ids": [],
+          "runs_admitted": 0,
+          "site_id": "BENCH-SITE",
+          "status": "draft",
+          "task": {
+            "align_tolerance_h": 0.0,
+            "batches": [],
+            "dataset_ids": [],
+            "effective_at": null,
+            "expected_document_kinds": [],
+            "expected_parameters": [],
+            "expected_times": [],
+            "include_unverified": false,
+            "kinds": [
+              "case"
+            ],
+            "limit": 50,
+            "offset": 0,
+            "operation": "find_records",
+            "parameter": null,
+            "process_stage": null,
+            "query": "",
+            "record_id": null,
+            "record_kind": null,
+            "record_refs": [],
+            "series": [],
+            "site_id": "BENCH-SITE",
+            "target_unit": null,
+            "time_from_h": null,
+            "time_to_h": null,
+            "use_decision_model": true
+          },
+          "thread_id": "engchat_01M7GDM3W3SBW499PZR6TR6EWE",
+          "triggers": [],
+          "updated_at": "2026-11-15T20:15:49.635408+00:00",
+          "revision": 1,
+          "runs": [],
+          "latest_result": null
+        }
+      ],
+      "definition_pass": true,
+      "lifecycle_checks": {
+        "draft_did_not_run": true,
+        "active_survives_reconstruction": true,
+        "first_run_completed": true,
+        "correct_record_returned": true,
+        "next_interval_preserved": true,
+        "idle_did_not_duplicate": true,
+        "pause_survives_reconstruction": true,
+        "paused_did_not_run": true,
+        "second_run_completed": true,
+        "allowance_stops_further_runs": true,
+        "no_background_inference": true
+      },
+      "lifecycle_pass": true,
+      "final_routine": {
+        "activated_at": "2026-11-15T20:15:49.651920+00:00",
+        "activated_by": "benchmark-owner",
+        "created_at": "2026-11-15T20:15:49.635405+00:00",
+        "created_by": "benchmark-owner",
+        "definition_version": 4,
+        "description": "",
+        "every_minutes": 60,
+        "id": "routine_01M7GDM3W301MFZKN83XM0HQHJ",
+        "latest_result_id": "work_01M7GDM3WQ3QD9C7FKJ4ZKRRPX",
+        "max_runs": 2,
+        "mission_id": "msn_01M7GDM3W3AXFK5TGCY2EXVB5A",
+        "name": "Hourly case list",
+        "owner_id": "benchmark-owner",
+        "run_ids": [
+          "routinerun_01M7GDM3W9N7B8Q295Y964D0EX",
+          "routinerun_01M7GDM3WP357ACF92FB0XX2M3"
+        ],
+        "runs_admitted": 2,
+        "site_id": "BENCH-SITE",
+        "status": "paused",
+        "task": {
+          "align_tolerance_h": 0.0,
+          "batches": [],
+          "dataset_ids": [],
+          "effective_at": null,
+          "expected_document_kinds": [],
+          "expected_parameters": [],
+          "expected_times": [],
+          "include_unverified": false,
+          "kinds": [
+            "case"
+          ],
+          "limit": 50,
+          "offset": 0,
+          "operation": "find_records",
+          "parameter": null,
+          "process_stage": null,
+          "query": "",
+          "record_id": null,
+          "record_kind": null,
+          "record_refs": [],
+          "series": [],
+          "site_id": "BENCH-SITE",
+          "target_unit": null,
+          "time_from_h": null,
+          "time_to_h": null,
+          "use_decision_model": true
+        },
+        "thread_id": "engchat_01M7GDM3W3SBW499PZR6TR6EWE",
+        "triggers": [],
+        "updated_at": "2026-11-15T20:15:49.660769+00:00",
+        "revision": 9,
+        "runs": [
+          {
+            "definition_version": 2,
+            "event_ids": [
+              "timer:obl_01M7GDM3W5DSQYN3WMYGB6R9W0:2026-11-15T20:14:49.639592+00:00"
+            ],
+            "event_versions": {},
+            "finished_at": "2026-11-15T20:15:49.643106+00:00",
+            "id": "routinerun_01M7GDM3W9N7B8Q295Y964D0EX",
+            "inputs": [
+              {
+                "id": "work_01M7GDM3WAEK95X8BG0VER07S6",
+                "kind": "workspace_task_result",
+                "revision": 1,
+                "site_id": "BENCH-SITE"
+              }
+            ],
+            "issues": [],
+            "origin": "background",
+            "owner_id": "benchmark-owner",
+            "result_id": "work_01M7GDM3WAEK95X8BG0VER07S6",
+            "routine_id": "routine_01M7GDM3W301MFZKN83XM0HQHJ",
+            "site_id": "BENCH-SITE",
+            "started_at": "2026-11-15T20:15:49.641120+00:00",
+            "status": "completed",
+            "task": {
+              "align_tolerance_h": 0.0,
+              "batches": [],
+              "dataset_ids": [],
+              "effective_at": null,
+              "expected_document_kinds": [],
+              "expected_parameters": [],
+              "expected_times": [],
+              "include_unverified": false,
+              "kinds": [
+                "case"
+              ],
+              "limit": 50,
+              "offset": 0,
+              "operation": "find_records",
+              "parameter": null,
+              "process_stage": null,
+              "query": "",
+              "record_id": null,
+              "record_kind": null,
+              "record_refs": [],
+              "series": [],
+              "site_id": "BENCH-SITE",
+              "target_unit": null,
+              "time_from_h": null,
+              "time_to_h": null,
+              "use_decision_model": true
+            },
+            "revision": 2,
+            "result": {
+              "id": "work_01M7GDM3WAEK95X8BG0VER07S6",
+              "revision": 1,
+              "basis_hash": "6afb66e7c3366129bf6f625ee560063b88918ef7f66cfc5ab318366d672bb101",
+              "cache": {
+                "hit": false
+              },
+              "created_at": "2026-11-15T20:15:49.642671+00:00",
+              "data": {
+                "content_search_gaps": [],
+                "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+                "matching_count": 1,
+                "matching_count_is_lower_bound": false,
+                "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+                "query": "",
+                "records": [
+                  {
+                    "classification": null,
+                    "id": "SYNTHETIC-CASE",
+                    "kind": "case",
+                    "label": "SYNTHETIC-CASE",
+                    "match": "exact",
+                    "revision": 1,
+                    "site_id": "BENCH-SITE",
+                    "status": "open",
+                    "time": "2026-11-15T20:15:49.634396+00:00",
+                    "time_basis": "opened_at",
+                    "timeline_events": 0,
+                    "word_overlap": 0.0
+                  }
+                ],
+                "scope": {
+                  "authorized_records_only": true,
+                  "site_id": "BENCH-SITE"
+                },
+                "searched_kinds": [
+                  "case"
+                ],
+                "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+                "truncated": false,
+                "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+              },
+              "decision_model_calls": 0,
+              "decisions": [],
+              "elapsed_seconds": 0.0008904580026865005,
+              "inputs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                },
+                {
+                  "id": "wreq_01M7GDM3WAE7ZJEAPRDAD4M1MJ",
+                  "kind": "workspace_task_request",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "issue_count": 0,
+              "issues": [],
+              "issues_truncated": false,
+              "model_calls": 0,
+              "operation": "find_records",
+              "owner_id": "benchmark-owner",
+              "produced_by": {
+                "actor_id": "agent:benchmark-owner",
+                "method": "workspace_tasks:v1",
+                "template_version": "workspace-tasks-3"
+              },
+              "site_id": "BENCH-SITE",
+              "source_refs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "stale_reasons": [],
+              "status": "current",
+              "summary": "Prepared 1 records.",
+              "task": {
+                "align_tolerance_h": 0.0,
+                "batches": [],
+                "dataset_ids": [],
+                "effective_at": null,
+                "expected_document_kinds": [],
+                "expected_parameters": [],
+                "expected_times": [],
+                "include_unverified": false,
+                "kinds": [
+                  "case"
+                ],
+                "limit": 50,
+                "offset": 0,
+                "operation": "find_records",
+                "parameter": null,
+                "process_stage": null,
+                "query": "",
+                "record_id": null,
+                "record_kind": null,
+                "record_refs": [],
+                "series": [],
+                "site_id": "BENCH-SITE",
+                "target_unit": null,
+                "time_from_h": null,
+                "time_to_h": null,
+                "use_decision_model": true
+              },
+              "task_status": "completed",
+              "template_version": "workspace-tasks-3",
+              "timing": {
+                "includes": "authorization, retrieval, calculation and saving the result",
+                "phases": {
+                  "authorize": 0.0002,
+                  "retrieve": 0.0002
+                },
+                "seconds": 0.001,
+                "target_seconds": 10.0,
+                "within_target": true
+              },
+              "proposals": [],
+              "work_status": "complete"
+            }
+          },
+          {
+            "definition_version": 4,
+            "event_ids": [
+              "timer:obl_01M7GDM3WMRNDGGATW10PSM9CR:2026-11-15T20:14:49.653163+00:00"
+            ],
+            "event_versions": {},
+            "finished_at": "2026-11-15T20:15:49.656360+00:00",
+            "id": "routinerun_01M7GDM3WP357ACF92FB0XX2M3",
+            "inputs": [
+              {
+                "id": "work_01M7GDM3WQ3QD9C7FKJ4ZKRRPX",
+                "kind": "workspace_task_result",
+                "revision": 1,
+                "site_id": "BENCH-SITE"
+              }
+            ],
+            "issues": [],
+            "origin": "background",
+            "owner_id": "benchmark-owner",
+            "result_id": "work_01M7GDM3WQ3QD9C7FKJ4ZKRRPX",
+            "routine_id": "routine_01M7GDM3W301MFZKN83XM0HQHJ",
+            "site_id": "BENCH-SITE",
+            "started_at": "2026-11-15T20:15:49.654307+00:00",
+            "status": "completed",
+            "task": {
+              "align_tolerance_h": 0.0,
+              "batches": [],
+              "dataset_ids": [],
+              "effective_at": null,
+              "expected_document_kinds": [],
+              "expected_parameters": [],
+              "expected_times": [],
+              "include_unverified": false,
+              "kinds": [
+                "case"
+              ],
+              "limit": 50,
+              "offset": 0,
+              "operation": "find_records",
+              "parameter": null,
+              "process_stage": null,
+              "query": "",
+              "record_id": null,
+              "record_kind": null,
+              "record_refs": [],
+              "series": [],
+              "site_id": "BENCH-SITE",
+              "target_unit": null,
+              "time_from_h": null,
+              "time_to_h": null,
+              "use_decision_model": true
+            },
+            "revision": 2,
+            "result": {
+              "id": "work_01M7GDM3WQ3QD9C7FKJ4ZKRRPX",
+              "revision": 1,
+              "basis_hash": "3938b25cc0dba4feebf861c0c900c678b7f895d98e9293967250acb26bddf4dd",
+              "cache": {
+                "hit": false
+              },
+              "created_at": "2026-11-15T20:15:49.655913+00:00",
+              "data": {
+                "content_search_gaps": [],
+                "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+                "matching_count": 1,
+                "matching_count_is_lower_bound": false,
+                "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+                "query": "",
+                "records": [
+                  {
+                    "classification": null,
+                    "id": "SYNTHETIC-CASE",
+                    "kind": "case",
+                    "label": "SYNTHETIC-CASE",
+                    "match": "exact",
+                    "revision": 1,
+                    "site_id": "BENCH-SITE",
+                    "status": "open",
+                    "time": "2026-11-15T20:15:49.634396+00:00",
+                    "time_basis": "opened_at",
+                    "timeline_events": 0,
+                    "word_overlap": 0.0
+                  }
+                ],
+                "scope": {
+                  "authorized_records_only": true,
+                  "site_id": "BENCH-SITE"
+                },
+                "searched_kinds": [
+                  "case"
+                ],
+                "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+                "truncated": false,
+                "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+              },
+              "decision_model_calls": 0,
+              "decisions": [],
+              "elapsed_seconds": 0.0009105409844778478,
+              "inputs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                },
+                {
+                  "id": "wreq_01M7GDM3WQNGEW9C489CGQNJ2Q",
+                  "kind": "workspace_task_request",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "issue_count": 0,
+              "issues": [],
+              "issues_truncated": false,
+              "model_calls": 0,
+              "operation": "find_records",
+              "owner_id": "benchmark-owner",
+              "produced_by": {
+                "actor_id": "agent:benchmark-owner",
+                "method": "workspace_tasks:v1",
+                "template_version": "workspace-tasks-3"
+              },
+              "site_id": "BENCH-SITE",
+              "source_refs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "stale_reasons": [],
+              "status": "current",
+              "summary": "Prepared 1 records.",
+              "task": {
+                "align_tolerance_h": 0.0,
+                "batches": [],
+                "dataset_ids": [],
+                "effective_at": null,
+                "expected_document_kinds": [],
+                "expected_parameters": [],
+                "expected_times": [],
+                "include_unverified": false,
+                "kinds": [
+                  "case"
+                ],
+                "limit": 50,
+                "offset": 0,
+                "operation": "find_records",
+                "parameter": null,
+                "process_stage": null,
+                "query": "",
+                "record_id": null,
+                "record_kind": null,
+                "record_refs": [],
+                "series": [],
+                "site_id": "BENCH-SITE",
+                "target_unit": null,
+                "time_from_h": null,
+                "time_to_h": null,
+                "use_decision_model": true
+              },
+              "task_status": "completed",
+              "template_version": "workspace-tasks-3",
+              "timing": {
+                "includes": "authorization, retrieval, calculation and saving the result",
+                "phases": {
+                  "authorize": 0.0003,
+                  "retrieve": 0.0002
+                },
+                "seconds": 0.001,
+                "target_seconds": 10.0,
+                "within_target": true
+              },
+              "proposals": [],
+              "work_status": "complete"
+            }
+          }
+        ],
+        "latest_result": {
+          "id": "work_01M7GDM3WQ3QD9C7FKJ4ZKRRPX",
+          "revision": 1,
+          "basis_hash": "3938b25cc0dba4feebf861c0c900c678b7f895d98e9293967250acb26bddf4dd",
+          "cache": {
+            "hit": false
+          },
+          "created_at": "2026-11-15T20:15:49.655913+00:00",
+          "data": {
+            "content_search_gaps": [],
+            "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+            "matching_count": 1,
+            "matching_count_is_lower_bound": false,
+            "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+            "query": "",
+            "records": [
+              {
+                "classification": null,
+                "id": "SYNTHETIC-CASE",
+                "kind": "case",
+                "label": "SYNTHETIC-CASE",
+                "match": "exact",
+                "revision": 1,
+                "site_id": "BENCH-SITE",
+                "status": "open",
+                "time": "2026-11-15T20:15:49.634396+00:00",
+                "time_basis": "opened_at",
+                "timeline_events": 0,
+                "word_overlap": 0.0
+              }
+            ],
+            "scope": {
+              "authorized_records_only": true,
+              "site_id": "BENCH-SITE"
+            },
+            "searched_kinds": [
+              "case"
+            ],
+            "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+            "truncated": false,
+            "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+          },
+          "decision_model_calls": 0,
+          "decisions": [],
+          "elapsed_seconds": 0.0009105409844778478,
+          "inputs": [
+            {
+              "id": "SYNTHETIC-CASE",
+              "kind": "case",
+              "revision": 1,
+              "site_id": "BENCH-SITE"
+            },
+            {
+              "id": "wreq_01M7GDM3WQNGEW9C489CGQNJ2Q",
+              "kind": "workspace_task_request",
+              "revision": 1,
+              "site_id": "BENCH-SITE"
+            }
+          ],
+          "issue_count": 0,
+          "issues": [],
+          "issues_truncated": false,
+          "model_calls": 0,
+          "operation": "find_records",
+          "owner_id": "benchmark-owner",
+          "produced_by": {
+            "actor_id": "agent:benchmark-owner",
+            "method": "workspace_tasks:v1",
+            "template_version": "workspace-tasks-3"
+          },
+          "site_id": "BENCH-SITE",
+          "source_refs": [
+            {
+              "id": "SYNTHETIC-CASE",
+              "kind": "case",
+              "revision": 1,
+              "site_id": "BENCH-SITE"
+            }
+          ],
+          "stale_reasons": [],
+          "status": "current",
+          "summary": "Prepared 1 records.",
+          "task": {
+            "align_tolerance_h": 0.0,
+            "batches": [],
+            "dataset_ids": [],
+            "effective_at": null,
+            "expected_document_kinds": [],
+            "expected_parameters": [],
+            "expected_times": [],
+            "include_unverified": false,
+            "kinds": [
+              "case"
+            ],
+            "limit": 50,
+            "offset": 0,
+            "operation": "find_records",
+            "parameter": null,
+            "process_stage": null,
+            "query": "",
+            "record_id": null,
+            "record_kind": null,
+            "record_refs": [],
+            "series": [],
+            "site_id": "BENCH-SITE",
+            "target_unit": null,
+            "time_from_h": null,
+            "time_to_h": null,
+            "use_decision_model": true
+          },
+          "task_status": "completed",
+          "template_version": "workspace-tasks-3",
+          "timing": {
+            "includes": "authorization, retrieval, calculation and saving the result",
+            "phases": {
+              "authorize": 0.0003,
+              "retrieve": 0.0002
+            },
+            "seconds": 0.001,
+            "target_seconds": 10.0,
+            "within_target": true
+          },
+          "proposals": [],
+          "work_status": "complete"
+        }
+      },
+      "background_model_runs": [],
+      "lifecycle_behavior_pass": true,
+      "outcome": "correct",
+      "seconds": 1.056
+    },
+    {
+      "id": "quarter-hour",
+      "mode": "host_only_supplied_definitions",
+      "definition_checks": {
+        "one_saved_routine": true,
+        "draft": true,
+        "owner": true,
+        "interval": true,
+        "triggers": true,
+        "max_runs": true,
+        "task": true,
+        "site": true,
+        "record_kinds": true,
+        "not_started": true,
+        "requested_name": true,
+        "unfiltered_listing": true,
+        "first_page": true,
+        "default_page_size": true
+      },
+      "definitions": [
+        {
+          "created_at": "2026-11-15T20:15:49.670172+00:00",
+          "created_by": "benchmark-owner",
+          "definition_version": 1,
+          "description": "",
+          "every_minutes": 15,
+          "id": "routine_01M7GDM3X6NYN9P4ES03FZ9AJQ",
+          "latest_result_id": null,
+          "max_runs": 2,
+          "mission_id": "msn_01M7GDM3X5Q0CJKW8HFW16ZWCV",
+          "name": "Quarter-hour case list",
+          "owner_id": "benchmark-owner",
+          "run_ids": [],
+          "runs_admitted": 0,
+          "site_id": "BENCH-SITE",
+          "status": "draft",
+          "task": {
+            "align_tolerance_h": 0.0,
+            "batches": [],
+            "dataset_ids": [],
+            "effective_at": null,
+            "expected_document_kinds": [],
+            "expected_parameters": [],
+            "expected_times": [],
+            "include_unverified": false,
+            "kinds": [
+              "case"
+            ],
+            "limit": 50,
+            "offset": 0,
+            "operation": "find_records",
+            "parameter": null,
+            "process_stage": null,
+            "query": "",
+            "record_id": null,
+            "record_kind": null,
+            "record_refs": [],
+            "series": [],
+            "site_id": "BENCH-SITE",
+            "target_unit": null,
+            "time_from_h": null,
+            "time_to_h": null,
+            "use_decision_model": true
+          },
+          "thread_id": "engchat_01M7GDM3X5A1NV0X0HS3SFTJYS",
+          "triggers": [],
+          "updated_at": "2026-11-15T20:15:49.670174+00:00",
+          "revision": 1,
+          "runs": [],
+          "latest_result": null
+        }
+      ],
+      "definition_pass": true,
+      "lifecycle_checks": {
+        "draft_did_not_run": true,
+        "active_survives_reconstruction": true,
+        "first_run_completed": true,
+        "correct_record_returned": true,
+        "next_interval_preserved": true,
+        "idle_did_not_duplicate": true,
+        "pause_survives_reconstruction": true,
+        "paused_did_not_run": true,
+        "second_run_completed": true,
+        "allowance_stops_further_runs": true,
+        "no_background_inference": true
+      },
+      "lifecycle_pass": true,
+      "final_routine": {
+        "activated_at": "2026-11-15T20:15:49.685943+00:00",
+        "activated_by": "benchmark-owner",
+        "created_at": "2026-11-15T20:15:49.670172+00:00",
+        "created_by": "benchmark-owner",
+        "definition_version": 4,
+        "description": "",
+        "every_minutes": 15,
+        "id": "routine_01M7GDM3X6NYN9P4ES03FZ9AJQ",
+        "latest_result_id": "work_01M7GDM3XTZ05CCF0BKCE7A5VJ",
+        "max_runs": 2,
+        "mission_id": "msn_01M7GDM3X5Q0CJKW8HFW16ZWCV",
+        "name": "Quarter-hour case list",
+        "owner_id": "benchmark-owner",
+        "run_ids": [
+          "routinerun_01M7GDM3XB8D4ZWV4MJ1N7NP0X",
+          "routinerun_01M7GDM3XR85ARWAGB8M0EAPKN"
+        ],
+        "runs_admitted": 2,
+        "site_id": "BENCH-SITE",
+        "status": "paused",
+        "task": {
+          "align_tolerance_h": 0.0,
+          "batches": [],
+          "dataset_ids": [],
+          "effective_at": null,
+          "expected_document_kinds": [],
+          "expected_parameters": [],
+          "expected_times": [],
+          "include_unverified": false,
+          "kinds": [
+            "case"
+          ],
+          "limit": 50,
+          "offset": 0,
+          "operation": "find_records",
+          "parameter": null,
+          "process_stage": null,
+          "query": "",
+          "record_id": null,
+          "record_kind": null,
+          "record_refs": [],
+          "series": [],
+          "site_id": "BENCH-SITE",
+          "target_unit": null,
+          "time_from_h": null,
+          "time_to_h": null,
+          "use_decision_model": true
+        },
+        "thread_id": "engchat_01M7GDM3X5A1NV0X0HS3SFTJYS",
+        "triggers": [],
+        "updated_at": "2026-11-15T20:15:49.695065+00:00",
+        "revision": 9,
+        "runs": [
+          {
+            "definition_version": 2,
+            "event_ids": [
+              "timer:obl_01M7GDM3X8HTXN7QJF7CK32956:2026-11-15T20:14:49.673662+00:00"
+            ],
+            "event_versions": {},
+            "finished_at": "2026-11-15T20:15:49.677036+00:00",
+            "id": "routinerun_01M7GDM3XB8D4ZWV4MJ1N7NP0X",
+            "inputs": [
+              {
+                "id": "work_01M7GDM3XC3BMC5NKFR5KXF111",
+                "kind": "workspace_task_result",
+                "revision": 1,
+                "site_id": "BENCH-SITE"
+              }
+            ],
+            "issues": [],
+            "origin": "background",
+            "owner_id": "benchmark-owner",
+            "result_id": "work_01M7GDM3XC3BMC5NKFR5KXF111",
+            "routine_id": "routine_01M7GDM3X6NYN9P4ES03FZ9AJQ",
+            "site_id": "BENCH-SITE",
+            "started_at": "2026-11-15T20:15:49.675080+00:00",
+            "status": "completed",
+            "task": {
+              "align_tolerance_h": 0.0,
+              "batches": [],
+              "dataset_ids": [],
+              "effective_at": null,
+              "expected_document_kinds": [],
+              "expected_parameters": [],
+              "expected_times": [],
+              "include_unverified": false,
+              "kinds": [
+                "case"
+              ],
+              "limit": 50,
+              "offset": 0,
+              "operation": "find_records",
+              "parameter": null,
+              "process_stage": null,
+              "query": "",
+              "record_id": null,
+              "record_kind": null,
+              "record_refs": [],
+              "series": [],
+              "site_id": "BENCH-SITE",
+              "target_unit": null,
+              "time_from_h": null,
+              "time_to_h": null,
+              "use_decision_model": true
+            },
+            "revision": 2,
+            "result": {
+              "id": "work_01M7GDM3XC3BMC5NKFR5KXF111",
+              "revision": 1,
+              "basis_hash": "768fb26dad9c6ed1c4ee308833f0be14598c1d2e6e5e78365d3d4d97e792858f",
+              "cache": {
+                "hit": false
+              },
+              "created_at": "2026-11-15T20:15:49.676614+00:00",
+              "data": {
+                "content_search_gaps": [],
+                "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+                "matching_count": 1,
+                "matching_count_is_lower_bound": false,
+                "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+                "query": "",
+                "records": [
+                  {
+                    "classification": null,
+                    "id": "SYNTHETIC-CASE",
+                    "kind": "case",
+                    "label": "SYNTHETIC-CASE",
+                    "match": "exact",
+                    "revision": 1,
+                    "site_id": "BENCH-SITE",
+                    "status": "open",
+                    "time": "2026-11-15T20:15:49.669444+00:00",
+                    "time_basis": "opened_at",
+                    "timeline_events": 0,
+                    "word_overlap": 0.0
+                  }
+                ],
+                "scope": {
+                  "authorized_records_only": true,
+                  "site_id": "BENCH-SITE"
+                },
+                "searched_kinds": [
+                  "case"
+                ],
+                "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+                "truncated": false,
+                "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+              },
+              "decision_model_calls": 0,
+              "decisions": [],
+              "elapsed_seconds": 0.000797708984464407,
+              "inputs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                },
+                {
+                  "id": "wreq_01M7GDM3XC79PVD9YC1GPN66S9",
+                  "kind": "workspace_task_request",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "issue_count": 0,
+              "issues": [],
+              "issues_truncated": false,
+              "model_calls": 0,
+              "operation": "find_records",
+              "owner_id": "benchmark-owner",
+              "produced_by": {
+                "actor_id": "agent:benchmark-owner",
+                "method": "workspace_tasks:v1",
+                "template_version": "workspace-tasks-3"
+              },
+              "site_id": "BENCH-SITE",
+              "source_refs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "stale_reasons": [],
+              "status": "current",
+              "summary": "Prepared 1 records.",
+              "task": {
+                "align_tolerance_h": 0.0,
+                "batches": [],
+                "dataset_ids": [],
+                "effective_at": null,
+                "expected_document_kinds": [],
+                "expected_parameters": [],
+                "expected_times": [],
+                "include_unverified": false,
+                "kinds": [
+                  "case"
+                ],
+                "limit": 50,
+                "offset": 0,
+                "operation": "find_records",
+                "parameter": null,
+                "process_stage": null,
+                "query": "",
+                "record_id": null,
+                "record_kind": null,
+                "record_refs": [],
+                "series": [],
+                "site_id": "BENCH-SITE",
+                "target_unit": null,
+                "time_from_h": null,
+                "time_to_h": null,
+                "use_decision_model": true
+              },
+              "task_status": "completed",
+              "template_version": "workspace-tasks-3",
+              "timing": {
+                "includes": "authorization, retrieval, calculation and saving the result",
+                "phases": {
+                  "authorize": 0.0002,
+                  "retrieve": 0.0002
+                },
+                "seconds": 0.001,
+                "target_seconds": 10.0,
+                "within_target": true
+              },
+              "proposals": [],
+              "work_status": "complete"
+            }
+          },
+          {
+            "definition_version": 4,
+            "event_ids": [
+              "timer:obl_01M7GDM3XPZQPRMJE3NDNJSME9:2026-11-15T20:14:49.687206+00:00"
+            ],
+            "event_versions": {},
+            "finished_at": "2026-11-15T20:15:49.690503+00:00",
+            "id": "routinerun_01M7GDM3XR85ARWAGB8M0EAPKN",
+            "inputs": [
+              {
+                "id": "work_01M7GDM3XTZ05CCF0BKCE7A5VJ",
+                "kind": "workspace_task_result",
+                "revision": 1,
+                "site_id": "BENCH-SITE"
+              }
+            ],
+            "issues": [],
+            "origin": "background",
+            "owner_id": "benchmark-owner",
+            "result_id": "work_01M7GDM3XTZ05CCF0BKCE7A5VJ",
+            "routine_id": "routine_01M7GDM3X6NYN9P4ES03FZ9AJQ",
+            "site_id": "BENCH-SITE",
+            "started_at": "2026-11-15T20:15:49.688432+00:00",
+            "status": "completed",
+            "task": {
+              "align_tolerance_h": 0.0,
+              "batches": [],
+              "dataset_ids": [],
+              "effective_at": null,
+              "expected_document_kinds": [],
+              "expected_parameters": [],
+              "expected_times": [],
+              "include_unverified": false,
+              "kinds": [
+                "case"
+              ],
+              "limit": 50,
+              "offset": 0,
+              "operation": "find_records",
+              "parameter": null,
+              "process_stage": null,
+              "query": "",
+              "record_id": null,
+              "record_kind": null,
+              "record_refs": [],
+              "series": [],
+              "site_id": "BENCH-SITE",
+              "target_unit": null,
+              "time_from_h": null,
+              "time_to_h": null,
+              "use_decision_model": true
+            },
+            "revision": 2,
+            "result": {
+              "id": "work_01M7GDM3XTZ05CCF0BKCE7A5VJ",
+              "revision": 1,
+              "basis_hash": "625280ee9adf00d11c35b861461b973e49ae94077533b901758005e691f27cc8",
+              "cache": {
+                "hit": false
+              },
+              "created_at": "2026-11-15T20:15:49.690073+00:00",
+              "data": {
+                "content_search_gaps": [],
+                "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+                "matching_count": 1,
+                "matching_count_is_lower_bound": false,
+                "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+                "query": "",
+                "records": [
+                  {
+                    "classification": null,
+                    "id": "SYNTHETIC-CASE",
+                    "kind": "case",
+                    "label": "SYNTHETIC-CASE",
+                    "match": "exact",
+                    "revision": 1,
+                    "site_id": "BENCH-SITE",
+                    "status": "open",
+                    "time": "2026-11-15T20:15:49.669444+00:00",
+                    "time_basis": "opened_at",
+                    "timeline_events": 0,
+                    "word_overlap": 0.0
+                  }
+                ],
+                "scope": {
+                  "authorized_records_only": true,
+                  "site_id": "BENCH-SITE"
+                },
+                "searched_kinds": [
+                  "case"
+                ],
+                "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+                "truncated": false,
+                "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+              },
+              "decision_model_calls": 0,
+              "decisions": [],
+              "elapsed_seconds": 0.0008140000281855464,
+              "inputs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                },
+                {
+                  "id": "wreq_01M7GDM3XSM6H4S69R129XE11T",
+                  "kind": "workspace_task_request",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "issue_count": 0,
+              "issues": [],
+              "issues_truncated": false,
+              "model_calls": 0,
+              "operation": "find_records",
+              "owner_id": "benchmark-owner",
+              "produced_by": {
+                "actor_id": "agent:benchmark-owner",
+                "method": "workspace_tasks:v1",
+                "template_version": "workspace-tasks-3"
+              },
+              "site_id": "BENCH-SITE",
+              "source_refs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "stale_reasons": [],
+              "status": "current",
+              "summary": "Prepared 1 records.",
+              "task": {
+                "align_tolerance_h": 0.0,
+                "batches": [],
+                "dataset_ids": [],
+                "effective_at": null,
+                "expected_document_kinds": [],
+                "expected_parameters": [],
+                "expected_times": [],
+                "include_unverified": false,
+                "kinds": [
+                  "case"
+                ],
+                "limit": 50,
+                "offset": 0,
+                "operation": "find_records",
+                "parameter": null,
+                "process_stage": null,
+                "query": "",
+                "record_id": null,
+                "record_kind": null,
+                "record_refs": [],
+                "series": [],
+                "site_id": "BENCH-SITE",
+                "target_unit": null,
+                "time_from_h": null,
+                "time_to_h": null,
+                "use_decision_model": true
+              },
+              "task_status": "completed",
+              "template_version": "workspace-tasks-3",
+              "timing": {
+                "includes": "authorization, retrieval, calculation and saving the result",
+                "phases": {
+                  "authorize": 0.0002,
+                  "retrieve": 0.0002
+                },
+                "seconds": 0.001,
+                "target_seconds": 10.0,
+                "within_target": true
+              },
+              "proposals": [],
+              "work_status": "complete"
+            }
+          }
+        ],
+        "latest_result": {
+          "id": "work_01M7GDM3XTZ05CCF0BKCE7A5VJ",
+          "revision": 1,
+          "basis_hash": "625280ee9adf00d11c35b861461b973e49ae94077533b901758005e691f27cc8",
+          "cache": {
+            "hit": false
+          },
+          "created_at": "2026-11-15T20:15:49.690073+00:00",
+          "data": {
+            "content_search_gaps": [],
+            "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+            "matching_count": 1,
+            "matching_count_is_lower_bound": false,
+            "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+            "query": "",
+            "records": [
+              {
+                "classification": null,
+                "id": "SYNTHETIC-CASE",
+                "kind": "case",
+                "label": "SYNTHETIC-CASE",
+                "match": "exact",
+                "revision": 1,
+                "site_id": "BENCH-SITE",
+                "status": "open",
+                "time": "2026-11-15T20:15:49.669444+00:00",
+                "time_basis": "opened_at",
+                "timeline_events": 0,
+                "word_overlap": 0.0
+              }
+            ],
+            "scope": {
+              "authorized_records_only": true,
+              "site_id": "BENCH-SITE"
+            },
+            "searched_kinds": [
+              "case"
+            ],
+            "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+            "truncated": false,
+            "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+          },
+          "decision_model_calls": 0,
+          "decisions": [],
+          "elapsed_seconds": 0.0008140000281855464,
+          "inputs": [
+            {
+              "id": "SYNTHETIC-CASE",
+              "kind": "case",
+              "revision": 1,
+              "site_id": "BENCH-SITE"
+            },
+            {
+              "id": "wreq_01M7GDM3XSM6H4S69R129XE11T",
+              "kind": "workspace_task_request",
+              "revision": 1,
+              "site_id": "BENCH-SITE"
+            }
+          ],
+          "issue_count": 0,
+          "issues": [],
+          "issues_truncated": false,
+          "model_calls": 0,
+          "operation": "find_records",
+          "owner_id": "benchmark-owner",
+          "produced_by": {
+            "actor_id": "agent:benchmark-owner",
+            "method": "workspace_tasks:v1",
+            "template_version": "workspace-tasks-3"
+          },
+          "site_id": "BENCH-SITE",
+          "source_refs": [
+            {
+              "id": "SYNTHETIC-CASE",
+              "kind": "case",
+              "revision": 1,
+              "site_id": "BENCH-SITE"
+            }
+          ],
+          "stale_reasons": [],
+          "status": "current",
+          "summary": "Prepared 1 records.",
+          "task": {
+            "align_tolerance_h": 0.0,
+            "batches": [],
+            "dataset_ids": [],
+            "effective_at": null,
+            "expected_document_kinds": [],
+            "expected_parameters": [],
+            "expected_times": [],
+            "include_unverified": false,
+            "kinds": [
+              "case"
+            ],
+            "limit": 50,
+            "offset": 0,
+            "operation": "find_records",
+            "parameter": null,
+            "process_stage": null,
+            "query": "",
+            "record_id": null,
+            "record_kind": null,
+            "record_refs": [],
+            "series": [],
+            "site_id": "BENCH-SITE",
+            "target_unit": null,
+            "time_from_h": null,
+            "time_to_h": null,
+            "use_decision_model": true
+          },
+          "task_status": "completed",
+          "template_version": "workspace-tasks-3",
+          "timing": {
+            "includes": "authorization, retrieval, calculation and saving the result",
+            "phases": {
+              "authorize": 0.0002,
+              "retrieve": 0.0002
+            },
+            "seconds": 0.001,
+            "target_seconds": 10.0,
+            "within_target": true
+          },
+          "proposals": [],
+          "work_status": "complete"
+        }
+      },
+      "background_model_runs": [],
+      "lifecycle_behavior_pass": true,
+      "outcome": "correct",
+      "seconds": 0.034
+    },
+    {
+      "id": "daily-interval",
+      "mode": "host_only_supplied_definitions",
+      "definition_checks": {
+        "one_saved_routine": true,
+        "draft": true,
+        "owner": true,
+        "interval": true,
+        "triggers": true,
+        "max_runs": true,
+        "task": true,
+        "site": true,
+        "record_kinds": true,
+        "not_started": true,
+        "requested_name": true,
+        "unfiltered_listing": true,
+        "first_page": true,
+        "default_page_size": true
+      },
+      "definitions": [
+        {
+          "created_at": "2026-11-15T20:15:49.704770+00:00",
+          "created_by": "benchmark-owner",
+          "definition_version": 1,
+          "description": "",
+          "every_minutes": 1440,
+          "id": "routine_01M7GDM3Y8BKG0FFXNZPAC6YCA",
+          "latest_result_id": null,
+          "max_runs": 2,
+          "mission_id": "msn_01M7GDM3Y8SK7XCVDG2XHP4EXT",
+          "name": "Daily case list",
+          "owner_id": "benchmark-owner",
+          "run_ids": [],
+          "runs_admitted": 0,
+          "site_id": "BENCH-SITE",
+          "status": "draft",
+          "task": {
+            "align_tolerance_h": 0.0,
+            "batches": [],
+            "dataset_ids": [],
+            "effective_at": null,
+            "expected_document_kinds": [],
+            "expected_parameters": [],
+            "expected_times": [],
+            "include_unverified": false,
+            "kinds": [
+              "case"
+            ],
+            "limit": 50,
+            "offset": 0,
+            "operation": "find_records",
+            "parameter": null,
+            "process_stage": null,
+            "query": "",
+            "record_id": null,
+            "record_kind": null,
+            "record_refs": [],
+            "series": [],
+            "site_id": "BENCH-SITE",
+            "target_unit": null,
+            "time_from_h": null,
+            "time_to_h": null,
+            "use_decision_model": true
+          },
+          "thread_id": "engchat_01M7GDM3Y8D70R1QQ00DGF05QP",
+          "triggers": [],
+          "updated_at": "2026-11-15T20:15:49.704773+00:00",
+          "revision": 1,
+          "runs": [],
+          "latest_result": null
+        }
+      ],
+      "definition_pass": true,
+      "lifecycle_checks": {
+        "draft_did_not_run": true,
+        "active_survives_reconstruction": true,
+        "first_run_completed": true,
+        "correct_record_returned": true,
+        "next_interval_preserved": true,
+        "idle_did_not_duplicate": true,
+        "pause_survives_reconstruction": true,
+        "paused_did_not_run": true,
+        "second_run_completed": true,
+        "allowance_stops_further_runs": true,
+        "no_background_inference": true
+      },
+      "lifecycle_pass": true,
+      "final_routine": {
+        "activated_at": "2026-11-15T20:15:49.721238+00:00",
+        "activated_by": "benchmark-owner",
+        "created_at": "2026-11-15T20:15:49.704770+00:00",
+        "created_by": "benchmark-owner",
+        "definition_version": 4,
+        "description": "",
+        "every_minutes": 1440,
+        "id": "routine_01M7GDM3Y8BKG0FFXNZPAC6YCA",
+        "latest_result_id": "work_01M7GDM3YXRY8TWDSPGPRAFDYN",
+        "max_runs": 2,
+        "mission_id": "msn_01M7GDM3Y8SK7XCVDG2XHP4EXT",
+        "name": "Daily case list",
+        "owner_id": "benchmark-owner",
+        "run_ids": [
+          "routinerun_01M7GDM3YD3XPFVGE8C1V4GN5W",
+          "routinerun_01M7GDM3YVC55Y0MF458MB4T6K"
+        ],
+        "runs_admitted": 2,
+        "site_id": "BENCH-SITE",
+        "status": "paused",
+        "task": {
+          "align_tolerance_h": 0.0,
+          "batches": [],
+          "dataset_ids": [],
+          "effective_at": null,
+          "expected_document_kinds": [],
+          "expected_parameters": [],
+          "expected_times": [],
+          "include_unverified": false,
+          "kinds": [
+            "case"
+          ],
+          "limit": 50,
+          "offset": 0,
+          "operation": "find_records",
+          "parameter": null,
+          "process_stage": null,
+          "query": "",
+          "record_id": null,
+          "record_kind": null,
+          "record_refs": [],
+          "series": [],
+          "site_id": "BENCH-SITE",
+          "target_unit": null,
+          "time_from_h": null,
+          "time_to_h": null,
+          "use_decision_model": true
+        },
+        "thread_id": "engchat_01M7GDM3Y8D70R1QQ00DGF05QP",
+        "triggers": [],
+        "updated_at": "2026-11-15T20:15:49.730184+00:00",
+        "revision": 9,
+        "runs": [
+          {
+            "definition_version": 2,
+            "event_ids": [
+              "timer:obl_01M7GDM3YAT6T23B44GXW4BR53:2026-11-15T20:14:49.708112+00:00"
+            ],
+            "event_versions": {},
+            "finished_at": "2026-11-15T20:15:49.711996+00:00",
+            "id": "routinerun_01M7GDM3YD3XPFVGE8C1V4GN5W",
+            "inputs": [
+              {
+                "id": "work_01M7GDM3YFR6X2FNBEK3JZ6H6S",
+                "kind": "workspace_task_result",
+                "revision": 1,
+                "site_id": "BENCH-SITE"
+              }
+            ],
+            "issues": [],
+            "origin": "background",
+            "owner_id": "benchmark-owner",
+            "result_id": "work_01M7GDM3YFR6X2FNBEK3JZ6H6S",
+            "routine_id": "routine_01M7GDM3Y8BKG0FFXNZPAC6YCA",
+            "site_id": "BENCH-SITE",
+            "started_at": "2026-11-15T20:15:49.709584+00:00",
+            "status": "completed",
+            "task": {
+              "align_tolerance_h": 0.0,
+              "batches": [],
+              "dataset_ids": [],
+              "effective_at": null,
+              "expected_document_kinds": [],
+              "expected_parameters": [],
+              "expected_times": [],
+              "include_unverified": false,
+              "kinds": [
+                "case"
+              ],
+              "limit": 50,
+              "offset": 0,
+              "operation": "find_records",
+              "parameter": null,
+              "process_stage": null,
+              "query": "",
+              "record_id": null,
+              "record_kind": null,
+              "record_refs": [],
+              "series": [],
+              "site_id": "BENCH-SITE",
+              "target_unit": null,
+              "time_from_h": null,
+              "time_to_h": null,
+              "use_decision_model": true
+            },
+            "revision": 2,
+            "result": {
+              "id": "work_01M7GDM3YFR6X2FNBEK3JZ6H6S",
+              "revision": 1,
+              "basis_hash": "89100c5641df7cba004e3f16d4c482cf42eab4d9fc5f681076274920ac45ba78",
+              "cache": {
+                "hit": false
+              },
+              "created_at": "2026-11-15T20:15:49.711580+00:00",
+              "data": {
+                "content_search_gaps": [],
+                "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+                "matching_count": 1,
+                "matching_count_is_lower_bound": false,
+                "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+                "query": "",
+                "records": [
+                  {
+                    "classification": null,
+                    "id": "SYNTHETIC-CASE",
+                    "kind": "case",
+                    "label": "SYNTHETIC-CASE",
+                    "match": "exact",
+                    "revision": 1,
+                    "site_id": "BENCH-SITE",
+                    "status": "open",
+                    "time": "2026-11-15T20:15:49.704020+00:00",
+                    "time_basis": "opened_at",
+                    "timeline_events": 0,
+                    "word_overlap": 0.0
+                  }
+                ],
+                "scope": {
+                  "authorized_records_only": true,
+                  "site_id": "BENCH-SITE"
+                },
+                "searched_kinds": [
+                  "case"
+                ],
+                "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+                "truncated": false,
+                "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+              },
+              "decision_model_calls": 0,
+              "decisions": [],
+              "elapsed_seconds": 0.0007991250022314489,
+              "inputs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                },
+                {
+                  "id": "wreq_01M7GDM3YFGB2ZD2D6K6Y4TY1D",
+                  "kind": "workspace_task_request",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "issue_count": 0,
+              "issues": [],
+              "issues_truncated": false,
+              "model_calls": 0,
+              "operation": "find_records",
+              "owner_id": "benchmark-owner",
+              "produced_by": {
+                "actor_id": "agent:benchmark-owner",
+                "method": "workspace_tasks:v1",
+                "template_version": "workspace-tasks-3"
+              },
+              "site_id": "BENCH-SITE",
+              "source_refs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "stale_reasons": [],
+              "status": "current",
+              "summary": "Prepared 1 records.",
+              "task": {
+                "align_tolerance_h": 0.0,
+                "batches": [],
+                "dataset_ids": [],
+                "effective_at": null,
+                "expected_document_kinds": [],
+                "expected_parameters": [],
+                "expected_times": [],
+                "include_unverified": false,
+                "kinds": [
+                  "case"
+                ],
+                "limit": 50,
+                "offset": 0,
+                "operation": "find_records",
+                "parameter": null,
+                "process_stage": null,
+                "query": "",
+                "record_id": null,
+                "record_kind": null,
+                "record_refs": [],
+                "series": [],
+                "site_id": "BENCH-SITE",
+                "target_unit": null,
+                "time_from_h": null,
+                "time_to_h": null,
+                "use_decision_model": true
+              },
+              "task_status": "completed",
+              "template_version": "workspace-tasks-3",
+              "timing": {
+                "includes": "authorization, retrieval, calculation and saving the result",
+                "phases": {
+                  "authorize": 0.0002,
+                  "retrieve": 0.0002
+                },
+                "seconds": 0.001,
+                "target_seconds": 10.0,
+                "within_target": true
+              },
+              "proposals": [],
+              "work_status": "complete"
+            }
+          },
+          {
+            "definition_version": 4,
+            "event_ids": [
+              "timer:obl_01M7GDM3YSPNR8JPVVVB5F104J:2026-11-15T20:14:49.722533+00:00"
+            ],
+            "event_versions": {},
+            "finished_at": "2026-11-15T20:15:49.725634+00:00",
+            "id": "routinerun_01M7GDM3YVC55Y0MF458MB4T6K",
+            "inputs": [
+              {
+                "id": "work_01M7GDM3YXRY8TWDSPGPRAFDYN",
+                "kind": "workspace_task_result",
+                "revision": 1,
+                "site_id": "BENCH-SITE"
+              }
+            ],
+            "issues": [],
+            "origin": "background",
+            "owner_id": "benchmark-owner",
+            "result_id": "work_01M7GDM3YXRY8TWDSPGPRAFDYN",
+            "routine_id": "routine_01M7GDM3Y8BKG0FFXNZPAC6YCA",
+            "site_id": "BENCH-SITE",
+            "started_at": "2026-11-15T20:15:49.723750+00:00",
+            "status": "completed",
+            "task": {
+              "align_tolerance_h": 0.0,
+              "batches": [],
+              "dataset_ids": [],
+              "effective_at": null,
+              "expected_document_kinds": [],
+              "expected_parameters": [],
+              "expected_times": [],
+              "include_unverified": false,
+              "kinds": [
+                "case"
+              ],
+              "limit": 50,
+              "offset": 0,
+              "operation": "find_records",
+              "parameter": null,
+              "process_stage": null,
+              "query": "",
+              "record_id": null,
+              "record_kind": null,
+              "record_refs": [],
+              "series": [],
+              "site_id": "BENCH-SITE",
+              "target_unit": null,
+              "time_from_h": null,
+              "time_to_h": null,
+              "use_decision_model": true
+            },
+            "revision": 2,
+            "result": {
+              "id": "work_01M7GDM3YXRY8TWDSPGPRAFDYN",
+              "revision": 1,
+              "basis_hash": "01985289ee0f7f05e2f562d7a15b512241ebec51166f06ae1e7130e7b0ca5325",
+              "cache": {
+                "hit": false
+              },
+              "created_at": "2026-11-15T20:15:49.725219+00:00",
+              "data": {
+                "content_search_gaps": [],
+                "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+                "matching_count": 1,
+                "matching_count_is_lower_bound": false,
+                "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+                "query": "",
+                "records": [
+                  {
+                    "classification": null,
+                    "id": "SYNTHETIC-CASE",
+                    "kind": "case",
+                    "label": "SYNTHETIC-CASE",
+                    "match": "exact",
+                    "revision": 1,
+                    "site_id": "BENCH-SITE",
+                    "status": "open",
+                    "time": "2026-11-15T20:15:49.704020+00:00",
+                    "time_basis": "opened_at",
+                    "timeline_events": 0,
+                    "word_overlap": 0.0
+                  }
+                ],
+                "scope": {
+                  "authorized_records_only": true,
+                  "site_id": "BENCH-SITE"
+                },
+                "searched_kinds": [
+                  "case"
+                ],
+                "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+                "truncated": false,
+                "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+              },
+              "decision_model_calls": 0,
+              "decisions": [],
+              "elapsed_seconds": 0.0007668330217711627,
+              "inputs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                },
+                {
+                  "id": "wreq_01M7GDM3YXY37353BBWMQ7MEJM",
+                  "kind": "workspace_task_request",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "issue_count": 0,
+              "issues": [],
+              "issues_truncated": false,
+              "model_calls": 0,
+              "operation": "find_records",
+              "owner_id": "benchmark-owner",
+              "produced_by": {
+                "actor_id": "agent:benchmark-owner",
+                "method": "workspace_tasks:v1",
+                "template_version": "workspace-tasks-3"
+              },
+              "site_id": "BENCH-SITE",
+              "source_refs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "stale_reasons": [],
+              "status": "current",
+              "summary": "Prepared 1 records.",
+              "task": {
+                "align_tolerance_h": 0.0,
+                "batches": [],
+                "dataset_ids": [],
+                "effective_at": null,
+                "expected_document_kinds": [],
+                "expected_parameters": [],
+                "expected_times": [],
+                "include_unverified": false,
+                "kinds": [
+                  "case"
+                ],
+                "limit": 50,
+                "offset": 0,
+                "operation": "find_records",
+                "parameter": null,
+                "process_stage": null,
+                "query": "",
+                "record_id": null,
+                "record_kind": null,
+                "record_refs": [],
+                "series": [],
+                "site_id": "BENCH-SITE",
+                "target_unit": null,
+                "time_from_h": null,
+                "time_to_h": null,
+                "use_decision_model": true
+              },
+              "task_status": "completed",
+              "template_version": "workspace-tasks-3",
+              "timing": {
+                "includes": "authorization, retrieval, calculation and saving the result",
+                "phases": {
+                  "authorize": 0.0002,
+                  "retrieve": 0.0002
+                },
+                "seconds": 0.001,
+                "target_seconds": 10.0,
+                "within_target": true
+              },
+              "proposals": [],
+              "work_status": "complete"
+            }
+          }
+        ],
+        "latest_result": {
+          "id": "work_01M7GDM3YXRY8TWDSPGPRAFDYN",
+          "revision": 1,
+          "basis_hash": "01985289ee0f7f05e2f562d7a15b512241ebec51166f06ae1e7130e7b0ca5325",
+          "cache": {
+            "hit": false
+          },
+          "created_at": "2026-11-15T20:15:49.725219+00:00",
+          "data": {
+            "content_search_gaps": [],
+            "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+            "matching_count": 1,
+            "matching_count_is_lower_bound": false,
+            "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+            "query": "",
+            "records": [
+              {
+                "classification": null,
+                "id": "SYNTHETIC-CASE",
+                "kind": "case",
+                "label": "SYNTHETIC-CASE",
+                "match": "exact",
+                "revision": 1,
+                "site_id": "BENCH-SITE",
+                "status": "open",
+                "time": "2026-11-15T20:15:49.704020+00:00",
+                "time_basis": "opened_at",
+                "timeline_events": 0,
+                "word_overlap": 0.0
+              }
+            ],
+            "scope": {
+              "authorized_records_only": true,
+              "site_id": "BENCH-SITE"
+            },
+            "searched_kinds": [
+              "case"
+            ],
+            "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+            "truncated": false,
+            "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+          },
+          "decision_model_calls": 0,
+          "decisions": [],
+          "elapsed_seconds": 0.0007668330217711627,
+          "inputs": [
+            {
+              "id": "SYNTHETIC-CASE",
+              "kind": "case",
+              "revision": 1,
+              "site_id": "BENCH-SITE"
+            },
+            {
+              "id": "wreq_01M7GDM3YXY37353BBWMQ7MEJM",
+              "kind": "workspace_task_request",
+              "revision": 1,
+              "site_id": "BENCH-SITE"
+            }
+          ],
+          "issue_count": 0,
+          "issues": [],
+          "issues_truncated": false,
+          "model_calls": 0,
+          "operation": "find_records",
+          "owner_id": "benchmark-owner",
+          "produced_by": {
+            "actor_id": "agent:benchmark-owner",
+            "method": "workspace_tasks:v1",
+            "template_version": "workspace-tasks-3"
+          },
+          "site_id": "BENCH-SITE",
+          "source_refs": [
+            {
+              "id": "SYNTHETIC-CASE",
+              "kind": "case",
+              "revision": 1,
+              "site_id": "BENCH-SITE"
+            }
+          ],
+          "stale_reasons": [],
+          "status": "current",
+          "summary": "Prepared 1 records.",
+          "task": {
+            "align_tolerance_h": 0.0,
+            "batches": [],
+            "dataset_ids": [],
+            "effective_at": null,
+            "expected_document_kinds": [],
+            "expected_parameters": [],
+            "expected_times": [],
+            "include_unverified": false,
+            "kinds": [
+              "case"
+            ],
+            "limit": 50,
+            "offset": 0,
+            "operation": "find_records",
+            "parameter": null,
+            "process_stage": null,
+            "query": "",
+            "record_id": null,
+            "record_kind": null,
+            "record_refs": [],
+            "series": [],
+            "site_id": "BENCH-SITE",
+            "target_unit": null,
+            "time_from_h": null,
+            "time_to_h": null,
+            "use_decision_model": true
+          },
+          "task_status": "completed",
+          "template_version": "workspace-tasks-3",
+          "timing": {
+            "includes": "authorization, retrieval, calculation and saving the result",
+            "phases": {
+              "authorize": 0.0002,
+              "retrieve": 0.0002
+            },
+            "seconds": 0.001,
+            "target_seconds": 10.0,
+            "within_target": true
+          },
+          "proposals": [],
+          "work_status": "complete"
+        }
+      },
+      "background_model_runs": [],
+      "lifecycle_behavior_pass": true,
+      "outcome": "correct",
+      "seconds": 0.034
+    },
+    {
+      "id": "case-event",
+      "mode": "host_only_supplied_definitions",
+      "definition_checks": {
+        "one_saved_routine": true,
+        "draft": true,
+        "owner": true,
+        "interval": true,
+        "triggers": true,
+        "max_runs": true,
+        "task": true,
+        "site": true,
+        "record_kinds": true,
+        "not_started": true,
+        "requested_name": true,
+        "unfiltered_listing": true,
+        "first_page": true,
+        "default_page_size": true
+      },
+      "definitions": [
+        {
+          "created_at": "2026-11-15T20:15:49.740354+00:00",
+          "created_by": "benchmark-owner",
+          "definition_version": 1,
+          "description": "",
+          "every_minutes": null,
+          "id": "routine_01M7GDM3ZC87CRY48E50Q73JGG",
+          "latest_result_id": null,
+          "max_runs": 2,
+          "mission_id": "msn_01M7GDM3ZCKNP4W1VYAWN1E4AG",
+          "name": "Changed case list",
+          "owner_id": "benchmark-owner",
+          "run_ids": [],
+          "runs_admitted": 0,
+          "site_id": "BENCH-SITE",
+          "status": "draft",
+          "task": {
+            "align_tolerance_h": 0.0,
+            "batches": [],
+            "dataset_ids": [],
+            "effective_at": null,
+            "expected_document_kinds": [],
+            "expected_parameters": [],
+            "expected_times": [],
+            "include_unverified": false,
+            "kinds": [
+              "case"
+            ],
+            "limit": 50,
+            "offset": 0,
+            "operation": "find_records",
+            "parameter": null,
+            "process_stage": null,
+            "query": "",
+            "record_id": null,
+            "record_kind": null,
+            "record_refs": [],
+            "series": [],
+            "site_id": "BENCH-SITE",
+            "target_unit": null,
+            "time_from_h": null,
+            "time_to_h": null,
+            "use_decision_model": true
+          },
+          "thread_id": "engchat_01M7GDM3ZC3Y5C7ZVM8JYGKPEP",
+          "triggers": [
+            "case"
+          ],
+          "updated_at": "2026-11-15T20:15:49.740356+00:00",
+          "revision": 1,
+          "runs": [],
+          "latest_result": null
+        }
+      ],
+      "definition_pass": true,
+      "lifecycle_checks": {
+        "draft_did_not_run": true,
+        "active_survives_reconstruction": true,
+        "first_run_completed": true,
+        "correct_record_returned": true,
+        "idle_did_not_duplicate": true,
+        "pause_survives_reconstruction": true,
+        "paused_did_not_run": true,
+        "second_run_completed": true,
+        "allowance_stops_further_runs": true,
+        "no_background_inference": true
+      },
+      "lifecycle_pass": true,
+      "final_routine": {
+        "activated_at": "2026-11-15T20:15:49.757098+00:00",
+        "activated_by": "benchmark-owner",
+        "created_at": "2026-11-15T20:15:49.740354+00:00",
+        "created_by": "benchmark-owner",
+        "definition_version": 4,
+        "description": "",
+        "every_minutes": null,
+        "id": "routine_01M7GDM3ZC87CRY48E50Q73JGG",
+        "latest_result_id": "work_01M7GDM401ZB923DP9T9XN0PXG",
+        "max_runs": 2,
+        "mission_id": "msn_01M7GDM3ZCKNP4W1VYAWN1E4AG",
+        "name": "Changed case list",
+        "owner_id": "benchmark-owner",
+        "run_ids": [
+          "routinerun_01M7GDM3ZH62BTYPJG2E77FY6G",
+          "routinerun_01M7GDM400XDQ4G6Y7168QZ8XS"
+        ],
+        "runs_admitted": 2,
+        "site_id": "BENCH-SITE",
+        "status": "paused",
+        "task": {
+          "align_tolerance_h": 0.0,
+          "batches": [],
+          "dataset_ids": [],
+          "effective_at": null,
+          "expected_document_kinds": [],
+          "expected_parameters": [],
+          "expected_times": [],
+          "include_unverified": false,
+          "kinds": [
+            "case"
+          ],
+          "limit": 50,
+          "offset": 0,
+          "operation": "find_records",
+          "parameter": null,
+          "process_stage": null,
+          "query": "",
+          "record_id": null,
+          "record_kind": null,
+          "record_refs": [],
+          "series": [],
+          "site_id": "BENCH-SITE",
+          "target_unit": null,
+          "time_from_h": null,
+          "time_to_h": null,
+          "use_decision_model": true
+        },
+        "thread_id": "engchat_01M7GDM3ZC3Y5C7ZVM8JYGKPEP",
+        "triggers": [
+          "case"
+        ],
+        "updated_at": "2026-11-15T20:15:49.767222+00:00",
+        "revision": 9,
+        "runs": [
+          {
+            "definition_version": 2,
+            "event_ids": [
+              "evt_01M7GDM3ZF4J9H1QXT7VEQRCBM"
+            ],
+            "event_versions": {
+              "case:SYNTHETIC-CASE": 2
+            },
+            "finished_at": "2026-11-15T20:15:49.747713+00:00",
+            "id": "routinerun_01M7GDM3ZH62BTYPJG2E77FY6G",
+            "inputs": [
+              {
+                "id": "work_01M7GDM3ZKD2EDWQKQ77N70FVK",
+                "kind": "workspace_task_result",
+                "revision": 1,
+                "site_id": "BENCH-SITE"
+              }
+            ],
+            "issues": [],
+            "origin": "background",
+            "owner_id": "benchmark-owner",
+            "result_id": "work_01M7GDM3ZKD2EDWQKQ77N70FVK",
+            "routine_id": "routine_01M7GDM3ZC87CRY48E50Q73JGG",
+            "site_id": "BENCH-SITE",
+            "started_at": "2026-11-15T20:15:49.745745+00:00",
+            "status": "completed",
+            "task": {
+              "align_tolerance_h": 0.0,
+              "batches": [],
+              "dataset_ids": [],
+              "effective_at": null,
+              "expected_document_kinds": [],
+              "expected_parameters": [],
+              "expected_times": [],
+              "include_unverified": false,
+              "kinds": [
+                "case"
+              ],
+              "limit": 50,
+              "offset": 0,
+              "operation": "find_records",
+              "parameter": null,
+              "process_stage": null,
+              "query": "",
+              "record_id": null,
+              "record_kind": null,
+              "record_refs": [],
+              "series": [],
+              "site_id": "BENCH-SITE",
+              "target_unit": null,
+              "time_from_h": null,
+              "time_to_h": null,
+              "use_decision_model": true
+            },
+            "revision": 2,
+            "result": {
+              "id": "work_01M7GDM3ZKD2EDWQKQ77N70FVK",
+              "revision": 1,
+              "basis_hash": "87b806f465d28363bbe96c15d5035bb00dc8bcdb0080deba17d83a555958cdf5",
+              "cache": {
+                "hit": false
+              },
+              "created_at": "2026-11-15T20:15:49.747296+00:00",
+              "data": {
+                "content_search_gaps": [],
+                "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+                "matching_count": 1,
+                "matching_count_is_lower_bound": false,
+                "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+                "query": "",
+                "records": [
+                  {
+                    "classification": null,
+                    "id": "SYNTHETIC-CASE",
+                    "kind": "case",
+                    "label": "SYNTHETIC-CASE",
+                    "match": "exact",
+                    "revision": 2,
+                    "site_id": "BENCH-SITE",
+                    "status": "open",
+                    "time": "2026-11-15T20:15:49.739604+00:00",
+                    "time_basis": "opened_at",
+                    "timeline_events": 1,
+                    "word_overlap": 0.0
+                  }
+                ],
+                "scope": {
+                  "authorized_records_only": true,
+                  "site_id": "BENCH-SITE"
+                },
+                "searched_kinds": [
+                  "case"
+                ],
+                "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+                "truncated": false,
+                "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+              },
+              "decision_model_calls": 0,
+              "decisions": [],
+              "elapsed_seconds": 0.0008215419948101044,
+              "inputs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 2,
+                  "site_id": "BENCH-SITE"
+                },
+                {
+                  "id": "wreq_01M7GDM3ZKG7YCCHEMYJ51PSHG",
+                  "kind": "workspace_task_request",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "issue_count": 0,
+              "issues": [],
+              "issues_truncated": false,
+              "model_calls": 0,
+              "operation": "find_records",
+              "owner_id": "benchmark-owner",
+              "produced_by": {
+                "actor_id": "agent:benchmark-owner",
+                "method": "workspace_tasks:v1",
+                "template_version": "workspace-tasks-3"
+              },
+              "site_id": "BENCH-SITE",
+              "source_refs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 2,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "stale_reasons": [
+                "Selected source versions changed; rerun the task before using it."
+              ],
+              "status": "stale",
+              "summary": "Prepared 1 records.",
+              "task": {
+                "align_tolerance_h": 0.0,
+                "batches": [],
+                "dataset_ids": [],
+                "effective_at": null,
+                "expected_document_kinds": [],
+                "expected_parameters": [],
+                "expected_times": [],
+                "include_unverified": false,
+                "kinds": [
+                  "case"
+                ],
+                "limit": 50,
+                "offset": 0,
+                "operation": "find_records",
+                "parameter": null,
+                "process_stage": null,
+                "query": "",
+                "record_id": null,
+                "record_kind": null,
+                "record_refs": [],
+                "series": [],
+                "site_id": "BENCH-SITE",
+                "target_unit": null,
+                "time_from_h": null,
+                "time_to_h": null,
+                "use_decision_model": true
+              },
+              "task_status": "completed",
+              "template_version": "workspace-tasks-3",
+              "timing": {
+                "includes": "authorization, retrieval, calculation and saving the result",
+                "phases": {
+                  "authorize": 0.0002,
+                  "retrieve": 0.0002
+                },
+                "seconds": 0.001,
+                "target_seconds": 10.0,
+                "within_target": true
+              },
+              "proposals": [],
+              "work_status": "complete"
+            }
+          },
+          {
+            "definition_version": 4,
+            "event_ids": [
+              "evt_01M7GDM3ZYZCQB206G9ZCA70ZY"
+            ],
+            "event_versions": {
+              "case:SYNTHETIC-CASE": 4
+            },
+            "finished_at": "2026-11-15T20:15:49.762153+00:00",
+            "id": "routinerun_01M7GDM400XDQ4G6Y7168QZ8XS",
+            "inputs": [
+              {
+                "id": "work_01M7GDM401ZB923DP9T9XN0PXG",
+                "kind": "workspace_task_result",
+                "revision": 1,
+                "site_id": "BENCH-SITE"
+              }
+            ],
+            "issues": [],
+            "origin": "background",
+            "owner_id": "benchmark-owner",
+            "result_id": "work_01M7GDM401ZB923DP9T9XN0PXG",
+            "routine_id": "routine_01M7GDM3ZC87CRY48E50Q73JGG",
+            "site_id": "BENCH-SITE",
+            "started_at": "2026-11-15T20:15:49.760202+00:00",
+            "status": "completed",
+            "task": {
+              "align_tolerance_h": 0.0,
+              "batches": [],
+              "dataset_ids": [],
+              "effective_at": null,
+              "expected_document_kinds": [],
+              "expected_parameters": [],
+              "expected_times": [],
+              "include_unverified": false,
+              "kinds": [
+                "case"
+              ],
+              "limit": 50,
+              "offset": 0,
+              "operation": "find_records",
+              "parameter": null,
+              "process_stage": null,
+              "query": "",
+              "record_id": null,
+              "record_kind": null,
+              "record_refs": [],
+              "series": [],
+              "site_id": "BENCH-SITE",
+              "target_unit": null,
+              "time_from_h": null,
+              "time_to_h": null,
+              "use_decision_model": true
+            },
+            "revision": 2,
+            "result": {
+              "id": "work_01M7GDM401ZB923DP9T9XN0PXG",
+              "revision": 1,
+              "basis_hash": "ca4a006a7783cf105cb17392936f934314c5eab0331f19ff51da1f4458f61539",
+              "cache": {
+                "hit": false
+              },
+              "created_at": "2026-11-15T20:15:49.761741+00:00",
+              "data": {
+                "content_search_gaps": [],
+                "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+                "matching_count": 1,
+                "matching_count_is_lower_bound": false,
+                "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+                "query": "",
+                "records": [
+                  {
+                    "classification": null,
+                    "id": "SYNTHETIC-CASE",
+                    "kind": "case",
+                    "label": "SYNTHETIC-CASE",
+                    "match": "exact",
+                    "revision": 4,
+                    "site_id": "BENCH-SITE",
+                    "status": "open",
+                    "time": "2026-11-15T20:15:49.739604+00:00",
+                    "time_basis": "opened_at",
+                    "timeline_events": 3,
+                    "word_overlap": 0.0
+                  }
+                ],
+                "scope": {
+                  "authorized_records_only": true,
+                  "site_id": "BENCH-SITE"
+                },
+                "searched_kinds": [
+                  "case"
+                ],
+                "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+                "truncated": false,
+                "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+              },
+              "decision_model_calls": 0,
+              "decisions": [],
+              "elapsed_seconds": 0.0008370829746127129,
+              "inputs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 4,
+                  "site_id": "BENCH-SITE"
+                },
+                {
+                  "id": "wreq_01M7GDM401GQJHARSS9E7NMP2C",
+                  "kind": "workspace_task_request",
+                  "revision": 1,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "issue_count": 0,
+              "issues": [],
+              "issues_truncated": false,
+              "model_calls": 0,
+              "operation": "find_records",
+              "owner_id": "benchmark-owner",
+              "produced_by": {
+                "actor_id": "agent:benchmark-owner",
+                "method": "workspace_tasks:v1",
+                "template_version": "workspace-tasks-3"
+              },
+              "site_id": "BENCH-SITE",
+              "source_refs": [
+                {
+                  "id": "SYNTHETIC-CASE",
+                  "kind": "case",
+                  "revision": 4,
+                  "site_id": "BENCH-SITE"
+                }
+              ],
+              "stale_reasons": [
+                "Selected source versions changed; rerun the task before using it."
+              ],
+              "status": "stale",
+              "summary": "Prepared 1 records.",
+              "task": {
+                "align_tolerance_h": 0.0,
+                "batches": [],
+                "dataset_ids": [],
+                "effective_at": null,
+                "expected_document_kinds": [],
+                "expected_parameters": [],
+                "expected_times": [],
+                "include_unverified": false,
+                "kinds": [
+                  "case"
+                ],
+                "limit": 50,
+                "offset": 0,
+                "operation": "find_records",
+                "parameter": null,
+                "process_stage": null,
+                "query": "",
+                "record_id": null,
+                "record_kind": null,
+                "record_refs": [],
+                "series": [],
+                "site_id": "BENCH-SITE",
+                "target_unit": null,
+                "time_from_h": null,
+                "time_to_h": null,
+                "use_decision_model": true
+              },
+              "task_status": "completed",
+              "template_version": "workspace-tasks-3",
+              "timing": {
+                "includes": "authorization, retrieval, calculation and saving the result",
+                "phases": {
+                  "authorize": 0.0002,
+                  "retrieve": 0.0002
+                },
+                "seconds": 0.001,
+                "target_seconds": 10.0,
+                "within_target": true
+              },
+              "proposals": [],
+              "work_status": "complete"
+            }
+          }
+        ],
+        "latest_result": {
+          "id": "work_01M7GDM401ZB923DP9T9XN0PXG",
+          "revision": 1,
+          "basis_hash": "ca4a006a7783cf105cb17392936f934314c5eab0331f19ff51da1f4458f61539",
+          "cache": {
+            "hit": false
+          },
+          "created_at": "2026-11-15T20:15:49.761741+00:00",
+          "data": {
+            "content_search_gaps": [],
+            "coverage": "Counts apply only to these kinds, query, owner and site permissions; an empty result does not establish that other workspace data is absent.",
+            "matching_count": 1,
+            "matching_count_is_lower_bound": false,
+            "ordering": "Literal matches first (descending source timestamp, then id); case time is opened_at, NOT deviation occurrence time. Undated records sort last. Records containing at least half the query words follow as match=words, best overlap first.",
+            "query": "",
+            "records": [
+              {
+                "classification": null,
+                "id": "SYNTHETIC-CASE",
+                "kind": "case",
+                "label": "SYNTHETIC-CASE",
+                "match": "exact",
+                "revision": 4,
+                "site_id": "BENCH-SITE",
+                "status": "open",
+                "time": "2026-11-15T20:15:49.739604+00:00",
+                "time_basis": "opened_at",
+                "timeline_events": 3,
+                "word_overlap": 0.0
+              }
+            ],
+            "scope": {
+              "authorized_records_only": true,
+              "site_id": "BENCH-SITE"
+            },
+            "searched_kinds": [
+              "case"
+            ],
+            "time_cutoff": "none: results include all current authorized records regardless of when they became available.",
+            "truncated": false,
+            "warning": "Saved conversation answers are unreviewed interpretations; inspect their original inputs. Prior-investigation reuse still requires owner approval."
+          },
+          "decision_model_calls": 0,
+          "decisions": [],
+          "elapsed_seconds": 0.0008370829746127129,
+          "inputs": [
+            {
+              "id": "SYNTHETIC-CASE",
+              "kind": "case",
+              "revision": 4,
+              "site_id": "BENCH-SITE"
+            },
+            {
+              "id": "wreq_01M7GDM401GQJHARSS9E7NMP2C",
+              "kind": "workspace_task_request",
+              "revision": 1,
+              "site_id": "BENCH-SITE"
+            }
+          ],
+          "issue_count": 0,
+          "issues": [],
+          "issues_truncated": false,
+          "model_calls": 0,
+          "operation": "find_records",
+          "owner_id": "benchmark-owner",
+          "produced_by": {
+            "actor_id": "agent:benchmark-owner",
+            "method": "workspace_tasks:v1",
+            "template_version": "workspace-tasks-3"
+          },
+          "site_id": "BENCH-SITE",
+          "source_refs": [
+            {
+              "id": "SYNTHETIC-CASE",
+              "kind": "case",
+              "revision": 4,
+              "site_id": "BENCH-SITE"
+            }
+          ],
+          "stale_reasons": [
+            "Selected source versions changed; rerun the task before using it."
+          ],
+          "status": "stale",
+          "summary": "Prepared 1 records.",
+          "task": {
+            "align_tolerance_h": 0.0,
+            "batches": [],
+            "dataset_ids": [],
+            "effective_at": null,
+            "expected_document_kinds": [],
+            "expected_parameters": [],
+            "expected_times": [],
+            "include_unverified": false,
+            "kinds": [
+              "case"
+            ],
+            "limit": 50,
+            "offset": 0,
+            "operation": "find_records",
+            "parameter": null,
+            "process_stage": null,
+            "query": "",
+            "record_id": null,
+            "record_kind": null,
+            "record_refs": [],
+            "series": [],
+            "site_id": "BENCH-SITE",
+            "target_unit": null,
+            "time_from_h": null,
+            "time_to_h": null,
+            "use_decision_model": true
+          },
+          "task_status": "completed",
+          "template_version": "workspace-tasks-3",
+          "timing": {
+            "includes": "authorization, retrieval, calculation and saving the result",
+            "phases": {
+              "authorize": 0.0002,
+              "retrieve": 0.0002
+            },
+            "seconds": 0.001,
+            "target_seconds": 10.0,
+            "within_target": true
+          },
+          "proposals": [],
+          "work_status": "complete"
+        }
+      },
+      "background_model_runs": [],
+      "lifecycle_behavior_pass": true,
+      "outcome": "correct",
+      "seconds": 0.036
+    }
+  ],
+  "budget": {
+    "estimated_budget_usd": 2.0,
+    "hard_request_limit": 24,
+    "requests": 0,
+    "accounted_usd": 0,
+    "unknown_usage_requests": 0,
+    "estimated_rates_per_million": {
+      "input": 1.4,
+      "output": 4.4
+    },
+    "provider_invoice_usd": null,
+    "invoice_coverage": "not reconciled; estimates are not a monetary guarantee",
+    "records": []
+  },
+  "planned": 4,
+  "completed": 4,
+  "definition_passes": 4,
+  "lifecycle_passes": 4,
+  "errors": 0
+}
