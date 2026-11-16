@@ -325,14 +325,21 @@ class MissionService:
     def _event_subjects(event: Any, state: dict[str, Any]) -> set[str]:
         """Explicit identifiers only: a free-text mention is not a subject relationship."""
         subjects = {event.aggregate_id}
-        fields = ('batch_id', 'batch', 'sample_id', 'case_id', 'equipment_id', 'dataset_id', 'source_record_id')
-        for data in (state, state.get('metadata') or {}):
+        from .quality_evidence import typed_identifiers
+        subjects.update(typed_identifiers(state))
+        fields = ('batch_id', 'batch', 'sample_id', 'case_id', 'equipment_id', 'dataset_id', 'source_record_id',
+                  'product_id', 'material_id', 'lot_id')
+        metadata = state.get('metadata') or {}
+        for data in (state, metadata, metadata.get('mapped') or {}, state.get('associations') or {}):
             for key in fields:
                 value = data.get(key)
                 if isinstance(value, (str, int)):
                     subjects.add(str(value))
+                    subjects.add(f'{key}:{value}')
             for key in ('batches', 'batch_ids', 'dataset_ids'):
                 subjects.update(str(v) for v in data.get(key) or [] if isinstance(v, (str, int)))
+                if key == 'batch_ids':
+                    subjects.update(f'batch_id:{v}' for v in data.get(key) or [] if isinstance(v, (str, int)))
             subject = data.get('subject') or {}
             if isinstance(subject, dict) and subject.get('id'):
                 subjects.add(str(subject['id']))

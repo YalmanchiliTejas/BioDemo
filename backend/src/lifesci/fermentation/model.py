@@ -249,6 +249,60 @@ def pichia(config):
             'warnings':p['limitations']+list(LIMITS)+['Solubility, broth correction, kLa, OUR, DO, gas usage and prices are user assumptions, not Liu measurements.','Dry ideal gas and uniform DO; kLa follows actual gas flow by the assumed gas exponent. No exhaust oxygen depletion, hydrostatic or dissolved carbon dioxide correction.'],
             'missing_inputs':p['missing'],'biology_prediction':None}
 
+# A bounded frozen execution contract over the same registered oxygen solver.
+# Unlike pichia's literature/strategy report, this path needs no enzyme/product
+# baseline and never populates an omitted scientific input from Assumptions.
+FROZEN_OXYGEN_UNITS = {
+    'gas_exponent':'dimensionless', 'pressure_gauge_kpa':'kPa', 'ambient_kpa':'kPa',
+    'air_nm3_h':'Nm3/h', 'oxygen_nm3_h':'Nm3/h', 'compressor_efficiency':'fraction',
+    'compressor_inlet_temperature_k':'K', 'electricity_usd_kwh':'USD/kWh',
+    'oxygen_usd_nm3':'USD/Nm3', 'air_saturation_mg_l':'mg/L', 'broth_solubility_factor':'fraction',
+    'kla_h_inv':'1/h', 'dissolved_oxygen_mg_l':'mg/L', 'our_mg_l_h':'mg/(L h)',
+    'kla_baseline_pressure_gauge_kpa':'kPa',
+}
+
+
+def source_oxygen_scenarios(config):
+    """Conditional two-scenario oxygen calculation, without literature outcomes/defaults."""
+    from types import SimpleNamespace
+    from ..ids import content_hash
+    raw=config['assumptions']
+    if not isinstance(raw,dict) or set(raw) != set(FROZEN_OXYGEN_UNITS):
+        raise ValueError('Oxygen assumptions require exactly the explicit frozen input contract; defaults are withheld')
+    for name,unit in FROZEN_OXYGEN_UNITS.items():
+        value=raw[name]
+        if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value):
+            raise ValueError(f'Oxygen input {name} requires a finite number in {unit}')
+    if raw['kla_baseline_pressure_gauge_kpa'] != BASELINE_GAUGE_KPA:
+        raise ValueError(f'Registered oxygen correlation requires kLa characterization at {BASELINE_GAUGE_KPA} kPa gauge baseline')
+    supplied={k:v for k,v in raw.items() if k!='kla_baseline_pressure_gauge_kpa'}
+    # Validate each supplied field against the established numerical envelope.
+    # Do not construct Assumptions: its unrelated scenario defaults never enter this path.
+    from pydantic import TypeAdapter
+    for name,value in supplied.items():
+        TypeAdapter(Assumptions.model_fields[name].rebuild_annotation()).validate_python(value,strict=True)
+    if set(config)-{'assumptions','evidence_classification','source_refs'}:
+        raise ValueError('Frozen oxygen configuration fields: assumptions, evidence_classification, source_refs')
+    if not isinstance(config.get('evidence_classification'),str) or not config['evidence_classification'].strip():
+        raise ValueError('Explicit oxygen evidence_classification required')
+    refs=config.get('source_refs')
+    if not isinstance(refs,list) or not refs or any(not isinstance(r,str) or not r.strip() for r in refs):
+        raise ValueError('Oxygen configuration requires nonempty source_refs strings')
+    inputs=SimpleNamespace(**supplied)
+    rows=[oxygen_scenario(inputs,'Supplemental oxygen at declared characterization baseline',BASELINE_GAUGE_KPA,inputs.oxygen_nm3_h),
+          oxygen_scenario(inputs,'Air only at supplied pressure',inputs.pressure_gauge_kpa,0.)]
+    return {'status':'completed','scenarios':rows,'input_hash':content_hash(config),
+            'classification':'conditional_model_calculation','evidence_classification':config['evidence_classification'],
+            'source_refs':refs,'execution_contract':'frozen_oxygen_scenarios_v1',
+            'limitations':['Uniform absolute dissolved oxygen and supplied saturation under relevant conditions are assumed.',
+                'Declared kLa is characterized at 50 kPa gauge; actual gas-flow scaling is conditional.',
+                'Dry ideal gas and prescribed broth solubility; no exhaust depletion, hydrostatic or CO2 correction.',
+                'No DO-percent conversion, process diagnosis, biology prediction or qualified operating recommendation.',
+                'Partial compressor/oxygen costs use source prices, not measured savings.'],
+            'basis':{'air_oxygen_mole_fraction':.2095,'normal_temperature_k':273.15,'normal_pressure_kpa':101.325,
+                     'kla_baseline_pressure_gauge_kpa':raw['kla_baseline_pressure_gauge_kpa']}}
+
+
 @dataclass(frozen=True)
 class FermentationAdapter:
     id: str
@@ -258,11 +312,22 @@ class FermentationAdapter:
     @property
     def digest(self):
         return hashlib.sha256(Path(__file__).read_bytes()+Path(__file__).with_name('schemas.py').read_bytes()).hexdigest()
+    @property
+    def frozen_required_inputs(self):
+        if self.id=='fermentation.pressure_cost':
+            return {**{'assumptions.'+key:unit for key,unit in FROZEN_OXYGEN_UNITS.items()},
+                    'evidence_classification':'classification','source_refs':'source coordinates'}
+        return None
+    def run_frozen(self,config):
+        if self.id!='fermentation.pressure_cost':
+            raise ValueError('No bounded frozen execution contract for this adapter')
+        return {**source_oxygen_scenarios(config),'model_id':self.id,'model_version':self.version,
+                'implementation_digest':self.digest}
     def describe(self):
         return {'id':self.id,'version':self.version,'implementation_digest':self.digest,'title':'Aerobic transfer characterization · '+self.case_id,
                 'process_family':'aerobic_fermentation','qualification':'unqualified characterization / literature benchmark',
                 'source':'10.3389/fbioe.2023.1160012' if self.case_id=='sulfolobus' else '10.1038/srep18439',
-                'required_inputs':['project','assumptions'],'limitations':list(LIMITS),'supported_outputs':['oxygen_transfer','constraints','conditional_strategy'],'units':'explicitly suffixed keys'}
+                'required_inputs':['project','assumptions'],'frozen_source_inputs':self.frozen_required_inputs,'limitations':list(LIMITS),'supported_outputs':['oxygen_transfer','constraints','conditional_strategy'],'units':'explicitly suffixed keys'}
     def applicability(self,config):
         ok=config.get('project',{}).get('id')==self.case_id
         return {'applicable':ok,'missing_inputs':[] if ok else ['matching fermentation project'],'issues':[], 'note':'Characterization input sufficiency does not validate transfer.'}

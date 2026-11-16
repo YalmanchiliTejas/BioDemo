@@ -4,7 +4,8 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, FileText, Send, Users } from 'lucide-react';
-import { EvidenceChip, Pill, type Tone } from '@/components/ui';
+import { Pill, type Tone } from '@/components/ui';
+import { RunCitation } from '@/components/quality/SourceInspector';
 import { AgentIcon, agentLine, agentName, BudgetBar, orderedAgents, StopButton, SyncNote, useRun } from '@/components/process/InvestigationCard';
 import { ago, isActive, listRuns, runEvents, runReport, sendForReview, STATUS_LABEL, type Report, type Run, type RunEvent, type RunStatus } from '@/lib/investigations-api';
 
@@ -107,7 +108,8 @@ function RunView({ runId }: { runId: string }) {
             {(report.report.summary || report.report.assessment) && <p className="mt-3 text-sm leading-6">{report.report.summary ?? report.report.assessment}</p>}
             {!!report.report.findings?.length && <ul className="mt-3 space-y-2">{report.report.findings.map((f, i) => <li key={i} className="rounded-control bg-surface-secondary/60 px-3 py-2 text-xs">
               <Pill tone={f.status === 'supported' ? 'success' : f.status === 'unknown' ? 'muted' : 'warning'}>{f.status ?? f.kind ?? 'hypothesis'}</Pill> <span className="ml-1">{f.text ?? f.title}</span>
-              {!!f.evidence_ids?.length && <span className="mt-1.5 flex flex-wrap gap-1">{f.evidence_ids.slice(0, 8).map(id => <EvidenceChip key={id} id={id} />)}</span>}</li>)}</ul>}
+              {!!f.evidence_ids?.length && <span className="mt-1.5 flex flex-wrap gap-1">{f.evidence_ids.slice(0, 8).map(id => <RunCitation key={id} runId={runId} citationId={id} />)}</span>}</li>)}</ul>}
+            {!!report.report.hypotheses?.length && <div className="mt-3 space-y-3">{report.report.hypotheses.map((h,i)=><article key={i} className="rounded border border-border-hairline p-3 text-xs"><p>{h.statement ?? h.text ?? h.title} · {h.status ?? 'hypothesis'}</p><p className="mt-1 text-text-tertiary">Counterevidence: {h.contradicting_evidence_status ?? 'not searched'}</p>{!!h.supporting_evidence_ids?.length&&<div className="mt-2 flex flex-wrap gap-1"><span>Support:</span>{h.supporting_evidence_ids.map(id=><RunCitation key={id} runId={runId} citationId={id}/>)}</div>}{!!h.contradicting_evidence_ids?.length&&<div className="mt-2 flex flex-wrap gap-1"><span>Counterevidence:</span>{h.contradicting_evidence_ids.map(id=><RunCitation key={id} runId={runId} citationId={id}/>)}</div>}{!!h.assumptions?.length&&<p className="mt-2">Assumptions: {h.assumptions.join('; ')}</p>}{!!h.unknowns?.length&&<p className="mt-2">Unknowns: {h.unknowns.join('; ')}</p>}</article>)}</div>}
             {!!report.report.open_questions?.length && <><p className="mt-3 text-xs font-medium text-text-secondary">Still unknown</p><ul className="mt-1 list-disc pl-5 text-xs">{report.report.open_questions.map(q => <li key={q}>{q}</li>)}</ul></>}
             <p className="mt-3 text-[11px] text-text-tertiary">Findings are hypotheses until a qualified reviewer accepts them. Nothing was changed in your systems.</p></>}
         </section>}
@@ -118,7 +120,7 @@ function RunView({ runId }: { runId: string }) {
             <p className="text-text-tertiary">{agentName(agent)}{agent.question ? ` · ${agent.question}` : ''}</p>
             {s.assessment && <p className="mt-1 text-sm leading-6 text-text-primary">{s.assessment}</p>}
             <p className="mt-1 text-text-tertiary">{count(s.fact_count, 'observation')} · {count(s.claim_count, 'claim')} · {count(s.open_question_count, 'open question')}</p>
-            {!!s.evidence_ids?.length && <p className="mt-2 flex flex-wrap gap-1">{s.evidence_ids.slice(0, 12).map(id => <EvidenceChip key={id} id={id} />)}{s.evidence_ids.length > 12 && <span className="text-text-tertiary">+{s.evidence_ids.length - 12}</span>}</p>}
+            {!!s.evidence_ids?.length && <p className="mt-2 flex flex-wrap gap-1">{s.evidence_ids.slice(0, 12).map(id => <RunCitation key={id} runId={runId} citationId={id} />)}{s.evidence_ids.length > 12 && <span className="text-text-tertiary">+{s.evidence_ids.length - 12}</span>}</p>}
           </article>)}
         </section>}
 
@@ -180,6 +182,7 @@ function SendForReview({ run }: { run: Run }) {
       setState('busy'); setMessage('');
       try { const r = await sendForReview(run.run_id); setMessage(`Sent: ${r.claims.length} hypotheses and open questions added to ${run.case_id} for QA review`); setState('sent'); }
       catch (e) { setMessage((e as Error).message); setState('idle'); }
-    }} className="inline-flex items-center gap-1.5 rounded-control bg-brand-teal px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"><Send size={13} />Send for QA review</button>
+    }} className="inline-flex items-center gap-1.5 rounded-control bg-brand-teal px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"><Send size={13} />Send for local review</button>
+    <Link className="text-xs underline" href={`/quality/?case=${encodeURIComponent(run.case_id)}`}>Open case in Quality</Link>
   </span>;
 }

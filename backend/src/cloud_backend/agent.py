@@ -34,6 +34,8 @@ def execute(manifest, work):
     if hashlib.sha256(data).hexdigest() != manifest["sha256"]:
         raise ValueError("Input digest mismatch")
     package.write_bytes(data)
+    from src.prime_runtime.science import pin_package_availability
+    pin_package_availability(package,manifest["as_of"])
     store = ManufacturingStore(work / "store")
     ingested = ingest_package(package, store, access_scope=manifest["scope"])
     if ingested["errors"]:
@@ -43,6 +45,9 @@ def execute(manifest, work):
                                                  scope=manifest["scope"], blackboards=boards)
     harness = PrimeManufacturingHarness.from_env(store=store, blackboards=boards,
                                                workflow=workflow, scope=manifest["scope"])
+    from src.prime_runtime.science import FrozenScience
+    scientific = FrozenScience.from_package(package)
+    harness.additional_tools.update(scientific.tools())
     harness.timeout_seconds = max(1, int(manifest["deadline"] - time.time() - 15))
     harness.max_tool_calls = manifest["max_tool_calls"]
     emitter = progress()
@@ -59,6 +64,7 @@ def execute(manifest, work):
     emitter.emit("agent_started", {"depth": 0, "status": "running", "question": manifest["objective"]}, agent_id="lead")
     result = harness.run(incident_id=manifest["id"], problem=manifest["objective"],
                          new_evidence_ids=[], as_of=manifest["as_of"])
+    result = scientific.attach(result, store, manifest["scope"], manifest["as_of"])
     emitter.emit("agent_finished", {"depth": 0, "status": "done"}, agent_id="lead")
     data = json.dumps({"run_id": manifest["id"], "input_sha256": manifest["sha256"],
                        "input_version_id": manifest["version_id"], "as_of": manifest["as_of"],

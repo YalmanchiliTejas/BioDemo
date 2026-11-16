@@ -17,12 +17,14 @@ export type Signal = {
   occurrences?: number; first_at?: string; last_at?: string; status: SignalStatus;
   dismiss_reason?: string | null; case_id?: string | null;
   alerts?: { sent: number; last_at?: string | null } | null; triage?: Triage | null; revision?: number;
+  associations?: Record<string, unknown>;
+  observations?: { value?: number; unit?: string; original_value?: number; original_unit?: string; event_time?: string | null; original_event_time?: string | null; batch_id?: string; evidence_ref?: { kind: string; id: string; revision: number } }[];
 };
 
 export const SEVERITY_TONE: Record<Severity, Tone> = { warning: 'warning', action: 'critical', critical: 'critical' };
 export const SEVERITY_RANK: Record<Severity, number> = { warning: 1, action: 2, critical: 3 };
 export const KIND_LABEL: Record<string, string> = {
-  step_exception: 'Step out of limit', lab_oos: 'Lab result out of specification', spec_excursion: 'Outside specification',
+  step_exception: 'Step out of limit', lab_oos: 'Lab result out of specification', lab_oot: 'Lab result out of trend', spec_excursion: 'Outside specification',
   trend: 'Early-warning trend', qms_deviation: 'Deviation recorded in QMS', delivery_excursion: 'CDMO value outside specification',
 };
 

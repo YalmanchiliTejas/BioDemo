@@ -1,0 +1,764 @@
+{
+  "case_id": "LPN-3923338c5c",
+  "family": "scope_limits",
+  "assessment": {
+    "answer_status": "out_of_scope",
+    "completion_h": null,
+    "maximum_bottom_temperature_c": null,
+    "peak_batch_sublimation_kg_h": null,
+    "thermal_margin_c": null,
+    "capacity_margin_kg_h": null,
+    "selected_recipe": null,
+    "missing_inputs": [
+      "vial_population_characterization"
+    ],
+    "result_ids": [
+      "assi_01M7HJWQ2RM948A6H7X1WGKY26"
+    ],
+    "rationale": "Source read first (rev 1): authored native primary-drying case, report task, 398 vials with a single vial geometry (Ap 3.14 cm2, Av 3.8 cm2, Vfill 1.977 mL) and a single uniform heat-transfer parameter set; T_pr_crit -5 C on the vial-bottom. Native simulation with the scheduled inputs preserved (0.2 Torr chamber, shelf -35 to 0 C over the 3600-min horizon) returned one representative-vial trajectory: maximum returned vial-bottom temperature -18.37 C over returned solver nodes (13.37 C below T_pr_crit), peak flux 0.7392 kg/(h m2), ~100% dried at 10.45 h; no continuous-maximum guarantee. Neither the source record nor searched workspace evidence, specification or model records contain any vial population characterization (no per-position Kv distribution, no edge-vial identification), so the hottest edge vial and per-vial no-exceedance of the -5 C limit in this heterogeneous batch cannot be calculated or proven by a representative-vial model. Claim recorded out_of_scope; vial_population_characterization is the missing input. Authored simulator data, not experimental validation; no measured outcome inferred."
+  },
+  "verdict": {
+    "passed": true,
+    "checks": {
+      "recorded_assessment": true,
+      "no_manufacturing_action": true,
+      "appropriate_status": true,
+      "simulation_evidence": true,
+      "missing_evidence_identified": true,
+      "no_invented_recommendation": true
+    },
+    "classification": "task_completed",
+    "task": "scope_limits"
+  },
+  "elapsed_seconds": 196.3331436670269,
+  "solver_calls": 1,
+  "error": null,
+  "trace": {
+    "native_simulations": [
+      {
+        "type": "lyopronto_simulation",
+        "case_id": "LPN-3923338c5c",
+        "native_configuration": {
+          "Pchamber": {
+            "dt_setpt": [
+              3600.0
+            ],
+            "ramp_rate": 0.5,
+            "setpt": [
+              0.2
+            ]
+          },
+          "Tshelf": {
+            "dt_setpt": [
+              3600.0
+            ],
+            "init": -35.0,
+            "ramp_rate": 1.0,
+            "setpt": [
+              0.0
+            ]
+          },
+          "ht": {
+            "KC": 0.000275,
+            "KD": 0.46,
+            "KP": 0.000893
+          },
+          "product": {
+            "A1": 17.3518,
+            "A2": 0.0,
+            "R0": 1.741,
+            "T_pr_crit": -5,
+            "cSolid": 0.05
+          },
+          "vial": {
+            "Ap": 3.14,
+            "Av": 3.8,
+            "Vfill": 1.977
+          },
+          "dt": null
+        },
+        "summary": {
+          "model": "LyoPRONTO 1.2.0",
+          "upstream_commit": "c6a9225a9e551ae4e7c11c1ef056b67c6204afbd",
+          "native_input_sha256": "c48bc488b2f3ac96382b9e3772a192ff09c33807f14abf499019c3634adabf2b",
+          "last_elapsed_h": 10.452477464585716,
+          "last_dried_percent": 99.99999999999999,
+          "maximum_returned_front_temperature_c": -18.370133459516993,
+          "maximum_returned_bottom_temperature_c": -18.370133459516993,
+          "maximum_returned_flux_kg_h_m2": 0.7391999250939126,
+          "pressure_output_mtorr": 200.0,
+          "columns": [
+            "elapsed_h",
+            "front_temperature_c",
+            "bottom_temperature_c",
+            "shelf_temperature_c",
+            "pressure_mtorr",
+            "flux_kg_h_m2",
+            "dried_percent"
+          ],
+          "trajectory_sample": [
+            [
+              0.0,
+              -35.0,
+              -35.0,
+              -35.0,
+              200.0,
+              0.0,
+              0.0
+            ],
+            [
+              1.1999999999999999e-05,
+              -34.99928,
+              -34.99928,
+              -34.99928,
+              200.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.00022200000000000003,
+              -34.98668,
+              -34.98668,
+              -34.98668,
+              200.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.012222000000000002,
+              -34.26668,
+              -34.26668,
+              -34.26668,
+              200.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.031815794956202535,
+              -33.32287744736253,
+              -33.30944060059168,
+              -33.09105230262785,
+              200.0,
+              0.00615429511079273,
+              0.00040932346279339465
+            ],
+            [
+              0.04685821685458559,
+              -33.16405104940328,
+              -33.10750956624586,
+              -32.18850698872487,
+              200.0,
+              0.02589796762178258,
+              0.004446600531454292
+            ],
+            [
+              0.0821398065517926,
+              -32.79849384646271,
+              -32.64048909258096,
+              -30.071611606892446,
+              200.0,
+              0.07239229527315862,
+              0.0329255692345322
+            ],
+            [
+              0.22529093845865805,
+              -31.378576343826953,
+              -30.807295585895712,
+              -21.48254369248052,
+              200.0,
+              0.2627763278621826,
+              0.42678442109487386
+            ],
+            [
+              0.5833333333333334,
+              -27.790316269061172,
+              -26.230886005633373,
+              0.0,
+              200.0,
+              0.7391999250939126,
+              3.3763988900032396
+            ],
+            [
+              0.603769945961503,
+              -27.73852762370829,
+              -26.185773228968927,
+              0.0,
+              200.0,
+              0.7379286237309376,
+              3.624291040718018
+            ],
+            [
+              0.8679394852535739,
+              -27.10920985015216,
+              -25.638870157459237,
+              0.0,
+              200.0,
+              0.7225166125084808,
+              6.792894857202699
+            ],
+            [
+              1.8933831817279465,
+              -25.179040716985952,
+              -23.977518957310505,
+              0.0,
+              200.0,
+              0.6756988770175484,
+              18.556276923740015
+            ],
+            [
+              5.086840967473278,
+              -21.59431526007478,
+              -20.968511379491943,
+              0.0,
+              200.0,
+              0.5909034882665596,
+              51.49339563917986
+            ],
+            [
+              9.785366610690177,
+              -18.67986749410965,
+              -18.614488177949326,
+              0.0,
+              200.0,
+              0.5245658977682489,
+              94.29153298943802
+            ],
+            [
+              10.452477464585716,
+              -18.370133459516993,
+              -18.370133459516993,
+              0.0,
+              200.0,
+              0.5176798555079295,
+              99.99999999999999
+            ]
+          ],
+          "warnings": [],
+          "qualification": "Native solver result, not an experimental observation or approval; no continuous-maximum guarantee; forward mode does not enforce thermal/equipment limits."
+        }
+      }
+    ],
+    "action_intents": 0,
+    "tool_steps": [
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-16T07:06:22.107964+00:00",
+        "issues": [],
+        "node_id": "call_d841da05e99c442c9120a379",
+        "payload": {
+          "limit": 20,
+          "mode": "search",
+          "query": "LyoPRONTO native case LPN-3923338c5c characterization"
+        },
+        "result_id": "assi_01M7HJV9GRS4D1RSP4468VNACE",
+        "started_at": "2026-11-16T07:06:22.102732+00:00",
+        "status": "completed",
+        "task_kind": "workspace_search",
+        "title": "Search records for \u201cLyoPRONTO native case LPN-3923338c5c characterizat\u201d"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-16T07:06:22.113109+00:00",
+        "issues": [],
+        "node_id": "call_7fae20f10b224cf5a7d74cdc",
+        "payload": {
+          "limit": 20,
+          "mode": "links",
+          "record_id": "LyoPRONTO-native-case:LPN-3923338c5c"
+        },
+        "result_id": "assi_01M7HJV9GZTAH95PJDKEDE48EC",
+        "started_at": "2026-11-16T07:06:22.108987+00:00",
+        "status": "completed",
+        "task_kind": "workspace_search",
+        "title": "Find records linked to LyoPRONTO-native-case:LPN-3923338c5c"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-16T07:06:23.581064+00:00",
+        "issues": [],
+        "node_id": "call_227dc063a0374266a7217c52",
+        "payload": {
+          "kind": "evidence",
+          "record_id": "LyoPRONTO-native-case:LPN-3923338c5c",
+          "revision": 1
+        },
+        "result_id": "assi_01M7HJVAYR0J3VGSB1F1BMFYKG",
+        "started_at": "2026-11-16T07:06:23.574458+00:00",
+        "status": "completed",
+        "task_kind": "workspace_read",
+        "title": "Read evidence LyoPRONTO-native-case:LPN-3923338c5c"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-16T07:07:08.765550+00:00",
+        "issues": [],
+        "node_id": "call_58b7f00d7988439e8bf14ec8",
+        "payload": {
+          "source_id": "LyoPRONTO-native-case:LPN-3923338c5c"
+        },
+        "result_id": "assi_01M7HJWQ2RM948A6H7X1WGKY26",
+        "started_at": "2026-11-16T07:07:07.885556+00:00",
+        "status": "completed",
+        "task_kind": "lyopronto_simulate",
+        "title": "Lyopronto simulate"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-16T07:07:58.564967+00:00",
+        "issues": [],
+        "node_id": "call_2af8d19c47c24d3d9718e249",
+        "payload": {
+          "kinds": [
+            "evidence",
+            "specification",
+            "physical_model_dataset",
+            "physical_analysis_context",
+            "physical_analysis_result",
+            "process_simulation"
+          ],
+          "limit": 20,
+          "mode": "search",
+          "query": "vial population characterization edge vial heat transfer coefficient heterogeneity"
+        },
+        "result_id": "assi_01M7HJY7PPVYK6KFWYRAK4B7WP",
+        "started_at": "2026-11-16T07:07:58.546541+00:00",
+        "status": "completed",
+        "task_kind": "workspace_search",
+        "title": "Search evidence, specification, physical model dataset, physical analysis context, physical analysis result, process simulation for \u201cvial population characterization edge vial heat tr\u201d"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-16T07:07:58.575568+00:00",
+        "issues": [],
+        "node_id": "call_7210c04ff4f747628fc5fb04",
+        "payload": {
+          "kinds": [
+            "evidence",
+            "specification",
+            "physical_model_dataset",
+            "physical_analysis_context",
+            "physical_analysis_result",
+            "process_simulation"
+          ],
+          "limit": 20,
+          "mode": "search",
+          "query": "edge vial center vial Kv distribution freeze drying primary drying position"
+        },
+        "result_id": "assi_01M7HJY7QB16ZY2XRMEYGQ4SPM",
+        "started_at": "2026-11-16T07:07:58.568759+00:00",
+        "status": "completed",
+        "task_kind": "workspace_search",
+        "title": "Search evidence, specification, physical model dataset, physical analysis context, physical analysis result, process simulation for \u201cedge vial center vial Kv distribution freeze dryin\u201d"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-16T07:08:45.296582+00:00",
+        "issues": [],
+        "node_id": "call_3adec1966808445ba770a833",
+        "payload": {
+          "answer_status": "out_of_scope",
+          "missing_inputs": [
+            "vial_population_characterization"
+          ],
+          "rationale": "Source read first (rev 1): authored native primary-drying case, report task, 398 vials with a single vial geometry (Ap 3.14 cm2, Av 3.8 cm2, Vfill 1.977 mL) and a single uniform heat-transfer parameter set; T_pr_crit -5 C on the vial-bottom. Native simulation with the scheduled inputs preserved (0.2 Torr chamber, shelf -35 to 0 C over the 3600-min horizon) returned one representative-vial trajectory: maximum returned vial-bottom temperature -18.37 C over returned solver nodes (13.37 C below T_pr_crit), peak flux 0.7392 kg/(h m2), ~100% dried at 10.45 h; no continuous-maximum guarantee. Neither the source record nor searched workspace evidence, specification or model records contain any vial population characterization (no per-position Kv distribution, no edge-vial identification), so the hottest edge vial and per-vial no-exceedance of the -5 C limit in this heterogeneous batch cannot be calculated or proven by a representative-vial model. Claim recorded out_of_scope; vial_population_characterization is the missing input. Authored simulator data, not experimental validation; no measured outcome inferred.",
+          "result_ids": [
+            "assi_01M7HJWQ2RM948A6H7X1WGKY26"
+          ],
+          "source_id": "LyoPRONTO-native-case:LPN-3923338c5c"
+        },
+        "result_id": "assi_01M7HJZNBCSQEM39GPZFRXGFWF",
+        "started_at": "2026-11-16T07:08:45.288534+00:00",
+        "status": "completed",
+        "task_kind": "lyopronto_record_result",
+        "title": "Lyopronto record result"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-16T07:08:45.304709+00:00",
+        "issues": [],
+        "node_id": "call_fb4241b1020249368cd7f563",
+        "payload": {
+          "basis": "inferred",
+          "kind": "lesson",
+          "sources": [
+            {
+              "id": "LyoPRONTO-native-case:LPN-3923338c5c",
+              "kind": "evidence"
+            }
+          ],
+          "text": "LyoPRONTO native cases (e.g. LPN-3923338c5c) are authored representative-vial sources: one vial geometry and one uniform heat-transfer set, no vial population characterization. Heterogeneous per-vial claims (hottest edge vial, no vial exceeding T_pr_crit) must be recorded out_of_scope with vial_population_characterization as the missing input; no per-position Kv data exists in the workspace to close them."
+        },
+        "result_id": "mnote_01M7HJZNBP1K30PQZTGWREVT5J",
+        "started_at": "2026-11-16T07:08:45.299373+00:00",
+        "status": "completed",
+        "task_kind": "remember",
+        "title": "Remember: LyoPRONTO native cases (e.g. LPN-3923338c5c) are authored representati \u2026"
+      }
+    ],
+    "gateway_runs": [
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 8576,
+            "cost_usd": 0.0,
+            "input_tokens": 8771,
+            "latency_ms": 27790.09737499291,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "49099624e817c218",
+            "ok": true,
+            "output_tokens": 664,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "1fd1ae4ce7d04dd5ac56f73ce6169a02",
+            "tool_calls": [
+              "workspace_search",
+              "workspace_search"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "",
+          "tool_calls": [
+            {
+              "arguments": "{\"limit\": 20, \"mode\": \"search\", \"query\": \"LyoPRONTO native case LPN-3923338c5c characterization\"}",
+              "id": "call_d841da05e99c442c9120a379",
+              "name": "workspace_search"
+            },
+            {
+              "arguments": "{\"limit\": 20, \"mode\": \"links\", \"record_id\": \"LyoPRONTO-native-case:LPN-3923338c5c\"}",
+              "id": "call_7fae20f10b224cf5a7d74cdc",
+              "name": "workspace_search"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "49099624e817c218",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7HJTEC3JY4HHEN97KHSRNSY",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 8768,
+            "cost_usd": 0.0,
+            "input_tokens": 9553,
+            "latency_ms": 1455.0471249967813,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "49099624e817c218",
+            "ok": true,
+            "output_tokens": 82,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "3ba4e74ada06414eb297b4a8f40ba2af",
+            "tool_calls": [
+              "workspace_read"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "",
+          "tool_calls": [
+            {
+              "arguments": "{\"kind\": \"evidence\", \"record_id\": \"LyoPRONTO-native-case:LPN-3923338c5c\", \"revision\": 1}",
+              "id": "call_227dc063a0374266a7217c52",
+              "name": "workspace_read"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "49099624e817c218",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7HJV9H28G70R3VBT7WP50TY",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 9536,
+            "cost_usd": 0.0,
+            "input_tokens": 10285,
+            "latency_ms": 44327.26279197959,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "49099624e817c218",
+            "ok": true,
+            "output_tokens": 8172,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "0c56ddfb83c14360a4466cb2d6569186",
+            "tool_calls": [
+              "lyopronto_simulate"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "I've read the source evidence (revision 1): an authored native primary-drying case with 398 vials, a single vial geometry (product area 3.14 cm\u00b2, fill 1.977 mL), a single heat-transfer parameter set (contact conductance, conductive and radiative terms), critical product temperature \u22125 \u00b0C on the vial-bottom, chamber pressure scheduled at 0.2 Torr and shelf ramping from \u221235 \u00b0C to 0 \u00b0C over the 3600-minute horizon, and an equipment capability line of a + b\u00b7P_Torr in kg/h for the whole batch. It's a report task, so I'll preserve the scheduled inputs and run the native simulation without recipe overrides.",
+          "tool_calls": [
+            {
+              "arguments": "{\"source_id\": \"LyoPRONTO-native-case:LPN-3923338c5c\"}",
+              "id": "call_58b7f00d7988439e8bf14ec8",
+              "name": "lyopronto_simulate"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "49099624e817c218",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7HJVAYYH6ZQB445F7TW1NR7",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 8576,
+            "cost_usd": 0.0,
+            "input_tokens": 12110,
+            "latency_ms": 49784.705250000115,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "49099624e817c218",
+            "ok": true,
+            "output_tokens": 10414,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "9799298974fa4c709be68e7695323d8c",
+            "tool_calls": [
+              "workspace_search",
+              "workspace_search"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "The source is an authored native primary-drying case: 398 vials sharing one geometry (product area 3.14 cm\u00b2, fill 1.977 mL) and a single uniform heat-transfer parameter set, critical product temperature \u22125 \u00b0C on the vial-bottom, a report task with scheduled inputs of 0.2 Torr chamber pressure (200 mTorr) and shelf \u221235 \u2192 0 \u00b0C over a 3600-minute horizon. I preserved those inputs and ran the native simulation. Now let me check whether any vial-population characterization exists before calling it missing.",
+          "tool_calls": [
+            {
+              "arguments": "{\"kinds\": [\"evidence\", \"specification\", \"physical_model_dataset\", \"physical_analysis_context\", \"physical_analysis_result\", \"process_simulation\"], \"limit\": 20, \"mode\": \"search\", \"query\": \"vial population characterization edge vial heat transfer coefficient heterogeneity\"}",
+              "id": "call_2af8d19c47c24d3d9718e249",
+              "name": "workspace_search"
+            },
+            {
+              "arguments": "{\"kinds\": [\"evidence\", \"specification\", \"physical_model_dataset\", \"physical_analysis_context\", \"physical_analysis_result\", \"process_simulation\"], \"limit\": 20, \"mode\": \"search\", \"query\": \"edge vial center vial Kv distribution freeze drying primary drying position\"}",
+              "id": "call_7210c04ff4f747628fc5fb04",
+              "name": "workspace_search"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "49099624e817c218",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7HJWQ2ZX3QQ3M82Y398DWM6",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 12096,
+            "cost_usd": 0.0,
+            "input_tokens": 12931,
+            "latency_ms": 46705.26133303065,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "49099624e817c218",
+            "ok": true,
+            "output_tokens": 6806,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "c3b99efa880247aba5add5970a1c0e8c",
+            "tool_calls": [
+              "lyopronto_record_result",
+              "remember"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "The native simulation ran on the preserved scheduled inputs (report task: no recipe overrides), returning a single representative-vial trajectory \u2014 and my searches across evidence, specification, and model records found no vial-population characterization anywhere. The source itself contains only one vial geometry and one uniform heat-transfer set, so the hottest-edge-vial claim cannot be supported by this model. I'll record the assessment as out_of_scope with the missing input named.",
+          "tool_calls": [
+            {
+              "arguments": "{\"answer_status\": \"out_of_scope\", \"missing_inputs\": [\"vial_population_characterization\"], \"rationale\": \"Source read first (rev 1): authored native primary-drying case, report task, 398 vials with a single vial geometry (Ap 3.14 cm2, Av 3.8 cm2, Vfill 1.977 mL) and a single uniform heat-transfer parameter set; T_pr_crit -5 C on the vial-bottom. Native simulation with the scheduled inputs preserved (0.2 Torr chamber, shelf -35 to 0 C over the 3600-min horizon) returned one representative-vial trajectory: maximum returned vial-bottom temperature -18.37 C over returned solver nodes (13.37 C below T_pr_crit), peak flux 0.7392 kg/(h m2), ~100% dried at 10.45 h; no continuous-maximum guarantee. Neither the source record nor searched workspace evidence, specification or model records contain any vial population characterization (no per-position Kv distribution, no edge-vial identification), so the hottest edge vial and per-vial no-exceedance of the -5 C limit in this heterogeneous batch cannot be calculated or proven by a representative-vial model. Claim recorded out_of_scope; vial_population_characterization is the missing input. Authored simulator data, not experimental validation; no measured outcome inferred.\", \"result_ids\": [\"assi_01M7HJWQ2RM948A6H7X1WGKY26\"], \"source_id\": \"LyoPRONTO-native-case:LPN-3923338c5c\"}",
+              "id": "call_3adec1966808445ba770a833",
+              "name": "lyopronto_record_result"
+            },
+            {
+              "arguments": "{\"basis\": \"inferred\", \"kind\": \"lesson\", \"sources\": [{\"id\": \"LyoPRONTO-native-case:LPN-3923338c5c\", \"kind\": \"evidence\"}], \"text\": \"LyoPRONTO native cases (e.g. LPN-3923338c5c) are authored representative-vial sources: one vial geometry and one uniform heat-transfer set, no vial population characterization. Heterogeneous per-vial claims (hottest edge vial, no vial exceeding T_pr_crit) must be recorded out_of_scope with vial_population_characterization as the missing input; no per-position Kv data exists in the workspace to close them.\"}",
+              "id": "call_fb4241b1020249368cd7f563",
+              "name": "remember"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "49099624e817c218",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7HJY7QKRKBHHAZBWTPPFW0D",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 8576,
+            "cost_usd": 0.0,
+            "input_tokens": 14317,
+            "latency_ms": 25205.309749988373,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "49099624e817c218",
+            "ok": true,
+            "output_tokens": 613,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "05b80d6abe6c469281ff2565c015cc37",
+            "tool_calls": []
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "**Assessment saved as out_of_scope: the hottest edge vial and a per-vial no-exceedance proof cannot be supported by this representative-vial model, and vial_population_characterization is recorded as the missing input.**\n\n**What the records show.** The source (evidence record LPN-3923338c5c, revision 1, event time 2026-11-08; authored, non-experimental) is a 398-vial primary-drying case with a *single* vial geometry \u2014 product area 3.14 cm\u00b2, vial area 3.8 cm\u00b2, fill 1.977 mL \u2014 and one uniform heat-transfer parameter set (contact conductance, conductive and radiative terms). Critical product temperature is \u22125 \u00b0C on the vial-bottom; the equipment line a+b\u00b7P_Torr applies to the whole batch in kg/h. It is a report task, so the scheduled inputs were preserved: chamber pressure 0.2 Torr (200 mTorr) and shelf \u221235 \u2192 0 \u00b0C across the 3600-minute horizon.\n\n**What the native simulation returned** (result included in the saved assessment, simulation ID assi_01M7HJWQ2RM948A6H7X1WGKY26): one representative-vial trajectory \u2014 maximum returned vial-bottom temperature \u221218.37 \u00b0C across returned solver nodes, peak flux 0.7392 kg/(h\u00b7m\u00b2), ~100 % dried at 10.45 h. The solver's own qualification notes there is no continuous-maximum guarantee and that forward mode does not enforce thermal or equipment limits.\n\n**Why the claim is out of scope.** The source contains no vial-population characterization \u2014 no per-position heat-transfer distribution and no edge-vial identification \u2014 and my searches across evidence, specification, and model records at this site returned nothing on vial populations, edge/center vials, or heat-transfer heterogeneity. A uniform representative-vial model cannot locate the hottest edge vial in a heterogeneous batch or prove that *no* vial exceeds \u22125 \u00b0C; only the representative vial's \u221218.37 \u00b0C (13.37 \u00b0C below the limit, derived) was returned. For whole-batch rate the flux would need product area and the vial count, but no such whole-batch claim is made here.\n\nThe saved assessment is a **draft requiring review**, not an approval; it is an authored simulator-world result, not experimental validation, and no measured outcome was inferred. What would settle it: a per-position vial heat-transfer characterization (edge vs. center Kv distribution) for this batch, from which a hottest-edge-vial case could be built and run.",
+          "tool_calls": []
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "49099624e817c218",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7HJZNBVRPA02GDVCFRM1AMF",
+        "status": "completed"
+      }
+    ],
+    "turn_status": "completed",
+    "reply": "The native simulation ran on the preserved scheduled inputs (report task: no recipe overrides), returning a single representative-vial trajectory \u2014 and my searches across evidence, specification, and model records found no vial-population characterization anywhere. The source itself contains only one vial geometry and one uniform heat-transfer set, so the hottest-edge-vial claim cannot be supported by this model. I'll record the assessment as out of scope with the missing input named.\n\n**Assessment saved as out of scope: the hottest edge vial and a per-vial no-exceedance proof cannot be supported by this representative-vial model, and vial population characterization is recorded as the missing input.**\n\n**What the records show.** The source (evidence record LPN-3923338c5c, revision 1, event time 2026-11-08; authored, non-experimental) is a 398-vial primary-drying case with a *single* vial geometry \u2014 product area 3.14 cm\u00b2, vial area 3.8 cm\u00b2, fill 1.977 mL \u2014 and one uniform heat-transfer parameter set (contact conductance, conductive and radiative terms). Critical product temperature is \u22125 \u00b0C on the vial-bottom; the equipment line a+b\u00b7P_Torr applies to the whole batch in kg/h. It is a report task, so the scheduled inputs were preserved: chamber pressure 0.2 Torr (200 mTorr) and shelf \u221235 \u2192 0 \u00b0C across the 3600-minute horizon.\n\n**What the native simulation returned** (result included in the saved assessment, simulation ID: one representative-vial trajectory \u2014 maximum returned vial-bottom temperature \u221218.37 \u00b0C across returned solver nodes, peak flux 0.7392 kg/(h\u00b7m\u00b2), ~100 % dried at 10.45 h. The solver's own qualification notes there is no continuous-maximum guarantee and that forward mode does not enforce thermal or equipment limits.\n\n**Why the claim is out of scope.** The source contains no vial-population characterization \u2014 no per-position heat-transfer distribution and no edge-vial identification \u2014 and my searches across evidence, specification, and model records at this site returned nothing on vial populations, edge/center vials, or heat-transfer heterogeneity. A uniform representative-vial model cannot locate the hottest edge vial in a heterogeneous batch or prove that *no* vial exceeds \u22125 \u00b0C; only the representative vial's \u221218.37 \u00b0C (13.37 \u00b0C below the limit, derived) was returned. For whole-batch rate the flux would need product area and the vial count, but no such whole-batch claim is made here.\n\nThe saved assessment is a **draft requiring review**, not an approval; it is an authored simulator-world result, not experimental validation, and no measured outcome was inferred. What would settle it: a per-position vial heat-transfer characterization (edge vs. center Kv distribution) for this batch, from which a hottest-edge-vial case could be built and run.",
+    "questions": [],
+    "grounding": {
+      "claims": [],
+      "contradictions": [],
+      "derived_numbers": [
+        18.37
+      ],
+      "method": "verbatim quote in inspected source + number provenance; not semantic support",
+      "status": "ungrounded",
+      "unsupported_numbers": [
+        35.0
+      ]
+    }
+  },
+  "source_sha256": "752cf0603c1e17e762effbdd2dfb9aba31f3beb2a3ed247bbf4146310696cf3b",
+  "reference_sha256": "7babb6adb7ceedf2c0c1e97ba905e79cb94eb049b729a70a199bee45330aa7ce"
+}

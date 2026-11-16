@@ -311,6 +311,14 @@ class IdentityService:
             if current.state.get("status") == "quarantined":
                 raise PermissionError(f"source quarantined: {kind}:{rid}")
             for state in (current.state, source.state):
+                if kind in ('case', 'deviation_signal'):
+                    from .quality_evidence import quality_lineage
+                    quality_refs = quality_lineage(kind, state)
+                    if quality_refs:
+                        # Saved review content is historical, but authority over every
+                        # contributing record is checked against today's records.
+                        self.validate_refs(ctx, quality_refs, tx=tx, require_current=False,
+                                           _seen=_seen | {key})
                 if "inputs" in state:
                     if not state["inputs"]:
                         raise PermissionError("derived source has no lineage")

@@ -116,8 +116,9 @@ RESERVED_SOURCES = ("engineering-user-instruction", "verified-source-snapshot", 
                     "process-analysis-assumptions", "process-model-inputs", "fermentation-transfer",
                     "pharmaceutical-run-packet", "simulated-bioprocess-case")
 RESERVED_SOURCE_PREFIXES = ("cmo-", "edge:")
-HIDDEN_KINDS = ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization",
-                "organization_member", "account_organizations", "connector_credential", "memory_grant", "alert_inbox")
+HIDDEN_KINDS = ("quality_export", "idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization",
+                "organization_member", "account_organizations", "connector_credential", "memory_grant", "alert_inbox",
+                "quality_intent")
 
 
 class NoteIn(BaseModel):
@@ -487,7 +488,14 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
                 if platform.process_models.analysis.is_library_record(kind,r.state):
                     try:platform.process_models.analysis._library_memory(ctx,kind,r.state)
                     except PermissionError:continue
+                if kind == 'deviation_signal' and not platform.signals._readable(ctx, r.state):
+                    continue
                 state = r.state
+                if kind == 'case' and state.get('workflow'):
+                    try:
+                        platform.cases.get(ctx, r.id)
+                    except (PermissionError, ValueError, KeyError):
+                        continue
                 if kind == 'workspace_task_result':
                     state = {k: v for k, v in platform.workspace_tasks.get(ctx, r.id).items() if k not in ('id', 'revision')}
                 visible.append({"id": r.id, "revision": r.revision, "state": state})
@@ -501,6 +509,10 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
         if kind in HIDDEN_KINDS:
             raise HTTPException(404, "not a public record kind")
         rec = platform.store.read().require(ctx.tenant_id, kind, record_id)
+        if kind == 'deviation_signal':
+            platform.signals.get(ctx, record_id)
+        if kind == 'case' and rec.state.get('workflow'):
+            platform.cases.get(ctx, record_id)
         if platform.process_models.analysis.is_library_record(kind,rec.state):platform.process_models.analysis._library_memory(ctx,kind,rec.state)
         if kind == "transfer_package" and not any(platform.identity.check(ctx, "read", kind, rec.id, site_id=rec.state[s])
                                                    for s in ("sending_site", "receiving_site")):
@@ -750,7 +762,8 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.get(f"/{API_VERSION}/investigation-runs")
     def list_investigations(case_id: str | None = None, conversation_id: str | None = None,
                             ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
-        return {"items": platform.investigations.list(ctx, case_id=case_id, conversation_id=conversation_id)}
+        items = platform.investigations.list(ctx, case_id=case_id, conversation_id=conversation_id)
+        return {"items": items, "runs": items}
 
     @app.get(f"/{API_VERSION}/investigation-runs/{{run_id}}")
     def get_investigation(run_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
@@ -767,6 +780,10 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/investigation-runs/{{run_id}}/send-for-review")
     def send_investigation_for_review(run_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
         return platform.investigations.send_for_review(ctx, run_id)
+
+    @app.get(f"/{API_VERSION}/investigation-runs/{{run_id}}/citations/{{citation_id:path}}")
+    def investigation_citation(run_id: str, citation_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.citation(ctx,run_id,citation_id)
 
     @app.get(f"/{API_VERSION}/investigation-runs/{{run_id}}/report")
     def investigation_report(run_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:

@@ -1,0 +1,118 @@
+Real browser workflow evaluation — 15 November 2026
+
+Three of three scripted journeys completed, with correct chart values and exact
+saved evidence links. Average time from opening the prepared delivery to saving
+and reloading the review decision was 15.12 seconds (11.76–21.70 seconds).
+This is one scenario repeated three times, not a general agent accuracy score.
+
+The browser used the current Next.js application and real create_app backend,
+with isolated SQLite storage, actual file ingestion and local development login.
+There was no API response interception or model substitute. The chart, source
+viewers and saved work use deterministic services. Clicking the optional
+explanation made three real Modal GLM-5.3 requests, with low reasoning effort.
+All three returned and appeared in the browser. Recorded token-based estimated
+cost was $0.0192914; the provider invoice has not been reconciled.
+
+Observed browser latency (seconds; n=3)
+                                           Mean     Min      Max
+Open prepared data to first chart           2.21     1.94     2.62
+Select two batches to updated chart         0.57     0.48     0.68
+Open chart point source locator             0.06     0.06     0.06
+Create and edit evidence-linked check       0.29     0.22     0.35
+Open conflict and original source rows      8.48     5.68    14.01
+Open original PDF inside application        1.16     0.97     1.55
+Record decision and verify after reload     1.90     1.79     2.04
+Full scripted journey                     15.12    11.76    21.70
+Optional real Modal explanation            3.38     2.81     4.04
+
+Each journey took 17 scripted interactions. There were no external application
+navigations, downloads, browser exceptions or external browser requests.
+The backend's optional inference calls did use the external Modal service.
+Sign-in is separate (2.79 seconds average). Full journey time includes automation,
+assertions and screenshot capture; excluding its screenshots gives 14.81 seconds
+average. Optional explanation is excluded from the journey total. Phase timings
+end after visible content and two animation frames; they do not sum to the full
+journey because the latter also includes checks, screenshots and transitions.
+
+Correctness and evidence
+
+The script selected glucose for CHO-007-R01 and CHO-007-R02 in the existing changed
+delivery. Independent answer-key calculations match all 19 chart points and the
+visible comparison table: nine matched times, mean R02-minus-R01 -0.2068 g/L,
+largest difference -0.555 g/L at 18 hours, spread 0.1945 g/L and 90% matching.
+The conflicting R02/44-hour point is excluded. The original CSV rows show 7.137
+and 7.387 g/L, and the original certificate PDF opens within the application.
+
+The scripted decision records that both rows were inspected and clarification is
+needed before either value is used. Reload preserves the same step and outcome.
+An independent read-only database audit verifies the exact comparison artifact,
+source ID/revision and original CSV hash/rows. The source remains provisional,
+and the duplicate issue stays open. Saving a source-review outcome does not
+resolve the ingestion issue or approve the delivery.
+
+Product findings retained
+
+1. Source inspection is the bottleneck: 14.01 seconds in the first timed repeat,
+   then 5.68 and 5.74 seconds. The first catalog request itself took 12.58 seconds.
+   The cause was not isolated; these results do not establish a caching diagnosis.
+2. Editing the first suggested check updates its text but keeps its original
+   rationale about missing batch context. Its evidence link is correct, but the
+   stale rationale is confusing and needs a separate product fix.
+3. The optional explanation endpoint reports cost_usd=0 while provider receipts
+   contain nonzero cost estimates. This report uses receipts, not that zero field.
+
+Scope and limitations
+
+Public CHO measurements were packaged into fictional deliveries with a labelled,
+artificial duplicate conflict. Files were genuinely ingested, and calibration
+mappings confirmed before the browser session. The four ingestion calls took
+4.73 seconds combined; mapping/setup labor is not included in browser timing.
+The timed sessions use a known delivery deep link after login and initial page
+loading, compiled development routes and a shared persistent backend. They do
+not measure onboarding, unaided discovery, cold production startup or load.
+
+The script already knows the controls and the review decision. It proves the
+technical workflow and retained evidence, not human comprehension, autonomous
+decision quality or time saved relative to Parker's earlier 230-second request.
+This run covers one ingestion conflict, not every alert or agent capability.
+Explanation latency/rendering were measured; no general model accuracy score is
+assigned to those three explanations.
+
+Parker's requested interaction is now demonstrated on this scenario: selecting
+data, viewing a checked chart, inspecting surrounding source rows and a PDF, and
+recording a next step within the application. A pilot was not needed for this
+technical test. Observed sessions with people unfamiliar with the workflow are
+still needed to measure discoverability and understanding; customer pilots add
+evidence about actual organizational fit and integration effort.
+
+Reproducibility and retained failures
+
+timed-1/protocol.json freezes the protocol and input hashes; the matching executed
+script is timed-1/browser-script-at-execution.cjs. Each repeat retains result.json,
+five screenshots and a Playwright trace.zip. timed-1/report.json is unchanged.
+All 168 recorded backend source hashes still match the executed source files.
+
+The original runner checked comparison API numbers and presence of evidence IDs.
+review-audit.json supplies the exact artifact/source linkage checks (14/repeat).
+rendered-values-audit.json independently checks the captured DOM numbers against
+the answer key (10/repeat). Its runnable audit rejects seven deliberately corrupt
+display examples. These audits supplement the recorded scores without rewriting
+the original results or rerunning inference.
+
+preflight-1 preserves the Chromium sandbox launch failure. preflight-2 preserves
+a completed no-model journey whose traffic assertion failed because the harness
+looked for /excerpt/ rather than the actual /rows/ endpoint. That assertion was
+corrected before the timed runs. No product fix was made during the samples.
+Expected 403 probes of the unavailable demo workspace and aborted Next navigation
+prefetches remain in the network logs; this is not a claim that every HTTP request
+was successful.
+
+The evaluation servers have been stopped. The temporary Next.js tsconfig entry
+was removed; product files are unchanged. Syntax checks and git diff --check
+passed. No commit or deployment was made.
+
+Machine-readable summary: summary.json
+Evidence audit: review-audit.json
+Rendered-value audit: rendered-values-audit.json (audit_rendered_values.py)
+Model budget and receipts: backend-budget.json, backend-request-receipts/
+Original data and preparation: data-manifest.json, backend-checks.json

@@ -17,7 +17,7 @@ export type Run = { run_id: string; status: RunStatus; objective: string; site_i
   issues?: string[]; report_ref?: string | null; basis_status?: string };
 export type RunEvent = { seq: number; at: string; kind: string; agent_id: string | null; parent_id: string | null; payload: Record<string, unknown> };
 export type Report = { run_id: string; review_status: string; report: { summary?: string; assessment?: string; findings?: { text?: string; title?: string; kind?: string; status?: string; evidence_ids?: string[] }[];
-  hypotheses?: { text?: string; title?: string; status?: string }[]; open_questions?: string[]; [key: string]: unknown } };
+  hypotheses?: { text?: string; statement?: string; title?: string; status?: string; supporting_evidence_ids?: string[]; contradicting_evidence_ids?: string[]; contradicting_evidence_status?: string; assumptions?: string[]; unknowns?: string[] }[]; open_questions?: string[]; [key: string]: unknown } };
 
 export class InvestigationError extends Error {
   constructor(message: string, public status: number) { super(message); }

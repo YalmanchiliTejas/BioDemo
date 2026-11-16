@@ -8,11 +8,11 @@ export class ProcessApiError extends Error {
 
 export const PROCESS_API = process.env.NEXT_PUBLIC_LIFESCI_API_URL ?? 'http://127.0.0.1:8100';
 
-export async function processRequest<T>(path: string, body?: unknown): Promise<T> {
+export async function processRequest<T>(path: string, body?: unknown, idempotencyKey?: string): Promise<T> {
   const response = await fetch(`${PROCESS_API}${path}`, {
     method: body !== undefined ? 'POST' : 'GET',
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()),
-      ...(body !== undefined ? { 'Idempotency-Key': crypto.randomUUID() } : {}) },
+      ...(body !== undefined ? { 'Idempotency-Key': idempotencyKey ?? crypto.randomUUID() } : {}) },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   if (response.status === 401 && authMode() === 'supabase') { redirectToSignIn(); throw new Error(SIGNED_OUT_MESSAGE); }

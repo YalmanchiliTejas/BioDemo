@@ -22,10 +22,11 @@ from .identity import AccessContext, AuthorizationError, Decision
 from .ids import iso, new_id, utc_now
 from .memory import INSTRUCTION_SOURCE
 from .store import ConflictError
+from .quality_evidence import SOURCE_KINDS
 
 KIND, EVENT, REPORT, PROPOSAL = 'investigation_run', 'investigation_event', 'investigation_report', 'investigation_proposal'
 ACTIVE = ('queued', 'submitted', 'running', 'finalizing')
-SNAPSHOT_KINDS = ('case', 'batch', 'sample', 'procedure_instance', 'claim', 'proposal', 'evidence')
+SNAPSHOT_KINDS = tuple(dict.fromkeys(('case', 'batch', 'sample', 'procedure_instance', 'claim', 'proposal', 'evidence', 'physical_analysis_context', 'physical_analysis_result', 'deviation_signal', *SOURCE_KINDS)))
 TERMINAL = ('awaiting_review', 'blocked', 'failed', 'cancelled')
 DEFAULT_BUDGET = {'max_tool_calls': 30, 'minutes': 10, 'max_tokens': None}  # pre-revenue defaults; raise per request
 MAX_ACTIVE_PER_TENANT = 1
@@ -309,20 +310,30 @@ class InvestigationService:
             for m in data.get('measurements', []):
                 writer.writerow([m.get('id'), m.get('batch'), m.get('time'), m.get('parameter'), m.get('value'), m.get('unit'),
                                  (m.get('source') or {}).get('path')])
-            add(f'datasets/{evidence_id}.csv', out.getvalue().encode(), kind='evidence', id=evidence_id, revision=rec.revision)
+            add(f'datasets/{evidence_id}.csv', out.getvalue().encode(), kind='evidence', id=evidence_id, revision=rec.revision, site_id=site_id)
+        record_refs = list(record_refs)
         for case_id in dict.fromkeys(case_ids):
             case = self.p.cases.get(ctx, case_id)
             if case['site_id'] != site_id:
                 raise PermissionError('case belongs to another site')
             add(f'cases/{case_id}.json', json.dumps(case, sort_keys=True, default=str).encode(), kind='case', id=case_id,
-                revision=case['revision'])
+                revision=case['revision'], site_id=site_id)
+            record_refs.extend((case.get('workflow') or {}).get('sources', []))
+        seen_refs = set()
         for ref in record_refs:
+            key = (ref.get("kind"), ref.get("id"))
             kind, ident = str(ref.get('kind', '')), str(ref.get('id', ''))
             if not re.fullmatch(r'[a-z_]{1,64}', kind) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,160}', ident):
                 raise ValueError('invalid record reference')
             if kind not in SNAPSHOT_KINDS:
                 raise ValueError(f'investigations can include only {", ".join(SNAPSHOT_KINDS)} records')
             rec = self.p.store.read().require(ctx.tenant_id, kind, ident)
+            if ref.get('revision') is not None and (type(ref['revision']) is not int or ref['revision'] != rec.revision):
+                raise ConflictError('requested snapshot revision is not current; refresh explicitly')
+            self.p.identity.validate_refs(ctx, [{'kind':kind,'id':ident,'revision':rec.revision,'site_id':site_id}])
+            if key in seen_refs:
+                continue
+            seen_refs.add(key)
             # Process records of this site only: never private conversation memory, never another site's data.
             if rec.state.get('site_id') != site_id:
                 raise PermissionError('record belongs to another site')
@@ -333,17 +344,23 @@ class InvestigationService:
                 media = str(rec.state.get('media_type') or '')
                 suffix = {'application/json': '.json', 'text/csv': '.csv', 'application/pdf': '.pdf'}.get(media, '.txt')
                 add(f'evidence/{ident}{suffix}', self.p.evidence.original(ctx, ident, rec.revision), kind=kind, id=ident,
-                    revision=rec.revision)
+                    revision=rec.revision, site_id=site_id)
             else:
                 self.p.identity.require(ctx, 'read', kind, ident, site_id=rec.state.get('site_id'))
                 add(f'records/{kind}-{ident}.json', json.dumps(rec.state, sort_keys=True, default=str).encode(),
-                    kind=kind, id=ident, revision=rec.revision)
+                    kind=kind, id=ident, revision=rec.revision, site_id=site_id)
         for name, content in sorted((extra_files or {}).items()):
             if not re.fullmatch(r'[A-Za-z0-9_.-]{1,120}', name):
                 raise ValueError('invalid snapshot file name')
             add(f'context/{name}', content, kind='context', id=name, revision=None)
         if not files:
             raise ValueError('an investigation needs at least one evidence item it can read')
+        if len(items) > 2048:
+            raise ValueError('snapshot manifest exceeds 2048 items')
+        manifest = json.dumps({'version':1,'items':items}, sort_keys=True, separators=(',',':')).encode()
+        if len(manifest) > 2*1024*1024:
+            raise ValueError('snapshot manifest exceeds 2 MiB')
+        files['snapshot-manifest.json'] = manifest
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
             for path in sorted(files):
@@ -600,6 +617,31 @@ class InvestigationService:
             raise ConflictError('the report is not available yet')
         return self.p.store.read().require(ctx.tenant_id, REPORT, run_id).state
 
+    def citation(self, ctx, run_id, citation_id):
+        """Inspect a real pinned original; unmatched executor IDs remain unresolved."""
+        state=self._run(ctx,run_id).state
+        report=self.report(ctx,run_id)['report']
+        refs,missing=self._citation_refs(state,report,[citation_id])
+        if missing or not refs:
+            raise ValueError('citation has unresolved original source mapping')
+        ref=refs[0]
+        self.p.identity.validate_refs(ctx,[ref],require_current=False)
+        record=self.p.store.read().revision(ctx.tenant_id,ref['kind'],ref['id'],ref['revision'])
+        self.p.memory.require_record(ctx,ref['kind'],record.state)
+        path=report['snapshot_citation_map'][citation_id]['path']
+        item=next(i for i in state['evidence_snapshot']['items'] if i['path']==path)
+        result={'ref':ref,'state':record.state,'snapshot_path':path,'snapshot_sha256':item['sha256'],
+                'source_coordinate':report['snapshot_citation_map'][citation_id].get('source_ref'), 'local_only':True}
+        if ref['kind']=='evidence':
+            raw=self.p.evidence.original(ctx,ref['id'],ref['revision'])
+            import base64
+            if record.state.get('media_type','').startswith(('text/','application/json')):
+                result['content_text']=raw.decode('utf-8',errors='replace')
+                result['original_base64']=base64.b64encode(raw).decode('ascii')
+            else:
+                result['content_base64']=base64.b64encode(raw).decode('ascii')
+        return result
+
     def send_for_review(self, ctx: AccessContext, run_id: str) -> dict[str, Any]:
         """Put the report's hypotheses and open questions on the case as labelled claims, then build the QA package.
         Nothing becomes a finding: causes stay hypotheses until QA review approves them."""
@@ -614,28 +656,68 @@ class InvestigationService:
             raise ValueError('link this investigation to a case before sending it for QA review')
         if state.get('review_package_id'):
             return {'run_id': run_id, 'package_id': state['review_package_id'], 'claims': state.get('review_claim_ids', [])}
-        from .quality import SEARCH_STATUSES, ClaimService
+        from .quality import ClaimService
+        from .ids import content_hash
         report = self.report(ctx, run_id)['report']
-        note = (f"From investigation {run_id} (evidence snapshot {state['evidence_snapshot']['sha256'][:12]}); "
-                'citations are in that snapshot and have not been re-checked against platform originals.')
         claims = ClaimService(self.p.store, self.p.identity, self.p.evidence)
-        ids = []
-        for h in (report.get('hypotheses') or [])[:12]:
-            text = str((h or {}).get('statement') or (h or {}).get('text') or '').strip() if isinstance(h, dict) else str(h).strip()
+        ids, hypotheses = [], []
+        for index, h in enumerate((report.get('hypotheses') or [])[:12]):
+            h = h if isinstance(h, dict) else {'statement':str(h)}
+            text = str(h.get('statement') or h.get('text') or '').strip()
             if not text:
                 continue
-            searched = h.get('contradicting_evidence_status') if isinstance(h, dict) else None
-            ids.append(claims.record_claim(ctx, state['case_id'], text[:2000], 'hypothesis', [], [], unknowns=[note],
-                counterevidence_status=searched if searched in SEARCH_STATUSES else 'not_searched')['id'])
-        for q in (report.get('open_questions') or [])[:12]:
-            text = str(q.get('question') if isinstance(q, dict) else q).strip()
-            if text:
-                ids.append(claims.record_claim(ctx, state['case_id'], text[:2000], 'unknown', [], [], unknowns=[text[:500]])['id'])
-        with self.p.store.transaction(ctx.actor_id):
-            package = self.p.packages.build_package(ctx, state['case_id'])
-        package_id = package['id']
-        self._update(ctx, run_id, review_package_id=package_id, review_claim_ids=ids)
-        return {'run_id': run_id, 'package_id': package_id, 'claims': ids}
+            support, missing_support = self._citation_refs(state, report, h.get('supporting_evidence_ids') or [])
+            counter, missing_counter = self._citation_refs(state, report, h.get('contradicting_evidence_ids') or [])
+            status = h.get('contradicting_evidence_status')
+            searched = 'searched_found' if counter else 'searched_none' if status in ('none','searched_none') and not missing_counter else 'not_searched'
+            unknowns = list(h.get('unknowns') or []) + [f'Unresolved original citation: {c}' for c in missing_support+missing_counter]
+            unknowns.append('Agent hypothesis; requires human technical assessment. No confirmed cause.')
+            hypotheses.append({'text':text[:2000], 'status':'hypothesis', 'support_refs':support,
+                'counterevidence_refs':counter, 'counterevidence_status':searched,
+                'assumptions':h.get('assumptions') or [], 'unknowns':unknowns})
+        # One atomic import: retries cannot duplicate claims or leave a partly attached case.
+        with self.p.store.transaction(ctx.actor_id) as tx:
+            current = tx.require(ctx.tenant_id,KIND,run_id)
+            if current.state.get('review_package_id'):
+                return {'run_id':run_id,'package_id':current.state['review_package_id'],'claims':current.state.get('review_claim_ids',[])}
+            case = self.p.cases.get(ctx,state['case_id'],tx=tx)
+            if case.get('workflow'):
+                science = {'source_refs':case['workflow']['sources'], 'investigation_run_id':run_id,
+                    'hypotheses':hypotheses, 'model_runs':report.get('scientific_model_runs') or [],
+                    'assessment':{'root_cause_status':'unresolved','summary':'Agent report awaiting human technical assessment'},
+                    'unknowns':report.get('open_questions') or [], 'report_unknowns':report.get('open_questions') or [], 'advisory':True}
+                self.p.quality_workflow.record_science(ctx,state['case_id'],science=science,
+                    expected_revision=case['revision'],idempotency_key='import-'+run_id)
+            for index,h in enumerate(hypotheses):
+                claim=claims.record_claim(ctx,state['case_id'],h['text'],'hypothesis',h['support_refs'],h['counterevidence_refs'],
+                    unknowns=h['unknowns'],counterevidence_status=h['counterevidence_status'],
+                    artifact_id='investigation-claim-'+content_hash([run_id,index])[:24])
+                ids.append(claim['id'])
+            for index,q in enumerate((report.get('open_questions') or [])[:12]):
+                text=str(q.get('question') if isinstance(q,dict) else q).strip()
+                if text:
+                    ids.append(claims.record_claim(ctx,state['case_id'],text[:2000],'unknown',[],[],unknowns=[text[:500]],
+                        artifact_id='investigation-question-'+content_hash([run_id,index])[:24])['id'])
+            package=self.p.packages.build_package(ctx,state['case_id'])
+            self._update(ctx,run_id,review_package_id=package['id'],review_claim_ids=ids)
+        return {'run_id':run_id,'package_id':package['id'],'claims':ids}
+
+    @staticmethod
+    def _citation_refs(state, report, citations):
+        by_path = {i['path']:i for i in state['evidence_snapshot']['items'] if i.get('revision')}
+        mapping = report.get('snapshot_citation_map') or {}
+        refs, unresolved, seen = [], [], set()
+        for citation in citations:
+            path = (mapping.get(citation) or {}).get('path')
+            item = by_path.get(path)
+            if not item or (item['kind']=='case' and item['id']==state.get('case_id')):
+                unresolved.append(str(citation))
+                continue
+            key=(item['kind'],item['id'],item['revision'])
+            if key not in seen:
+                seen.add(key)
+                refs.append({k:item[k] for k in ('kind','id','revision','site_id') if k in item})
+        return refs, unresolved
 
     def sync_active(self, ctx_for_owner) -> int:
         """For a scheduler: sync every active run. ``ctx_for_owner(tenant, owner)`` builds each owner's context."""

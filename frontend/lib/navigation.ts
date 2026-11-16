@@ -8,6 +8,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     id: 'work', label: 'Work', items: [
       { label: 'Workbench', href: '/workbench', icon: ClipboardList, description: 'Bring deliveries together, see what the data shows, and plan the next steps', keywords: 'workbench work plan compare batches gaps findings next steps action proposal evidence request consolidate' },
+      { label: 'Quality', href: '/quality', icon: FolderKanban, description: 'Prepare quality events, inspect evidence and complete local review', keywords: 'quality deviation investigation qa msat review impact sources' },
       { label: 'Trends', href: '/trends', icon: ChartLine, description: 'Any accepted value across batches and over process time, with export', keywords: 'trend chart graph plot batches parameter compare export csv excel control' },
       { label: 'Overview', href: '/dashboard', icon: LayoutDashboard, guide: 'dashboard', description: 'Status, recent deliveries and what needs attention', keywords: 'dashboard home status' },
       { label: 'Workspaces', href: '/workspaces', icon: FolderKanban, description: 'Saved results, charts, source records and review steps', keywords: 'results investigation deviation schedule data tables actions' },

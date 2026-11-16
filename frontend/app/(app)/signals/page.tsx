@@ -4,10 +4,10 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, ArrowLeft, ArrowUpRight, Check, FolderOpen, MessageSquare, X } from 'lucide-react';
-import { Button, Callout, EvidenceChip, Pill, table } from '@/components/ui';
+import { Button, Callout, Pill, table } from '@/components/ui';
 import { useOptionalCompanion } from '@/lib/companion-context';
 import { SignalEvidence } from '@/components/trends/SignalEvidence';
-import { acknowledgeSignal, dismissSignal, getSignal, KIND_LABEL, listSignals, openCaseFromSignal, SEVERITY_RANK, SEVERITY_TONE, type Signal, type SignalStatus } from '@/lib/signals-api';
+import { acknowledgeSignal, dismissSignal, getSignal, KIND_LABEL, listSignals, SEVERITY_RANK, SEVERITY_TONE, type Signal, type SignalStatus } from '@/lib/signals-api';
 
 const STATUS_LABEL: Record<SignalStatus, string> = { open: 'open', acknowledged: 'acknowledged', case_opened: 'case opened', dismissed: 'dismissed' };
 const TRIAGE_LABEL: Record<string, string> = { pending: 'triage queued', running: 'assistant is triaging', ready: 'triage ready', skipped: 'triage skipped', failed: 'triage failed' };
@@ -66,7 +66,6 @@ function SignalDetail({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [dismissing, setDismissing] = useState(false);
   const [reason, setReason] = useState('');
-  const [caseForm, setCaseForm] = useState<{ owner: string; qa: string } | null>(null);
   const companion = useOptionalCompanion();
   const load = useCallback(() => getSignal(id).then(s => { setSignal(s); setError(''); }).catch(e => setError(String((e as Error).message ?? e))), [id]);
   useEffect(() => { void load(); }, [load]);
@@ -77,7 +76,7 @@ function SignalDetail({ id }: { id: string }) {
   }, [signal?.triage?.status, load]);
   async function act(fn: () => Promise<Signal>) {
     setBusy(true); setError('');
-    try { setSignal(await fn()); setDismissing(false); setCaseForm(null); } catch (e) { setError(String((e as Error).message ?? e)); } finally { setBusy(false); }
+    try { setSignal(await fn()); setDismissing(false); } catch (e) { setError(String((e as Error).message ?? e)); } finally { setBusy(false); }
   }
   if (!signal) return <p role="status" className="p-8 text-sm text-text-tertiary">{error || 'Opening signal…'}</p>;
   const limit = limitText(signal);
@@ -90,21 +89,16 @@ function SignalDetail({ id }: { id: string }) {
         <p className="mt-1 text-sm text-text-secondary">{signal.subject ? `${signal.subject.kind} ${signal.subject.id} · ` : ''}site {signal.site_id} · first {when(signal.first_at)}{(signal.occurrences ?? 1) > 1 ? ` · seen ${signal.occurrences} times, last ${when(signal.last_at)}` : ''}</p></div>
       {!closed && <div className="flex flex-wrap gap-2">
         {signal.status === 'open' && <Button size="sm" disabled={busy} onClick={() => act(() => acknowledgeSignal(id))}><Check size={14} />Acknowledge</Button>}
-        <Button size="sm" variant="primary" disabled={busy} onClick={() => setCaseForm({ owner: '', qa: '' })}><FolderOpen size={14} />Open deviation case</Button>
+        <Link href={`/quality/?signal=${encodeURIComponent(signal.signal_id)}`} className="inline-flex items-center gap-2 rounded bg-brand-teal px-3 py-2 text-sm text-white"><FolderOpen size={14} />Open deviation case</Link>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => setDismissing(true)}><X size={14} />Dismiss</Button>
       </div>}
     </div>
     {error && <Callout tone="critical" className="mt-4">{error}</Callout>}
     {signal.status === 'dismissed' && <Callout tone="neutral" className="mt-4" title="Dismissed">{signal.dismiss_reason}</Callout>}
-    {signal.status === 'case_opened' && signal.case_id && <Callout tone="success" className="mt-4" title={`Deviation case ${signal.case_id} opened`}>The case now holds this signal's evidence.</Callout>}
+    {signal.status === 'case_opened' && signal.case_id && <Callout tone="success" className="mt-4" title={`Deviation case ${signal.case_id} opened`}><Link className="underline" href={`/quality/?case=${encodeURIComponent(signal.case_id)}`}>Continue this case in Quality</Link></Callout>}
     {dismissing && <form className="mt-4 flex flex-wrap items-end gap-2 rounded-card border border-border-hairline bg-surface p-3" onSubmit={e => { e.preventDefault(); if (reason.trim()) void act(() => dismissSignal(id, reason.trim())); }}>
       <label className="flex-1 text-sm">Why is this not a deviation?<input autoFocus required value={reason} onChange={e => setReason(e.target.value)} className="mt-1 block h-9 w-full rounded border border-border-hairline px-2" placeholder="e.g. sensor calibration, value confirmed in range by retest" /></label>
       <Button size="sm" type="submit" disabled={!reason.trim() || busy}>Dismiss signal</Button><Button size="sm" variant="ghost" onClick={() => setDismissing(false)}>Cancel</Button></form>}
-    {caseForm && <form className="mt-4 grid gap-3 rounded-card border border-border-hairline bg-surface p-3 sm:grid-cols-[1fr_1fr_auto]" onSubmit={e => { e.preventDefault(); void act(() => openCaseFromSignal(id, caseForm.owner.trim(), caseForm.qa.trim())); }}>
-      <label className="text-sm">Investigation owner<input required value={caseForm.owner} onChange={e => setCaseForm({ ...caseForm, owner: e.target.value })} className="mt-1 block h-9 w-full rounded border border-border-hairline px-2" placeholder="person ID" /></label>
-      <label className="text-sm">QA reviewer<input required value={caseForm.qa} onChange={e => setCaseForm({ ...caseForm, qa: e.target.value })} className="mt-1 block h-9 w-full rounded border border-border-hairline px-2" placeholder="person ID" /></label>
-      <div className="flex items-end gap-2"><Button size="sm" variant="primary" type="submit" disabled={busy || !caseForm.owner.trim() || !caseForm.qa.trim()}>Open case</Button><Button size="sm" variant="ghost" onClick={() => setCaseForm(null)}>Cancel</Button></div>
-      <p className="text-[12px] text-text-tertiary sm:col-span-3">Opens a formal deviation case pre-filled with this signal's evidence. This is your decision; the assistant can only propose it.</p></form>}
 
     <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
       <section className="min-w-0 space-y-4">
@@ -124,7 +118,7 @@ function SignalDetail({ id }: { id: string }) {
         </div>
         <div className="rounded-card border border-border-hairline bg-surface p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Evidence records</p>
-          {signal.evidence_refs?.length ? <div className="mt-3 flex flex-wrap gap-1.5">{signal.evidence_refs.map(r => <EvidenceChip key={`${r.kind}:${r.id}`} id={r.id} label={`${r.kind} · ${r.id}`} />)}</div>
+          {signal.evidence_refs?.length ? <div className="mt-3 space-y-2">{signal.evidence_refs.map(r => <p className="text-xs" key={`${r.kind}:${r.id}`}>{r.kind} · {r.id} · revision {r.revision ?? 'not supplied'}</p>)}<Link className="text-sm underline" href={`/quality/?${signal.case_id ? `case=${encodeURIComponent(signal.case_id)}` : `signal=${encodeURIComponent(signal.signal_id)}`}`}>Inspect pinned sources in Quality</Link></div>
             : <p className="mt-2 text-sm text-text-tertiary">No linked evidence records.</p>}
         </div>
       </section>

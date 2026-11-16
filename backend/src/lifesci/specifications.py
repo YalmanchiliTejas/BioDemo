@@ -43,7 +43,9 @@ class SpecificationService:
                low: float | None = None, high: float | None = None, critical_low: float | None = None,
                critical_high: float | None = None, product_id: str | None = None, equipment_id: str | None = None,
                trend_rules: bool = True, source: str = "manual", source_ref: str | None = None,
-               reason: str = "") -> dict[str, Any]:
+               reason: str = "", duration_seconds: float | None = None,
+               max_observation_gap_seconds: float | None = None, allowed_lateness_seconds: float | None = None,
+               cross_batch_trend: dict[str, Any] | None = None) -> dict[str, Any]:
         if ctx.actor_kind != "person" or ctx.delegated_from:
             raise AuthorizationError(Decision(False, "approving a specification requires a person"))
         if not reason.strip():
@@ -63,6 +65,26 @@ class SpecificationService:
             raise ValueError("critical_low must not be above low")
         if chi is not None and hi is not None and chi < hi:
             raise ValueError("critical_high must not be below high")
+        for name, value in (("duration_seconds", duration_seconds),
+                            ("max_observation_gap_seconds", max_observation_gap_seconds),
+                            ("allowed_lateness_seconds", allowed_lateness_seconds)):
+            if value is not None and (_limit(value, name) or 0) <= 0:
+                raise ValueError(f"{name} must be positive")
+        if duration_seconds and not max_observation_gap_seconds:
+            raise ValueError("duration rules require max_observation_gap_seconds")
+        if cross_batch_trend is not None:
+            cross_batch_trend = dict(cross_batch_trend)
+            baseline = cross_batch_trend.get("baseline")
+            window = cross_batch_trend.get("window_batches")
+            drop = _limit(cross_batch_trend.get("minimum_drop"), "minimum_drop")
+            if not isinstance(baseline, list) or len(baseline) < 3 or any(_limit(v, "baseline") is None for v in baseline):
+                raise ValueError("cross-batch trend requires at least three explicit baseline values in specification units")
+            if isinstance(window, bool) or not isinstance(window, int) or not 3 <= window <= 50:
+                raise ValueError("window_batches must be between 3 and 50")
+            if drop is None or drop <= 0:
+                raise ValueError("minimum_drop must be positive and in specification units")
+            if not product_id and not equipment_id:
+                raise ValueError("cross-batch trend requires explicit product or equipment scope")
         spec_id = "SPEC-" + content_hash([site_id, key, product_id, equipment_id])[:10]
         with self.store.transaction(ctx.actor_id) as tx:
             self.identity.require(ctx, "approve", KIND, spec_id, site_id=site_id, tx=tx)
@@ -71,11 +93,14 @@ class SpecificationService:
             state = {"spec_id": spec_id, "version": version, "site_id": site_id, "parameter": parameter.strip(),
                      "parameter_key": key, "unit": unit, "product_id": product_id, "equipment_id": equipment_id,
                      "low": lo, "high": hi, "critical_low": clo, "critical_high": chi, "trend_rules": bool(trend_rules),
+                     "duration_seconds": duration_seconds, "max_observation_gap_seconds": max_observation_gap_seconds,
+                     "allowed_lateness_seconds": allowed_lateness_seconds, "cross_batch_trend": cross_batch_trend,
                      "source": source, "source_ref": source_ref, "status": "active", "approved_by": ctx.actor_id,
                      "approved_at": iso(utc_now()), "reason": reason.strip(),
                      "history": [*(current.state.get("history", []) if current else []),
-                                 *([{k: current.state[k] for k in ("version", "low", "high", "critical_low", "critical_high",
-                                                                    "approved_by", "approved_at")}] if current else [])]}
+                                 *([{k: current.state.get(k) for k in ("version", "low", "high", "critical_low", "critical_high",
+                                                                    "approved_by", "approved_at", "unit", "duration_seconds",
+                                                                    "max_observation_gap_seconds", "allowed_lateness_seconds", "cross_batch_trend")}] if current else [])]}
             rec = tx.put(ctx.tenant_id, KIND, spec_id, state, expected_revision=current.revision if current else None,
                          action="approve_specification", reason=reason.strip())
         return {**rec.state, "revision": rec.revision}

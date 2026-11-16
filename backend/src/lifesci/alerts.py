@@ -297,8 +297,17 @@ class AlertService:
                 continue
 
     # --- inbox ----------------------------------------------------------------------
+    def _readable(self, ctx, state):
+        if not state.get('signal_id'):
+            return True
+        try:
+            self.p.signals.get(ctx, state['signal_id'])
+            return True
+        except (PermissionError, ValueError, KeyError):
+            return False
+
     def inbox(self, ctx: AccessContext, *, limit: int = 50) -> dict[str, Any]:
-        items = [r.state for r in self.p.store.read().list(ctx.tenant_id, INBOX, lambda s: s['recipient_id'] == ctx.actor_id)]
+        items = [r.state for r in self.p.store.read().list(ctx.tenant_id, INBOX, lambda s: s['recipient_id'] == ctx.actor_id) if self._readable(ctx, r.state)]
         last = lambda s: max([s['created_at'], *[u['at'] for u in s['updates']]])
         items.sort(key=last, reverse=True)
         items.sort(key=lambda s: s['read_at'] is not None)  # stable: unread first, newest first within each
@@ -307,7 +316,7 @@ class AlertService:
     def mark_read(self, ctx: AccessContext, inbox_id: str) -> dict[str, Any]:
         with self.p.store.transaction(ctx.actor_id) as tx:
             rec = tx.require(ctx.tenant_id, INBOX, inbox_id)
-            if rec.state['recipient_id'] != ctx.actor_id:
+            if rec.state['recipient_id'] != ctx.actor_id or not self._readable(ctx, rec.state):
                 raise PermissionError('this notification belongs to someone else')
             state = {**rec.state, 'read_at': rec.state['read_at'] or iso(utc_now())}
             tx.put(ctx.tenant_id, INBOX, inbox_id, state, expected_revision=rec.revision, action='read_alert')
