@@ -260,7 +260,10 @@ def install_cmo_api(p, app: FastAPI, ctx_dep) -> None:
         if signals is not None:
             try:  # verified CMO values against approved specifications; a detection failure never blocks publication
                 signals.check_delivery_measurements(ctx.tenant_id, site_id=body.site_id, measurements=[
-                    {"parameter": m["parameter"], "value": m.get("value"), "unit": m.get("unit"), "batch_id": m.get("batch")}
+                    {"parameter": m["parameter"], "value": m.get("value"), "unit": m.get("unit"), "batch_id": m.get("batch"),
+                     "measurement_id": m.get("measurement_id") or m.get("id"), "event_time": m.get("event_time"),
+                     "product_id": m.get("product_id"), "equipment_id": m.get("equipment_id"),
+                     "observation_type": m.get("observation_type", "measurement")}
                     for m in payload["measurements"]],
                     delivery_ref={"kind": "evidence", "id": ev["evidence_id"], "revision": ev["revision"], "site_id": body.site_id})
             except Exception:

@@ -25,6 +25,7 @@ def run_coordinator(platform: Any, ctx: Any, act: Activation, reasons: list[str]
     now = iso(parse_iso(as_of)) if as_of else iso(utc_now())
     due = [o for o in mission["obligations"] if o["status"] == "open" and o.get("due_at")
            and o.get('task_kind') != 'assistant_follow_up'
+           and o.get('task_kind') not in ('quality_workspace_prepare','quality_scientific_analysis')
            and o["due_at"] <= now and o.get("surfaced_due_at") != o["due_at"]]
     completed, blocked = [], []
     for ob in due:
@@ -77,8 +78,12 @@ def run_coordinator(platform: Any, ctx: Any, act: Activation, reasons: list[str]
     consumed = list(act.pending_event_ids)
     if mission.get('assistant_responsibility', {}).get('enabled'):
         consumed = platform.assistant_responsibilities.run(ctx, act)
+    quality_progress = None
+    if mission.get('scope', {}).get('quality_case_id'):
+        quality_progress = platform.quality_workflow.run_mission(ctx, act)
+        blocked.extend((quality_progress or {}).get('blocked_obligations', []))
     platform.missions.checkpoint(act, progress={"reasons": reasons, "completed_obligations": completed,
-        "blocked_obligations": blocked}, consumed_event_ids=consumed,
+        "blocked_obligations": blocked, "quality_workspace": quality_progress}, consumed_event_ids=consumed,
         remaining_work=remaining, surfaced_obligations=blocked)
 
 

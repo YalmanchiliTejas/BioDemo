@@ -194,12 +194,19 @@ class LocalExecutor:
 
         work = self._job_dir(job_id)
         store = ManufacturingStore(work / "store")
-        ingested = ingest_package(self.root / "inputs" / f"{manifest['sha256']}.zip", store, access_scope=LOCAL_SCOPE)
+        package = work / "snapshot.zip"
+        package.write_bytes((self.root / "inputs" / f"{manifest['sha256']}.zip").read_bytes())
+        from src.prime_runtime.science import pin_package_availability
+        pin_package_availability(package,manifest["as_of"])
+        ingested = ingest_package(package, store, access_scope=LOCAL_SCOPE)
         if ingested["errors"]:
             raise ValueError("Evidence preparation requires review: some files could not be read")
         boards = BlackboardStore(work / "blackboards")
         workflow = ManufacturingInvestigationWorkflow(work / "workflow", store, scope=LOCAL_SCOPE, blackboards=boards)
         harness = PrimeManufacturingHarness.from_env(store=store, blackboards=boards, workflow=workflow, scope=LOCAL_SCOPE)
+        from src.prime_runtime.science import FrozenScience
+        scientific = FrozenScience.from_package(package)
+        harness.additional_tools.update(scientific.tools())
         harness.timeout_seconds = max(30, int(manifest.get("timeout_seconds") or 600))
         harness.max_tool_calls = manifest.get("max_tool_calls") or 30
         harnesses[job_id] = harness
@@ -217,4 +224,4 @@ class LocalExecutor:
         emitter.emit("agent_started", {"depth": 0, "status": "running", "question": manifest["objective"]}, agent_id="lead")
         result = harness.run(incident_id=job_id, problem=manifest["objective"], new_evidence_ids=[], as_of=manifest.get("as_of"))
         emitter.emit("agent_finished", {"depth": 0, "status": "done"}, agent_id="lead")
-        return result
+        return scientific.attach(result, store, LOCAL_SCOPE, manifest.get("as_of"))

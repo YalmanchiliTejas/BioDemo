@@ -56,6 +56,7 @@ class Platform:
     engineering_conversations: Any = field(init=False)
     fermentation: Any = field(init=False)
     investigations: Any = field(init=False)
+    case_science: Any = field(init=False)
     allow_unqualified: bool = False
     providers: dict[str, Any] | None = None
     api_extensions: list[Callable[..., None]] = field(default_factory=list)
@@ -83,6 +84,8 @@ class Platform:
         self.network = NetworkService(s, self.identity)
         self.transfers = TransferService(s, self.identity)
         self.cases = CaseService(s, self.identity)
+        from .quality_workflow import QualityWorkflowService
+        self.quality_workflow = QualityWorkflowService(self)
         # Per-user assistant memory: owner-only unless the owner granted read access (src/lifesci/memory.py).
         from .memory import MemoryGrants
         self.memory = MemoryGrants(s, self.identity)
@@ -128,6 +131,8 @@ class Platform:
         self.work_plans = WorkPlanService(self)
         from .investigations import InvestigationService
         self.investigations = InvestigationService(self)
+        from .case_science import CaseScienceService
+        self.case_science = CaseScienceService(self)
         # Deviation signals: detection on committed events, then alerts and assistant triage (docs/architecture/deviation-signals-and-alerts.md).
         from .specifications import SpecificationService
         self.specifications = SpecificationService(s, self.identity)
@@ -184,6 +189,8 @@ class Platform:
             raise
 
     def extend_api(self, app: Any, ctx_dep: Any, idempotent: Any) -> None:
+        from .quality_workflow_api import install_quality_workflow_api
+        install_quality_workflow_api(self, app, ctx_dep)
         from .suite_api import install_suite_api
         install_suite_api(self, app, ctx_dep, idempotent)
         from .lyophilization.api import install_process_api

@@ -278,6 +278,9 @@ class WorkspaceTools:
         if len(encoded) > max_chars * 2:
             data = {'excerpt': encoded[:max_chars * 2], 'truncated': True,
                     'warning': 'Record exceeds inspection limit. Narrow the source or inspect its original in the owning system.'}
+        if kind == 'case':
+            # Preserve safe navigation even when a large record becomes an excerpt.
+            data['managed_quality'] = bool(rec.state.get('workflow'))
         if ref.get('shared_from'):
             data['memory'] = f"from {ref['shared_from']}'s shared memory (read-only, shared with you)"
         return {**changed, 'record': {**ref, 'data': data}, 'source_refs': refs,

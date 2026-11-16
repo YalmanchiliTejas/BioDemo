@@ -110,7 +110,7 @@ def test_start_builds_pinned_snapshot_and_submits_with_defaults(p):
     assert job['request']['sha256'] == snapshot['sha256'] and job['request']['max_tool_calls'] == 30
     assert job['request']['timeout_seconds'] == 600 and job['id'] == 'job-' + run['run_id']
     archive = zipfile.ZipFile(io.BytesIO(p.investigations.executor.uploads[snapshot['sha256']]))
-    assert archive.namelist() == ['evidence/lims:B-001.csv']
+    assert archive.namelist() == ['evidence/lims:B-001.csv', 'snapshot-manifest.json']
     assert [i['id'] for i in snapshot['items']] == ['lims:B-001']
 
 
@@ -348,3 +348,76 @@ def test_investigations_are_a_paid_feature_per_organization(p, monkeypatch):
         start(p)
     monkeypatch.setenv('INVESTIGATIONS_ENABLED_TENANTS', '*')  # a demo machine
     assert start(p)['status'] == 'submitted'
+
+
+def test_citation_download_preserves_non_utf8_pinned_original(p):
+    import base64
+    ana = ctx(p, 'ana')
+    original = b'batch,label\r\nB-001,caf\xe9\r\n'
+    p.evidence.ingest(ana, source_system='lims', source_record_id='bytes', content=original,
+        media_type='text/csv', site_id='NF1', event_time=None)
+    run = start(p, record_refs=[{'kind':'evidence','id':'lims:bytes'}])
+    job = job_of(p, run); job['state'] = 'succeeded'
+    snapshot = p.store.read().require('T', inv.KIND, run['run_id']).state['evidence_snapshot']
+    path = next(i['path'] for i in snapshot['items'] if i['id']=='lims:bytes')
+    p.investigations.executor.results[job['id']] = {'run_id':job['id'], 'input_sha256':snapshot['sha256'],
+        'review_status':'requires_human_review', 'report':{'snapshot_citation_map':{'row-1':{'path':path}}}}
+    p.investigations.get(ana, run['run_id'])
+    p.evidence.ingest(ana, source_system='lims', source_record_id='bytes', content=b'corrected',
+        media_type='text/csv', site_id='NF1', event_time=None)
+    source = p.investigations.citation(ana, run['run_id'], 'row-1')
+    assert source['ref']['revision'] == 1
+    assert base64.b64decode(source['original_base64']) == original
+
+
+@pytest.mark.parametrize('managed',[False,True])
+def test_report_review_preserves_exact_support_counterevidence_and_unmapped_unknowns(p,managed):
+    ana=ctx(p,'ana')
+    p.evidence.ingest(ana,source_system='lims',source_record_id='counter',content=b'counter',media_type='text/plain',site_id='NF1',event_time=None)
+    if managed:
+        p.identity.assign_role('T','ben','qa_reviewer',site_id='NF1')
+        p.quality_workflow.create(ana,case_id='SCI',site_id='NF1',title='Synthetic process investigation',owner_id='ana',qa_reviewer_id='ben',
+            discovery_refs=[{'kind':'evidence','id':ident,'revision':1} for ident in ('lims:B-001','lims:counter')],idempotency_key='create')
+    else:
+        p.cases.open(ana,'SCI','ana','ben','NF1')
+    run=start(p,case_id='SCI',record_refs=[{'kind':'evidence','id':'lims:B-001'},{'kind':'evidence','id':'lims:counter'}])
+    job=job_of(p,run); job['state']='succeeded'
+    snapshot=p.store.read().require('T',inv.KIND,run['run_id']).state['evidence_snapshot']
+    paths={i['id']:i['path'] for i in snapshot['items']}
+    report={'hypotheses':[{'statement':'Transfer limitation remains a hypothesis',
+        'supporting_evidence_ids':['observed-a','unmapped'], 'contradicting_evidence_ids':['observed-b'],
+        'contradicting_evidence_status':'found','assumptions':['Assay method applicability requires review']}],
+        'snapshot_citation_map':{'observed-a':{'path':paths['lims:B-001']},'observed-b':{'path':paths['lims:counter']}}}
+    p.investigations.executor.results[job['id']]={'run_id':job['id'],'input_sha256':snapshot['sha256'],
+        'review_status':'requires_human_review','report':report}
+    p.investigations.get(ana,run['run_id'])
+    out=p.investigations.send_for_review(ana,run['run_id'])
+    claim=p.evidence.read_derived(ana,'claim',out['claims'][0])
+    assert claim['evidence_refs'][0]['id']=='lims:B-001'
+    assert claim['counterevidence_refs'][0]['id']=='lims:counter'
+    assert claim['counterevidence_status']=='searched_found'
+    assert 'unmapped' in str(claim['unknowns'])
+    if managed:
+        science=p.quality_workflow.get(ana,'SCI')['science']
+        assert science['hypotheses'][0]['counterevidence_refs'][0]['id']=='lims:counter'
+        assert science['assessment']['root_cause_status']=='unresolved'
+        workspace=p.quality_workflow.get(ana,'SCI')
+        rerun=p.case_science.analyze(ana,'SCI',expected_revision=workspace['revision'],idempotency_key='rerun')
+        assert rerun['science']['hypotheses']==science['hypotheses']
+    assert p.investigations.send_for_review(ana,run['run_id'])==out
+    source=p.investigations.citation(ana,run['run_id'],'observed-b')
+    assert source['ref']['id']=='lims:counter' and source['content_text']=='counter'
+    assert source['snapshot_path']==paths['lims:counter']
+    with pytest.raises(ValueError,match='unresolved'):
+        p.investigations.citation(ana,run['run_id'],'unmapped')
+    if managed:
+        p.evidence.ingest(ana,source_system='lims',source_record_id='B-001',content=b'corrected synthetic record',media_type='text/csv',site_id='NF1',event_time=None)
+        workspace=p.quality_workflow.get(ana,'SCI')
+        workspace=p.quality_workflow.prepare(ana,'SCI',expected_revision=workspace['revision'],idempotency_key='refresh-source')
+        refreshed=p.case_science.analyze(ana,'SCI',expected_revision=workspace['revision'],idempotency_key='corrected-analysis')
+        hypothesis=refreshed['science']['hypotheses'][0]
+        assert hypothesis['status']=='unresolved'
+        assert hypothesis['support_refs']==[]
+        assert 'lims:B-001@1' in str(hypothesis['unknowns'])
+        # The actual imported claim and report retain the original pinned support.
+        assert p.evidence.read_derived(ana,'claim',out['claims'][0])['evidence_refs'][0]['revision']==1

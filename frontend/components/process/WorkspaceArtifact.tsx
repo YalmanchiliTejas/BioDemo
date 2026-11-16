@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { ChevronRight, FileText, Search } from 'lucide-react';
 import { processRequest } from '@/lib/process-api';
 import { cached } from '@/lib/cache';
@@ -75,7 +76,7 @@ export function WorkspaceArtifact({ threadId, artifact }: { threadId: string; ar
         {rec && <dl className="mt-3 grid gap-2 sm:grid-cols-2">{Object.entries(rec.data).filter(([key, value]) => key !== 'original' && (typeof value === 'string' || typeof value === 'number')).map(([key, value]) => <div key={key}><dt className="text-text-tertiary">{key.replaceAll('_', ' ')}</dt><dd className="mt-1 break-words">{String(value)}</dd></div>)}</dl>}
         {!!data.source_refs?.length && <p className="mt-3 text-text-tertiary">Sources: {data.source_refs.map(r => `${r.id} @${r.revision}`).join(' · ')}</p>}
         {data.warning && <p className="mt-2 text-text-tertiary">{data.warning}</p>}
-        {rec?.kind === 'case' && rec.data.status !== 'closed' && <CloseCase caseId={String(rec.data.case_id ?? rec.id)} revision={rec.revision} />}
+        {rec?.kind === 'case' && rec.data.status !== 'closed' && (rec.data.managed_quality ? <Link className="mt-3 block underline" href={`/quality/?case=${encodeURIComponent(String(rec.data.case_id ?? rec.id))}`}>Continue controlled review in Quality</Link> : <CloseCase caseId={String(rec.data.case_id ?? rec.id)} revision={rec.revision} />)}
         {!data.records && <details className="mt-3"><summary className="cursor-pointer text-text-secondary">Raw record and provenance</summary><pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded bg-surface-secondary p-3">{JSON.stringify(data.record ?? data, null, 2)}</pre></details>}
       </div>
     </details>}
