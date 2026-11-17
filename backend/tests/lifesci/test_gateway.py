@@ -252,23 +252,95 @@ MODAL_TOKEN = "wk-test.ws-secret"
 
 
 class _Response:
-    def __init__(self, body, status=200):
-        self._body, self.status_code, self.text = body, status, json.dumps(body)
+    def __init__(self, body, status=200, headers=None):
+        self._body, self.status_code, self.text, self.headers = body, status, json.dumps(body), headers or {}
 
     def json(self):
         return self._body
 
 
-@pytest.fixture
-def modal_http(monkeypatch):
+class _Stream:
+    """What httpx.stream gives: a reply read line by line. An exception among the lines is raised at that point."""
+    def __init__(self, lines, status=200, headers=None, body=None):
+        self.status_code, self.headers, self._lines = status, headers or {}, lines
+        self.text = '' if body is None else json.dumps(body)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self):
+        return self.text.encode()
+
+    def iter_lines(self):
+        for line in self._lines:
+            if isinstance(line, BaseException):
+                raise line
+            yield line
+
+
+def data(chunk):
+    return 'data: ' + json.dumps(chunk)
+
+
+def sse(body):
+    """An unstreamed chat reply as the endpoint streams it: thinking, text and tool calls in pieces, then the usage."""
+    choice = (body.get('choices') or [{}])[0]
+    message, head = choice.get('message') or {}, {'id': body.get('id'), 'model': body.get('model')}
+    piece = lambda delta, **more: {**head, 'choices': [{'index': 0, 'delta': delta, **more}]}
+    chunks = [piece({'role': 'assistant'})]
+    for key in ('reasoning_content', 'content'):
+        value = message.get(key) or ''
+        chunks += [piece({key: part}) for part in (value[:len(value) // 2], value[len(value) // 2:]) if part]
+    for i, call in enumerate(message.get('tool_calls') or []):
+        function = call['function']
+        arguments = function.get('arguments') or ''
+        chunks.append(piece({'tool_calls': [{'index': i, 'id': call.get('id'), 'type': 'function',
+                                             'function': {'name': function['name'], 'arguments': arguments[:3]}}]}))
+        chunks.append(piece({'tool_calls': [{'index': i, 'function': {'arguments': arguments[3:]}}]}))
+    chunks.append(piece({}, finish_reason=choice.get('finish_reason', 'stop')))
+    chunks.append({**head, 'choices': [], 'usage': body.get('usage')})
+    return [': keep-alive', *(line for chunk in chunks for line in (data(chunk), '')), 'data: [DONE]']
+
+
+def modal_stream(monkeypatch, lines, status=200, headers=None, body=None):
+    """Serve exactly these lines to the next streamed request; returns the requests made."""
     import httpx
     calls = []
+
+    def stream(method, url, json=None, headers=None, timeout=None):
+        calls.append({"url": url, "json": json, "headers": headers, "stall": timeout.read})
+        return _Stream(lines, status, reply_headers, body)
+    reply_headers = headers
+    monkeypatch.setattr(httpx, "stream", stream)
+    return calls
+
+
+@pytest.fixture
+def modal_http(monkeypatch):
+    """One reply for every request, streamed (the default) or whole (MODAL_STREAM=0); `timeout` is the bound on the
+    whole reply that the provider was asked to keep, whichever way it is read."""
+    import httpx
+    from src.lifesci.gateway import ModalProvider
+    calls, bounds, real = [], [], ModalProvider._post
+
+    def bounded(self, path, body, headers, timeout_s):
+        bounds.append(timeout_s)
+        return real(self, path, body, headers, timeout_s)
 
     def respond(body, status=200):
         def post(url, json=None, headers=None, timeout=None):
             calls.append({"url": url, "json": json, "headers": headers, "timeout": timeout})
             return _Response(body, status)
+
+        def stream(method, url, json=None, headers=None, timeout=None):
+            calls.append({"url": url, "json": json, "headers": headers, "timeout": bounds[-1], "stall": timeout.read})
+            return _Stream(sse(body) if status == 200 else [], status, body=body)
         monkeypatch.setattr(httpx, "post", post)
+        monkeypatch.setattr(httpx, "stream", stream)
+        monkeypatch.setattr(ModalProvider, "_post", bounded)
         return calls
     return respond
 
@@ -292,6 +364,105 @@ def test_modal_request_shape_and_parsing(modal_http):
     assert call["json"]["messages"] == [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}]
     assert call["json"]["max_tokens"] == 32000 and call["timeout"] == 300
     assert (c.text, c.input_tokens, c.output_tokens, c.provider_request_id) == ("answer", 12, 34, "req-1")
+
+
+CHAT = dict(model="zai-org/GLM-5.3", messages=[{"role": "user", "content": "q"}],
+            tools=[{"type": "function", "function": {"name": "read_case"}}], tool_choice="auto", max_output_tokens=100)
+
+
+def test_modal_reply_is_read_as_a_stream_and_put_back_together(modal_http):
+    calls = modal_http({"id": "req-9", "model": "zai-org/GLM-5.3", "choices": [{"message": {
+        "content": "The answer.", "reasoning_content": "thinking it through",
+        "tool_calls": [{"id": "call-a", "type": "function", "function": {"name": "read_case", "arguments": '{"case_id": "DEV-31"}'}},
+                       {"id": "call-b", "type": "function", "function": {"name": "read_case", "arguments": '{"case_id": "DEV-12"}'}}]},
+        "finish_reason": "tool_calls"}],
+        "usage": {"prompt_tokens": 120, "completion_tokens": 45, "prompt_tokens_details": {"cached_tokens": 64}}})
+    c = modal_provider().chat(**CHAT, timeout_s=150)
+    sent = calls[0]
+    assert sent["json"]["stream"] is True and sent["json"]["stream_options"] == {"include_usage": True}
+    # A silent endpoint is given up on after 30 s; a reply that keeps arriving still has the caller's whole bound.
+    assert (sent["stall"], sent["timeout"]) == (30, 150)
+    assert c.text == "The answer." and "thinking" not in c.text
+    assert c.tool_calls == ({"id": "call-a", "name": "read_case", "arguments": '{"case_id": "DEV-31"}'},
+                            {"id": "call-b", "name": "read_case", "arguments": '{"case_id": "DEV-12"}'})
+    assert (c.input_tokens, c.output_tokens, c.cached_tokens, c.provider_request_id) == (120, 45, 64, "req-9")
+
+
+def test_modal_reply_can_be_read_whole_when_streaming_is_turned_off(modal_http):
+    calls = modal_http({"choices": [{"message": {"content": "x"}, "finish_reason": "stop"}], "usage": {}})
+    c = modal_provider(MODAL_STREAM="0").chat(**CHAT, timeout_s=150)
+    assert c.text == "x" and "stream" not in calls[0]["json"] and calls[0]["timeout"] == 150
+
+
+def test_modal_endpoint_that_goes_silent_is_given_up_on_and_may_be_retried(monkeypatch):
+    import httpx
+    thinking = data({"choices": [{"index": 0, "delta": {"reasoning_content": "working"}}]})
+    calls = modal_stream(monkeypatch, [thinking, httpx.ReadTimeout("timed out")])
+    with pytest.raises(ProviderError) as exc:
+        modal_provider(MODAL_STALL_SECONDS="7").chat(**CHAT, timeout_s=150)
+    assert (exc.value.kind, exc.value.retryable) == ("timeout", True) and "sent nothing for 7 s" in str(exc.value)
+    assert calls[0]["stall"] == 7
+    # The stall time never exceeds the bound the caller set for the whole reply.
+    calls = modal_stream(monkeypatch, sse({"choices": [{"message": {"content": "x"}}], "usage": {}}))
+    modal_provider().chat(**CHAT, timeout_s=5)
+    assert calls[0]["stall"] == 5
+
+
+def test_modal_reply_cut_short_is_an_error_and_never_a_shorter_answer(monkeypatch):
+    partial = data({"choices": [{"index": 0, "delta": {"content": "The largest difference is"}}]})
+    for lines in ([partial], [partial, "data: [DONE]"], [partial, "data: {not json"],
+                  [partial, data({"error": {"message": "worker lost"}})]):
+        modal_stream(monkeypatch, lines)
+        with pytest.raises(ProviderError) as exc:
+            modal_provider().chat(**CHAT, timeout_s=150)
+        assert (exc.value.kind, exc.value.retryable) == ("unavailable", True), lines
+        assert "largest difference" not in str(exc.value)
+
+
+def test_modal_reply_that_keeps_arriving_is_still_bounded(monkeypatch):
+    modal_stream(monkeypatch, sse({"choices": [{"message": {"content": "x"}}], "usage": {}}))
+    with pytest.raises(ProviderError) as exc:
+        modal_provider().chat(**CHAT, timeout_s=0)
+    # Its own kind: the endpoint was answering, so this does not count against the endpoint's health.
+    assert (exc.value.kind, exc.value.retryable) == ("unfinished", True) and "not finished after 0 s" in str(exc.value)
+
+
+@pytest.mark.parametrize("status, headers, kind, retryable, wait", [
+    (429, {"retry-after": "3"}, "rate_limit", True, 3.0), (429, {}, "rate_limit", True, None),
+    (429, {"retry-after": "soon"}, "rate_limit", True, None), (503, {}, "unavailable", True, None),
+    (401, {}, "auth", False, None), (400, {}, "bad_request", False, None)])
+def test_modal_refusals_keep_their_meaning_when_streamed(monkeypatch, status, headers, kind, retryable, wait):
+    modal_stream(monkeypatch, [], status, headers, body={"error": "refused"})
+    with pytest.raises(ProviderError) as exc:
+        modal_provider().chat(**CHAT, timeout_s=150)
+    assert (exc.value.kind, exc.value.retryable, exc.value.retry_after) == (kind, retryable, wait)
+
+
+def test_modal_step_can_ask_for_its_own_reasoning_level_and_the_reply_says_which_it_ran_at(modal_http):
+    calls = modal_http({"choices": [{"message": {"content": "x"}, "finish_reason": "stop"}],
+                        "usage": {"prompt_tokens": 9, "completion_tokens": 40, "reasoning_tokens": 31}})
+    usual = modal_provider(MODAL_REASONING_EFFORT="high")
+    first = usual.chat(**CHAT, timeout_s=150)
+    again = usual.chat(**CHAT, timeout_s=150, reasoning_effort="max")
+    odd = usual.chat(**CHAT, timeout_s=150, reasoning_effort="fastest")       # not a level: the deployment's is kept
+    assert [c["json"]["reasoning_effort"] for c in calls] == ["high", "max", "high"]
+    assert [c.reasoning_effort for c in (first, again, odd)] == ["high", "max", "high"] and first.reasoning_tokens == 31
+    unset = modal_provider().chat(**CHAT, timeout_s=150)
+    assert "reasoning_effort" not in calls[-1]["json"] and unset.reasoning_effort is None
+
+
+def test_gateway_passes_a_step_s_reasoning_level_through_and_records_it(env):
+    env.reg.qualify(Qualification("investigation_planning", "anthropic-opus", "unit-test-only", True, {"contract": 1.},
+                                  {"contract": 1.}, "Test double", "test"))
+    model = env.reg.profiles["anthropic-opus"].model
+    env.fake.scripts[model] = [{"content": "quick", "effort": "high"}, {"content": "considered"}]
+    request = TaskRequest("investigation_planning", env.ctx, system="s")
+    quick = env.gw.converse(request, [{"role": "user", "content": "q"}], [])
+    considered = env.gw.converse(request, [{"role": "user", "content": "q"}], [], reasoning_effort="max")
+    assert (quick.status, considered.status) == ("completed", "completed")
+    assert [c["reasoning_effort"] for c in env.fake.calls] == [None, "max"]
+    assert (quick.output["reasoning_effort"], considered.output["reasoning_effort"]) == ("high", "max")
+    assert quick.attempts[0]["reasoning_effort"] == "high" and considered.attempts[0]["reasoning_effort"] == "max"
 
 
 def test_modal_limits_are_configurable(modal_http):

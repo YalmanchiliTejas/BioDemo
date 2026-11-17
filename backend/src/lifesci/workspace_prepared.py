@@ -219,5 +219,5 @@ def recorded_usage(p, ctx, site_id: str) -> dict[str, Any]:
                 'performed_at': state.get('performed_at'), 'basis': 'recorded_usage',
                 'record': {'kind': 'procedure_instance', 'id': inst.id, 'revision': inst.revision, 'site_id': site_id}})
     all_batches = set(site_batches(p, ctx, site_id))
-    return {'by_identifier': by_identifier, 'batches_with_usage': batches_with_usage,
+    return {'by_identifier': by_identifier, 'batches_with_usage': batches_with_usage, 'batches_known': len(all_batches),
             'batches_without_usage': sorted(all_batches - batches_with_usage)}

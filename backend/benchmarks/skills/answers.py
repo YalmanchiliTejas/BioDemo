@@ -244,6 +244,7 @@ def main(argv=None):
                    BACKEND / 'benchmarks/agent_pilot/runner.py', *sorted((BACKEND / 'src/lifesci').rglob('*.py'))]
         protocol = {'schema': 'answer-evaluation-v1', 'created_at': datetime.now(timezone.utc).isoformat(),
             'mode': 'live_agent' if args.execute else 'host_preflight', 'model': MODEL if args.execute else None,
+            'assistant_reasoning_effort': live.assistant_effort(settings) if args.execute else None,
             'cases': selected, 'repeats': args.repeats if args.execute else 1, 'workers': args.workers if args.execute else 1,
             'planned_attempts': len(selected) * args.repeats if args.execute else len(selected) // 2,
             'estimated_budget_usd': args.budget_usd if args.execute else 0,

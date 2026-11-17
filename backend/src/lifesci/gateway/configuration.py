@@ -3,7 +3,7 @@ import math
 from collections.abc import Mapping
 
 from ..ids import content_hash
-from .providers import modal_settings
+from .providers import EFFORTS, modal_settings
 from .registry import ModelProfile
 
 PROVIDERS = ('anthropic', 'openai', 'modal')
@@ -13,9 +13,9 @@ INTERPRETER_PROVIDER = 'modal-interpreter'
 
 
 def interpreter_effort(environ: Mapping[str, str]) -> str | None:
-    """LIFESCI_INTERPRETER_REASONING_EFFORT=low|medium|high, for the explanation role only."""
+    """LIFESCI_INTERPRETER_REASONING_EFFORT, one of the provider's levels, for the explanation role only."""
     effort = environ.get('LIFESCI_INTERPRETER_REASONING_EFFORT', '').strip().lower()
-    return effort if effort in ('low', 'medium', 'high') else None
+    return effort if effort in EFFORTS else None
 
 
 def configure_engineering_llms(registry, environ: Mapping[str, str]) -> dict[str, str]:

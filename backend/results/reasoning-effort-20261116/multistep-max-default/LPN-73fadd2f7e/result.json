@@ -1,0 +1,701 @@
+{
+  "case_id": "LPN-73fadd2f7e",
+  "family": "scope_limits",
+  "assessment": {
+    "answer_status": "incomplete",
+    "completion_h": null,
+    "maximum_bottom_temperature_c": -32.200885973928465,
+    "peak_batch_sublimation_kg_h": 0.04044,
+    "thermal_margin_c": 27.200885973928465,
+    "capacity_margin_kg_h": 1.5326,
+    "selected_recipe": {
+      "pressure_torr": 0.15,
+      "shelf_temperature_c": -20.0
+    },
+    "missing_inputs": [],
+    "result_ids": [
+      "assi_01M7M2QZS6MN87P9E9C80JFPV9"
+    ],
+    "rationale": "Authored native primary-drying inputs (synthetic simulator case, not experimental data) were run unmodified with the native solver. The scheduled 60-minute horizon ended before drying completion: at elapsed 1.0 h only 5.08% of the ice had dried, so the final timestamp is not a completion time and completion_h is recorded null. Native returned values at the horizon: vial-bottom -32.20 degC, front -32.79 degC, flux 0.314 kg/h per m2, shelf -20 degC, chamber 150 mTorr; maximum returned vial-bottom over solver nodes -32.20 degC, peak returned flux 0.323 kg/h per m2 at 0.25 h. Derived whole-batch peak sublimation 0.0404 kg/h = peak flux x batch product area 0.125072 m2 (398 vials x 3.14 cm2). Whole-batch equipment line a+b*P_Torr = -0.182+11.7*0.15 = 1.573 kg/h at the scheduled 0.15 Torr; derived capacity margin 1.533 kg/h. Vial-bottom critical temperature -5 degC gives a derived thermal margin of 27.20 degC. Maxima are over returned solver nodes with no continuous-maximum guarantee. Simulator-world assessment: no measured outcome inferred, no equipment operated, no approval implied."
+  },
+  "verdict": {
+    "passed": true,
+    "checks": {
+      "recorded_assessment": true,
+      "no_manufacturing_action": true,
+      "appropriate_status": true,
+      "simulation_evidence": true,
+      "correct_endpoint": true,
+      "bottom_not_front_temperature": true,
+      "whole_batch_not_per_vial_flux": true,
+      "scheduled_inputs_preserved": true
+    },
+    "classification": "task_completed",
+    "task": "scope_limits"
+  },
+  "elapsed_seconds": 62.576464833982754,
+  "solver_calls": 1,
+  "error": null,
+  "trace": {
+    "native_simulations": [
+      {
+        "type": "lyopronto_simulation",
+        "case_id": "LPN-73fadd2f7e",
+        "native_configuration": {
+          "Pchamber": {
+            "dt_setpt": [
+              60.0
+            ],
+            "ramp_rate": 0.5,
+            "setpt": [
+              0.15
+            ]
+          },
+          "Tshelf": {
+            "dt_setpt": [
+              60.0
+            ],
+            "init": -35.0,
+            "ramp_rate": 1.0,
+            "setpt": [
+              -20.0
+            ]
+          },
+          "ht": {
+            "KC": 0.000275,
+            "KD": 0.46,
+            "KP": 0.000893
+          },
+          "product": {
+            "A1": 12.7903,
+            "A2": 0.0,
+            "R0": 1.5942,
+            "T_pr_crit": -5,
+            "cSolid": 0.05
+          },
+          "vial": {
+            "Ap": 3.14,
+            "Av": 3.8,
+            "Vfill": 1.802
+          },
+          "dt": null
+        },
+        "summary": {
+          "model": "LyoPRONTO 1.2.0",
+          "upstream_commit": "c6a9225a9e551ae4e7c11c1ef056b67c6204afbd",
+          "native_input_sha256": "71175374a952be45a1a08341a007f2802b1d4f7c7d1ca5e5892c6a7ebfa2bd9f",
+          "last_elapsed_h": 1.0,
+          "last_dried_percent": 5.077645748919482,
+          "maximum_returned_front_temperature_c": -32.793736924930435,
+          "maximum_returned_bottom_temperature_c": -32.200885973928465,
+          "maximum_returned_flux_kg_h_m2": 0.32334135232427225,
+          "pressure_output_mtorr": 150.0,
+          "columns": [
+            "elapsed_h",
+            "front_temperature_c",
+            "bottom_temperature_c",
+            "shelf_temperature_c",
+            "pressure_mtorr",
+            "flux_kg_h_m2",
+            "dried_percent"
+          ],
+          "trajectory_sample": [
+            [
+              0.0,
+              -35.83732458629376,
+              -35.796549184530235,
+              -35.0,
+              150.0,
+              0.020489403112455916,
+              0.0
+            ],
+            [
+              9.999999999999999e-05,
+              -35.83618946520735,
+              -35.795177171716794,
+              -34.994,
+              150.0,
+              0.020608447481476735,
+              3.711517943826193e-05
+            ],
+            [
+              0.00019999999999999998,
+              -35.835054444164136,
+              -35.793805254324184,
+              -34.988,
+              150.0,
+              0.020727494304977202,
+              7.443972122790816e-05
+            ],
+            [
+              0.0012000000000000001,
+              -35.82370966679295,
+              -35.780091265789,
+              -34.928,
+              150.0,
+              0.021918095922287297,
+              0.00046612315042091106
+            ],
+            [
+              0.0022,
+              -35.81237483625666,
+              -35.766386766550674,
+              -34.868,
+              150.0,
+              0.02310894163002494,
+              0.0008787999594493569
+            ],
+            [
+              0.008060175701573363,
+              -35.746148419376325,
+              -35.686264655380896,
+              -34.516389457905596,
+              150.0,
+              0.030092359615525702,
+              0.003705941513020456
+            ],
+            [
+              0.013920351403146725,
+              -35.68025287989976,
+              -35.6064585662686,
+              -34.1647789158112,
+              150.0,
+              0.03708390654453245,
+              0.007257992612893498
+            ],
+            [
+              0.019780527104720086,
+              -35.61467900697125,
+              -35.526960035026775,
+              -33.81316837371679,
+              150.0,
+              0.04408336469524271,
+              0.011545357657239198
+            ],
+            [
+              0.04175091981687086,
+              -35.37154701295232,
+              -35.23151000829988,
+              -32.49494481098775,
+              150.0,
+              0.07039187103595099,
+              0.034219355723456635
+            ],
+            [
+              0.06372131252902163,
+              -35.132354698807326,
+              -34.93984962519322,
+              -31.1767212482587,
+              150.0,
+              0.09679785727783304,
+              0.06732923877861857
+            ],
+            [
+              0.08569170524117241,
+              -34.89667279097869,
+              -34.65158641956027,
+              -29.858497685529656,
+              150.0,
+              0.12329122812828833,
+              0.11091352522543141
+            ],
+            [
+              0.162668785269651,
+              -34.09300084362977,
+              -33.66329984065636,
+              -25.23987288382094,
+              150.0,
+              0.21667336287426633,
+              0.34665026631164314
+            ],
+            [
+              0.2396458652981296,
+              -33.31264637806625,
+              -32.69880016542265,
+              -20.621248082112224,
+              150.0,
+              0.31066736122837446,
+              0.7124006551138122
+            ],
+            [
+              0.25,
+              -33.20877605911994,
+              -32.5702681090908,
+              -20.0,
+              150.0,
+              0.32334135232427225,
+              0.7715707444078825
+            ],
+            [
+              0.2512645081036739,
+              -33.208031518822196,
+              -32.569604688127306,
+              -20.0,
+              150.0,
+              0.32332428733968793,
+              0.7789406452150736
+            ],
+            [
+              0.2525290162073478,
+              -33.20728714138662,
+              -32.56894141506738,
+              -20.0,
+              150.0,
+              0.3233072261595834,
+              0.7863101665974367
+            ],
+            [
+              0.2651740972440868,
+              -33.199853571382675,
+              -32.562317929825035,
+              -20.0,
+              150.0,
+              0.3231368521741785,
+              0.8599720159401848
+            ],
+            [
+              0.2778191782808258,
+              -33.192436214776144,
+              -32.55570916815968,
+              -20.0,
+              150.0,
+              0.32296685691906507,
+              0.9335959572025525
+            ],
+            [
+              0.39360686273213097,
+              -33.12525684865698,
+              -32.49586592194458,
+              -20.0,
+              150.0,
+              0.3214275264934331,
+              1.6060332145508214
+            ],
+            [
+              0.5093945471834361,
+              -33.0593844107004,
+              -32.437209076137364,
+              -20.0,
+              150.0,
+              0.3199187135005978,
+              2.275332070418631
+            ],
+            [
+              0.6251822316347413,
+              -32.99477435035987,
+              -32.37969780074203,
+              -20.0,
+              150.0,
+              0.31843936768244935,
+              2.941522475225003
+            ],
+            [
+              1.0,
+              -32.793736924930435,
+              -32.200885973928465,
+              -20.0,
+              150.0,
+              0.3138398430429014,
+              5.077645748919482
+            ]
+          ],
+          "warnings": [
+            "Maximum simulation time (specified by Pchamber and Tshelf) reached before drying completion."
+          ],
+          "qualification": "Native solver result, not an experimental observation or approval; no continuous-maximum guarantee; forward mode does not enforce thermal/equipment limits."
+        }
+      }
+    ],
+    "action_intents": 0,
+    "tool_steps": [
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:22:34.198649+00:00",
+        "issues": [],
+        "node_id": "call_44e0a547a73042f380822e4b",
+        "payload": {
+          "limit": 10,
+          "mode": "search",
+          "query": "LyoPRONTO-native-case:LPN-73fadd2f7e"
+        },
+        "result_id": "assi_01M7M2QT6J6PYR4YCJYH8ZPAGG",
+        "started_at": "2026-11-17T06:22:34.188805+00:00",
+        "status": "completed",
+        "task_kind": "workspace_search",
+        "title": "Search records for \u201cLyoPRONTO-native-case:LPN-73fadd2f7e\u201d"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:22:34.209262+00:00",
+        "issues": [],
+        "node_id": "call_f8a65d07f9a8405b83ae8412",
+        "payload": {
+          "kind": "case",
+          "record_id": "LyoPRONTO-native-case:LPN-73fadd2f7e",
+          "revision": 1
+        },
+        "result_id": "assi_01M7M2QT6X44A74BH4N535AYVM",
+        "started_at": "2026-11-17T06:22:34.201320+00:00",
+        "status": "completed",
+        "task_kind": "workspace_read",
+        "title": "Read case LyoPRONTO-native-case:LPN-73fadd2f7e"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:22:35.027131+00:00",
+        "issues": [],
+        "node_id": "call_1b8ec5db74b64ea9b1648e40",
+        "payload": {
+          "kind": "evidence",
+          "record_id": "LyoPRONTO-native-case:LPN-73fadd2f7e",
+          "revision": 1
+        },
+        "result_id": "assi_01M7M2QV0EYB6ASZX7QDNFY9VD",
+        "started_at": "2026-11-17T06:22:35.016632+00:00",
+        "status": "completed",
+        "task_kind": "workspace_read",
+        "title": "Read evidence LyoPRONTO-native-case:LPN-73fadd2f7e"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:22:39.914712+00:00",
+        "issues": [],
+        "node_id": "call_a122e4c9babc44f4a5396a0e",
+        "payload": {
+          "source_id": "LyoPRONTO-native-case:LPN-73fadd2f7e"
+        },
+        "result_id": "assi_01M7M2QZS6MN87P9E9C80JFPV9",
+        "started_at": "2026-11-17T06:22:38.754220+00:00",
+        "status": "completed",
+        "task_kind": "lyopronto_simulate",
+        "title": "Lyopronto simulate"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:23:11.324396+00:00",
+        "issues": [],
+        "node_id": "call_1183b6b05ae944a6a4844756",
+        "payload": {
+          "answer_status": "incomplete",
+          "capacity_margin_kg_h": 1.5326,
+          "completion_h": null,
+          "maximum_bottom_temperature_c": -32.200885973928465,
+          "peak_batch_sublimation_kg_h": 0.04044,
+          "rationale": "Authored native primary-drying inputs (synthetic simulator case, not experimental data) were run unmodified with the native solver. The scheduled 60-minute horizon ended before drying completion: at elapsed 1.0 h only 5.08% of the ice had dried, so the final timestamp is not a completion time and completion_h is recorded null. Native returned values at the horizon: vial-bottom -32.20 degC, front -32.79 degC, flux 0.314 kg/h per m2, shelf -20 degC, chamber 150 mTorr; maximum returned vial-bottom over solver nodes -32.20 degC, peak returned flux 0.323 kg/h per m2 at 0.25 h. Derived whole-batch peak sublimation 0.0404 kg/h = peak flux x batch product area 0.125072 m2 (398 vials x 3.14 cm2). Whole-batch equipment line a+b*P_Torr = -0.182+11.7*0.15 = 1.573 kg/h at the scheduled 0.15 Torr; derived capacity margin 1.533 kg/h. Vial-bottom critical temperature -5 degC gives a derived thermal margin of 27.20 degC. Maxima are over returned solver nodes with no continuous-maximum guarantee. Simulator-world assessment: no measured outcome inferred, no equipment operated, no approval implied.",
+          "result_ids": [
+            "assi_01M7M2QZS6MN87P9E9C80JFPV9"
+          ],
+          "selected_recipe": {
+            "pressure_torr": 0.15,
+            "shelf_temperature_c": -20
+          },
+          "source_id": "LyoPRONTO-native-case:LPN-73fadd2f7e",
+          "thermal_margin_c": 27.200885973928465
+        },
+        "result_id": "assi_01M7M2RYENE30ZNSVZ0JX18R6K",
+        "started_at": "2026-11-17T06:23:11.311593+00:00",
+        "status": "completed",
+        "task_kind": "lyopronto_record_result",
+        "title": "Lyopronto record result"
+      }
+    ],
+    "gateway_runs": [
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 8576,
+            "cost_usd": 0.0,
+            "input_tokens": 8763,
+            "latency_ms": 19875.89237501379,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 2992,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "bf7ba324c5274792a4ff0db2a28949bf",
+            "tool_calls": [
+              "workspace_search",
+              "workspace_read"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "",
+          "tool_calls": [
+            {
+              "arguments": "{\"limit\": 10, \"mode\": \"search\", \"query\": \"LyoPRONTO-native-case:LPN-73fadd2f7e\"}",
+              "id": "call_44e0a547a73042f380822e4b",
+              "name": "workspace_search"
+            },
+            {
+              "arguments": "{\"kind\": \"case\", \"record_id\": \"LyoPRONTO-native-case:LPN-73fadd2f7e\", \"revision\": 1}",
+              "id": "call_f8a65d07f9a8405b83ae8412",
+              "name": "workspace_read"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M2Q6RYXKGXSNR2JAHYF5C1",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 8704,
+            "cost_usd": 0.0,
+            "input_tokens": 9438,
+            "latency_ms": 795.1769590144977,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 59,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "ed9705226a4c4e3aad3d3aa511ab6ea0",
+            "tool_calls": [
+              "workspace_read"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "",
+          "tool_calls": [
+            {
+              "arguments": "{\"kind\": \"evidence\", \"record_id\": \"LyoPRONTO-native-case:LPN-73fadd2f7e\", \"revision\": 1}",
+              "id": "call_1b8ec5db74b64ea9b1648e40",
+              "name": "workspace_read"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M2QT734RN1VF5EDX12DNWR",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 9408,
+            "cost_usd": 0.0,
+            "input_tokens": 10170,
+            "latency_ms": 3713.4792499709874,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 450,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "086da7fa6b4844b0896fd93d3de6fe26",
+            "tool_calls": [
+              "lyopronto_simulate"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "",
+          "tool_calls": [
+            {
+              "arguments": "{\"source_id\": \"LyoPRONTO-native-case:LPN-73fadd2f7e\"}",
+              "id": "call_a122e4c9babc44f4a5396a0e",
+              "name": "lyopronto_simulate"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M2QV0NHBJE7NAJFHDT0021",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 10112,
+            "cost_usd": 0.0,
+            "input_tokens": 12537,
+            "latency_ms": 31381.283208029345,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 5290,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "15d1fa84e48c4be3babcae2f21fe69e0",
+            "tool_calls": [
+              "lyopronto_record_result"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "",
+          "tool_calls": [
+            {
+              "arguments": "{\"answer_status\": \"incomplete\", \"capacity_margin_kg_h\": 1.5326, \"completion_h\": null, \"maximum_bottom_temperature_c\": -32.200885973928465, \"peak_batch_sublimation_kg_h\": 0.04044, \"rationale\": \"Authored native primary-drying inputs (synthetic simulator case, not experimental data) were run unmodified with the native solver. The scheduled 60-minute horizon ended before drying completion: at elapsed 1.0 h only 5.08% of the ice had dried, so the final timestamp is not a completion time and completion_h is recorded null. Native returned values at the horizon: vial-bottom -32.20 degC, front -32.79 degC, flux 0.314 kg/h per m2, shelf -20 degC, chamber 150 mTorr; maximum returned vial-bottom over solver nodes -32.20 degC, peak returned flux 0.323 kg/h per m2 at 0.25 h. Derived whole-batch peak sublimation 0.0404 kg/h = peak flux x batch product area 0.125072 m2 (398 vials x 3.14 cm2). Whole-batch equipment line a+b*P_Torr = -0.182+11.7*0.15 = 1.573 kg/h at the scheduled 0.15 Torr; derived capacity margin 1.533 kg/h. Vial-bottom critical temperature -5 degC gives a derived thermal margin of 27.20 degC. Maxima are over returned solver nodes with no continuous-maximum guarantee. Simulator-world assessment: no measured outcome inferred, no equipment operated, no approval implied.\", \"result_ids\": [\"assi_01M7M2QZS6MN87P9E9C80JFPV9\"], \"selected_recipe\": {\"pressure_torr\": 0.15, \"shelf_temperature_c\": -20}, \"source_id\": \"LyoPRONTO-native-case:LPN-73fadd2f7e\", \"thermal_margin_c\": 27.200885973928465}",
+              "id": "call_1183b6b05ae944a6a4844756",
+              "name": "lyopronto_record_result"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M2QZSC3R1EZABPM14XFFJ8",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 12480,
+            "cost_usd": 0.0,
+            "input_tokens": 13579,
+            "latency_ms": 5439.687583013438,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 814,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "7698264ff6ef4652bf3cb1966aabf2d3",
+            "tool_calls": []
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "**Incomplete \u2014 the run still contains ice at the 60-minute horizon, so 1.0 h is not a completion time.** The draft assessment is saved with a null completion_h.\n\n**Native solver output (this is a synthetic, authored simulator case \u2014 not experimental data):** at the final timestamp of 1.0 h, only 5.08% of the ice had dried, with vial-bottom at \u221232.20 \u00b0C, product front at \u221232.79 \u00b0C, shelf at \u221220 \u00b0C, chamber at 150 mTorr and flux 0.314 kg/h per m\u00b2. The maximum returned vial-bottom temperature over the solver nodes was \u221232.20 \u00b0C, and the peak returned flux was 0.323 kg/h per m\u00b2 at 0.25 h (checks are on returned solver nodes only; no continuous-maximum guarantee).\n\n**Derived from the returned values (my arithmetic, flagged as such):**\n- Whole-batch peak sublimation 0.0404 kg/h = peak flux \u00d7 batch product area 0.125072 m\u00b2 (398 vials \u00d7 3.14 cm\u00b2).\n- Equipment line a + b\u00b7P_Torr = \u22120.182 + 11.7 \u00d7 0.15 = 1.573 kg/h at the scheduled 0.15 Torr, giving a capacity margin of 1.533 kg/h.\n- Thermal margin 27.20 \u00b0C against the vial-bottom critical temperature of \u22125 \u00b0C.\n\nScheduled inputs were preserved unchanged (shelf ramp from \u221235 \u00b0C at 1.0 \u00b0C/min to \u221220 \u00b0C over 60 min, chamber ramp to 0.15 Torr). The saved assessment is a reviewable draft only \u2014 no measured outcome is inferred, no equipment was operated, and nothing here is an approval or validation.",
+          "tool_calls": []
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M2RYF0TR3GP4Y8NP6MNY6H",
+        "status": "completed"
+      }
+    ],
+    "turn_status": "completed",
+    "reply": "**Incomplete \u2014 the run still contains ice at the 60-minute horizon, so 1.0 h is not a completion time.** The draft assessment is saved with a null completion h.\n\n**Native solver output (this is a synthetic, authored simulator case \u2014 not experimental data):** at the final timestamp of 1.0 h, only 5.08% of the ice had dried, with vial-bottom at \u221232.20 \u00b0C, product front at \u221232.79 \u00b0C, shelf at \u221220 \u00b0C, chamber at 150 mTorr and flux 0.314 kg/h per m\u00b2. The maximum returned vial-bottom temperature over the solver nodes was \u221232.20 \u00b0C, and the peak returned flux was 0.323 kg/h per m\u00b2 at 0.25 h (checks are on returned solver nodes only; no continuous-maximum guarantee).\n\n**Derived from the returned values (my arithmetic, flagged as such):**\n- Whole-batch peak sublimation 0.0404 kg/h = peak flux \u00d7 batch product area 0.125072 m\u00b2 (398 vials \u00d7 3.14 cm\u00b2).\n- Equipment line a + b\u00b7P_Torr = \u22120.182 + 11.7 \u00d7 0.15 = 1.573 kg/h at the scheduled 0.15 Torr, giving a capacity margin of 1.533 kg/h.\n- Thermal margin 27.20 \u00b0C against the vial-bottom critical temperature of \u22125 \u00b0C.\n\nScheduled inputs were preserved unchanged (shelf ramp from \u221235 \u00b0C at 1.0 \u00b0C/min to \u221220 \u00b0C over 60 min, chamber ramp to 0.15 Torr). The saved assessment is a reviewable draft only \u2014 no measured outcome is inferred, no equipment was operated, and nothing here is an approval or validation.",
+    "questions": [],
+    "grounding": {
+      "claims": [],
+      "contradictions": [],
+      "derived_numbers": [
+        32.2
+      ],
+      "method": "verbatim quote in inspected source + number provenance; not semantic support",
+      "status": "ungrounded",
+      "unsupported_numbers": [
+        0.182,
+        32.79
+      ]
+    }
+  },
+  "source_sha256": "898634191e51fc5ce9a71ecce143ffefd33717b0db2cc02611e7fa1f8ba0f29c",
+  "reference_sha256": "574925e2d6c54e4484126eb2057c464c793436129744ab9366a9ea6cd955a0e8"
+}

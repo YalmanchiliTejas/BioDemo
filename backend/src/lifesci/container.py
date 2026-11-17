@@ -129,6 +129,8 @@ class Platform:
         self.assistant_routines = AssistantRoutineService(self)
         from .work_plans import WorkPlanService
         self.work_plans = WorkPlanService(self)
+        from .worklist import WorklistService
+        self.worklist = WorklistService(self)
         from .investigations import InvestigationService
         self.investigations = InvestigationService(self)
         from .case_science import CaseScienceService
@@ -199,6 +201,8 @@ class Platform:
         install_analysis_api(self, app, ctx_dep, idempotent)
         from .workspace_tasks_api import install_workspace_tasks_api
         install_workspace_tasks_api(self, app, ctx_dep, idempotent)
+        from .worklist import install_worklist_api
+        install_worklist_api(self, app, ctx_dep)
         from .fermentation.api import install_fermentation_api
         install_fermentation_api(self, app, ctx_dep, idempotent)
         for extension in self.api_extensions:

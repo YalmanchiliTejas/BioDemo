@@ -40,6 +40,7 @@ ASSISTANT_EXCLUDED = {
     'assistant_routine_run': 'private routine execution history, accessed through routines',
     'work_plan': "a person's private working file of next steps, opened from the workbench",
     'workspace_prepared_delivery': 'a calculated profile of a delivery; the delivery itself is searchable',
+    'worklist_prepared_check': "the worklist's note of which delivery was checked for whom; the check itself is that person's private workbench result",
 }
 FIELDS = {
     'assistant_alarm': ('title', 'description', 'severity', 'source_refs', 'record_refs', 'created_at'),

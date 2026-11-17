@@ -33,6 +33,16 @@ def run(p, ctx, script, text='What happened in DEV-77?'):
     return turn, fake
 
 
+def run_failing(p, ctx, script, text='What happened in DEV-77?'):
+    """As run(), for a turn that is expected to end without an answer."""
+    fake = fake_planner(p, [])
+    fake.scripts[p.gateway.registry.profiles['anthropic-opus'].model] = list(script)
+    thread = p.engineering_conversations.create(ctx, {})
+    queued = p.engineering_conversations.enqueue(ctx, thread['id'], {'text': text, 'expected_revision': thread['revision']})
+    p.engineering_conversations.run_turn(ctx, queued['id'], queued['turn_ids'][-1])
+    return p.engineering_conversations.get(ctx, thread['id'])['turns'][-1], fake
+
+
 def revision(p, case_id='DEV-77'):
     return p.store.read().require(TENANT, 'case', case_id).revision
 
@@ -282,3 +292,97 @@ def test_answer_links_come_from_the_records_a_turn_read():
     assert open_links(steps[3:4], evidence=records.get, question='Anything odd?')[0] == {'label': 'Plot this data across batches', 'href': '/trends/'}
     # A record the person cannot read, a synthetic dataset and a failed step give no link.
     assert open_links([steps[2], steps[4], steps[5]], evidence=records.get) == []
+
+
+# --- thinking again at the fullest level before anything is saved ------------------------------------------------------
+
+def test_only_tools_that_save_a_proposal_or_a_result_are_taken_again():
+    saving = ('workspace_propose_action', 'workspace_propose_routine', 'workspace_propose_rule', 'model_library_propose_extension',
+              'lyopronto_record_result')
+    others = ('workspace_read', 'workspace_search', 'workspace_run_task', 'workspace_open_task_result', 'cho_dataset_forecast',
+              'model_library_prepare', 'model_library_execute', 'remember', 'recall', 'open_result', 'open_memory', 'ask_user')
+    assert all(tool_loop.commits(name) for name in saving) and not any(tool_loop.commits(name) for name in others)
+
+
+def test_a_step_that_saves_is_taken_again_at_the_fullest_reasoning_and_only_that_version_runs(env, monkeypatch):
+    p, ctx = env
+    # A search stands in for a saving tool, so the test needs no approval set-up: the rule looks only at the tool's name.
+    monkeypatch.setattr(tool_loop, 'COMMITS', ('search',))
+    read = {'tool_calls': [call('workspace_read', kind='case', record_id='DEV-77', revision=revision(p))], 'effort': 'high'}
+    turn, fake = run(p, ctx, [
+        read,                                                                                        # a lookup: runs as written
+        {'tool_calls': [call('workspace_search', kinds=['case'], query='written in haste')], 'effort': 'high'},  # dropped
+        {'tool_calls': [call('workspace_search', kinds=['case'], query='foaming')]},                # the same step, thought through
+        {'content': 'DEV-77 is the open foaming case.', 'effort': 'high'}])
+    assert turn['status'] == 'completed' and turn['reply'].startswith('DEV-77')
+    asked = [c['reasoning_effort'] for c in fake.calls]
+    assert asked == [None, None, 'max', 'max']           # the saving step was asked for again; the turn then stays careful
+    ran = [(s['task_kind'], s['payload'].get('query')) for s in turn['steps']]
+    assert ran == [('workspace_read', None), ('workspace_search', 'foaming')]      # the hasty version never ran
+    assert 'written in haste' not in json.dumps(fake.calls[-1]['messages'])        # and the model never saw it either
+    assert len(turn['gateway_runs']) == 4                 # every model call is on the record, the dropped one included
+    assert turn['gateway_runs'][2]['output']['reasoning_effort'] == 'max'
+
+
+def test_a_saving_step_already_at_the_fullest_level_is_not_asked_for_twice(env, monkeypatch):
+    p, ctx = env
+    monkeypatch.setattr(tool_loop, 'COMMITS', ('search',))
+    for level in (None, 'max'):                           # nothing sent means the model's own fullest level
+        turn, fake = run(p, ctx, [
+            {'tool_calls': [call('workspace_search', kinds=['case'], query='foaming')], **({'effort': level} if level else {})},
+            'DEV-77 is the open foaming case.'])
+        assert turn['status'] == 'completed' and len(fake.calls) == 2 and [c['reasoning_effort'] for c in fake.calls] == [None, None]
+
+
+def test_with_no_step_left_to_think_again_a_hasty_save_is_refused_not_run(env, monkeypatch):
+    p, ctx = env
+    monkeypatch.setattr(tool_loop, 'COMMITS', ('search',))
+    monkeypatch.setattr(tool_loop, 'MAX_MODEL_CALLS', 2)  # one step with tools, then the answer
+    turn, fake = run(p, ctx, [
+        {'tool_calls': [call('workspace_search', kinds=['case'], query='foaming'),
+                        call('workspace_read', kind='case', record_id='DEV-77', revision=revision(p))], 'effort': 'high'},
+        'DEV-77 records foaming in B-200. I could not save the search.'])
+    assert turn['status'] == 'completed' and len(fake.calls) == 2 and fake.calls[-1]['tool_choice'] == 'none'
+    assert [(s['task_kind'], s['status']) for s in turn['steps']] == [('workspace_search', 'blocked'), ('workspace_read', 'completed')]
+    assert 'no step was left' in turn['steps'][0]['issues'][0] and 'not saved' in json.dumps(fake.calls[-1]['messages'])
+
+
+def test_once_a_saving_step_is_reached_the_rest_of_the_turn_stays_at_the_fullest_level(env, monkeypatch):
+    p, ctx = env
+    monkeypatch.setattr(tool_loop, 'COMMITS', ('search',))
+    read = lambda: {'tool_calls': [call('workspace_read', kind='case', record_id='DEV-77', revision=revision(p))], 'effort': 'high'}
+    turn, fake = run(p, ctx, [
+        read(),                                                                                   # before: the usual level
+        {'tool_calls': [call('workspace_search', kinds=['case'], query='hasty')], 'effort': 'high'},     # dropped
+        read(),                              # thought through, the model first checks something else instead of saving
+        {'tool_calls': [call('workspace_search', kinds=['case'], query='foaming')]},              # then saves: not asked twice
+        'DEV-77 is the open foaming case.'])
+    assert turn['status'] == 'completed'
+    assert [c['reasoning_effort'] for c in fake.calls] == [None, None, 'max', 'max', 'max']
+    assert [(s['task_kind'], s['payload'].get('query')) for s in turn['steps']] == [
+        ('workspace_read', None), ('workspace_read', None), ('workspace_search', 'foaming')]
+
+
+def test_a_second_thought_that_does_not_finish_saves_nothing_and_the_turn_still_answers(env, monkeypatch):
+    p, ctx = env
+    monkeypatch.setattr(tool_loop, 'COMMITS', ('search',))
+    turn, fake = run(p, ctx, [
+        {'tool_calls': [call('workspace_search', kinds=['case'], query='foaming')], 'effort': 'high'},
+        ProviderError('reply not finished after 150 s', retryable=True, kind='unfinished'),   # one try only, then give up on it
+        {'content': 'DEV-77 is the open foaming case. I could not save the search.', 'effort': 'high'}])
+    assert turn['status'] == 'completed' and turn['reply'].startswith('DEV-77')
+    assert [c['reasoning_effort'] for c in fake.calls] == [None, 'max', None]      # the answer is back at the usual level
+    assert [(s['task_kind'], s['status']) for s in turn['steps']] == [('workspace_search', 'blocked')]
+    assert 'the check did not finish' in turn['steps'][0]['issues'][0] and not turn['artifacts']
+
+
+def test_a_second_thought_lost_to_an_endpoint_that_went_silent_ends_the_turn_visibly(env, monkeypatch):
+    p, ctx = env
+    monkeypatch.setattr(tool_loop, 'COMMITS', ('search',))
+    turn, fake = run_failing(p, ctx, [
+        {'tool_calls': [call('workspace_search', kinds=['case'], query='foaming')], 'effort': 'high'},
+        ProviderError('the endpoint sent nothing for 30 s', retryable=True, kind='timeout')])
+    # A silent endpoint is treated as down for a while, so the answer cannot be asked for either. Nothing was saved.
+    assert turn['status'] == 'agent_unavailable' and not turn['artifacts']
+    assert [(s['task_kind'], s['status']) for s in turn.get('steps') or []] == [('workspace_search', 'blocked')]
+    assert [c['reasoning_effort'] for c in fake.calls] == [None, 'max']

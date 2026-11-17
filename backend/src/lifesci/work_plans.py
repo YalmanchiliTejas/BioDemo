@@ -114,6 +114,8 @@ class WorkPlanService:
     def get(self, ctx, plan_id):
         rec = self._record(ctx, plan_id)
         state, tx = rec.state, self.p.store.read()
+        from .worklist import Names
+        names = Names(self.p.store, ctx.tenant_id, principal(ctx))
         steps = []
         for step in state['steps']:
             view = dict(step)
@@ -127,8 +129,9 @@ class WorkPlanService:
                                     if readable else {'status': 'not_available'})
             if step.get('work_request_id'):
                 request = tx.get(ctx.tenant_id, 'assistant_work_request', step['work_request_id'])
-                view['request'] = ({'title': request.state.get('title'), 'owner_id': request.state.get('owner_id'),
-                                    'status': request.state.get('status', 'sent')} if request else {'status': 'not_available'})
+                view['request'] = ({k: request.state.get(k) for k in ('title', 'owner_id', 'reply', 'answered_at')}
+                                   | {'status': request.state.get('status', 'open'), 'owner_name': names(request.state.get('owner_id'))}
+                                   if request else {'status': 'not_available'})
             view['stands'] = self._stands(view)
             # A step that carries a proposal is finished by the proposal's own outcome, never by ticking it off.
             view['waiting_on'] = ('approval' if view['stands'] == 'waiting for approval' else
@@ -163,7 +166,8 @@ class WorkPlanService:
         if proposal.get('status') in ('rejected', 'stale', 'withdrawn'):
             return f"proposal {proposal['status']}"
         if step.get('request'):
-            return 'waiting for a reply'
+            # A reply ends the wait; the step's owner still reads it and closes the step with what came of it.
+            return 'reply received' if step['request'].get('status') == 'answered' else 'waiting for a reply'
         return 'to do'
 
     def update(self, ctx, plan_id, request):

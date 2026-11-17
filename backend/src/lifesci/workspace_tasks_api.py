@@ -4,7 +4,7 @@ from typing import Any
 from fastapi import Depends, Header
 from pydantic import BaseModel, ConfigDict, Field
 
-from .assistant_routines import AlarmIn, RoutineIn, RoutineUpdate, WorkRequestIn
+from .assistant_routines import AlarmIn, RoutineIn, RoutineUpdate, WorkReplyIn, WorkRequestIn
 from .workspace_tasks import TaskSpec
 from .work_plans import PlanIn, PlanUpdate, StepIn, StepUpdate
 from .ids import content_hash
@@ -209,6 +209,11 @@ def install_workspace_tasks_api(p, app, ctx_dep, idempotent):
     @app.get('/v1/work-requests/{request_id}')
     def get_work_request(request_id: str, ctx=Depends(ctx_dep)):
         return p.assistant_routines.get_work_request(ctx, request_id)
+
+    @app.post('/v1/work-requests/{request_id}/answer')
+    def answer_work_request(request_id: str, body: WorkReplyIn, ctx=Depends(ctx_dep)):
+        """The person asked replies; the request then reads as answered for the person who sent it."""
+        return p.assistant_routines.answer_work_request(ctx, request_id, body.model_dump())
 
     @app.post('/v1/assistant-alarms')
     def alarm(body: AlarmIn, ctx=Depends(ctx_dep), key: str | None = Header(None, alias='Idempotency-Key')):

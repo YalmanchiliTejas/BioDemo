@@ -85,8 +85,12 @@ class ActionService:
                 payload: dict[str, Any], basis: list[dict[str, Any]], rationale: str, expected_result: str,
                 owner_id: str, follow_up_measure: str | None = None, constraints: list[str] | None = None,
                 change_evidence: str | None = None, site_id: str | None = None, record_class: str | None = None,
-                mission_id: str | None = None) -> dict[str, Any]:
-        """Create a proposal. No side effect occurs; risk and required roles come from policy, not the caller."""
+                mission_id: str | None = None, origin: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Create a proposal. No side effect occurs; risk and required roles come from policy, not the caller.
+
+        ``origin`` is set by the host, never taken from a request body: what the cited result says in the host's own
+        words, and whether the assistant drafted the proposal. It informs the approver; it is not part of what is
+        approved, which stays the content fields."""
         self.identity.require(ctx, "propose", "proposal", site_id=site_id)
         if not basis:
             raise ValueError("a proposal requires at least one evidence reference in its basis")
@@ -103,7 +107,7 @@ class ActionService:
             "requested_by": ctx.actor_id, "requested_by_kind": ctx.actor_kind, "mission_id": mission_id,
             "status": "proposed",  # proposed | approved | rejected | stale | withdrawn
             "execution_status": "not_started", "effectiveness": "unknown", "stale_reasons": [],
-            "created_at": iso(utc_now()),
+            "created_at": iso(utc_now()), **({"origin": origin} if origin else {}),
         }
         state["content_hash"] = content_hash(_content(state))
         with self.store.transaction(ctx.actor_id) as tx:

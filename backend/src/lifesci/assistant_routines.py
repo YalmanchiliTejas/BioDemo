@@ -61,6 +61,19 @@ class AlarmIn(BaseModel):
     request_key: str | None = Field(default=None, min_length=1, max_length=160)
 
 
+class WorkReplyIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    expected_revision: int = Field(ge=1)
+    reply: str = Field(min_length=1, max_length=2000)
+
+    @field_validator('reply')
+    @classmethod
+    def says_something(cls, value):
+        if not value.strip():
+            raise ValueError('a reply cannot be blank')
+        return value.strip()
+
+
 class WorkRequestIn(AlarmIn):
     owner_id: str = Field(min_length=1, max_length=160)
     record_refs: list[SourceRef] = Field(default_factory=list, max_length=50,
@@ -514,7 +527,41 @@ class AssistantRoutineService:
                     **({'owner_id': request.owner_id} if kind == 'assistant_work_request' else {})})
             for ref in refs:
                 tx.add_edge(ctx.tenant_id, (ref['kind'], ref['id']), (kind, rid), 'request_source')
+        if kind == 'assistant_work_request' and state['owner_id'] != state['requested_by']:
+            self._tell(ctx.tenant_id, state['owner_id'], f'work-request:{rid}', 'work_request',
+                       f"{state['requested_by']} asked you: {state['title']}")
         return {**rec.state, 'revision': rec.revision}
+
+    def _tell(self, tenant_id, person, key, kind, title):
+        """An in-app notice that something is waiting for this person. The request stands whether or not it is sent."""
+        alerts = getattr(self.p, 'alerts', None)
+        if alerts is not None:
+            alerts.notify(tenant_id, person, key=key, kind=kind, title=title[:200], link='/dashboard/')
+
+    def answer_work_request(self, ctx, request_id, request):
+        """The person who was asked replies, once. The reply is recorded as their statement, with their name and the
+        time; it is not verified evidence, and the request then reads as answered for both people."""
+        if ctx.actor_kind != 'person' or ctx.delegated_from:
+            raise PermissionError('a person answers a request addressed to them')
+        body = WorkReplyIn.model_validate(request)
+        with self.p.store.transaction(ctx.actor_id) as tx:
+            rec = tx.require(ctx.tenant_id, 'assistant_work_request', request_id)
+            self._current_owner(ctx, rec.state['site_id'], tx=tx)
+            if principal(ctx) != rec.state['owner_id']:
+                raise PermissionError('only the person who was asked can answer this request')
+            if rec.revision != body.expected_revision:
+                raise ConflictError('the request changed; refresh before answering')
+            if rec.state.get('status', 'open') != 'open':
+                raise ValueError('this request was already answered')
+            state = {**rec.state, 'status': 'answered', 'reply': body.reply, 'answered_by': principal(ctx),
+                     'answered_at': iso(utc_now())}
+            out = tx.put(ctx.tenant_id, 'assistant_work_request', request_id, state, expected_revision=rec.revision,
+                         action='answer_team_request', event_type='work.answered',
+                         event_payload={'site_id': state['site_id'], 'id': request_id, 'requested_by': state['requested_by']})
+        if state['requested_by'] != state['owner_id']:
+            self._tell(ctx.tenant_id, state['requested_by'], f'work-reply:{request_id}', 'work_reply',
+                       f"{state['owner_id']} replied: {state['title']}")
+        return {**out.state, 'revision': out.revision}
 
     def get_work_request(self, ctx, request_id):
         rec = self.p.store.read().require(ctx.tenant_id, 'assistant_work_request', request_id)

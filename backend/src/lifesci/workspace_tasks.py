@@ -576,7 +576,10 @@ class WorkspaceTaskService:
             ctx, target_system=body.get('target_system') or 'quality-review', operation=body['operation'],
             target_id=body['target_id'], payload=body.get('payload') or {}, basis=basis, rationale=body['rationale'],
             expected_result=body['expected_result'], owner_id=body.get('owner_id') or principal(ctx),
-            follow_up_measure=body.get('follow_up_measure'), constraints=constraints, site_id=result['site_id'])
+            follow_up_measure=body.get('follow_up_measure'), constraints=constraints, site_id=result['site_id'],
+            # The result itself is private to its author. An approver is given the host's own account of it, tied
+            # to the exact result it describes so that it is not shown for a basis that was later revised.
+            origin={'result': {'id': result_id, 'revision': rec.revision}, 'result_says': describe(result).replace('**', '')[:1500]})
 
     def request_evidence(self, ctx, result_id, body):
         """Send the drafted request for missing evidence to a named person. Sending is the person's own act."""
@@ -588,7 +591,8 @@ class WorkspaceTaskService:
             'site_id': result['site_id'], 'owner_id': body['owner_id'], 'title': (body.get('title') or draft['title'])[:160],
             'description': (body.get('description') or draft['description'])[:2000], 'severity': body.get('severity') or 'info',
             'record_refs': [r for r in result['source_refs'] if r['kind'] == 'evidence'][:50] or result['source_refs'][:50],
-            'request_key': f'result:{result_id}'})
+            # One request per result and person: the same gaps can be asked of someone else as well.
+            'request_key': f"result:{result_id}:{body['owner_id']}"})
 
     # --- one bounded explanation ---------------------------------------------------------------------
     def explain(self, ctx, result_id, question=''):
@@ -1104,14 +1108,18 @@ class WorkspaceTaskService:
                 affected.append({'kind': down_kind, 'id': down_id, 'status': rec.state.get('status', 'current'),
                                  'depends_on': {'kind': kind, 'id': record_id}})
         without = usage['batches_without_usage']
+        # With no batch records at all there is nothing to be complete about: "every batch has recorded steps" would
+        # be true of an empty list and read as a finding that nothing was exposed.
+        known = usage['batches_known']
         return {'recorded_usage': hits[:spec.limit], 'recorded_usage_count': len(hits),
                 'affected_batches': sorted({h['batch_id'] for h in hits}),
                 'genealogy': {'status': 'recorded_usage_found' if hits else 'no_recorded_usage',
                               'batches_without_usage_records': len(without), 'examples': without[:10],
-                              'complete': not without,
+                              'complete': bool(known) and not without,
                               'note': 'Usage comes from executed procedure steps recorded here. '
                                       + (f'{len(without)} batches at this site have no recorded steps, so their exposure cannot be ruled out from these records.'
-                                         if without else 'Every batch at this site has recorded steps.')},
+                                         if without else 'Every batch at this site has recorded steps.' if known else
+                                         'No batch records are held here for this site, so these records cannot show which batches were exposed.')},
                 'results_depending_on_these_records': affected}
 
     # --- 07 impact links: optional scoring of mentions ---------------------------------------------

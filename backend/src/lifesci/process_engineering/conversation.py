@@ -1137,7 +1137,9 @@ class EngineeringConversationService:
                 with self.p.store.transaction(ctx.actor_id) as tx:
                     self._active_turn(ctx, turn, tx)
                     record = self.p.actions.propose(ctx, **payload.model_dump(exclude={'basis'}), basis=basis,
-                        owner_id=thread['owner_id'], site_id=thread['site_id'], mission_id=thread['mission_id'])
+                        owner_id=thread['owner_id'], site_id=thread['site_id'], mission_id=thread['mission_id'],
+                        # The turn runs with the person's authority; the record still says who wrote the draft.
+                        origin={'drafted_by': 'assistant', 'conversation_id': thread['id'], 'turn_id': tid})
                     self._remember(ctx, turn, 'proposal', record, 'Proposed action · human approval required')
                 return {'status': 'completed', 'output': record, 'issues': []}
             elif name == 'workspace_propose_rule':

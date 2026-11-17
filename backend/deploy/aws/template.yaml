@@ -46,6 +46,32 @@ Parameters:
   LlmModel:
     Type: String
     Default: zai-org/GLM-5.3
+  AssistantLoop:
+    Type: String
+    Default: tools
+    AllowedValues: ["tools", "planner", "demo"]
+    Description: >
+      Which loop answers in the assistant. tools: the tool-calling loop for every organization
+      (12/12 answered at a 62 s median on the demo scenarios, against 8/12 and about 3.5 min
+      for the planner). demo: the tool loop for demo workspaces only and the planner for
+      everyone else, as before 2026-11-16. planner: the planner for everyone.
+  InterpreterReasoningEffort:
+    Type: String
+    Default: low
+    AllowedValues: ["low", "high", "max", "default"]
+    Description: >
+      How hard the model thinks on the one-call explanation of a result the host has already
+      calculated (6/6 right at low in 3-5 s, against 17 s at the model's own default, max).
+      default sends nothing.
+  ReasoningEffort:
+    Type: String
+    Default: high
+    AllowedValues: ["low", "high", "max", "default"]
+    Description: >
+      How hard the model thinks on each step of the assistant's tool loop. Measured 2026-11-16:
+      high answered as well as max and two to four times sooner. Below max, the first step that
+      saves a proposal or a result is taken again at max and the turn stays there. default sends
+      nothing, which GLM-5.3 treats as max. Change it only with an evaluation behind it.
   InvestigationsEnabledTenants:
     Type: String
     Default: ""
@@ -162,6 +188,9 @@ Resources:
           CMO_STORAGE_BUCKET: !Ref StorageBucket
           LIFESCI_LLM_PROVIDER: !If [HasModal, modal, !Ref AWS::NoValue]
           LIFESCI_LLM_MODEL: !If [HasModal, !Ref LlmModel, !Ref AWS::NoValue]
+          ASSISTANT_LOOP: !Ref AssistantLoop
+          LIFESCI_INTERPRETER_REASONING_EFFORT: !Ref InterpreterReasoningEffort
+          MODAL_REASONING_EFFORT: !Ref ReasoningEffort
           MODAL_BASE_URL: !Ref ModalBaseUrl
           MODAL_PROXY_TOKEN: !Ref ModalProxyToken
           MODAL_EMBEDDINGS_URL: !Ref ModalEmbeddingsUrl

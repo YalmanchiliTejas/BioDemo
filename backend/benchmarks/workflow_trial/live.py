@@ -34,7 +34,13 @@ from typing import Any
 from . import run as trial
 
 MODEL_SETTINGS = ('MODAL_BASE_URL', 'MODAL_PROXY_TOKEN', 'BIODEMO_MODAL_BASE_URL', 'BIODEMO_MODAL_PROXY_TOKEN', 'MODAL_TIMEOUT_SECONDS',
-                  'MODAL_MIN_MAX_TOKENS', 'LIFESCI_LLM_MODEL', 'ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'OPENAI_API_KEY', 'OPENAI_BASE_URL')
+                  'MODAL_MIN_MAX_TOKENS', 'LIFESCI_LLM_MODEL', 'ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'OPENAI_API_KEY', 'OPENAI_BASE_URL',
+                  # How the assistant's own steps are run, so that one setting can be measured against another.
+                  'MODAL_REASONING_EFFORT', 'MODAL_STREAM', 'MODAL_STALL_SECONDS')
+
+
+def assistant_effort(settings) -> str:
+    return settings.get('MODAL_REASONING_EFFORT') or 'not sent (the model default: max on GLM-5.3)'
 QUESTION = 'What does this comparison show, and what should be checked next?'
 NUMBER = re.compile(r'(?<![\w.])[-+−]?\d+(?:[.,]\d+)*(?:\.\d+)?(?:[eE][-+]?\d+)?')
 
@@ -78,7 +84,7 @@ def platform_for(world, candidate, settings):
         os.environ.pop(name, None)
     providers = {candidate['provider']: provider_for(candidate, settings)}
     effort = os.environ.get('LIFESCI_INTERPRETER_REASONING_EFFORT', '').strip().lower()
-    if candidate['provider'] == 'modal' and effort in ('low', 'medium', 'high'):
+    if candidate['provider'] == 'modal' and effort in ('low', 'medium', 'high', 'max'):
         # As the product runs it: the explanation role has its own effort, the assistant keeps the default.
         from src.lifesci.gateway import ModalProvider
         from src.lifesci.gateway.configuration import INTERPRETER_PROVIDER
@@ -252,7 +258,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--assistant-cases', type=int, default=3, help='Each case is asked twice per arm: as a routine request and as a question.')
     parser.add_argument('--workers', type=int, default=3)
     parser.add_argument('--skip', choices=['explain', 'assistant'], action='append', default=[])
-    parser.add_argument('--interpreter-effort', choices=['low', 'medium', 'high'],
+    parser.add_argument('--interpreter-effort', choices=['low', 'medium', 'high', 'max'],
                         help='Run the explanation role at this reasoning effort, as LIFESCI_INTERPRETER_REASONING_EFFORT does in the product.')
     parser.add_argument('--arms', default='alone,workbench', help='Assistant arms to run: alone, workbench.')
     parser.add_argument('--kinds', default='routine,question', help='Request kinds to send: routine, question.')
@@ -282,6 +288,7 @@ def main(argv: list[str] | None = None) -> int:
             world, settings, per_delivery, args.workers, log, tuple(args.arms.split(',')), tuple(args.kinds.split(',')))
     report = {
         'schema_version': 'workflow-trial-live-v1', 'started_at': started, 'question': QUESTION,
+        'assistant_reasoning_effort': assistant_effort(settings),
         'protocol': {
             'evidence': 'The three held-out CHO deliveries of the offline trial, shared as provisional evidence; every arm starts '
                         'from a fresh application holding the same deliveries.',

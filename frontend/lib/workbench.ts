@@ -66,7 +66,7 @@ export type StepKind = 'check' | 'request' | 'action' | 'note';
 export type PlanStep = { can_complete?: boolean; waiting_on?: 'approval' | 'execution' | 'reply' | null; step_id: string; kind: StepKind; text: string; status: 'open' | 'done' | 'dropped'; basis?: string | null; result_id?: string | null; proposal_id?: string | null;
   work_request_id?: string | null; outcome?: string | null; stands: string;
   proposal?: { operation?: string; target_id?: string; status?: string; execution_status?: string; required_roles?: string[] };
-  request?: { title?: string; owner_id?: string; status?: string } };
+  request?: { title?: string; owner_id?: string; owner_name?: string; status?: string; reply?: string | null; answered_at?: string | null } };
 export type Plan = { id: string; title: string; status: 'open' | 'closed'; revision: number; site_id: string; selection: Partial<Selection>; steps: PlanStep[];
   progress: { open: number; done: number; to_do?: number; waiting_for_approval: number; waiting_for_reply: number }; updated_at: string };
 export type PlanSummary = { id: string; title: string; status: string; revision: number; steps: number; open_steps: number; updated_at: string };

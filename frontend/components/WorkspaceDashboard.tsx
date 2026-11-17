@@ -1,88 +1,109 @@
 'use client';
 
-import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, CheckCircle2, Circle, PackageCheck, Plus, RotateCw } from 'lucide-react';
+import { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { RotateCw } from 'lucide-react';
 import { connectorRequest, type Connector } from '@/lib/connectors-api';
-import { decisionCount, getJson, type RunListing } from '@/lib/cmo-api';
+import { getJson, type RunListing } from '@/lib/cmo-api';
 import { isDemoCmo } from '@/lib/cmo-demo';
+import { listSignals } from '@/lib/signals-api';
+import { listQuality } from '@/lib/quality-workflow-api';
+import { listPlans } from '@/lib/workbench';
+import { processRequest } from '@/lib/process-api';
+import { useDemo } from '@/lib/demo-api';
 import { useWorkspace } from '@/lib/workspace-context';
-import { useTutorial } from '@/lib/tutorial-context';
-import { WorkspacePageHeader } from '@/components/shell/WorkspacePageHeader';
 import { cached, remember } from '@/lib/cache';
+import { ICP_LABEL, attentionOrder, overviewComponents, sourcesFor, type Icp, type Source } from '@/lib/overview-views';
+import { useView } from '@/lib/use-view';
+import { summarize, type Conversation, type Loaded, type State } from '@/lib/overview-summaries';
+import { WorkspacePageHeader } from '@/components/shell/WorkspacePageHeader';
+import { NativeOverview } from '@/components/overview/SummaryViews';
+import { Worklist } from '@/components/worklist/Worklist';
 
-const deliveryHref = (run: RunListing) => `/cmo/?run=${encodeURIComponent(run.id)}`;
-const deliveryStatus = (run: RunListing) => run.status !== 'complete'
-  ? { tone: run.status === 'failed' ? 'failed' : '', label: run.status === 'queued' || run.status === 'running' ? 'Checking' : run.status }
-  : run.summary?.verified_package ? { tone: 'verified', label: 'Verified' }
-  : { tone: 'review', label: run.summary ? `${decisionCount(run.summary)} to review` : 'Review details' };
+const LOADERS: Record<Source, (siteId: string) => Promise<unknown>> = {
+  deliveries: () => getJson<{ runs: RunListing[] }>('/runs').then(r => r.runs),
+  signals: () => listSignals({ status: 'open' }).then(r => r.signals),
+  quality: () => listQuality().then(r => r.items),
+  workbench: siteId => listPlans(siteId).then(r => r.plans),
+  connections: () => connectorRequest<{ items: Connector[] }>('/connectors').then(r => r.items),
+  assistant: () => processRequest<{ conversations: Conversation[] }>('/v1/process-model/conversations').then(r => r.conversations),
+};
+// Coming back to the overview within a minute reuses what was just read instead of asking the server again.
+const FRESH_MS = 60_000;
+type Kept = { loaded: Loaded; at: Partial<Record<Source, number>> };
+
+// A renderer failure must leave every summary and link on the landing page.
+class SurfaceBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? this.props.fallback : this.props.children; }
+}
 
 export function WorkspaceDashboard() {
-  const { user } = useWorkspace();
-  const guide = useTutorial();
-  const last = cached<{ connections: Connector[] | null; runs: RunListing[] | null }>('dashboard');
-  const [connections, setConnections] = useState<Connector[] | null>(last?.connections ?? null);
-  const [runs, setRuns] = useState<RunListing[] | null>(last?.runs ?? null);
-  const [errors, setErrors] = useState<{ connections?: string; runs?: string }>({});
-  const [loading, setLoading] = useState(!last);
+  const { user, organization } = useWorkspace();
+  const { demo } = useDemo();
+  const isDemo = !!demo;
+  const orgId = organization?.id ?? '';
+  const siteId = organization?.site_ids?.[0] ?? 'NF1';
+  const { icp, choose } = useView(demo?.persona);
+
+  const cacheKey = `overview:${orgId}`;
+  const [loaded, setLoaded] = useState<Loaded>(() => cached<Kept>(cacheKey)?.loaded ?? {});
+  const [state, setState] = useState<State>({});
   const [attempt, setAttempt] = useState(0);
-  const load = useCallback((active: () => boolean) => {
-    if (!cached('dashboard')) setLoading(true);
-    setErrors({});
-    void Promise.allSettled([
-      connectorRequest<{ items: Connector[] }>('/connectors'),
-      getJson<{ runs: RunListing[] }>('/runs'),
-    ]).then(([sources, deliveries]) => {
-      if (!active()) return;
-      const nextConnections = sources.status === 'fulfilled' ? sources.value.items : null;
-      const nextRuns = deliveries.status === 'fulfilled' ? deliveries.value.runs.filter(r => !r.superseded_by && !isDemoCmo(r.cmo) && !r.cmo.includes('· demo ')) : null;
-      setConnections(nextConnections); setRuns(nextRuns);
-      if (nextConnections && nextRuns) remember('dashboard', { connections: nextConnections, runs: nextRuns });
-      setErrors({ ...(sources.status === 'rejected' ? { connections: sources.reason.message } : {}), ...(deliveries.status === 'rejected' ? { runs: deliveries.reason.message } : {}) });
-      setLoading(false);
-    });
-  }, []);
-  useEffect(() => { let active = true; load(() => active); return () => { active = false; }; }, [load, attempt]);
-  const review = runs?.filter(r => r.status === 'complete' && !r.summary?.verified_package);
-  const verified = runs?.filter(r => r.summary?.verified_package);
-  const checking = runs?.filter(r => r.status === 'queued' || r.status === 'running');
-  const enabled = connections?.filter(c => c.enabled);
+  // The worklist leads the page. The one-sentence summary is what remains if the worklist cannot be read.
+  const [worklist, setWorklist] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const sources = useMemo(() => sourcesFor(icp, isDemo), [icp, isDemo]);
+  useEffect(() => {
+    if (!orgId) return;
+    let active = true;
+    const kept = cached<Kept>(cacheKey) ?? { loaded: {}, at: {} };
+    setLoaded(kept.loaded);
+    const now = Date.now();
+    const stale = sources.filter(source => attempt || !kept.at[source] || now - kept.at[source]! > FRESH_MS);
+    setState(Object.fromEntries(sources.map(source => [source, stale.includes(source) ? 'loading' : 'ready'])) as State);
+    for (const source of stale) {
+      LOADERS[source](siteId).then(value => {
+        const current = cached<Kept>(cacheKey) ?? { loaded: {}, at: {} };
+        const next = { loaded: { ...current.loaded, [source]: value }, at: { ...current.at, [source]: Date.now() } };
+        remember(cacheKey, next);
+        if (active) { setLoaded(next.loaded); setState(s => ({ ...s, [source]: 'ready' })); }
+      }).catch((error: Error) => { if (active) setState(s => ({ ...s, [source]: { error: error.message } })); });
+    }
+    return () => { active = false; };
+  }, [orgId, siteId, cacheKey, sources, attempt]);
+
+  const model = useMemo(() => {
+    // Sample deliveries a person opened while exploring are not their own work; a demo workspace has only samples.
+    const runs = loaded.deliveries?.filter(r => !r.superseded_by && (isDemo || (!isDemoCmo(r.cmo) && !r.cmo.includes('· demo '))));
+    return summarize({ ...loaded, deliveries: runs }, state, demo?.scenarios?.length ?? 0, attentionOrder(icp, isDemo));
+  }, [loaded, state, icp, isDemo, demo?.scenarios?.length]);
+  const failures = sources.filter(source => typeof state[source] === 'object');
+  const busy = !organization || sources.some(source => state[source] === 'loading');
   const firstName = String(user?.user_metadata?.full_name || '').split(' ')[0];
-  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-  // One sentence about what needs attention, then only the counts that are non-zero.
-  const lead = loading ? 'Checking what needs your attention…'
-    : review?.length ? `${plural(review.length, 'delivery needs', 'deliveries need')} your review.`
-    : checking?.length ? `${plural(checking.length, 'delivery is', 'deliveries are')} being checked. Nothing needs you yet.`
-    : runs === null ? 'Delivery status is unavailable right now.'
-    : 'Nothing needs your attention right now.';
-  const facts = [
-    { value: verified?.length, text: (n: number) => n === 1 ? 'verified delivery' : 'verified deliveries', href: '/cmo/' },
-    { value: enabled?.length, text: (n: number) => n === 1 ? 'source connected' : 'sources connected', href: '/sources/' },
-  ].filter(f => !loading && f.value);
-  const steps = [
-    { done: !!enabled?.length, label: 'Connect a source', detail: 'Start with a system you already use', href: '/sources/' },
-    { done: !!runs?.length, label: 'Check a delivery', detail: 'Keep the original evidence beside each value', href: '/cmo/' },
-  ];
-  const setupComplete = !loading && steps.every(step => step.done);
+  const fallback = <NativeOverview components={overviewComponents(icp, isDemo)} model={model} />;
+
   return <div className="workspace-page" data-testid="workspace-dashboard">
     <WorkspacePageHeader title={firstName ? `Welcome back, ${firstName}` : 'Overview'} description=""
-      actions={<Link href="/cmo/" className="chrome-button primary"><Plus size={15} />New delivery</Link>} />
-    {(errors.connections || errors.runs) && <div role="alert" className="workspace-alert compact"><div><strong>Some information is unavailable.</strong> {[errors.runs && `Deliveries: ${errors.runs}`, errors.connections && `Connections: ${errors.connections}`].filter(Boolean).join(' ')}</div><button type="button" className="chrome-button" onClick={() => setAttempt(i => i + 1)}><RotateCw size={13} />Retry</button></div>}
-    <section className="attention-summary" aria-label="Workspace status" aria-busy={loading}>
-      <p className="lead" role="status">{review?.length ? <Link href="/cmo/">{lead}</Link> : lead}</p>
-      {!!facts.length && <ul>{facts.map(f => <li key={f.href}><Link href={f.href}><strong>{f.value}</strong>{f.text(f.value!)}</Link></li>)}</ul>}
-    </section>
-    <div className="dashboard-columns">
-      <section className="workspace-panel"><div className="panel-heading"><div><h2>Recent deliveries</h2></div>{!!runs?.length && <Link href="/cmo/">View all <ArrowRight size={13} /></Link>}</div>
-        {loading && <p role="status" className="panel-body panel-muted">Loading deliveries…</p>}
-        {runs && !runs.length && <div className="dashboard-empty"><span className="empty-icon"><PackageCheck size={20} /></span><h3>No deliveries yet</h3><p>Start with the files your CDMO sent. Review extracted values alongside their sources.</p><Link className="chrome-button" href="/cmo/">Check a delivery <ArrowRight size={14} /></Link></div>}
-        {!runs && !loading && <div className="dashboard-empty"><h3>Deliveries could not be loaded</h3><p>Retry above. Nothing has been changed.</p></div>}
-        {runs && runs.length > 0 && <table className="delivery-table"><thead><tr><th>Delivery</th><th>Status</th><th className="date-column">Received</th></tr></thead><tbody>{runs.slice(0, 6).map(run => { const status = deliveryStatus(run); return <tr key={run.id}><td><Link href={deliveryHref(run)}>{run.delivery_name || run.cmo}<small>{run.cmo}</small></Link></td><td><span className={`status-label ${status.tone}`}>{status.label}</span></td><td className="date-column">{run.started_at ? new Date(run.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}</td></tr>; })}</tbody></table>}
-      </section>
-      <div className="dashboard-stack">
-        {!setupComplete && <section className="workspace-panel"><div className="panel-heading"><div><h2>Getting started</h2><p>{steps.filter(step => step.done).length} of {steps.length} done</p></div></div><ol className="getting-started-list">{steps.map(step => <li key={step.label}>{step.done ? <CheckCircle2 size={16} className="done" /> : <Circle size={16} />}<Link href={step.href}>{step.label}<small>{step.detail}</small></Link></li>)}</ol><div className="panel-foot"><button type="button" className="text-action" onClick={() => guide.open()}>Open the workspace guide <ArrowRight size={13} /></button></div></section>}
-        <section className="workspace-panel"><div className="panel-heading"><h2>Data connections</h2><Link href="/sources/">Manage</Link></div>{connections?.length ? <ul className="source-status-list">{connections.slice(0, 5).map(connection => <li key={connection.connector_id}><div><span>{connection.connector_id}</span><span className={`status-label ${connection.last_error ? 'failed' : connection.enabled ? 'verified' : ''}`}>{connection.last_error ? 'Needs attention' : connection.enabled ? 'Enabled' : 'Paused'}</span></div><small>{connection.family} · {connection.last_sync ? `Last attempt ${new Date(connection.last_sync).toLocaleDateString()}` : 'No sync attempt yet'}</small>{connection.last_error && <small className="source-error">{connection.last_error}</small>}</li>)}</ul> : <p className="panel-body panel-muted">{loading ? 'Loading connections…' : connections ? 'Nothing connected yet. Link a system you already use and new data arrives on its own.' : 'Connection status is unavailable.'}</p>}</section>
-      </div>
-    </div>
+      actions={<label className="overview-view">View<select id="overview-view" value={icp} onChange={e => choose(e.target.value as Icp)}>
+        {(Object.keys(ICP_LABEL) as Icp[]).map(key => <option key={key} value={key}>{ICP_LABEL[key]}</option>)}
+      </select></label>} />
+    {!!failures.length && <div role="alert" className="workspace-alert compact"><div><strong>Some information is unavailable.</strong> The affected summaries say why. Nothing has been changed.</div><button type="button" className="chrome-button" onClick={() => setAttempt(i => i + 1)}><RotateCw size={13} />Try again</button></div>}
+    {organization && <Worklist key={`${orgId}:${siteId}:${attempt}`} siteId={siteId} onState={setWorklist} retryElsewhere={!!failures.length} />}
+    {(!organization || worklist === 'failed') && <section className="attention-summary" aria-label="Workspace status" aria-busy={busy}><p className="lead" role="status">{organization ? model.lead : 'Checking what needs your attention…'}</p></section>}
+    {/* Wait for the organization so a person never sees someone else's view flash by before their own. */}
+    {organization && <SurfaceBoundary key={`${icp}:${isDemo}`} fallback={fallback}>
+      {/* The plain view paints first; the A2UI surface replaces it once its code has loaded. */}
+      <SurfaceOrFallback icp={icp} demo={isDemo} model={model} fallback={fallback} />
+    </SurfaceBoundary>}
   </div>;
+}
+
+function SurfaceOrFallback({ icp, demo, model, fallback }: { icp: Icp; demo: boolean; model: ReturnType<typeof summarize>; fallback: ReactNode }) {
+  const [Surface, setSurface] = useState<typeof import('@/components/overview/OverviewSurface').default | null>(null);
+  useEffect(() => {
+    let active = true;
+    void import('@/components/overview/OverviewSurface').then(module => { if (active) setSurface(() => module.default); }).catch(error => { console.warn('A2UI overview: showing the plain view', error); });
+    return () => { active = false; };
+  }, []);
+  return Surface ? <Surface icp={icp} demo={demo} model={model} /> : <>{fallback}</>;
 }

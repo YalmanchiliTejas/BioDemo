@@ -14,10 +14,13 @@ from urllib.parse import urlparse
 
 
 class ProviderError(Exception):
-    def __init__(self, message: str, *, retryable: bool, kind: str = "error") -> None:
+    def __init__(self, message: str, *, retryable: bool, kind: str = "error", retry_after: float | None = None) -> None:
         super().__init__(message)
         self.retryable = retryable
-        self.kind = kind  # rate_limit | timeout | unavailable | auth | bad_request | output_limit | error
+        # rate_limit | timeout (silent) | unfinished (still answering at the time limit) | unavailable | auth |
+        # bad_request | output_limit | error
+        self.kind = kind
+        self.retry_after = retry_after  # seconds the endpoint asked for with a rate limit, when it said
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,9 @@ class Completion:
     latency_ms: float = 0.0
     # Native tool calls from chat(): [{'id', 'name', 'arguments' (JSON text)}]; empty for plain completions.
     tool_calls: tuple = ()
+    # The reasoning level this reply was asked for, when one was sent, and how much of the output was reasoning.
+    reasoning_effort: str | None = None
+    reasoning_tokens: int = 0
 
 
 class Provider(Protocol):
@@ -64,12 +70,13 @@ class FakeProvider:
         return Completion(text, max(len(system + prompt) // 4, 1), max(len(text) // 4, 1))
 
     def chat(self, *, model: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]], tool_choice: str,
-             max_output_tokens: int, timeout_s: float) -> Completion:
+             max_output_tokens: int, timeout_s: float, reasoning_effort: str | None = None) -> Completion:
         """Scripted turns: a str (final text), {'content', 'tool_calls': [{'name', 'arguments': dict}]}, an Exception,
-        or a function of the messages so far returning one of those."""
+        or a function of the messages so far returning one of those. A dict may carry 'effort': the reasoning level
+        this provider is pretending to run at when the caller asks for none."""
         import json as _json
         self.calls.append({"model": model, "messages": [dict(m) for m in messages], "tools": [t["function"]["name"] for t in tools],
-                           "tool_choice": tool_choice, "max_output_tokens": max_output_tokens})
+                           "tool_choice": tool_choice, "max_output_tokens": max_output_tokens, "reasoning_effort": reasoning_effort})
         queue = self.scripts.get(model)
         if not queue:
             raise ProviderError(f"no scripted response for {model}", retryable=False, kind="unavailable")
@@ -84,7 +91,8 @@ class FakeProvider:
             {"id": f"call_{len(self.calls)}_{i}", "name": c["name"], "arguments": _json.dumps(c.get("arguments", {}))}
             for i, c in enumerate(item.get("tool_calls", [])))
         text = item.get("content") or ""
-        return Completion(text, max(len(_json.dumps(messages)) // 4, 1), max(len(text) // 4, 1), tool_calls=calls)
+        return Completion(text, max(len(_json.dumps(messages)) // 4, 1), max(len(text) // 4, 1), tool_calls=calls,
+                          reasoning_effort=reasoning_effort or item.get("effort"))
 
 
 class _HTTPProvider:
@@ -111,8 +119,19 @@ class _HTTPProvider:
             raise ProviderError(str(exc), retryable=True, kind="timeout") from exc
         except httpx.HTTPError as exc:
             raise ProviderError(str(exc), retryable=True, kind="unavailable") from exc
+        self._refused(response)
+        return response.json()
+
+    @staticmethod
+    def _refused(response: Any) -> None:
+        """Raise for a reply that is not an answer, by what it means for the caller."""
         if response.status_code == 429:
-            raise ProviderError("rate limited", retryable=True, kind="rate_limit")
+            try:
+                wait = float(response.headers.get("retry-after", ""))
+            except ValueError:
+                wait = None
+            raise ProviderError("rate limited", retryable=True, kind="rate_limit",
+                                retry_after=wait if wait is not None and math.isfinite(wait) and wait >= 0 else None)
         if response.status_code >= 500:
             raise ProviderError(f"provider {response.status_code}", retryable=True, kind="unavailable")
         if response.status_code in (401, 403):
@@ -120,7 +139,6 @@ class _HTTPProvider:
         if response.status_code >= 400:
             raise ProviderError(f"bad request {response.status_code}: {response.text[:200]}", retryable=False,
                                 kind="bad_request")
-        return response.json()
 
 
 class AnthropicProvider(_HTTPProvider):
@@ -165,6 +183,9 @@ class OpenAIProvider(_HTTPProvider):
 
 
 _MODAL_TOKEN = re.compile(r"^wk-[^.\s]+\.ws-\S+$")
+# GLM-5.3 has three levels: low, high and max. Measured on the deployed endpoint, 2026-11-16: nothing sent means max,
+# and any other word ("medium" included) is accepted and also behaves like max. "medium" stays for models that have it.
+EFFORTS = ("low", "medium", "high", "max")
 
 
 def modal_settings(environ: Mapping[str, str] | None = None) -> tuple[str | None, str | None]:
@@ -207,13 +228,21 @@ class ModalProvider(_HTTPProvider):
         # Measured 2026-11-11 on the tool loop: "low" answered in 15-18 s instead of 50-90 s, but picked the
         # wrong run on a comparison it had to work out itself. Set it only with an evaluation behind it.
         effort = env.get("MODAL_REASONING_EFFORT", "").strip().lower()
-        self._reasoning_effort = effort if effort in ("low", "medium", "high") else None
+        self._reasoning_effort = effort if effort in EFFORTS else None
         # Single completions (no tools) keep the deployment's default unless this is set. It is set only for the
         # explanation role, whose figures are calculated by the host and checked against the result afterwards.
         completion_effort = env.get("MODAL_COMPLETION_REASONING_EFFORT", "").strip().lower()
-        self._completion_effort = completion_effort if completion_effort in ("low", "medium", "high") else None
+        self._completion_effort = completion_effort if completion_effort in EFFORTS else None
         # The explanation role asks the endpoint for a JSON object, so a stray sentence cannot cost a correction call.
         self._completion_json = env.get("MODAL_COMPLETION_JSON", "").strip() == "1"
+        # Replies are read as a stream so that an endpoint which has stopped answering is noticed quickly (see _post).
+        # MODAL_STREAM=0 goes back to one unstreamed reply, should a deployment not stream.
+        self._stream = env.get("MODAL_STREAM", "").strip() != "0"
+        try:
+            stall = float(env.get("MODAL_STALL_SECONDS", "30"))
+        except ValueError:
+            stall = 30.0
+        self._stall = stall if math.isfinite(stall) and stall > 0 else 30.0
 
     def _check_configuration(self) -> None:
         if not self._base:
@@ -229,6 +258,72 @@ class ModalProvider(_HTTPProvider):
         if not _MODAL_TOKEN.match(self._key):
             raise ProviderError("modal proxy token has the wrong format; expected wk-<id>.ws-<secret>",
                                 retryable=False, kind="auth")
+
+    def _post(self, path: str, body: dict[str, Any], headers: dict[str, str], timeout_s: float) -> dict[str, Any]:
+        """Read the reply as a stream and return it in the shape of an unstreamed one.
+
+        Streamed for one reason: an endpoint that has stopped answering is noticed after `_stall` seconds without a
+        byte, not after the whole timeout (live: unanswered requests held a turn for 150 s each, one for 900 s).
+        Measured on the deployed endpoint: the first byte within 2 s and never more than 0.7 s between chunks, thinking
+        included. `timeout_s` still bounds the whole reply. A reply that ends before the endpoint says it has finished
+        is an error, never a shorter answer."""
+        if not self._stream:
+            return super()._post(path, body, headers, timeout_s)
+        import json
+
+        import httpx
+
+        stall, deadline = min(self._stall, timeout_s), time.monotonic() + timeout_s
+        text: list[str] = []
+        thinking: list[str] = []
+        calls: dict[int, dict[str, Any]] = {}
+        finish = usage = ident = model = None
+        try:
+            with httpx.stream("POST", f"{self._base}{path}", headers=headers,
+                              json={**body, "stream": True, "stream_options": {"include_usage": True}},
+                              timeout=httpx.Timeout(connect=10.0, read=stall, write=30.0, pool=10.0)) as response:
+                if response.status_code != 200:
+                    response.read()
+                    self._refused(response)
+                    raise ProviderError(f"provider {response.status_code}", retryable=True, kind="unavailable")
+                for line in response.iter_lines():
+                    if time.monotonic() > deadline:
+                        # Still answering, only too slowly for this request: not a sign the endpoint is down.
+                        raise ProviderError(f"reply not finished after {timeout_s:g} s", retryable=True, kind="unfinished")
+                    if not line.startswith("data:") or line[5:].strip() == "[DONE]":
+                        continue  # keep-alive comments, blank separators and the end marker carry nothing
+                    chunk = json.loads(line[5:])
+                    if chunk.get("error"):
+                        raise ProviderError("the endpoint reported an error while answering", retryable=True, kind="unavailable")
+                    ident, model, usage = chunk.get("id") or ident, chunk.get("model") or model, chunk.get("usage") or usage
+                    for choice in chunk.get("choices") or []:
+                        delta = choice.get("delta") or {}
+                        text.append(delta.get("content") or "")
+                        thinking.append(delta.get("reasoning_content") or delta.get("reasoning") or "")
+                        for call in delta.get("tool_calls") or []:
+                            slot = calls.setdefault(call.get("index") or 0, {"id": None, "name": "", "arguments": ""})
+                            function = call.get("function") or {}
+                            slot["id"] = slot["id"] or call.get("id")
+                            slot["name"] += function.get("name") or ""
+                            slot["arguments"] += function.get("arguments") or ""
+                        finish = choice.get("finish_reason") or finish
+        except httpx.ReadTimeout as exc:
+            raise ProviderError(f"the endpoint sent nothing for {stall:g} s", retryable=True, kind="timeout") from exc
+        except httpx.TimeoutException as exc:
+            raise ProviderError(str(exc) or type(exc).__name__, retryable=True, kind="timeout") from exc
+        except httpx.HTTPError as exc:
+            raise ProviderError(str(exc) or type(exc).__name__, retryable=True, kind="unavailable") from exc
+        except (ValueError, AttributeError) as exc:  # a chunk that is not the JSON object the protocol promises
+            raise ProviderError("unreadable reply from the endpoint", retryable=True, kind="unavailable") from exc
+        if finish is None:
+            raise ProviderError("the reply ended before the endpoint finished it", retryable=True, kind="unavailable")
+        message: dict[str, Any] = {"role": "assistant", "content": "".join(text) or None,
+                                   "reasoning_content": "".join(thinking) or None}
+        if calls:
+            message["tool_calls"] = [{"id": c["id"], "type": "function", "function": {"name": c["name"], "arguments": c["arguments"]}}
+                                     for _, c in sorted(calls.items())]
+        return {"id": ident, "model": model, "choices": [{"index": 0, "message": message, "finish_reason": finish}],
+                "usage": usage or {}}
 
     def complete(self, *, model: str, system: str, prompt: str, max_output_tokens: int,
                  timeout_s: float) -> Completion:
@@ -263,15 +358,17 @@ class ModalProvider(_HTTPProvider):
                           (time.perf_counter() - start) * 1000)
 
     def chat(self, *, model: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]], tool_choice: str,
-             max_output_tokens: int, timeout_s: float) -> Completion:
-        """OpenAI-compatible chat with native tool calls (vLLM serving GLM supports them)."""
+             max_output_tokens: int, timeout_s: float, reasoning_effort: str | None = None) -> Completion:
+        """OpenAI-compatible chat with native tool calls (vLLM serving GLM supports them). `reasoning_effort` asks for
+        one level for this call only, in place of the deployment's; the reply says which level it ran at."""
         self._check_configuration()
         start = time.perf_counter()
         body: dict[str, Any] = {"model": model, "max_tokens": max(max_output_tokens, self._min_max_tokens), "messages": messages}
         if tools:
             body.update(tools=tools, tool_choice=tool_choice)
-        if self._reasoning_effort:
-            body["reasoning_effort"] = self._reasoning_effort
+        effort = reasoning_effort if reasoning_effort in EFFORTS else self._reasoning_effort
+        if effort:
+            body["reasoning_effort"] = effort
         # Tool-loop steps are small: honour the caller's timeout (the planner's floor is for one huge call).
         data = self._post("/chat/completions", body, {"Authorization": f"Bearer {self._key}"}, timeout_s)
         choice = (data.get("choices") or [{}])[0]
@@ -287,5 +384,7 @@ class ModalProvider(_HTTPProvider):
                                 retryable=False, kind="output_limit" if reason == "length" else "error")
         usage = data.get("usage") or {}
         cached = int((usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0) or 0)
+        thinking = usage.get("reasoning_tokens") or (usage.get("completion_tokens_details") or {}).get("reasoning_tokens")
         return Completion(content, int(usage.get("prompt_tokens", 0) or 0), int(usage.get("completion_tokens", 0) or 0),
-                          cached, data.get("id"), None, (time.perf_counter() - start) * 1000, calls)
+                          cached, data.get("id"), None, (time.perf_counter() - start) * 1000, calls,
+                          reasoning_effort=effort, reasoning_tokens=int(thinking or 0))

@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from functools import wraps
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Iterable, Iterator
 
 from .ids import canonical_json, content_hash, iso, new_id, utc_now
 
@@ -270,6 +270,15 @@ class _Sqlite:
     def json_text(column: str, field: str) -> str:
         return f"json_extract({column}, '$.{field}')"
 
+    @staticmethod
+    def json_value(column: str, path: tuple[str, ...]) -> str:
+        """The field at this path as JSON text (NULL when absent). The -> operator needs SQLite 3.38 or later."""
+        return f"({column} -> '$.{'.'.join(path)}')"
+
+    @staticmethod
+    def json_param(value: Any) -> Any:
+        return value  # json_extract yields typed values; a bool binds as 1 or 0, which is how it reads true and false
+
     def begin(self) -> None:
         self.conn.execute("BEGIN IMMEDIATE")
 
@@ -441,6 +450,15 @@ class _Postgres:
         # Matches the revisions_by_<field> expression indexes.
         return f"(({column})::jsonb ->> '{field}')"
 
+    @staticmethod
+    def json_value(column: str, path: tuple[str, ...]) -> str:
+        """The field at this path as JSON text (NULL when absent)."""
+        return f"((({column})::jsonb #> '{{{','.join(path)}}}')::text)"
+
+    @staticmethod
+    def json_param(value: Any) -> Any:
+        return ("true" if value else "false") if isinstance(value, bool) else str(value)  # ->> yields text
+
     def execute(self, sql: str, params: tuple = ()) -> Any:
         cur = self.conn.cursor()
         cur.execute(sql.replace("?", "%s"), params)
@@ -555,6 +573,51 @@ class Transaction:
             f"WHERE a.tenant_id=? AND a.kind=? AND r.kind=? AND {self._db.json_text('r.state', field)}=? ORDER BY a.id",
             (tenant_id, kind, kind, str(value)))
         return [Record(tenant_id, kind, r[0], int(r[1]), json.loads(r[2]), r[3], r[4]) for r in rows]
+
+    @_locked_read
+    def select(self, tenant_id: str, kind: str, fields: Iterable[str] = (), *, where: dict[str, Any] | None = None,
+               ids: Iterable[str] | None = None, limit: int | None = None) -> list[dict[str, Any]]:
+        """Current records of one kind, filtered and trimmed inside the database, newest first.
+
+        ``list`` sends every record of the kind to the caller, whole, and filters there. This sends only the rows
+        that match and only the named fields of each, so a caller that needs three small fields of a few records
+        does not download the rest. ``fields`` are top-level names or dotted paths (``workflow.state``). ``where``
+        maps a top-level field to a text, whole-number or true/false value, or to a list of accepted values.
+        ``ids`` keeps only those records. Each row is ``{'id', 'revision', 'updated_at', <field>: value}``; a field
+        the record does not have is None.
+        """
+        paths = {name: tuple(name.split(".")) for name in dict.fromkeys(fields)}
+        wanted = {field: (list(value) if isinstance(value, (list, tuple, set, frozenset)) else [value])
+                  for field, value in (where or {}).items()}
+        if any(not _FIELD_NAME.match(part) for path in paths.values() for part in path) or \
+                any(not _FIELD_NAME.match(field) for field in wanted):
+            raise KeyError("field names must be lowercase identifiers")
+        if any(isinstance(v, float) or not isinstance(v, (str, int)) for values in wanted.values() for v in values):
+            raise ValueError("a filter value must be text, a whole number or true/false")
+        only = None if ids is None else list(dict.fromkeys(ids))
+        if only == [] or any(not values for values in wanted.values()):
+            return []
+        self._bind(tenant_id)
+        marks = lambda n: ", ".join("?" * n)
+        sql = ["SELECT a.id, a.revision, r.recorded_at",
+               *(", " + self._db.json_value("r.state", path) for path in paths.values()),
+               f" {_CURRENT} WHERE a.tenant_id=? AND a.kind=? AND r.kind=?"]
+        params: list[Any] = [tenant_id, kind, kind]
+        if only is not None:
+            sql.append(f" AND a.id IN ({marks(len(only))})")
+            params += only
+        for field, values in wanted.items():
+            sql.append(f" AND {self._db.json_text('r.state', field)} IN ({marks(len(values))})")
+            params += [self._db.json_param(v) for v in values]
+        sql.append(" ORDER BY r.recorded_at DESC, a.id")
+        if limit is not None:
+            sql.append(" LIMIT ?")
+            params.append(int(limit))
+        # ponytail: a filter on an undeclared field is still a scan inside the database (see DEFAULT_INDEXES); what
+        # this saves is the transfer. Declare the field if the scan itself becomes slow.
+        return [{"id": row[0], "revision": int(row[1]), "updated_at": row[2],
+                 **{name: None if raw is None else json.loads(raw) for name, raw in zip(paths, row[3:])}}
+                for row in self._db.fetchall("".join(sql), tuple(params))]
 
     @_locked_read
     def revision(self, tenant_id: str, kind: str, id: str, revision: int) -> Record | None:

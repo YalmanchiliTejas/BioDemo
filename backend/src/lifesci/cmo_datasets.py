@@ -209,6 +209,12 @@ def _prepare(p, ctx, evidence_id: str, site_id: str) -> None:
         tasks.profile(ctx, evidence_id, site_id)
     except Exception:
         log.exception("Preparing the profile of delivery %s was deferred", evidence_id)
+    worklist = getattr(p, "worklist", None)
+    if worklist is not None:
+        try:  # checked against approved requirements now, so that what is missing is waiting for the person with a drafted request
+            worklist.prepare_delivery(ctx, evidence_id, site_id)
+        except Exception:
+            log.exception("Checking delivery %s against approved requirements was deferred", evidence_id)
 
 
 def share_provisional(p, ctx, payload: dict[str, Any], site_id: str) -> dict[str, Any]:
@@ -240,6 +246,7 @@ def install_cmo_api(p, app: FastAPI, ctx_dep) -> None:
         cmo = cmo_router(repository, tenant_dependency=ctx_dep, tasks=app.state.tasks,
                          permission_check=lambda ctx, action: p.identity.require(ctx, action, "cmo_delivery"))
         app.include_router(cmo)
+        p.worklist.deliveries = cmo.review_counts  # what still waits for review in each delivery, for the worklist
 
     @app.post("/v1/cmo-datasets", status_code=201)
     def publish(body: PublishIn, ctx=Depends(ctx_dep)):

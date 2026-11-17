@@ -26,6 +26,18 @@ def test_quoted_and_derived_claims_are_grounded(tmp_path):
     assert turn['grounding']['derived_numbers'] == [2.5]
 
 
+def test_the_time_a_record_was_read_does_not_vouch_for_an_invented_value():
+    """The test below failed whenever it ran during minute 26 of an hour, and would have all day on the 26th."""
+    from src.lifesci.process_engineering.grounding import check_reply, source_text
+    for stamp in ('2026-11-17T05:26:41.123456+00:00', '2026-11-26T05:13:41.123456+00:00', '2026-11-17T05:13:26+00:00', '2026-11-26'):
+        seen = {'e1': source_text({'kind': 'evidence', 'id': 'e1', 'ingested_at': stamp, 'data': {'original': 'ASSAY-9 result 2500 mg/L.'}})}
+        assert check_reply('ASSAY-9 is 2600 mg/L and passed.', [], seen)['unsupported_numbers'] == [2600.0], stamp
+        assert check_reply('ASSAY-9 is 0.26 g/L.', [], seen)['unsupported_numbers'] == [0.26], stamp
+    # The date itself can be restated, and a value that is in the source still converts between units.
+    seen = {'e1': source_text({'id': 'e1', 'ingested_at': '2026-11-26T05:26:41+00:00', 'data': {'original': 'ASSAY-9 result 2500 mg/L.'}})}
+    assert check_reply('Read on 26 November 2026 at 05:26: 2500 mg/L, which is 2.5 g/L.', [], seen)['unsupported_numbers'] == []
+
+
 def test_invented_number_and_fake_quote_are_flagged_not_hidden(tmp_path):
     turn = _ask(tmp_path, lambda eid: {'reply': 'ASSAY-9 is 2600 mg/L and passed.', 'claims': [
         {'text': 'assay passed', 'source_id': eid, 'quote': 'result passed'}]})

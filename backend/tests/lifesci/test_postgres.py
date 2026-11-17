@@ -94,6 +94,11 @@ def test_source_event_command_key_serializes_across_postgres_connections(pg, mon
             platform.store.release_connections()
 
 
+def test_select_filters_and_trims_in_postgres_under_row_level_security(pg):
+    from tests.lifesci.test_core import _select_contract
+    _select_contract(RecordStore(pg.app, migrate=False), tenant="pg-sel-a", other="pg-sel-b")
+
+
 def test_core_flow_on_postgres_as_app_role(pg):
     s = RecordStore(pg.app, migrate=False)
     idn, own = IdentityService(s), OwnershipRegistry(s)
@@ -263,7 +268,12 @@ def test_cmo_records_round_trip_on_postgres_as_app_role(cmo_service, tmp_path):
         assert quality.guarantee(service.get(second["id"]))["holds"] and service.verify_audit()
         service.repo.save_delivery({"id": "delivery-x", "cmo": "acme", "files": [{"path": "a.csv", "size": 3, "sha256": "x"}]})
         assert service.repo.deliveries()[0]["files"][0]["path"] == "a.csv"
+        # What still waits for a person, counted in the database, equals each run's own summary.
+        waiting = {r["id"]: (r["needs_review"], r["open_issues"], r["unconfirmed_layouts"]) for r in service.repo.review_counts()}
+        assert waiting == {r["id"]: tuple(service.get(r["id"])["summary"][k] for k in ("needs_review", "open_issues", "unconfirmed_layouts"))
+                           for r in (first, second)}
     with tenant_scope("pg-cmo-b"):  # another customer sees none of it
+        assert service.repo.review_counts() == []
         assert service.runs() == [] and service.repo.deliveries() == [] and service.repo.template("acme", layout["fingerprint"]) is None
         with pytest.raises(KeyError):
             service.get(first["id"])

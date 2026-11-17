@@ -53,6 +53,10 @@ def _traced(value, tolerance, allowed_sorted):
 
 
 TIME_FACTORS = (60.0, 3600.0, 24.0)  # s<->min, s<->h, h<->day: "987 s (16.4 min)"
+# A date or time as records carry it. Its parts are not quantities: they vouch for a restated date ("October 2026"),
+# never for a value at a unit scale. They did: an invented 2600 mg/L passed whenever a record had been read at minute
+# 26 or on the 26th, because 26 x 100 = 2600.
+STAMP = re.compile(r'\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?')
 
 
 def _arithmetic(value, tolerance, operands):
@@ -100,24 +104,29 @@ def check_reply(reply, claims, sources, *, support_texts=()):
             if match:
                 claim = {**claim, 'cited_source_id': claim['source_id'], 'source_id': match}
         results.append({**claim, 'verified': problem is None, 'problem': problem})
-    allowed = set()
+    allowed, stamped = set(), set()
     for value in [*sources.values(), *support_texts, *(c['quote'] for c in claims)]:
+        text = str(value)
         # ISO dates hide their parts from NUMBER; "October 2026" restates 2026-10-20.
-        allowed |= _numbers(value) | _numbers(re.sub(r'(?<=\d)[-/:T](?=\d)', ' ', str(value)))
+        for stamp in STAMP.findall(text):
+            stamped |= _numbers(re.sub(r'[-:T]', ' ', stamp))
+        rest = STAMP.sub(' ', text)
+        allowed |= _numbers(rest) | _numbers(re.sub(r'(?<=\d)[-/:T](?=\d)', ' ', rest))  # "30-80 %" and "1:10" hide theirs too
     allowed |= UNIT_FACTORS
     # Derived claims (unit conversions, differences) may state new numbers, but
     # only from a verified quote, and they stay listed: the arithmetic is unchecked.
     derived = set()
     for r in results:
         if r.get('kind') == 'derived' and r['verified']:
-            derived |= _numbers(r['text']) - allowed
+            derived |= _numbers(r['text']) - allowed - stamped
     # Numbers are traced as a reviewer would: a source value that rounds to the shown precision, possibly at a
     # common unit scale (live: correct forecast values like 5.41 g/L for 5.4113 were all flagged by exact matching).
     # A difference/ratio/percent change of traced numbers is shown as calculated, not as untraced.
     allowed_sorted = sorted(allowed)
     shown = _shown(reply)
     reply_numbers = {v for v, _ in shown}
-    traced = {v for v, tol in shown if v in allowed or v in derived or _traced(v, tol, allowed_sorted)}
+    traced = {v for v, tol in shown if v in allowed or v in derived or _traced(v, tol, allowed_sorted)
+              or any(abs(part - v) <= tol for part in stamped)}  # a date or time part as written, at no unit scale
     operands = [v for v in traced if v not in UNIT_FACTORS]
     calculated = {v for v, tol in shown if v not in traced and _arithmetic(v, tol, operands)}
     derived |= calculated
@@ -173,6 +182,12 @@ if __name__ == '__main__':
     assert check_reply('Viable density 9,626,667 cells/mL.', [], {'S': 'vcd 9626667'})['status'] == 'no_claims'
     # A CSV row: the comma separates a sample id from a value; it is not a thousands separator.
     assert check_reply('The sample was taken at 231.00 h.', [], {'C': 'sample,time_h\nS-009-R01-16,231.00'})['status'] == 'no_claims'
+    # A record read at minute 26, or on the 26th, does not vouch for 2600 mg/L. Its date can still be restated.
+    read_at = {'E5': source_text({'id': 'E5', 'ingested_at': '2026-11-26T05:26:26.500000+00:00', 'data': {'original': 'Assay result 2500 mg/L.'}})}
+    assert check_reply('The assay is 2600 mg/L.', [], read_at)['unsupported_numbers'] == [2600.0]
+    assert check_reply('Read on 26 November 2026 at 05:26; the assay is 2500 mg/L (2.5 g/L).', [], read_at)['unsupported_numbers'] == []
+    # The same number written as a value elsewhere in a source still converts between units.
+    assert check_reply('Yield 2600 mg.', [], read_at | {'E6': 'yield 2.6 g'})['unsupported_numbers'] == []
     wrong = check_reply('DO read 61 %, 44 %, 33 %, 24 % (the last three below a 30 % limit).', [], {'H': '61 44 33 24 30'})
     assert wrong['status'] == 'contradicted' and wrong['contradictions'][0]['but'] == '44 %, 33 %, 24 %', wrong
     print('ok')
