@@ -5,6 +5,8 @@ Built from repo fixtures through the normal services (so permissions, audit and 
 - one open deviation case (DEV-31) and two CLOSED precedent cases with root cause, CAPA and outcome
 - a DO specification plus historian readings that raise an `action` signal
 - a QMS deviation record that raises a `critical` signal
+- the check every newly published delivery gets, run for the visitor: the delivery against the approved DO limit, so
+  their list opens on what is missing with the request already drafted
 Auto-triage is paused by the caller before this runs, so signals never start a model call.
 """
 from __future__ import annotations
@@ -12,8 +14,11 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 SITE = 'NF1'
 SEED_QA = 'synthetic-qa-lead'  # a synthetic colleague who holds `close`, so precedent cases can be closed
@@ -99,6 +104,10 @@ def seed(platform: Any, tenant: str, visitor: str, persona: str) -> dict[str, An
                                                                      'batch_id': 'B-117', 'equipment_id': 'BR-07',
                                                                      'description': 'Foaming at 4 h; DO below 30 % (synthetic)'}})
     contexts = seed_model_library(platform, qa, SITE)
+    try:  # a host calculation, no model call; a demo must still start if it cannot run
+        platform.worklist.prepare_delivery(idn.context_for(tenant, visitor), dataset['evidence_id'], SITE)
+    except Exception:
+        log.exception('The demo delivery was not checked against its approved requirements')
     return {'dataset_id': dataset['evidence_id'], 'cases': ['DEV-12', 'DEV-19', 'DEV-31'], 'site_id': SITE,
             'persona': persona, 'model_library_contexts': contexts, 'model_library_seed_version': LIBRARY_SEED_VERSION}
 

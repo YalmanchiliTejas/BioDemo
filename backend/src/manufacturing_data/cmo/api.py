@@ -789,6 +789,12 @@ def router(repository: Path, tenant_dependency=None, tasks=None, permission_chec
             for sid in {m['source_id'] for m in payload['measurements']}: guard(lambda:service.original(run_id,sid,run=run))
             return payload
 
+    def review_counts(tenant:str,limit:int=30):
+        """Per current delivery check, what still waits for a person. Counts only; for a same-process caller that
+        has already checked the person may read deliveries."""
+        with tenant_scope(tenant): return service.repo.review_counts(limit)
+
+    api.review_counts=review_counts
     api.verified_payload=verified_payload
     api.provisional_payload=provisional_payload
     api.delivery_documents=delivery_documents

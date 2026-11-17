@@ -37,6 +37,7 @@ All records are labelled SYNTHETIC. They're built from fixtures in the repo, qui
   - one deviation case (open)
   - two closed cases with root cause, CAPA and outcome, as precedents
   - a DO specification plus historian readings that raise an `action` signal, and a QMS deviation record that raises a `critical` signal
+  - the check every newly published delivery gets, run for the visitor (2026-11-16): the seeded delivery against the approved DO limit. It finds DO missing from the delivery and drafts the request, so the visitor's [worklist](worklist.md) opens on prepared work, not only on signals. A host calculation with no model call; it is the visitor's own saved result.
 - **Persona emphasis:** each persona gets the same data but a different scenario set and home prompt.
 
 ### Scenarios
@@ -75,7 +76,7 @@ Static per persona (`lifesci/demo_scenarios.py`): `{scenario_id, persona, title,
 - Deliveries shows both the standard file/folder drop zone and the existing sample-delivery options. Authenticated anonymous visitors use their actual actor identifier for review receipts; no invented reviewer name is required.
 
 ### Frontend
-- **`/demo`** (public): headline, four persona cards, notice and checkbox, Start. Start runs `supabase.auth.signInAnonymously()`, then POSTs the workspace, selects the organization, and goes to `/home/?scenarios=1`.
+- **`/demo`** (public): headline, four persona cards, notice and checkbox, Start. Start runs `supabase.auth.signInAnonymously()`, then POSTs the workspace, selects the organization, and goes to the overview (`/dashboard/`), arranged for the chosen persona; its Assistant summary opens `/home/?scenarios=1`.
 - **Demo banner** across the app: "Demo workspace · sample data + optional uploads · access expires in 23 h · 14 of 20 messages left · Try your own delivery · Try the model library".
 - **Scenario panel:** in the assistant's empty state, and as a "Scenarios" button in the header. Each card shows the situation, a **Try it** button (sends the prompt), "What a good answer should do", and **Rate this scenario** (realistic 1–5, useful 1–5, comment).
 - **Answer feedback:** 👍/👎 under each assistant answer in demo workspaces, with an optional comment.

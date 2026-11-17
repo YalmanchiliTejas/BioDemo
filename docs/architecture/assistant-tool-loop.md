@@ -114,3 +114,32 @@ Known gaps: answer wording varies between runs (one compare named CHO-003-R02 as
 defensible; one said "only run that never crashed" while CHO-003-R01 also stayed healthy within its shorter window; one
 read R01/R02 as reactors). Answers are longer than the 3–6 sentences asked for. The grounding check flags derived
 numbers (unit conversions, differences) as unsupported. Live verification on sievance.com follows deploy.
+
+## Talking to the model endpoint (2026-11-16)
+
+Measured and decided in [the speed note](../research/assistant-speed-20261116.md).
+
+- **Replies are read as a stream.** The only purpose is to notice an endpoint that has stopped answering: after 30 s
+  without a byte the call fails as a timeout and may be retried (`MODAL_STALL_SECONDS`). The endpoint was measured to
+  send its first byte within 2 s and never to pause more than 0.7 s, thinking included. The caller's limit on the
+  whole reply (150 s for a loop step) is unchanged. A reply that ends before the endpoint says it has finished is an
+  error, never a shorter answer. `MODAL_STREAM=0` reads one whole reply, as before.
+- **The answer is not shown on screen while it is written.** Writing the final answer takes about 5 s; the wait is the
+  thinking before it. Showing partial text would mean saving the turn many more times per answer.
+- **A refusal for load is waited out.** When the endpoint answers 429, the gateway waits and asks again, longer each
+  time and unevenly, for up to 20 s in total, or for as long as the endpoint asks. Refusals do no work and are not
+  counted as model calls. After 20 s the call fails as any other provider failure does.
+- **Reasoning level.** GLM-5.3 has low, high and max; nothing sent means max; "medium" is accepted and behaves like
+  max. `MODAL_REASONING_EFFORT` sets the level for loop steps and `LIFESCI_INTERPRETER_REASONING_EFFORT` for the
+  one-call explanation. Each model call records the level it ran at and its reasoning tokens.
+- **Saving is thought through at max.** When loop steps run below max, the first step in a turn that would save a
+  proposal or a result (a tool whose name says propose or record) is not carried out as first written. It is taken
+  again at max, and the turn stays at max from there. If there is no step left for that, or the second thought does
+  not finish in one try, nothing is saved, the tool reports "not saved", and the answer says so. Lookups, host
+  calculations and the assistant's own notes are not affected. Measured: at high alone the model twice in twelve
+  multi-step cases saved a value it had worked out wrongly; with this rule, never.
+- **A reply cut off at the time limit is not an outage.** It has its own failure kind and does not hold other
+  requests off, as a silent endpoint does.
+- **Production settings.** The deploy template now sets `ASSISTANT_LOOP=tools` for every organization, the
+  explanation's level to low and the loop's to high. The first two were missing from the deployment until this date:
+  organizations were answered by the planner, and the explanation ran at max.

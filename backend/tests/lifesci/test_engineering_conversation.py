@@ -151,6 +151,9 @@ def test_workspace_draft_requires_inspected_basis_and_never_dispatches(env):
     props = p.store.read().list(TENANT, 'proposal')
     assert len(props) == 1 and props[0].state['status'] == 'proposed'
     assert props[0].state['execution_status'] == 'not_started'
+    # The turn ran with the person's authority, and the record still says the assistant wrote the draft.
+    assert props[0].state['requested_by'] == 'priya' and props[0].state['origin']['drafted_by'] == 'assistant'
+    assert props[0].state['origin']['conversation_id'] == allowed['id']
     assert not p.store.read().list(TENANT, 'action_intent')
 
 

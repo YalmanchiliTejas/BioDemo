@@ -79,6 +79,29 @@ def test_persona_role_is_org_wide_and_seed_is_synthetic_and_quiet(p, persona):
     assert cases['DEV-31']['status'] == 'open'
 
 
+@pytest.mark.parametrize('persona', sorted(PERSONA_ROLES))
+def test_a_visitors_list_opens_on_work_already_prepared_for_them(api, persona):
+    """The seeded delivery gets the check every published delivery gets. No model is configured here, so none was called."""
+    tenant = start(api, persona=persona).json()['tenant_id']
+    visitor = as_visitor('anon-1', tenant)
+    listed = api.get('/v1/worklist?site_id=NF1', headers=visitor)
+    assert listed.status_code == 200 and not listed.json()['unavailable'], listed.text
+    item, = [i for i in listed.json()['needs_you'] if i['kind'] == 'missing_evidence']
+    assert item['title'] == 'September (synthetic sample) from Northfield Biologics (synthetic): 1 required item not in this delivery'
+    assert 'Missing: DO [%]. A request is drafted; choose who to ask.' in item['detail'] and item['action']['type'] == 'send_request'
+    assert {i['kind'] for i in listed.json()['needs_you']} == {'missing_evidence', 'signal'}
+    # The visitor sends the drafted request to the synthetic colleague; it then waits on that person.
+    colleague, = api.get('/v1/worklist/people?site_id=NF1', headers=visitor).json()['people']
+    sent = api.post(f"/v1/workspace-tasks/results/{item['action']['result_id']}/request-evidence", headers=visitor,
+                    json={'owner_id': colleague['id'], 'title': item['action']['title'], 'description': item['action']['description']})
+    assert sent.status_code == 201, sent.text
+    after = api.get('/v1/worklist?site_id=NF1', headers=visitor).json()
+    assert not [i for i in after['needs_you'] if i['kind'] == 'missing_evidence']
+    assert [i['title'] for i in after['in_progress']] == [f"Waiting for {colleague['label']} to reply: {item['action']['title']}"]
+    assert start(api, persona=persona).json()['tenant_id'] == tenant   # returning does not prepare it twice
+    assert len([i for i in api.get('/v1/worklist?site_id=NF1', headers=visitor).json()['in_progress']]) == 1
+
+
 def test_workspaces_are_isolated_between_visitors(api):
     a, b = start(api, 'anon-a').json(), start(api, 'anon-b').json()
     assert a['tenant_id'] != b['tenant_id']

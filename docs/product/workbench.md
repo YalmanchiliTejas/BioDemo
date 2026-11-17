@@ -49,7 +49,8 @@ One scrolling page, four regions, no wizard. Each feeds the next; none is forced
 - **Proposals, approvals, dispatch and receipts** stay with the action service. A step points at a proposal and
   reports its standing; it never approves or carries anything out. "Approved" is shown as "approved, not yet
   carried out" until there is a receipt.
-- **Requests** go to a named person and stay attributed to them.
+- **Requests** go to a named person and stay attributed to them. The person asked sees the request on their
+  Overview and replies there; the reply comes back to the step ([the worklist](worklist.md)).
 - **Systems of record are untouched.** Batch context is read from records projected from the MES; nothing is
   written back.
 

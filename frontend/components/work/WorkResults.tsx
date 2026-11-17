@@ -78,7 +78,7 @@ function Results() {
   }
   return <div className="mx-auto max-w-[1440px] space-y-5" data-testid="work-results">
     <header className="flex flex-wrap items-start justify-between gap-4">
-      <div><h1 className="text-3xl font-semibold tracking-tight">Workspaces</h1><p className="mt-2 text-sm text-text-secondary">Everything you've worked through, with the records behind it.</p></div>
+      <div><h1 className="text-3xl font-semibold tracking-tight">Saved work</h1><p className="mt-2 text-sm text-text-secondary">Everything you've worked through, with the records behind it.</p></div>
       <div className="flex gap-2"><Button variant="subtle" onClick={() => setAttempt(a => a + 1)} disabled={loading} aria-label="Refresh saved work"><RefreshCw size={14} /></Button><Button variant="primary" onClick={() => companion.show()}><MessageSquare size={14} />Ask assistant</Button></div>
     </header>
     <nav aria-label="Work type" className="flex gap-1 overflow-x-auto">

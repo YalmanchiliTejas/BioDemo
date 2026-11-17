@@ -337,9 +337,14 @@ def test_explanation_role_can_use_its_own_reasoning_effort_without_touching_the_
     assert split.profiles['engineering-planner'].provider == 'modal'              # the assistant is unchanged
     assert split.profiles['engineering-interpreter'].provider == INTERPRETER_PROVIDER
     assert split.profiles['engineering-interpreter'].version != plain.profiles['engineering-interpreter'].version
-    ignored = default_registry()
-    configure_engineering_llms(ignored, {**base, 'LIFESCI_INTERPRETER_REASONING_EFFORT': 'turbo'})
-    assert ignored.profiles['engineering-interpreter'].provider == 'modal'
+    for word in ('turbo', 'default', ''):                       # not one of the model's levels: nothing is sent
+        ignored = default_registry()
+        configure_engineering_llms(ignored, {**base, 'LIFESCI_INTERPRETER_REASONING_EFFORT': word})
+        assert ignored.profiles['engineering-interpreter'].provider == 'modal', word
+    for level in ('high', 'max'):                               # GLM-5.3's other two levels
+        other = default_registry()
+        configure_engineering_llms(other, {**base, 'LIFESCI_INTERPRETER_REASONING_EFFORT': level})
+        assert other.profiles['engineering-interpreter'].provider == INTERPRETER_PROVIDER, level
 
 
 def test_explanation_with_a_flagged_sentence_is_shown_with_a_caution_not_withheld(world):
@@ -417,3 +422,67 @@ def test_withheld_quick_answer_falls_back_to_the_assistant_and_can_be_switched_o
     monkeypatch.setenv('ASSISTANT_QUICK_ANSWERS', 'off')
     off = ask('Why is Glucose lower in B than A?')
     assert all(s['title'] != 'Explained the calculated comparison' for s in off['steps'])
+
+
+# --- a request is two-way: the person asked sees it and replies -------------------------------------------------------
+
+def _gap_request(p, ctx, to='colleague'):
+    rows = glucose(batches=('A', 'B'))
+    source = delivery(p, ctx, rows)
+    if not p.specifications.list(ctx, site_id='S1'):
+        p.specifications.create(ctx, site_id='S1', parameter='Lactate', unit='g/L', high=3, reason='batch record limits')
+    result = p.workspace_tasks.execute(ctx, {'site_id': 'S1', 'operation': 'check_gaps', 'dataset_ids': [source]})
+    return result, p.workspace_tasks.request_evidence(ctx, result['id'], {'owner_id': to})
+
+
+def test_request_reaches_the_person_asked_who_replies_once_and_the_step_reads_reply_received(world):
+    p, ctx = world
+    colleague = p.identity.context_for('T', 'colleague')
+    result, sent = _gap_request(p, ctx)
+    assert sent['status'] == 'open'
+    told = p.alerts.inbox(colleague)['items']
+    assert [(i['kind'], i['link']) for i in told] == [('work_request', '/dashboard/')] and told[0]['title'].startswith('owner asked you: ')
+    plan = p.work_plans.create(ctx, {'site_id': 'S1', 'title': 'Missing lactate', 'selection': {}})
+    plan = p.work_plans.add_step(ctx, plan['id'], {'expected_revision': plan['revision'], 'kind': 'request', 'text': 'Ask colleague',
+                                                   'result_id': result['id'], 'work_request_id': sent['id']})
+    assert plan['steps'][0]['stands'] == 'waiting for a reply' and plan['progress']['waiting_for_reply'] == 1
+
+    reply = {'expected_revision': sent['revision'], 'reply': '  Lactate was not sampled on this run; see LIMS-4411.  '}
+    for other in (ctx, p.identity.context_for('T', 'qa-lead')):   # the requester and a bystander cannot answer for them
+        with pytest.raises(PermissionError):
+            p.assistant_routines.answer_work_request(other, sent['id'], reply)
+    with pytest.raises(ConflictError):
+        p.assistant_routines.answer_work_request(colleague, sent['id'], {**reply, 'expected_revision': 99})
+    answered = p.assistant_routines.answer_work_request(colleague, sent['id'], reply)
+    assert (answered['status'], answered['reply'], answered['answered_by']) == ('answered', 'Lactate was not sampled on this run; see LIMS-4411.', 'colleague')
+    assert answered['answered_at'] and answered['title'] == sent['title']                    # the request itself is unchanged
+    with pytest.raises(ValueError, match='already answered'):
+        p.assistant_routines.answer_work_request(colleague, sent['id'], {'expected_revision': answered['revision'], 'reply': 'again'})
+
+    assert [i['title'] for i in p.alerts.inbox(ctx)['items']] == [f"colleague replied: {sent['title']}"]
+    step = p.work_plans.get(ctx, plan['id'])['steps'][0]
+    assert step['stands'] == 'reply received' and step['can_complete'] and step['waiting_on'] is None
+    assert step['request']['reply'].startswith('Lactate was not sampled') and step['request']['status'] == 'answered'
+
+
+def test_the_same_gaps_can_be_asked_of_a_second_person(world):
+    p, ctx = world
+    p.identity.assign_role('T', 'third', 'msat', site_id='S1')
+    result, first = _gap_request(p, ctx)
+    again = p.workspace_tasks.request_evidence(ctx, result['id'], {'owner_id': 'colleague'})
+    assert again['id'] == first['id']                                                        # a repeat is the same request
+    second = p.workspace_tasks.request_evidence(ctx, result['id'], {'owner_id': 'third'})
+    assert second['id'] != first['id'] and second['owner_id'] == 'third'
+
+
+def test_a_trace_with_no_batch_records_at_the_site_is_not_reported_as_complete(world):
+    """An empty batch list has no batch without recorded steps. That must not read as "nothing was exposed"."""
+    p, ctx = world
+    p.evidence.ingest(ctx, source_system='email', source_record_id='note-2', content=b'x', media_type='text/plain', site_id='S1',
+                      event_time='2026-11-02T00:00:00Z', metadata={'note': 'Supplier asked about LOT-9001'})
+    genealogy = p.workspace_tasks.execute(ctx, {'site_id': 'S1', 'operation': 'trace_impact', 'record_id': 'LOT-9001'})['data']['genealogy']
+    assert genealogy['complete'] is False and genealogy['batches_without_usage_records'] == 0
+    assert 'No batch records are held here for this site' in genealogy['note']
+    batch(p, ctx, 'B-1')                                          # one batch, with no recorded steps: still not complete, and it says why
+    again = p.workspace_tasks.execute(ctx, {'site_id': 'S1', 'operation': 'trace_impact', 'record_id': 'LOT-9001'})['data']['genealogy']
+    assert again['complete'] is False and '1 batches at this site have no recorded steps' in again['note']

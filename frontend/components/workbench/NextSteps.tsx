@@ -13,6 +13,7 @@ type StepChange = { status?: PlanStep['status']; text?: string; outcome?: string
 const pending = (step: PlanStep) => step.can_complete != null ? step.status === 'open' && !step.can_complete
   : step.stands === 'waiting for approval' || step.stands === 'approved, not yet carried out';
 const standing = (step: PlanStep) => step.stands === 'to do' ? 'text-text-secondary bg-surface-secondary' : step.status === 'done' ? 'text-emerald-700 bg-status-success-bg'
+  : step.stands === 'reply received' ? 'text-brand-teal-dark bg-brand-teal-light'
   : step.status === 'dropped' ? 'text-text-tertiary bg-surface-secondary' : 'text-amber-800 bg-status-warning-bg';
 
 export function NextSteps({ plan, work, onStep, batches, canCite }: {
@@ -52,7 +53,9 @@ function Step({ step, catalog, onStep }: { step: PlanStep; catalog: ActionCatalo
     {step.basis && <p className="mt-1 break-words text-text-tertiary">Prompted by: {step.basis}</p>}
     {proposal && <p className="mt-1 text-text-secondary">{proposal.status === 'not_available' ? 'The proposal is not available under your current access.'
       : <>Proposal: {actionLabel(proposal.operation ?? '', catalog)}{proposal.target_id ? ` · ${proposal.target_id}` : ''} · approval by {roles(proposal.required_roles)}</>}</p>}
-    {request && <p className="mt-1 text-text-secondary">{request.status === 'not_available' ? 'The request is not available under your current access.' : <>Sent to {request.owner_id}{request.title ? `: ${request.title}` : ''}</>}</p>}
+    {request && <p className="mt-1 text-text-secondary">{request.status === 'not_available' ? 'The request is not available under your current access.' : <>Sent to {request.owner_name ?? request.owner_id}{request.title ? `: ${request.title}` : ''}</>}</p>}
+    {request?.status === 'answered' && <p className="mt-1 break-words rounded-control bg-brand-teal-light/50 p-2 text-text-primary" data-testid="step-reply"><span className="font-medium">{request.owner_name ?? request.owner_id} replied:</span> {request.reply}
+      <span className="block text-[11px] text-text-tertiary">Their statement, not verified evidence. Mark the step done with what came of it.</span></p>}
     {step.status === 'done' && <p className="mt-1 text-text-primary"><span className="font-medium">Outcome:</span> {step.outcome || 'not recorded'}</p>}
     {mode === 'done' && <form className="mt-2" onSubmit={e => { e.preventDefault(); void save({ status: 'done', outcome: text.trim() }); }}>
       <label className="block text-text-secondary">What was the outcome?<input aria-label="Outcome" className={field} maxLength={600} value={text} autoFocus placeholder="One line: what you found or did" onChange={e => setText(e.target.value)} /></label>

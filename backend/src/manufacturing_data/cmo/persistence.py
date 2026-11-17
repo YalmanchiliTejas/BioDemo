@@ -449,6 +449,22 @@ class Repository:
                                'AND (CAST(? AS TEXT) IS NULL OR cmo=?) ORDER BY started_at, id', (tx.tenant, cmo, cmo))
         return [dict(zip(('id', 'cmo', 'status', 'started_at', 'superseded_by'), r)) for r in rows]
 
+    def review_counts(self, limit=30):
+        """The newest current runs, each with how many values, issues and layouts still wait for a person.
+        Counted in the database: no run is loaded. A value replaced by a correction is not counted."""
+        columns = ('id', 'cmo', 'delivery_name', 'status', 'started_at', 'completed_at', 'needs_review', 'open_issues',
+                   'unconfirmed_layouts')
+        with self.transaction() as tx:
+            rows = tx.fetchall(
+                'SELECT r.id, r.cmo, r.delivery_name, r.status, r.started_at, r.completed_at, '
+                "(SELECT COUNT(*) FROM cmo_measurements m WHERE m.tenant_id=r.tenant_id AND m.run_id=r.id AND m.status='needs_review' "
+                'AND NOT EXISTS (SELECT 1 FROM cmo_measurements s WHERE s.tenant_id=m.tenant_id AND s.run_id=m.run_id AND s.supersedes=m.id)), '
+                "(SELECT COUNT(*) FROM cmo_issues i WHERE i.tenant_id=r.tenant_id AND i.run_id=r.id AND i.status='open'), "
+                '(SELECT COUNT(*) FROM cmo_layouts l WHERE l.tenant_id=r.tenant_id AND l.run_id=r.id AND l.template_id IS NULL) '
+                'FROM cmo_runs r WHERE r.tenant_id=? AND r.superseded_by IS NULL ORDER BY r.started_at DESC, r.id LIMIT ?',
+                (tx.tenant, int(limit)))
+        return [dict(zip(columns, row)) for row in rows]
+
     def _rows(self, tx, table, scope, params):
         columns = COLUMNS[table]
         owner = 'id' if table == 'cmo_runs' else 'run_id'

@@ -125,3 +125,49 @@ def test_modal_provider_configuration_defaults_to_zero_price_and_hashes_endpoint
     assert first.price_source == 'self_hosted_compute_cost_not_priced'
     assert profile(MODAL_BASE_URL='https://other--b.modal.direct/v1').version != first.version
     assert profile(MODAL_PROXY_TOKEN='wk-a.ws-secret').version == first.version
+
+
+# --- what production is deployed with ---------------------------------------------------------------------------
+
+def _template_setting(name):
+    """One parameter of the deploy template: (default, allowed values, the environment variable it becomes)."""
+    import re
+    from pathlib import Path
+    aws = Path(__file__).resolve().parents[2] / 'deploy' / 'aws'
+    text = (aws / 'template.yaml').read_text()
+    block = re.search(rf'^  {name}:\n((?:    .*\n|\n)+)', text, re.M).group(1)
+    default = re.search(r'^    Default: "?([^"\n]*)"?$', block, re.M).group(1)
+    allowed = re.findall(r'"([^"]*)"', re.search(r'^    AllowedValues: \[(.*)\]$', block, re.M).group(1))
+    variable = re.search(rf'^          (\w+): !Ref {name}$', text, re.M).group(1)
+    assert f'"{name}": "{variable}"' in (aws / 'deploy.sh').read_text(), f'{name} cannot be set from production.env'
+    return default, allowed, variable
+
+
+def test_production_runs_the_tool_loop_for_every_organization_unless_told_otherwise(monkeypatch):
+    """Until 2026-11-16 the setting did not exist in the deployment, so every organization but the demo
+    workspaces was still answered by the planner (2-7 min an answer) while the evaluations ran the tool loop."""
+    from types import SimpleNamespace
+    from src.lifesci.process_engineering import tool_loop
+    default, allowed, variable = _template_setting('AssistantLoop')
+    assert (default, variable) == ('tools', 'ASSISTANT_LOOP') and sorted(allowed) == ['demo', 'planner', 'tools']
+    customer, visitor = SimpleNamespace(tenant_id='sievance'), SimpleNamespace(tenant_id='demo_1f')
+    expected = {'tools': (True, True), 'demo': (False, True), 'planner': (False, False)}
+    for word, answer in expected.items():
+        monkeypatch.setenv(variable, word)
+        assert (tool_loop.enabled(customer), tool_loop.enabled(visitor)) == answer, word
+
+
+def test_production_reasoning_levels_are_ones_the_model_has_and_default_sends_nothing():
+    from src.lifesci.gateway.configuration import interpreter_effort
+    from src.lifesci.gateway.providers import EFFORTS, ModalProvider
+    quick, quick_allowed, quick_variable = _template_setting('InterpreterReasoningEffort')
+    loop, loop_allowed, loop_variable = _template_setting('ReasoningEffort')
+    assert (quick_variable, loop_variable) == ('LIFESCI_INTERPRETER_REASONING_EFFORT', 'MODAL_REASONING_EFFORT')
+    for allowed in (quick_allowed, loop_allowed):
+        # GLM-5.3 has low, high and max. It accepts "medium" and treats it as max, so that is not offered.
+        assert sorted(allowed) == ['default', 'high', 'low', 'max'] and set(allowed) - {'default'} <= set(EFFORTS)
+    assert quick == 'low' and interpreter_effort({quick_variable: quick}) == 'low'   # measured: 6/6 right, 3-5 s against 17 s
+    assert interpreter_effort({quick_variable: 'default'}) is None
+    sent = lambda word: ModalProvider(environ={loop_variable: word})._reasoning_effort
+    assert sent('default') is None and [sent(w) for w in ('low', 'high', 'max')] == ['low', 'high', 'max']
+    assert sent(loop) == (None if loop == 'default' else loop)

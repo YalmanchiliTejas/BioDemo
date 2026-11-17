@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import random
 import time
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable
@@ -16,6 +17,9 @@ from .registry import ModelProfile, ModelRegistry
 from .router import RouteDecision, Router, RoutingError
 
 DeterministicHandler = Callable[[dict[str, Any]], dict[str, Any]]
+# Failures of one request that say nothing about the endpoint's health, so they do not hold other requests off:
+# a request it rejected, one whose output budget ran out, and one it was still answering when the time limit came.
+REQUEST_FAILURES = ('bad_request', 'output_limit', 'unfinished')
 
 _TYPES = {"str": str, "list": list, "dict": dict, "int": int, "float": (int, float), "bool": bool}
 
@@ -66,7 +70,7 @@ class ModelGateway:
     def __init__(self, store: RecordStore, identity: IdentityService, registry: ModelRegistry,
                  providers: dict[str, Provider], *, router: Router | None = None,
                  budgets: BudgetLedger | None = None, max_retries: int = 2, backoff_s: float = 0.0,
-                 breaker_cooldown_s: float = 60.0) -> None:
+                 breaker_cooldown_s: float = 60.0, rate_limit_wait_s: float = 20.0) -> None:
         self.store = store
         self.identity = identity
         self.registry = registry
@@ -77,6 +81,8 @@ class ModelGateway:
         self.backoff_s = backoff_s
         self.handlers: dict[str, tuple[str, DeterministicHandler]] = {}
         self.breaker_cooldown_s = breaker_cooldown_s
+        self.rate_limit_wait_s = rate_limit_wait_s  # longest one request waits, in total, for a rate-limited endpoint
+        self._sleep = time.sleep
         self._down_until: dict[str, float] = {}  # circuit breaker: profile -> monotonic time it may be retried
 
     @property
@@ -132,7 +138,9 @@ class ModelGateway:
         prompt = req.prompt
         index = 0
         while index < len(chain):
-            remaining_calls = None if req.max_provider_calls is None else req.max_provider_calls - len(attempts)
+            # A rate-limit refusal did no work and cost nothing; it is logged but is not one of the allowed calls.
+            remaining_calls = None if req.max_provider_calls is None else req.max_provider_calls - sum(
+                a.get('error_kind') != 'rate_limit' for a in attempts)
             if remaining_calls is not None and remaining_calls <= 0:
                 return self._finish(req, run_id, started, 'blocked', None, route, attempts, total_cost,
                                     [*issues, 'Provider request allowance exhausted'])
@@ -155,7 +163,7 @@ class ModelGateway:
             if completion is None:
                 # A request rejection does not establish an outage for unrelated work.
                 # Missing configuration and provider failures still open the breaker.
-                if not attempt_log or attempt_log[-1].get('error_kind') not in ('bad_request', 'output_limit'):
+                if not attempt_log or attempt_log[-1].get('error_kind') not in REQUEST_FAILURES:
                     self.mark_unavailable(profile.profile_id)
                 index += 1
                 continue
@@ -191,9 +199,11 @@ class ModelGateway:
 
     # --- native tool-calling chat ------------------------------------------------------------
     def converse(self, req: TaskRequest, messages: list[dict[str, Any]], tools: list[dict[str, Any]],
-                 tool_choice: str = 'auto') -> TaskResult:
+                 tool_choice: str = 'auto', reasoning_effort: str | None = None) -> TaskResult:
         """One model step of a tool loop: same routing, budget, retries, breaker and audit trace as run().
-        Output: {'content': str, 'tool_calls': [{'id', 'name', 'arguments'}]}. No caching: each step is live."""
+        Output: {'content': str, 'tool_calls': [{'id', 'name', 'arguments'}], 'reasoning_effort': the level the step
+        ran at, when the provider sent one}. `reasoning_effort` asks for a level for this step only.
+        No caching: each step is live."""
         started = utc_now()
         run_id = new_id("run")
         ctx = req.ctx
@@ -224,15 +234,17 @@ class ModelGateway:
             profile, req.system, transcript, max_out, req.timeout_s, max_attempts=req.max_provider_calls,
             invoke=lambda provider, budget: provider.chat(model=profile.model, messages=messages, tools=tools,
                                                           tool_choice=tool_choice, max_output_tokens=budget,
-                                                          timeout_s=req.timeout_s))
+                                                          timeout_s=req.timeout_s,
+                                                          **({'reasoning_effort': reasoning_effort} if reasoning_effort else {})))
         cost = profile.cost(completion.input_tokens, completion.output_tokens, completion.cached_tokens) if completion else 0.0
         self.budgets.settle(ctx.tenant_id, reservation, cost)
         if completion is None:
-            if not attempts or attempts[-1].get('error_kind') not in ('bad_request', 'output_limit'):
+            if not attempts or attempts[-1].get('error_kind') not in REQUEST_FAILURES:
                 self.mark_unavailable(profile.profile_id)
             return self._finish(req, run_id, started, "blocked", None, route, attempts, cost,
                                 [a['error'] for a in attempts if a.get('error')][-2:])
-        output = {'content': completion.text, 'tool_calls': [dict(c) for c in completion.tool_calls]}
+        output = {'content': completion.text, 'tool_calls': [dict(c) for c in completion.tool_calls],
+                  'reasoning_effort': completion.reasoning_effort}
         attempts[-1]['tool_calls'] = [c['name'] for c in output['tool_calls']]
         return self._finish(req, run_id, started, "completed", output, route, attempts, cost, [])
 
@@ -263,7 +275,9 @@ class ModelGateway:
             log.append({"profile_id": profile.profile_id, "ok": False, "error": "provider not configured"})
             return None, log
         budget = max_out
-        for attempt in range(min(self.max_retries + 1, max_attempts) if max_attempts is not None else self.max_retries + 1):
+        attempts = min(self.max_retries + 1, max_attempts) if max_attempts is not None else self.max_retries + 1
+        attempt, refusals, waited = 0, 0, 0.0
+        while attempt < attempts:
             t0 = time.perf_counter()
             try:
                 c = (invoke(provider, budget) if invoke else
@@ -274,11 +288,22 @@ class ModelGateway:
                             "output_tokens": c.output_tokens, "cached_tokens": c.cached_tokens,
                             "cost_usd": profile.cost(c.input_tokens, c.output_tokens, c.cached_tokens),
                             "latency_ms": c.latency_ms or (time.perf_counter() - t0) * 1000,
-                            "provider_request_id": c.provider_request_id})
+                            "provider_request_id": c.provider_request_id,
+                            **({"reasoning_effort": c.reasoning_effort} if c.reasoning_effort else {}),
+                            **({"reasoning_tokens": c.reasoning_tokens} if c.reasoning_tokens else {})})
                 return c, log
             except ProviderError as exc:
                 log.append({"profile_id": profile.profile_id, "model": profile.model, "ok": False,
                             "attempt": attempt, "error": str(exc), "error_kind": exc.kind})
+                if exc.kind == 'rate_limit' and waited < self.rate_limit_wait_s:
+                    # An endpoint at its limit of requests in flight refuses before doing any work: nothing was spent,
+                    # so this is not one of the attempts. Wait as its documentation asks, longer each time and
+                    # unevenly so that waiting requests do not all return at once; then ask again.
+                    delay = exc.retry_after if exc.retry_after is not None else (2 ** refusals) * random.uniform(0.5, 1.5)
+                    delay = min(max(delay, 0.5), self.rate_limit_wait_s - waited)  # the floor keeps a zero hint from spinning
+                    self._sleep(delay)
+                    waited, refusals = waited + delay, refusals + 1
+                    continue
                 # Reasoning models sometimes spend the whole output budget thinking (seen live on answer rounds):
                 # sample once more with a larger budget. A lower-effort retry was measured and rejected (wrong answers).
                 if not exc.retryable and not (exc.kind == 'output_limit' and attempt == 0):
@@ -287,7 +312,8 @@ class ModelGateway:
                     # ponytail: 1.5x the 32k reasoning floor; an endpoint that refuses the size fails as before.
                     budget = int(max(budget, 32_000) * 1.5)
                 if self.backoff_s:
-                    time.sleep(self.backoff_s * (2 ** attempt))
+                    self._sleep(self.backoff_s * (2 ** attempt))
+                attempt += 1
         return None, log
 
     # --- validation -------------------------------------------------------------------------

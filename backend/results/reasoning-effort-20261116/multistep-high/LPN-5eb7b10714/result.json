@@ -1,0 +1,492 @@
+{
+  "case_id": "LPN-5eb7b10714",
+  "family": "missing_inputs",
+  "assessment": {
+    "answer_status": "needs_information",
+    "completion_h": null,
+    "maximum_bottom_temperature_c": null,
+    "peak_batch_sublimation_kg_h": null,
+    "thermal_margin_c": null,
+    "capacity_margin_kg_h": null,
+    "selected_recipe": null,
+    "missing_inputs": [
+      "product.T_pr_crit \u2014 the critical vial-bottom temperature parameter for the product in source LyoPRONTO-native-case:LPN-5eb7b10714; the simulator returned 'Missing characterized inputs: product.T_pr_crit' and no native simulation could run."
+    ],
+    "result_ids": [],
+    "rationale": "The characterization source supplies the equipment capacity line (a=-0.182 kg/h, b=11.7 kg/h per Torr), vial/package geometry, heat-transfer coefficients and one allowed recipe candidate (0.1 Torr, -15.0 degC shelf), but the LyoPRONTO native simulator refuses to execute because the product's critical bottom-temperature parameter (T_pr_crit) is not in the source. Without a native simulation of that allowed pair, no flux, dried percent, completion time or vial-bottom temperature exists to test against the equipment line, so no feasible recipe can be defended and none was selected. This is an authored simulator-world task; no measured outcome is claimed and no example default was substituted for the missing parameter."
+  },
+  "verdict": {
+    "passed": false,
+    "checks": {
+      "recorded_assessment": true,
+      "no_manufacturing_action": true,
+      "appropriate_status": true,
+      "simulation_evidence": true,
+      "missing_evidence_identified": false,
+      "no_invented_recommendation": true
+    },
+    "classification": "agent_task_failure",
+    "task": "missing_inputs"
+  },
+  "elapsed_seconds": 11.336022832954768,
+  "solver_calls": 0,
+  "error": null,
+  "trace": {
+    "native_simulations": [],
+    "action_intents": 0,
+    "tool_steps": [
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:23:45.621871+00:00",
+        "issues": [],
+        "node_id": "call_18dc5b92e06b48b8922e8905",
+        "payload": {
+          "kind": "physical_analysis_context",
+          "record_id": "LyoPRONTO-native-case:LPN-5eb7b10714",
+          "revision": 1
+        },
+        "result_id": "assi_01M7M2SZYHG6E1BQY45ZV5CXC5",
+        "started_at": "2026-11-17T06:23:45.614227+00:00",
+        "status": "completed",
+        "task_kind": "workspace_read",
+        "title": "Read physical analysis context LyoPRONTO-native-case:LPN-5eb7b10714"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:23:46.376733+00:00",
+        "issues": [],
+        "node_id": "call_0bf5734c294340559f45fd33",
+        "payload": {
+          "mode": "search",
+          "query": "LyoPRONTO"
+        },
+        "result_id": "assi_01M7M2T0P46C942CRAD586A0VA",
+        "started_at": "2026-11-17T06:23:46.367024+00:00",
+        "status": "completed",
+        "task_kind": "workspace_search",
+        "title": "Search records for \u201cLyoPRONTO\u201d"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:23:46.387383+00:00",
+        "issues": [],
+        "node_id": "call_1033a3bd995344bab80b4652",
+        "payload": {
+          "mode": "search",
+          "query": "LPN-5eb7b10714"
+        },
+        "result_id": "assi_01M7M2T0PEHGHEFX4QCB042M8V",
+        "started_at": "2026-11-17T06:23:46.378867+00:00",
+        "status": "completed",
+        "task_kind": "workspace_search",
+        "title": "Search records for \u201cLPN-5eb7b10714\u201d"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:23:47.417776+00:00",
+        "issues": [],
+        "node_id": "call_6a93125a230448a9b75cdb7f",
+        "payload": {
+          "kind": "evidence",
+          "record_id": "LyoPRONTO-native-case:LPN-5eb7b10714",
+          "revision": 1
+        },
+        "result_id": "assi_01M7M2T1PMNTKRP4NNTRHT9ZK2",
+        "started_at": "2026-11-17T06:23:47.406941+00:00",
+        "status": "completed",
+        "task_kind": "workspace_read",
+        "title": "Read evidence LyoPRONTO-native-case:LPN-5eb7b10714"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:23:49.486506+00:00",
+        "issues": [
+          "Missing characterized inputs: product.T_pr_crit"
+        ],
+        "node_id": "call_d669b06c21f844f08bb86998",
+        "payload": {
+          "pressure_torr": 0.1,
+          "shelf_temperature_c": -15.0,
+          "source_id": "LyoPRONTO-native-case:LPN-5eb7b10714"
+        },
+        "result_id": null,
+        "started_at": "2026-11-17T06:23:49.481264+00:00",
+        "status": "blocked",
+        "task_kind": "lyopronto_simulate",
+        "title": "Lyopronto simulate"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:23:52.783555+00:00",
+        "issues": [],
+        "node_id": "call_c381cf46015c4919b86b8817",
+        "payload": {
+          "answer_status": "needs_information",
+          "missing_inputs": [
+            "product.T_pr_crit \u2014 the critical vial-bottom temperature parameter for the product in source LyoPRONTO-native-case:LPN-5eb7b10714; the simulator returned 'Missing characterized inputs: product.T_pr_crit' and no native simulation could run."
+          ],
+          "rationale": "The characterization source supplies the equipment capacity line (a=-0.182 kg/h, b=11.7 kg/h per Torr), vial/package geometry, heat-transfer coefficients and one allowed recipe candidate (0.1 Torr, -15.0 degC shelf), but the LyoPRONTO native simulator refuses to execute because the product's critical bottom-temperature parameter (T_pr_crit) is not in the source. Without a native simulation of that allowed pair, no flux, dried percent, completion time or vial-bottom temperature exists to test against the equipment line, so no feasible recipe can be defended and none was selected. This is an authored simulator-world task; no measured outcome is claimed and no example default was substituted for the missing parameter.",
+          "source_id": "LyoPRONTO-native-case:LPN-5eb7b10714"
+        },
+        "result_id": "assi_01M7M2T6YBQMQ5MNTMST42WXYD",
+        "started_at": "2026-11-17T06:23:52.773891+00:00",
+        "status": "completed",
+        "task_kind": "lyopronto_record_result",
+        "title": "Lyopronto record result"
+      }
+    ],
+    "gateway_runs": [
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 8576,
+            "cost_usd": 0.0,
+            "input_tokens": 8771,
+            "latency_ms": 656.3562500523403,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 48,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "c981c84038434b5899957bdd6f877508",
+            "tool_calls": [
+              "workspace_read"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "",
+          "tool_calls": [
+            {
+              "arguments": "{\"kind\": \"physical_analysis_context\", \"record_id\": \"LyoPRONTO-native-case:LPN-5eb7b10714\", \"revision\": 1}",
+              "id": "call_18dc5b92e06b48b8922e8905",
+              "name": "workspace_read"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M2SZ9QP1SMRHDTKR1NA733",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 8768,
+            "cost_usd": 0.0,
+            "input_tokens": 8965,
+            "latency_ms": 733.4359160158783,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 46,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "2adc32a28a6344a2b784c548fc226270",
+            "tool_calls": [
+              "workspace_search",
+              "workspace_search"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "",
+          "tool_calls": [
+            {
+              "arguments": "{\"mode\": \"search\", \"query\": \"LyoPRONTO\"}",
+              "id": "call_0bf5734c294340559f45fd33",
+              "name": "workspace_search"
+            },
+            {
+              "arguments": "{\"mode\": \"search\", \"query\": \"LPN-5eb7b10714\"}",
+              "id": "call_1033a3bd995344bab80b4652",
+              "name": "workspace_search"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M2SZYQFCSYZYHC1PTEHVX5",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 8960,
+            "cost_usd": 0.0,
+            "input_tokens": 9881,
+            "latency_ms": 1005.369457998313,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 42,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "1601a6276312444187063409ceedf21e",
+            "tool_calls": [
+              "workspace_read"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "",
+          "tool_calls": [
+            {
+              "arguments": "{\"kind\": \"evidence\", \"record_id\": \"LyoPRONTO-native-case:LPN-5eb7b10714\", \"revision\": 1}",
+              "id": "call_6a93125a230448a9b75cdb7f",
+              "name": "workspace_read"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M2T0PPPVF13FYZ17VJ6JN1",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 9920,
+            "cost_usd": 0.0,
+            "input_tokens": 10626,
+            "latency_ms": 2047.458166955039,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 207,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "ca21ca8e314d4e23af07a639a8fe5a4a",
+            "tool_calls": [
+              "lyopronto_simulate"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "The source characterization is present (synthetic example, no experimental measurements), the task is recipe selection, and it supplies one allowed candidate: 0.1 Torr chamber pressure, \u221215.0 \u00b0C shelf. I'll run the native simulation on that pair.",
+          "tool_calls": [
+            {
+              "arguments": "{\"pressure_torr\": 0.1, \"shelf_temperature_c\": -15.0, \"source_id\": \"LyoPRONTO-native-case:LPN-5eb7b10714\"}",
+              "id": "call_d669b06c21f844f08bb86998",
+              "name": "lyopronto_simulate"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M2T1PXFW5MH4BSPSJP725E",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 10624,
+            "cost_usd": 0.0,
+            "input_tokens": 10751,
+            "latency_ms": 3276.629999978468,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 398,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "fef6622c269d4dcab35c6613a3335bd6",
+            "tool_calls": [
+              "lyopronto_record_result"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "The simulator rejected the run: an essential characterization input, the product's critical bottom-temperature parameter, is absent from the source record. I'll record the assessment accordingly.",
+          "tool_calls": [
+            {
+              "arguments": "{\"answer_status\": \"needs_information\", \"missing_inputs\": [\"product.T_pr_crit \u2014 the critical vial-bottom temperature parameter for the product in source LyoPRONTO-native-case:LPN-5eb7b10714; the simulator returned 'Missing characterized inputs: product.T_pr_crit' and no native simulation could run.\"], \"rationale\": \"The characterization source supplies the equipment capacity line (a=-0.182 kg/h, b=11.7 kg/h per Torr), vial/package geometry, heat-transfer coefficients and one allowed recipe candidate (0.1 Torr, -15.0 degC shelf), but the LyoPRONTO native simulator refuses to execute because the product's critical bottom-temperature parameter (T_pr_crit) is not in the source. Without a native simulation of that allowed pair, no flux, dried percent, completion time or vial-bottom temperature exists to test against the equipment line, so no feasible recipe can be defended and none was selected. This is an authored simulator-world task; no measured outcome is claimed and no example default was substituted for the missing parameter.\", \"source_id\": \"LyoPRONTO-native-case:LPN-5eb7b10714\"}",
+              "id": "call_c381cf46015c4919b86b8817",
+              "name": "lyopronto_record_result"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M2T3QH5QHMXPZTAF302E0B",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 10688,
+            "cost_usd": 0.0,
+            "input_tokens": 11433,
+            "latency_ms": 3411.9891669834033,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 440,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "73041e56ce254d5bb9f3c80ffc296531",
+            "tool_calls": []
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "**No defensible feasible recipe can be given: an essential characterization input is missing, and the assessment was saved as needs_information.**\n\nWhat the source supplies (recorded 2026-11-08, synthetic authored simulator data \u2014 no experimental measurements):\n- Equipment whole-batch capacity line: a = \u22120.182 kg/h, b = 11.7 kg/h per Torr (kg/h for the entire 398-vial batch)\n- Vial/product geometry: Ap = 3.14 cm\u00b2, Av = 3.8 cm\u00b2, Vfill = 2.04 mL, cSolid = 0.05 g/mL; heat-transfer parameters KC, KD, KP; product dried-layer resistance parameters A1, A2, R0\n- One allowed recipe candidate: 0.1 Torr chamber pressure, \u221215.0 \u00b0C shelf setpoint\n- Constraint: maximum returned **vial-bottom** temperature is the observable to check against T_pr_crit\n\nWhat is missing, exactly: **the product's critical vial-bottom temperature, T_pr_crit**. It is not in the source record, and I did not substitute an example default. When I attempted the native simulation on the only allowed pair (0.1 Torr, \u221215.0 \u00b0C), the solver refused with \"Missing characterized inputs: product.T_pr_crit\". No flux, dried-layer percent, completion time or bottom temperature exists to compare against the equipment line (a + b\u00b7P_Torr = \u22120.182 + 11.7\u00d70.1 = 0.988 kg/h capacity at 0.1 Torr, derived arithmetic only \u2014 unconstrained, since no demand-side flux was produced), so no recipe was selected.\n\nThe assessment is saved as a draft requiring review, status **needs_information**, with the missing input listed; there are no simulation result_ids because no simulation ran. Supplying T_pr_crit (with its provenance) would let the simulation run on the allowed pair and settle feasibility.",
+          "tool_calls": []
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M2T6YJEM6EFHPQKP5P1K7W",
+        "status": "completed"
+      }
+    ],
+    "turn_status": "completed",
+    "reply": "**No defensible feasible recipe can be given: an essential characterization input is missing, and the assessment was saved as needs information.**\n\nWhat the source supplies (recorded 2026-11-08, synthetic authored simulator data \u2014 no experimental measurements):\n- Equipment whole-batch capacity line: a = \u22120.182 kg/h, b = 11.7 kg/h per Torr (kg/h for the entire 398-vial batch)\n- Vial/product geometry: Ap = 3.14 cm\u00b2, Av = 3.8 cm\u00b2, Vfill = 2.04 mL, cSolid = 0.05 g/mL; heat-transfer parameters KC, KD, KP; product dried-layer resistance parameters A1, A2, R0\n- One allowed recipe candidate: 0.1 Torr chamber pressure, \u221215.0 \u00b0C shelf setpoint\n- Constraint: maximum returned **vial-bottom** temperature is the observable to check against T_pr_crit\n\nWhat is missing, exactly: **the product's critical vial-bottom temperature, T_pr_crit**. It is not in the source record, and I did not substitute an example default. When I attempted the native simulation on the only allowed pair (0.1 Torr, \u221215.0 \u00b0C), the solver refused with \"Missing characterized inputs: product.T_pr_crit\". No flux, dried-layer percent, completion time or bottom temperature exists to compare against the equipment line (a + b\u00b7P_Torr = \u22120.182 + 11.7\u00d70.1 = 0.988 kg/h capacity at 0.1 Torr, derived arithmetic only \u2014 unconstrained, since no demand-side flux was produced), so no recipe was selected.\n\nThe assessment is saved as a draft requiring review, status **needs information**, with the missing input listed; there are no simulation result ids because no simulation ran. Supplying T_pr_crit (with its provenance) would let the simulation run on the allowed pair and settle feasibility.",
+    "questions": [],
+    "grounding": {
+      "claims": [],
+      "contradictions": [],
+      "derived_numbers": [],
+      "method": "verbatim quote in inspected source + number provenance; not semantic support",
+      "status": "ungrounded",
+      "unsupported_numbers": [
+        0.182,
+        0.988,
+        15.0
+      ]
+    }
+  },
+  "source_sha256": "8f4e3bfed6400cd86709df8fe00bf857fcad4706e705d7b4f9253ccdbdb607c4",
+  "reference_sha256": "6d8a15751bfacff841f6666ad89295094c101b0a426b78f005a0cb5809dffa7f"
+}

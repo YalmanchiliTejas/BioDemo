@@ -25,6 +25,8 @@ const personas = [
     await page.locator(`input[type=radio][value="${persona}"]`).check({force:true});
     await page.locator('input[type=checkbox]').check();
     await page.getByRole('button',{name:'Start the demo',exact:true}).click();
+    await page.waitForURL('**/dashboard/');
+    await page.locator('a.summary-card[href^="/home/"]').click();
     await page.waitForURL('**/home/?scenarios=1');
     await page.getByRole('article',{name:title,exact:true}).waitFor();
     await page.getByRole('link',{name:'Try the model library',exact:true}).click();

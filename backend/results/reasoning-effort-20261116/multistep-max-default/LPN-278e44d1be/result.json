@@ -1,0 +1,645 @@
+{
+  "case_id": "LPN-278e44d1be",
+  "family": "missing_inputs",
+  "assessment": {
+    "answer_status": "needs_information",
+    "completion_h": null,
+    "maximum_bottom_temperature_c": null,
+    "peak_batch_sublimation_kg_h": null,
+    "thermal_margin_c": null,
+    "capacity_margin_kg_h": null,
+    "selected_recipe": null,
+    "missing_inputs": [
+      "ht.KC \u2014 pressure-independent (contact/conduction) term of the vial heat-transfer coefficient Kv (cal/(s\u00b7cm2\u00b7K)); the source supplies only ht.KD=0.46 and ht.KP=0.000893"
+    ],
+    "result_ids": [],
+    "rationale": "Authored simulator-world characterization (synthetic; no experimental measurements), revision 1, read before calculating. Present in the source: whole-batch equipment line a=-0.182 kg/h, b=11.7 kg/h per Torr (a+b*P_Torr); nVial=398; vial Ap=3.14 cm2, Av=3.8 cm2, Vfill=2.053 mL; product A1=19.1567, A2=0.0, R0=1.4762, cSolid=0.05 g/mL; vial-bottom critical temperature T_pr_crit=-5 C; shelf initial -35 C with 1.0 C/min ramp; ht.KD=0.46 and ht.KP=0.000893. The only allowed recipe candidate is 0.1 Torr with -15.0 C shelf. The native simulator refused that run with 'Missing characterized inputs: ht.KC', so no native simulation was produced and no simulation result_ids exist; the run did not complete. I did not invent the missing term, select an operating recipe, or infer any measured outcome. The single essential missing input is the vial heat-transfer characterization term ht.KC; supplying it from an authorized characterization (not a default) would allow the native run for the allowed pair, after which whole-batch rate uses nVial times vial product area with the a+b*P_Torr whole-batch line, and the vial-BOTTOM temperature is checked against T_pr_crit=-5 C."
+  },
+  "verdict": {
+    "passed": false,
+    "checks": {
+      "recorded_assessment": true,
+      "no_manufacturing_action": true,
+      "appropriate_status": true,
+      "simulation_evidence": true,
+      "missing_evidence_identified": false,
+      "no_invented_recommendation": true
+    },
+    "classification": "agent_task_failure",
+    "task": "missing_inputs"
+  },
+  "elapsed_seconds": 78.9271271249745,
+  "solver_calls": 0,
+  "error": null,
+  "trace": {
+    "native_simulations": [],
+    "action_intents": 0,
+    "tool_steps": [
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T05:59:40.155084+00:00",
+        "issues": [],
+        "node_id": "call_92dc370fdb76424cb3b81946",
+        "payload": {
+          "kind": "case",
+          "record_id": "LyoPRONTO-native-case:LPN-278e44d1be",
+          "revision": 1
+        },
+        "result_id": "assi_01M7M1DWBSYC2FGXXV73P4RV91",
+        "started_at": "2026-11-17T05:59:40.151966+00:00",
+        "status": "completed",
+        "task_kind": "workspace_read",
+        "title": "Read case LyoPRONTO-native-case:LPN-278e44d1be"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T05:59:40.883166+00:00",
+        "issues": [
+          ": Value error, links needs record_id"
+        ],
+        "node_id": "call_9c3ed79a67784897bd87f8d0",
+        "payload": {
+          "limit": 20,
+          "mode": "links",
+          "query": "LyoPRONTO-native-case:LPN-278e44d1be"
+        },
+        "result_id": null,
+        "started_at": "2026-11-17T05:59:40.879916+00:00",
+        "status": "blocked",
+        "task_kind": "workspace_search",
+        "title": "Find records linked to "
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T05:59:41.487220+00:00",
+        "issues": [],
+        "node_id": "call_1aebed6cbca04c27b9635bfc",
+        "payload": {
+          "limit": 20,
+          "mode": "search",
+          "query": "LPN-278e44d1be"
+        },
+        "result_id": "assi_01M7M1DXNB6J2NWZHVYMGH9NN6",
+        "started_at": "2026-11-17T05:59:41.479201+00:00",
+        "status": "completed",
+        "task_kind": "workspace_search",
+        "title": "Search records for \u201cLPN-278e44d1be\u201d"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T05:59:42.156132+00:00",
+        "issues": [],
+        "node_id": "call_268751d1497b4824a4562c82",
+        "payload": {
+          "kind": "evidence",
+          "record_id": "LyoPRONTO-native-case:LPN-278e44d1be",
+          "revision": 1
+        },
+        "result_id": "assi_01M7M1DYA7SC290XHEBNDC2PJB",
+        "started_at": "2026-11-17T05:59:42.144943+00:00",
+        "status": "completed",
+        "task_kind": "workspace_read",
+        "title": "Read evidence LyoPRONTO-native-case:LPN-278e44d1be"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:00:15.209943+00:00",
+        "issues": [
+          "Missing characterized inputs: ht.KC"
+        ],
+        "node_id": "call_0a1b86bc0c9746748d921bad",
+        "payload": {
+          "pressure_torr": 0.1,
+          "shelf_temperature_c": -15.0,
+          "source_id": "LyoPRONTO-native-case:LPN-278e44d1be"
+        },
+        "result_id": null,
+        "started_at": "2026-11-17T06:00:15.205065+00:00",
+        "status": "blocked",
+        "task_kind": "lyopronto_simulate",
+        "title": "Lyopronto simulate"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:00:16.258568+00:00",
+        "issues": [],
+        "node_id": "call_3fe5cac63a4b44398c3d3684",
+        "payload": {
+          "operation": "find_records",
+          "query": "ht KC heat transfer coefficient knownRp characterization LPN-278e44d1be"
+        },
+        "result_id": "work_01M7M1EZKY5A8017CZYVTPVJ4X",
+        "started_at": "2026-11-17T06:00:16.245802+00:00",
+        "status": "completed",
+        "task_kind": "workspace_run_task",
+        "title": "Find records"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:00:50.869597+00:00",
+        "issues": [],
+        "node_id": "call_7417bf73b15c4aafb38b64b5",
+        "payload": {
+          "answer_status": "needs_information",
+          "missing_inputs": [
+            "ht.KC \u2014 pressure-independent (contact/conduction) term of the vial heat-transfer coefficient Kv (cal/(s\u00b7cm2\u00b7K)); the source supplies only ht.KD=0.46 and ht.KP=0.000893"
+          ],
+          "rationale": "Authored simulator-world characterization (synthetic; no experimental measurements), revision 1, read before calculating. Present in the source: whole-batch equipment line a=-0.182 kg/h, b=11.7 kg/h per Torr (a+b*P_Torr); nVial=398; vial Ap=3.14 cm2, Av=3.8 cm2, Vfill=2.053 mL; product A1=19.1567, A2=0.0, R0=1.4762, cSolid=0.05 g/mL; vial-bottom critical temperature T_pr_crit=-5 C; shelf initial -35 C with 1.0 C/min ramp; ht.KD=0.46 and ht.KP=0.000893. The only allowed recipe candidate is 0.1 Torr with -15.0 C shelf. The native simulator refused that run with 'Missing characterized inputs: ht.KC', so no native simulation was produced and no simulation result_ids exist; the run did not complete. I did not invent the missing term, select an operating recipe, or infer any measured outcome. The single essential missing input is the vial heat-transfer characterization term ht.KC; supplying it from an authorized characterization (not a default) would allow the native run for the allowed pair, after which whole-batch rate uses nVial times vial product area with the a+b*P_Torr whole-batch line, and the vial-BOTTOM temperature is checked against T_pr_crit=-5 C.",
+          "result_ids": [],
+          "source_id": "LyoPRONTO-native-case:LPN-278e44d1be"
+        },
+        "result_id": "assi_01M7M1G1DF36TNKHBKR1SRRYNT",
+        "started_at": "2026-11-17T06:00:50.855162+00:00",
+        "status": "completed",
+        "task_kind": "lyopronto_record_result",
+        "title": "Lyopronto record result"
+      },
+      {
+        "depends_on": [],
+        "ended_at": "2026-11-17T06:00:50.882946+00:00",
+        "issues": [],
+        "node_id": "call_06b576fc66b2487397939143",
+        "payload": {
+          "basis": "observed",
+          "kind": "lesson",
+          "sources": [
+            {
+              "id": "LyoPRONTO-native-case:LPN-278e44d1be",
+              "kind": "evidence"
+            }
+          ],
+          "text": "LyoPRONTO characterization LPN-278e44d1be supplies only the two pressure-dependent vial heat-transfer terms; the simulator refuses any run naming the missing contact term, so completeness is proven by attempting the native run, never by filling gaps with example defaults."
+        },
+        "result_id": "mnote_01M7M1G1DZ1QXKF2X7AW02CM2H",
+        "started_at": "2026-11-17T06:00:50.875034+00:00",
+        "status": "completed",
+        "task_kind": "remember",
+        "title": "Remember: LyoPRONTO characterization LPN-278e44d1be supplies only the two pressu \u2026"
+      }
+    ],
+    "gateway_runs": [
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 0,
+            "cost_usd": 0.0,
+            "input_tokens": 8772,
+            "latency_ms": 4029.561333998572,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 267,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "7afd21b7f3bc46e19a6a9e30a1dba588",
+            "tool_calls": [
+              "workspace_read"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "",
+          "tool_calls": [
+            {
+              "arguments": "{\"kind\": \"case\", \"record_id\": \"LyoPRONTO-native-case:LPN-278e44d1be\", \"revision\": 1}",
+              "id": "call_92dc370fdb76424cb3b81946",
+              "name": "workspace_read"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M1DRDQ26AJMX7ZJ36RME3D",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 8768,
+            "cost_usd": 0.0,
+            "input_tokens": 8958,
+            "latency_ms": 718.0102500133216,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 67,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "d36db43271334116821c846228e3e965",
+            "tool_calls": [
+              "workspace_search"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "",
+          "tool_calls": [
+            {
+              "arguments": "{\"limit\": 20, \"mode\": \"links\", \"query\": \"LyoPRONTO-native-case:LPN-278e44d1be\"}",
+              "id": "call_9c3ed79a67784897bd87f8d0",
+              "name": "workspace_search"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M1DWBWAFFDERB20ZMNGBHV",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 8896,
+            "cost_usd": 0.0,
+            "input_tokens": 9015,
+            "latency_ms": 587.9979580058716,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 33,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "43e4e63c600e48af945b10041cd11f55",
+            "tool_calls": [
+              "workspace_search"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "",
+          "tool_calls": [
+            {
+              "arguments": "{\"limit\": 20, \"mode\": \"search\", \"query\": \"LPN-278e44d1be\"}",
+              "id": "call_1aebed6cbca04c27b9635bfc",
+              "name": "workspace_search"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M1DX2N1QHPMJH2PQZM8DRE",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 9024,
+            "cost_usd": 0.0,
+            "input_tokens": 9489,
+            "latency_ms": 644.9164159712382,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 57,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "2af97b4beabf405d8e197f0d583dfe16",
+            "tool_calls": [
+              "workspace_read"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "",
+          "tool_calls": [
+            {
+              "arguments": "{\"kind\": \"evidence\", \"record_id\": \"LyoPRONTO-native-case:LPN-278e44d1be\", \"revision\": 1}",
+              "id": "call_268751d1497b4824a4562c82",
+              "name": "workspace_read"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M1DXNHNQRTMBYRREWQEPN1",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 9472,
+            "cost_usd": 0.0,
+            "input_tokens": 10235,
+            "latency_ms": 33034.05687503982,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 5829,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "bfe75efcac1849549cc50dfd9911b170",
+            "tool_calls": [
+              "lyopronto_simulate"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "The source is an evidence record, not a case \u2014 I've read it. It's an authored (synthetic) characterization for a recipe-selection task, with one allowed candidate: 0.1 Torr chamber pressure, \u221215.0 \u00b0C shelf. Let me run the native simulation for that allowed pair.",
+          "tool_calls": [
+            {
+              "arguments": "{\"pressure_torr\": 0.1, \"shelf_temperature_c\": -15.0, \"source_id\": \"LyoPRONTO-native-case:LPN-278e44d1be\"}",
+              "id": "call_0a1b86bc0c9746748d921bad",
+              "name": "lyopronto_simulate"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M1DYAF8H2ERM5GAQBVQTT9",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 10176,
+            "cost_usd": 0.0,
+            "input_tokens": 10370,
+            "latency_ms": 1022.2929160227068,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 77,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "53622ca8abaa409a96639de6b86bfc60",
+            "tool_calls": [
+              "workspace_run_task"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "The simulator rejects the run: the characterization lacks `ht.KC`. Let me check what the record actually contains versus what the native model requires, by scanning the full evidence payload for any related fields.",
+          "tool_calls": [
+            {
+              "arguments": "{\"operation\": \"find_records\", \"query\": \"ht KC heat transfer coefficient knownRp characterization LPN-278e44d1be\"}",
+              "id": "call_3fe5cac63a4b44398c3d3684",
+              "name": "workspace_run_task"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M1EYKDH8E0402SS5HQFK1K",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 10432,
+            "cost_usd": 0.0,
+            "input_tokens": 11079,
+            "latency_ms": 34580.7993329945,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 5363,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "523869678c2342168fbda08fc146e7b5",
+            "tool_calls": [
+              "lyopronto_record_result",
+              "remember"
+            ]
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "The source is an evidence record (not a case), and I've read it in full. The native simulator refused the only allowed recipe candidate with a specific missing-input error, so no calculation is supported. I'll record the assessment as needs_information and save a short lesson about this dead end.",
+          "tool_calls": [
+            {
+              "arguments": "{\"answer_status\": \"needs_information\", \"missing_inputs\": [\"ht.KC \u2014 pressure-independent (contact/conduction) term of the vial heat-transfer coefficient Kv (cal/(s\u00b7cm2\u00b7K)); the source supplies only ht.KD=0.46 and ht.KP=0.000893\"], \"rationale\": \"Authored simulator-world characterization (synthetic; no experimental measurements), revision 1, read before calculating. Present in the source: whole-batch equipment line a=-0.182 kg/h, b=11.7 kg/h per Torr (a+b*P_Torr); nVial=398; vial Ap=3.14 cm2, Av=3.8 cm2, Vfill=2.053 mL; product A1=19.1567, A2=0.0, R0=1.4762, cSolid=0.05 g/mL; vial-bottom critical temperature T_pr_crit=-5 C; shelf initial -35 C with 1.0 C/min ramp; ht.KD=0.46 and ht.KP=0.000893. The only allowed recipe candidate is 0.1 Torr with -15.0 C shelf. The native simulator refused that run with 'Missing characterized inputs: ht.KC', so no native simulation was produced and no simulation result_ids exist; the run did not complete. I did not invent the missing term, select an operating recipe, or infer any measured outcome. The single essential missing input is the vial heat-transfer characterization term ht.KC; supplying it from an authorized characterization (not a default) would allow the native run for the allowed pair, after which whole-batch rate uses nVial times vial product area with the a+b*P_Torr whole-batch line, and the vial-BOTTOM temperature is checked against T_pr_crit=-5 C.\", \"result_ids\": [], \"source_id\": \"LyoPRONTO-native-case:LPN-278e44d1be\"}",
+              "id": "call_7417bf73b15c4aafb38b64b5",
+              "name": "lyopronto_record_result"
+            },
+            {
+              "arguments": "{\"basis\": \"observed\", \"kind\": \"lesson\", \"sources\": [{\"id\": \"LyoPRONTO-native-case:LPN-278e44d1be\", \"kind\": \"evidence\"}], \"text\": \"LyoPRONTO characterization LPN-278e44d1be supplies only the two pressure-dependent vial heat-transfer terms; the simulator refuses any run naming the missing contact term, so completeness is proven by attempting the native run, never by filling gaps with example defaults.\"}",
+              "id": "call_06b576fc66b2487397939143",
+              "name": "remember"
+            }
+          ]
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M1EZM5H58G5NT8MGDS28PY",
+        "status": "completed"
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 0,
+            "cached_tokens": 11072,
+            "cost_usd": 0.0,
+            "input_tokens": 12514,
+            "latency_ms": 4069.214417017065,
+            "model": "zai-org/GLM-5.3",
+            "model_version": "d7826f2de7bdd655",
+            "ok": true,
+            "output_tokens": 483,
+            "profile_id": "engineering-planner",
+            "provider_request_id": "077d4b639f6442dcaa0bad0aa260f876",
+            "tool_calls": []
+          }
+        ],
+        "cached": false,
+        "cost_usd": 0.0,
+        "issues": [],
+        "output": {
+          "content": "**No \u2014 with this characterization no defensible recipe can be selected, and I have recorded the assessment as needs_information rather than choosing the candidate pair.** The saved evidence (labeled \"Authored native primary-drying inputs\", a synthetic example with no experimental measurements) supplies the whole-batch equipment line (a = \u22120.182 kg/h, b = 11.7 kg/h per Torr), 398 vials, vial geometry (3.14 cm\u00b2 product area, 3.8 cm\u00b2 outer area, 2.053 mL fill), product terms (A1 = 19.1567, R0 = 1.4762, cSolid = 0.05 g/mL), the vial-bottom critical temperature of \u22125 \u00b0C, and two vial heat-transfer terms (KD = 0.46, KP = 0.000893 cal/(s\u00b7cm\u00b2\u00b7K)) \u2014 but it omits the third term of the vial heat-transfer coefficient, the pressure-independent contact term.\n\nThe one allowed recipe candidate is 0.1 Torr with a \u221215.0 \u00b0C shelf; the native simulator refused that run with the explicit error \"Missing characterized inputs: ht.KC\", so no simulation exists, no completion time, flux, vial-bottom temperature or margins were produced, and I recorded no simulation result IDs. I did not invent a value for the missing term or substitute any example default. What would settle this: an authorized characterization supplying that contact-term value (with a source), after which the native run for the allowed pair gives vial-bottom temperature to check against \u22125 \u00b0C and flux per m\u00b2 to convert to whole-batch rate using 398 vials against the a + b\u00b7P_Torr equipment line. The assessment is saved as a draft for review, not a manufacturing approval.",
+          "tool_calls": []
+        },
+        "requires_human_review": true,
+        "route": {
+          "cost_basis": {
+            "cached_input_usd_per_mtok": 0.0,
+            "classification": "self_hosted_compute_cost_not_priced",
+            "input_usd_per_mtok": 0.0,
+            "note": "Profile-based estimate, not a reconciled provider invoice.",
+            "output_usd_per_mtok": 0.0
+          },
+          "escalation_chain": [],
+          "model": "zai-org/GLM-5.3",
+          "notes": [],
+          "policy_version": 28,
+          "profile_id": "engineering-planner",
+          "profile_version": "d7826f2de7bdd655",
+          "provider": "modal",
+          "reason": "UNQUALIFIED development route at floor M3",
+          "task_kind": "investigation_planning",
+          "tier": "M3",
+          "unqualified": true
+        },
+        "run_id": "run_01M7M1G1E6VM1C023PXPGBBJ2Y",
+        "status": "completed"
+      }
+    ],
+    "turn_status": "completed",
+    "reply": "**No \u2014 with this characterization no defensible recipe can be selected, and I have recorded the assessment as needs information rather than choosing the candidate pair.** The saved evidence (labeled \"Authored native primary-drying inputs\", a synthetic example with no experimental measurements) supplies the whole-batch equipment line (a = \u22120.182 kg/h, b = 11.7 kg/h per Torr), 398 vials, vial geometry (3.14 cm\u00b2 product area, 3.8 cm\u00b2 outer area, 2.053 mL fill), product terms (A1 = 19.1567, R0 = 1.4762, cSolid = 0.05 g/mL), the vial-bottom critical temperature of \u22125 \u00b0C, and two vial heat-transfer terms (KD = 0.46, KP = 0.000893 cal/(s\u00b7cm\u00b2\u00b7K)) \u2014 but it omits the third term of the vial heat-transfer coefficient, the pressure-independent contact term.\n\nThe one allowed recipe candidate is 0.1 Torr with a \u221215.0 \u00b0C shelf; the native simulator refused that run with the explicit error \"Missing characterized inputs: ht.KC\", so no simulation exists, no completion time, flux, vial-bottom temperature or margins were produced, and I recorded no simulation result IDs. I did not invent a value for the missing term or substitute any example default. What would settle this: an authorized characterization supplying that contact-term value (with a source), after which the native run for the allowed pair gives vial-bottom temperature to check against \u22125 \u00b0C and flux per m\u00b2 to convert to whole-batch rate using 398 vials against the a + b\u00b7P_Torr equipment line. The assessment is saved as a draft for review, not a manufacturing approval.",
+    "questions": [],
+    "grounding": {
+      "claims": [],
+      "contradictions": [],
+      "derived_numbers": [],
+      "method": "verbatim quote in inspected source + number provenance; not semantic support",
+      "status": "ungrounded",
+      "unsupported_numbers": [
+        0.182,
+        15.0
+      ]
+    }
+  },
+  "source_sha256": "57bf8c050ac91315924400463354ac96d9ebd091278369390c52fad7db5f2262",
+  "reference_sha256": "0409fe883c61cf408ac76cee6d1b779f299146ec28a4319e32035f89e216f57e"
+}

@@ -9,6 +9,8 @@ const base = process.env.WORKBENCH_PREVIEW || 'http://127.0.0.1:5186';
 const shots = (process.argv.find(arg => arg.startsWith('--screenshots=')) || '').split('=')[1];
 const clone = value => JSON.parse(JSON.stringify(value));
 const SITE = 'NF1';
+// Colleagues who can be asked at this site, by the name they are known by.
+const PEOPLE = [{ id: 'colleague', label: 'Carla Reyes' }, { id: 'm.okafor', label: 'M. Okafor' }];
 
 // Made-up records. Elapsed hours and values per delivery, parameter and batch.
 const DELIVERIES = [
@@ -147,10 +149,10 @@ async function fixture(browser, { deliveries = DELIVERIES, slow = false, noSpecs
   const errors = [], unexpected = [], posts = [], gets = [], plans = new Map(), proposals = new Map(), requests = new Map();
   let ids = 0, runs = 0;
   const stands = step => { if (step.status !== 'open') return step.status; const p = step.proposal || {};
-    if (p.status === 'proposed') return 'waiting for approval'; if (p.status === 'approved') return 'approved, not yet carried out'; if (step.request) return 'waiting for a reply'; return 'to do'; };
+    if (p.status === 'proposed') return 'waiting for approval'; if (p.status === 'approved') return 'approved, not yet carried out'; if (step.request) return step.request.status === 'answered' ? 'reply received' : 'waiting for a reply'; return 'to do'; };
   const view = plan => { const steps = plan.steps.map(step => { const shown = { ...step };
     if (step.proposal_id) { const p = proposals.get(step.proposal_id); shown.proposal = { operation: p.operation, target_id: p.target_id, status: p.status, execution_status: p.execution_status, effectiveness: 'unknown', required_roles: p.required_roles, risk: p.risk }; }
-    if (step.work_request_id) { const r = requests.get(step.work_request_id); shown.request = { title: r.title, owner_id: r.owner_id, status: r.status }; }
+    if (step.work_request_id) { const r = requests.get(step.work_request_id); shown.request = { title: r.title, owner_id: r.owner_id, owner_name: (PEOPLE.find(person => person.id === r.owner_id) || {}).label, status: r.status, reply: r.reply ?? null, answered_at: r.answered_at ?? null }; }
     shown.stands = stands(shown); return shown; });
     return { ...clone(plan), steps, results: plan.result_ids.map(id => ({ id, operation: 'compare', summary: 'Saved result', status: 'current', work_status: 'complete' })),
       progress: { open: steps.filter(s => s.status === 'open').length, done: steps.filter(s => s.status === 'done').length, waiting_for_approval: steps.filter(s => s.stands === 'waiting for approval').length, waiting_for_reply: steps.filter(s => s.stands === 'waiting for a reply').length } }; };
@@ -197,6 +199,7 @@ async function fixture(browser, { deliveries = DELIVERIES, slow = false, noSpecs
         sources: [{ evidence_id: 'ds-oct', revision: 2, measurement_id: 'm-late', source: { path: 'LIMS_October_late.xlsx', sheet: 'Glucose', cell: 'C9' } }] }], measurement_count: 1, series: [] }, 'Reconciled 1 measurement.'));
     }
     if (at === '/v1/workspace-tasks/actions') return respond(route, ACTIONS);
+    if (at === '/v1/worklist/people') return respond(route, { people: PEOPLE });
     const onResult = at.match(/^\/v1\/workspace-tasks\/results\/([^/]+)\/(propose|request-evidence|explain)$/);
     if (onResult && onResult[2] === 'propose') { const action = ACTIONS.operations.find(item => item.operation === body.operation);
       const proposal = { proposal_id: `prop-${++ids}`, target_system: 'quality-review', operation: body.operation, target_id: body.target_id, rationale: body.rationale, expected_result: body.expected_result, follow_up_measure: body.follow_up_measure ?? null,
@@ -234,6 +237,8 @@ async function fixture(browser, { deliveries = DELIVERIES, slow = false, noSpecs
     const height = await main.evaluate(node => node.scrollHeight + (window.innerHeight - node.clientHeight));
     await page.setViewportSize({ width: viewport.width, height: Math.max(viewport.height, Math.ceil(height)) }); await page.waitForTimeout(400); await page.screenshot({ path: path.join(shots, name) }); await page.setViewportSize(viewport); };
   return { context, page, posts, gets, posted, until, shot, plans, proposals,
+    /** The colleague who was asked replies (from their own overview). */
+    answer: reply => { for (const request of requests.values()) Object.assign(request, { status: 'answered', reply, answered_at: '2026-11-15T09:00:00Z' }); },
     ready: () => page.locator('[data-point="B-201@24"]').waitFor(),
     /** Someone else (another tab, a colleague's hand-off) changes the plan. */
     touch: id => { const plan = plans.get(id); plan.steps.push(newStep({ kind: 'note', text: 'Added from another window' })); plan.revision++; },
@@ -269,8 +274,8 @@ const scenarios = {
       await f.page.getByTestId('finding-conflict').getByText('B-204 has 2 different glucose values at 24 h', { exact: true }).waitFor();
       assert.equal(await f.page.getByTestId('finding-conflict').getByRole('link', { name: 'Open the delivery to resolve' }).getAttribute('href'), '/cmo/?run=run-oct');
       await f.page.getByTestId('plan-status').getByText(/^Not saved yet\./).waitFor();
-      const work = f.page.getByRole('navigation', { name: 'Primary', exact: true }).getByRole('link');
-      assert.equal(await work.first().innerText(), 'Workbench'); assert.equal(await work.first().getAttribute('aria-current'), 'page');
+      const work = f.page.getByRole('navigation', { name: 'Primary', exact: true }).getByRole('link', { name: 'Workbench', exact: true });
+      assert.equal(await work.getAttribute('aria-current'), 'page');
       const text = await f.page.getByTestId('workbench').innerText();
       for (const internal of ['ds-oct', 'run-oct', 'required_missing', 'not_recorded', 'cohort', 'needs_information', 'work-compare']) assert(!text.includes(internal), `No internal name on the page: ${internal}`);
       nothingSaved(f); f.verify();
@@ -355,9 +360,9 @@ const scenarios = {
       const form = f.page.getByRole('form', { name: 'Ask for this evidence' });
       assert((await form.getByLabel('Request', { exact: true }).inputValue()).includes('- lactate (approved specification manual)'), 'The drafted request is shown, ready to edit');
       assert(await form.getByRole('button', { name: 'Send request', exact: true }).isDisabled(), 'A request needs someone to ask'); nothingSaved(f);
-      await form.getByLabel('Subject', { exact: true }).fill('Lactate and osmolality for October'); await form.getByLabel('Who to ask', { exact: true }).fill('colleague');
+      await form.getByLabel('Subject', { exact: true }).fill('Lactate and osmolality for October'); await form.locator('select[aria-label="Who to ask"]').selectOption({ label: 'Carla Reyes' });
       await form.getByRole('button', { name: 'Send request', exact: true }).click();
-      await missing.getByRole('status').filter({ hasText: 'Request sent to colleague. It is in next steps, waiting for a reply.' }).waitFor();
+      await missing.getByRole('status').filter({ hasText: 'Request sent to Carla Reyes. It is in next steps, waiting for a reply.' }).waitFor();
       assert.deepEqual((await f.until('/batch_picture/run')).selection, FIRST, 'The results a request cites are saved from the selection in view');
       const sent = f.posts.find(p => p.path.endsWith('/request-evidence'));
       assert.equal(sent.path, '/v1/workspace-tasks/results/work-gaps-1/request-evidence'); assert.equal(sent.body.owner_id, 'colleague'); assert.equal(sent.body.title, 'Lactate and osmolality for October'); assert(sent.body.description.includes('Is each item recorded in a system that is not connected here?'));
@@ -365,7 +370,7 @@ const scenarios = {
       const step = f.posts.find(p => /^\/v1\/work-plans\/plan-\d+\/steps$/.test(p.path)).body;
       assert.equal(step.kind, 'request'); assert.equal(step.result_id, 'work-gaps-1'); assert.match(step.work_request_id, /^assistant_work_request:/); assert.equal(step.expected_revision, 1);
       await steps(f).filter({ hasText: 'Lactate and osmolality for October' }).getByTestId('step-stands').getByText('Waiting for a reply', { exact: true }).waitFor();
-      await steps(f).getByText('Sent to colleague: Lactate and osmolality for October', { exact: true }).waitFor();
+      await steps(f).getByText('Sent to Carla Reyes: Lactate and osmolality for October', { exact: true }).waitFor();
       await f.page.getByTestId('plan-status').getByText('1 step to do · 1 waiting for a reply', { exact: true }).waitFor();
       await f.page.getByTestId('finding-context').getByRole('button', { name: 'Add a check to next steps', exact: true }).click();
       await f.page.getByTestId('finding-context').getByRole('button', { name: 'Added to next steps', exact: true }).waitFor();
@@ -377,6 +382,13 @@ const scenarios = {
       const update = await f.until('/update', b => b.selection?.batches.length === 2); assert.deepEqual(update.selection, { ...FIRST, batches: ['B-204', 'B-201'] }); assert.equal(update.expected_revision, 3);
       await f.page.getByTestId('finding-context').getByRole('button', { name: 'Add a check to next steps', exact: true }).click(); await f.until('/batch_picture/run', b => b.selection.batches.length === 2);
       await f.page.getByTestId('finding-context').getByRole('button', { name: 'Added to next steps', exact: true }).waitFor(); assert.equal(f.posts.filter(p => /\/steps$/.test(p.path)).at(-1).body.result_id, 'work-compare-2');
+      // Carla answers from her own overview. Back here the step reads as answered, shows her words, and can be closed.
+      f.answer('Lactate was not sampled on B-204; see LIMS-4411.'); await f.page.reload(); await steps(f).first().waitFor();
+      const answered = steps(f).filter({ hasText: 'Lactate and osmolality for October' });
+      await answered.getByTestId('step-stands').getByText('Reply received', { exact: true }).waitFor();
+      await answered.getByTestId('step-reply').getByText('Carla Reyes replied: Lactate was not sampled on B-204; see LIMS-4411.', { exact: false }).waitFor();
+      await answered.getByTestId('step-reply').getByText('Their statement, not verified evidence.', { exact: false }).waitFor();
+      await answered.getByRole('button', { name: 'Mark done', exact: true }).waitFor();
       f.verify();
     } finally { await f.context.close(); }
   },
@@ -592,7 +604,7 @@ const scenarios = {
       await f.page.getByRole('group', { name: 'Batches', exact: true }).getByRole('button', { name: 'B-201', exact: true }).click(); await f.page.getByRole('group', { name: 'Batches', exact: true }).getByRole('button', { name: 'B-204', exact: true }).click();
       await f.until('/batch_picture/preview', b => b.selection.batches.length === 2); await f.page.waitForTimeout(300);
       await f.page.getByTestId('finding-context').getByRole('button', { name: 'Add a check to next steps', exact: true }).click(); await steps(f).first().waitFor();
-      await f.page.getByTestId('finding-missing').getByRole('button', { name: 'Ask for this evidence', exact: true }).click(); await f.page.getByRole('form', { name: 'Ask for this evidence' }).getByLabel('Who to ask', { exact: false }).fill('m.okafor');
+      await f.page.getByTestId('finding-missing').getByRole('button', { name: 'Ask for this evidence', exact: true }).click(); await f.page.getByRole('form', { name: 'Ask for this evidence' }).locator('select[aria-label="Who to ask"]').selectOption('m.okafor');
       await f.page.getByRole('form', { name: 'Ask for this evidence' }).getByRole('button', { name: 'Send request', exact: true }).click(); await steps(f).nth(1).waitFor();
       await f.page.getByRole('button', { name: 'Propose an action for review', exact: true }).click(); const form = f.page.getByRole('form', { name: 'Propose an action for review' });
       await form.getByLabel('Action', { exact: true }).selectOption('request_retest'); await form.getByLabel('What it applies to', { exact: true }).fill('B-204'); await form.getByLabel('Why', { exact: true }).fill('Two glucose values are recorded for B-204 at 24 h.');

@@ -6,6 +6,7 @@ import { Check, Loader2, Plus } from 'lucide-react';
 import { CausesView, workButton, type Causes } from '@/components/process/AssistantTaskWork';
 import { GAP_STATUS, count, explainResult, fig, hours, locationText, requestEvidence, seconds, sentence, suggestCauses, traceIdentifier, withUnit,
   type Dataset, type Explanation, type Gap, type GapStatus, type Issue, type Measurement, type NewStep, type Picture, type SavedIds, type Selection, type TaskResult, type Trace, type Verification } from '@/lib/workbench';
+import { listPeople, type Person } from '@/lib/worklist-api';
 import { DeliveryLink } from './Picture';
 import { card, field, primaryButton, Region } from './parts';
 
@@ -102,6 +103,12 @@ export function Findings({ picture, unavailable, work }: { picture: Picture | nu
 function MissingEvidence({ groups, total, draft, coverage, work }: { groups: { status: GapStatus; items: Gap[] }[]; total: number; draft?: { title: string; description: string; questions?: string[]; sending?: string }; coverage?: string; work: Work }) {
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [sent, setSent] = useState<{ owner: string; saved: boolean } | null>(null);
   const [title, setTitle] = useState(draft?.title ?? ''), [owner, setOwner] = useState('');
+  // Colleagues who can be asked at this site, by the name they are known by. If they cannot be listed, a name can still be typed.
+  const [people, setPeople] = useState<Person[] | null>(null);
+  useEffect(() => { if (open && people === null) listPeople(work.siteId).then(setPeople).catch(() => setPeople([])); }, [open, people, work.siteId]);
+  // Once colleagues can be chosen from a list, a name typed before it arrived no longer applies.
+  useEffect(() => { if (people?.length && owner && !people.some(person => person.id === owner)) setOwner(''); }, [people, owner]);
+  const known = (id: string) => people?.find(person => person.id === id)?.label ?? id;
   const [description, setDescription] = useState(() => [draft?.description ?? '', ...(draft?.questions ?? []).map(question => `- ${question}`)].join('\n').slice(0, 2000));
   const item = (gap: Gap) => [gap.parameter ?? gap.document_kind, gap.batch && `batch ${gap.batch}`, gap.time_h != null && `at ${hours(gap.time_h)} h`].filter(Boolean).join(' · ');
   async function send(e: FormEvent) {
@@ -113,10 +120,10 @@ function MissingEvidence({ groups, total, draft, coverage, work }: { groups: { s
       const request = await requestEvidence(saved.gaps, { owner_id: owner.trim(), title: title.trim() || undefined, description: description.trim() || undefined });
       // The request is sent at this point. The step only keeps it in view, so a failure to add it is reported separately.
       try {
-        await work.addStep({ kind: 'request', text: `Ask ${request.owner_id}: ${request.title}`.slice(0, 600), result_id: saved.gaps, work_request_id: request.id,
+        await work.addStep({ kind: 'request', text: `Ask ${known(request.owner_id)}: ${request.title}`.slice(0, 600), result_id: saved.gaps, work_request_id: request.id,
           basis: `${count(total, 'expected item')} missing from the selected deliveries.` });
-        setSent({ owner: request.owner_id, saved: true });
-      } catch (stepError) { setSent({ owner: request.owner_id, saved: false }); setError(`The request was sent, but it could not be added to next steps. ${(stepError as Error).message}`); }
+        setSent({ owner: known(request.owner_id), saved: true });
+      } catch (stepError) { setSent({ owner: known(request.owner_id), saved: false }); setError(`The request was sent, but it could not be added to next steps. ${(stepError as Error).message}`); }
       setOpen(false);
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
@@ -132,8 +139,11 @@ function MissingEvidence({ groups, total, draft, coverage, work }: { groups: { s
       <p className="text-text-secondary">A draft, written from the gaps above. Change anything before it is sent; the request is theirs to answer and stays attributed to them.</p>
       <label className="block text-text-secondary">Subject<input aria-label="Subject" className={field} value={title} maxLength={160} onChange={e => setTitle(e.target.value)} /></label>
       <label className="block text-text-secondary">Request<textarea aria-label="Request" className={`${field} min-h-[132px] leading-5`} value={description} maxLength={2000} onChange={e => setDescription(e.target.value)} /></label>
-      <label className="block text-text-secondary">Who to ask<input aria-label="Who to ask" className={field} value={owner} maxLength={160} required placeholder="Their sign-in name" onChange={e => setOwner(e.target.value)} />
-        <span className="mt-1 block text-[11px] text-text-tertiary">The name they sign in with. The request appears in their work.</span></label>
+      <label className="block text-text-secondary">Who to ask{people?.length
+        ? <select aria-label="Who to ask" className={field} value={owner} required onChange={e => setOwner(e.target.value)}><option value="">Choose a colleague…</option>
+          {people.map(person => <option key={person.id} value={person.id}>{person.label}</option>)}</select>
+        : <input aria-label="Who to ask" className={field} value={owner} maxLength={160} required placeholder="Their sign-in name" onChange={e => setOwner(e.target.value)} />}
+        <span className="mt-1 block text-[11px] text-text-tertiary">They are notified and it appears under “Needs you” on their overview. Their reply comes back to this step.</span></label>
       <div className="flex flex-wrap gap-2"><button type="submit" className={primaryButton} disabled={busy || !owner.trim()}>{busy && <Loader2 size={13} className="animate-spin" />}{busy ? 'Sending…' : 'Send request'}</button>
         <button type="button" className={workButton} disabled={busy} onClick={() => setOpen(false)}>Cancel</button></div>
     </form>}

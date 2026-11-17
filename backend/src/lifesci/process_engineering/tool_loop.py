@@ -27,6 +27,13 @@ RECALL, OPEN, REMEMBER, OPEN_MEMORY = 'recall', 'open_result', 'remember', 'open
 CALL_SECONDS = 150.  # one loop step is small; a call that hangs this long is cut off (live: 300 s hangs, 1,223 s turn)
 RESULT_CHARS = 20000  # what the model sees of one tool result (a delivery summary with its standouts and series fits); the full result is saved
 ASK = 'ask_user'
+# Measured 2026-11-16 on GLM-5.3 (docs/research/assistant-speed-20261116.md): below its fullest reasoning the model
+# answered as well and two to four times sooner, but in two of twelve multi-step cases it saved a value it had worked
+# out wrongly, which it never did at its fullest. So lookups and answers run at the deployment's level, and the first
+# step that would save a proposal or a result is not carried out as written: it is taken again at the fullest level,
+# and the turn stays at that level from there (two levels taking turns undid each other's work). If that second
+# thought does not finish, nothing is saved and the answer says so.
+COMMITS, BELOW_FULLEST, FULLEST = ('propose', 'record'), ('low', 'medium', 'high'), 'max'
 INTERNAL_ID = re.compile(r'^[a-z]+_[0-9A-Z]{16,}$')
 
 INSTRUCTIONS = """You are the manufacturing workspace assistant. Answer the person's question from records they are allowed to see, using the tools.
@@ -82,11 +89,20 @@ Domain:
 
 
 def enabled(ctx) -> bool:
-    """ASSISTANT_LOOP=tools for every workspace, =planner for none; unset: demo workspaces use the tool loop."""
+    """ASSISTANT_LOOP=tools for every workspace, =planner for none; unset or any other word (the deploy template
+    calls it "demo"): demo workspaces use the tool loop and everyone else the planner."""
     mode = os.environ.get('ASSISTANT_LOOP', '').strip().lower()
     if mode in ('tools', 'planner'):
         return mode == 'tools'
     return ctx.tenant_id.startswith('demo_')
+
+
+def commits(name: str) -> bool:
+    """A tool that saves a proposal or a result for other people to act on. Lookups, host calculations and the
+    assistant's own notes are not."""
+    # ponytail: told by its name (workspace_propose_action, lyopronto_record_result). A flag on the tool, if a third
+    # wording appears.
+    return any(word in COMMITS for word in name.split('_'))
 
 
 def _function(name: str, schema: dict[str, Any]) -> dict[str, Any]:
@@ -346,6 +362,30 @@ class ToolLoop:
         checkpoint(context_used=self.s._context_used(shown.get('mission_context') or {}),
                    capabilities_used=shown.get('capabilities_used', []))
         names = {t['function']['name'] for t in tools}
+
+        careful = bool(log.get('careful'))  # the turn has reached a saving step: every later step runs at the fullest level
+
+        def ask(tool_choice, second_thought=False):
+            """One model step, recorded on the turn. None when it failed; unless it was a second thought, the turn has
+            then been ended visibly."""
+            nonlocal model_calls
+            result = self.p.gateway.converse(TaskRequest(
+                'investigation_planning', ctx, system=INSTRUCTIONS, inputs=[r.to_dict() for r in refs],
+                mission_id=thread['mission_id'], timeout_s=CALL_SECONDS, prompt_version='tool-loop-v1',
+                # A second thought that stalls is given up on after one try: the person is already waiting on it.
+                max_provider_calls=1 if second_thought else 2),
+                messages, tools, tool_choice=tool_choice, reasoning_effort=FULLEST if careful or second_thought else None)
+            model_calls += 1
+            current = self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', turn_id).state
+            checkpoint(gateway_runs=[*current['gateway_runs'], result.to_dict()], planning_calls_admitted=model_calls)
+            if result.status == 'completed':
+                return result
+            if not second_thought:
+                checkpoint(status='agent_unavailable', issues=result.issues, reply=None,
+                           system_message='The assistant could not finish this answer. Your message and any results so far '
+                                          'are saved; try again.')
+            return None
+
         while True:
             pointers = {st['node_id']: {'result_id': st['result_id'], 'title': st['title']} for st in steps if st.get('result_id')}
             fits = compact(messages, pointers)
@@ -354,20 +394,22 @@ class ToolLoop:
             if last_call:
                 messages.append({'role': 'user', 'content': 'Budget reached. Answer now from the results above, without tools; '
                                  'say plainly what you could not check.'})
-            result = self.p.gateway.converse(TaskRequest(
-                'investigation_planning', ctx, system=INSTRUCTIONS, inputs=[r.to_dict() for r in refs],
-                mission_id=thread['mission_id'], timeout_s=CALL_SECONDS, max_provider_calls=2, prompt_version='tool-loop-v1'),
-                messages, tools, tool_choice='none' if last_call else 'auto')
-            model_calls += 1
-            current = self.p.store.read().require(ctx.tenant_id, 'engineering_chat_turn', turn_id).state
-            checkpoint(gateway_runs=[*current['gateway_runs'], result.to_dict()], planning_calls_admitted=model_calls)
-            if result.status != 'completed':
-                checkpoint(status='agent_unavailable', issues=result.issues, reply=None,
-                           system_message='The assistant could not finish this answer. Your message and any results so far '
-                                          'are saved; try again.')
+            result = ask('none' if last_call else 'auto')
+            if result is None:
                 return
-            content = (result.output['content'] or '').strip()
             calls = result.output['tool_calls'] if not last_call else []
+            unchecked: dict[str, str] = {}
+            if any(commits(c['name']) for c in calls) and result.output.get('reasoning_effort') in BELOW_FULLEST:
+                hasty = {c['id']: 'no step was left' for c in calls if commits(c['name'])}
+                if model_calls >= MAX_MODEL_CALLS - 1:  # no room to think again and still answer
+                    unchecked = hasty
+                else:
+                    again = ask('auto', second_thought=True)  # the first version is dropped: it was never run
+                    if again is None:
+                        unchecked = {k: 'the check did not finish' for k in hasty}
+                    else:
+                        result, calls, careful = again, again.output['tool_calls'], True
+            content = (result.output['content'] or '').strip()
             if not calls:
                 messages.append({'role': 'assistant', 'content': content})
                 self._finish(ctx, thread, turn_id, checkpoint, _with_draft(draft, content), [], shown, sources, messages)
@@ -387,6 +429,9 @@ class ToolLoop:
                     args, error = {}, f'invalid arguments: {exc}'
                 else:
                     error = None
+                if call['id'] in unchecked:
+                    error = (f"not saved: it has to be checked at full reasoning first, and {unchecked[call['id']]}. Give the "
+                             'result in your answer and say that it was not saved.')
                 if call['name'] == ASK and not error:
                     messages.append({'role': 'tool', 'tool_call_id': call['id'], 'content': '{"status": "asked"}'})
                     self._finish(ctx, thread, turn_id, checkpoint, _with_draft(draft, content), [str(args.get('question', '')).strip()], shown, sources, messages)
@@ -433,7 +478,7 @@ class ToolLoop:
                 tool_calls += 1
                 messages.append({'role': 'tool', 'tool_call_id': call['id'], 'content': _for_model(shown_result)})
                 checkpoint(tool_steps=steps, _loop={'messages': messages, 'model_calls': model_calls, 'draft': draft,
-                                                   'seconds': monotonic() - started})
+                                                   'seconds': monotonic() - started, 'careful': careful})
 
     def _finish(self, ctx, thread, turn_id, checkpoint, reply, questions, shown, sources, messages=None) -> None:
         from .conversation_schemas import ChatDecision

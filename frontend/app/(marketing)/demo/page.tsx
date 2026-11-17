@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowRight, ClipboardCheck, FlaskConical, Gauge, Loader2, Workflow } from 'lucide-react';
 import { BrandMark } from '@/components/shell/BrandMark';
 import { Turnstile, TURNSTILE_SITE_KEY, type TurnstileHandle } from '@/components/demo/Turnstile';
-import { adoptLocalDemoTenant, DemoSignedInError, selectOrganization, signInAvailable, signInForDemo, signOut } from '@/lib/auth';
+import { adoptLocalDemoTenant, DemoSignedInError, LANDING, selectOrganization, signInAvailable, signInForDemo, signOut } from '@/lib/auth';
 import { CONTACT_URL, startDemo, type Persona } from '@/lib/demo-api';
 import { ProcessApiError } from '@/lib/process-api';
 
@@ -38,7 +38,7 @@ export default function DemoStartPage() {
       const tenant = workspace.tenant_id ?? workspace.organization_id;
       if (tenant) adoptLocalDemoTenant(tenant);
       await selectOrganization(workspace.organization_id ?? tenant ?? '');
-      window.location.assign('/home/?scenarios=1');
+      window.location.assign(LANDING);
     } catch (e) {
       if (e instanceof ProcessApiError && (e.status === 429 || e.status === 503)) setCapacity(true);
       if (e instanceof DemoSignedInError) setSignedIn(true);
