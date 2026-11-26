@@ -1,9 +1,11 @@
 """Fit lyophilization temperatures/endpoints with whole-batch validation."""
 import argparse
+import csv
 import hashlib
 import json
 import math
 from collections import defaultdict
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -12,7 +14,10 @@ import torch
 from .artifact import save_artifact, sha256, write_json
 from .config import LyoModelConfig, LyoTrainConfig, seed_everything
 from .loss import lyophilization_loss
-from .lyo_data import LyoBatch, LyoDataset, load_dataset, make_dataset, save_dataset, validate_splits
+from .lyo_data import (
+    LyoBatch, LyoDataset, load_dataset, load_simulation_dataset, make_dataset, save_dataset,
+    validate_splits,
+)
 from .model import HybridLyophilizationUDE, LyophilizationSolver
 
 
@@ -97,68 +102,92 @@ def train(data: LyoDataset, output: Path, config: LyoTrainConfig | None = None,
     history, best, stale = [], float("inf"), 0
     checkpoint = output / "best.safetensors"
     warmup_epochs = int(config.epochs*config.warmup_fraction)
-    for epoch in range(config.epochs):
-        warmup = epoch < warmup_epochs
-        # Physics-first warmup preserves full trajectories and duration targets.
-        model.residual_mlp.requires_grad_(not warmup)
-        model.train()
-        sums, count = defaultdict(float), 0
-        grad_phys, grad_mlp, nfes = [], [], []
-        for group in minibatches(data.train, config.batch_size, rng):
-            optimizer.zero_grad(set_to_none=True)
-            solution = solve_batches(solver, group)
-            terms = lyophilization_loss(model, solution, group, config)
-            if not all(torch.isfinite(value).all() for value in terms.values()):
-                raise RuntimeError("Nonfinite lyophilization training objective")
-            terms["total"].backward()
-            grad_phys.append(gradient_norm(model.physics_core.parameters()))
-            grad_mlp.append(gradient_norm(model.residual_mlp.parameters()))
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1., error_if_nonfinite=True)
-            optimizer.step()
-            if not all(torch.isfinite(p).all() for p in model.parameters()):
-                raise RuntimeError("Nonfinite model parameters after optimizer step")
-            for name, value in terms.items():
-                sums[name] += float(value.detach())*len(group)
-            count += len(group)
-            nfes.extend(solution.stats["n_f_evals"].tolist())
-        model.eval()
-        validation = _validation(model, solver, data.val, config)
-        row = {"epoch": epoch, "phase": "physics_only" if warmup else "hybrid",
-               "train": {name: value/count for name, value in sums.items()}, "validation": validation,
-               "train_loss": sums["total"]/count, "val_loss": validation["total"],
-               "grad_norm_phys": float(np.mean(grad_phys)), "grad_norm_mlp": float(np.mean(grad_mlp)),
-               "mean_n_f_evals": float(np.mean(nfes))}
-        history.append(row)
-        print(f"epoch={epoch} phase={row['phase']} train_loss={row['train_loss']:.7g} "
-              f"val_loss={row['val_loss']:.7g} nfe={row['mean_n_f_evals']:.1f}", flush=True)
-        if row["val_loss"] < best-config.min_delta:
-            best, stale = row["val_loss"], 0
-            save_artifact(model, checkpoint, {
-                "train": config.model_dump(), "dataset_seed": data.seed, "split_ids": data.split_ids(),
-                "data_sha256": {name: data_fingerprint(getattr(data, name)) for name in data.split_ids()},
-                "dataset_file": "dataset.json", "dataset_sha256": sha256(output / "dataset.json"),
-                "data_provenance": data.provenance, "best_epoch": epoch, "val_loss": best,
-                "objective": "equal-vial normalized temperature/layer/endpoint + validity/coverage/residual penalties",
-                "initial_state_source": "explicit supplied initial dried-layer state",
-                "warmup": "freeze residual network; always solve full time window",
-            })
-        elif not warmup:
-            stale += 1
-        if stale >= config.patience:
-            break
+    with (output / "training_metrics.csv").open("w", newline="") as metrics_file:
+        metrics = csv.DictWriter(
+            metrics_file, ("epoch", "phase", "train_loss", "val_loss", "physics_lr", "residual_lr"),
+            extrasaction="ignore",
+        )
+        metrics.writeheader()
+        metrics_file.flush()
+        for epoch in range(config.epochs):
+            warmup = epoch < warmup_epochs
+            # Physics-first warmup preserves full trajectories and duration targets.
+            model.residual_mlp.requires_grad_(not warmup)
+            model.train()
+            physics_lr, residual_lr = (group["lr"] for group in optimizer.param_groups)
+            sums, count = defaultdict(float), 0
+            grad_phys, grad_mlp, nfes = [], [], []
+            for group in minibatches(data.train, config.batch_size, rng):
+                optimizer.zero_grad(set_to_none=True)
+                solution = solve_batches(solver, group)
+                terms = lyophilization_loss(model, solution, group, config)
+                if not all(torch.isfinite(value).all() for value in terms.values()):
+                    raise RuntimeError("Nonfinite lyophilization training objective")
+                terms["total"].backward()
+                grad_phys.append(gradient_norm(model.physics_core.parameters()))
+                grad_mlp.append(gradient_norm(model.residual_mlp.parameters()))
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1., error_if_nonfinite=True)
+                optimizer.step()
+                if not all(torch.isfinite(p).all() for p in model.parameters()):
+                    raise RuntimeError("Nonfinite model parameters after optimizer step")
+                for name, value in terms.items():
+                    sums[name] += float(value.detach())*len(group)
+                count += len(group)
+                nfes.extend(solution.stats["n_f_evals"].tolist())
+            model.eval()
+            validation = _validation(model, solver, data.val, config)
+            row = {"epoch": epoch, "phase": "physics_only" if warmup else "hybrid",
+                   "train": {name: value/count for name, value in sums.items()}, "validation": validation,
+                   "train_loss": sums["total"]/count, "val_loss": validation["total"],
+                   "physics_lr": physics_lr, "residual_lr": residual_lr,
+                   "grad_norm_phys": float(np.mean(grad_phys)), "grad_norm_mlp": float(np.mean(grad_mlp)),
+                   "mean_n_f_evals": float(np.mean(nfes))}
+            history.append(row)
+            metrics.writerow(row)
+            metrics_file.flush()
+            print(f"epoch={epoch} phase={row['phase']} train_loss={row['train_loss']:.7g} "
+                  f"val_loss={row['val_loss']:.7g} physics_lr={physics_lr:g} "
+                  f"residual_lr={residual_lr:g} nfe={row['mean_n_f_evals']:.1f}", flush=True)
+            if row["val_loss"] < best-config.min_delta:
+                best, stale = row["val_loss"], 0
+                save_artifact(model, checkpoint, {
+                    "train": config.model_dump(), "dataset_seed": data.seed, "split_ids": data.split_ids(),
+                    "data_sha256": {name: data_fingerprint(getattr(data, name)) for name in data.split_ids()},
+                    "dataset_file": "dataset.json", "dataset_sha256": sha256(output / "dataset.json"),
+                    "data_provenance": data.provenance, "best_epoch": epoch, "val_loss": best,
+                    "objective": "equal-vial normalized temperature/layer/endpoint + validity/coverage/residual penalties",
+                    "initial_state_source": "explicit supplied initial dried-layer state",
+                    "warmup": "freeze residual network; always solve full time window",
+                })
+            elif not warmup:
+                stale += 1
+            if stale >= config.patience:
+                break
     write_json(output / "training_history.json", history)
     return checkpoint
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data", type=Path, help="SI lyophilization dataset JSON; otherwise use labeled synthetic data")
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--data", type=Path, help="SI lyophilization dataset JSON")
+    source.add_argument("--simulation-dir", type=Path, help="Split files generated by biocore.simulation")
     parser.add_argument("--output", type=Path, default=Path("artifacts/lyophilization"))
-    parser.add_argument("--epochs", type=int, default=120)
+    parser.add_argument("--epochs", type=int, help="Maximum epochs (default: 120, or 5 in smoke mode)")
+    parser.add_argument("--smoke", action="store_true", help="Use one batch from each available split")
     parser.add_argument("--seed", type=int, default=2023)
     args = parser.parse_args()
-    data = load_dataset(args.data) if args.data else make_dataset(args.seed)
-    path = train(data, args.output, LyoTrainConfig(seed=args.seed, epochs=args.epochs))
+    epochs = args.epochs if args.epochs is not None else (5 if args.smoke else 120)
+    config = LyoTrainConfig(seed=args.seed, epochs=epochs)
+    if args.simulation_dir:
+        data = load_simulation_dataset(args.simulation_dir)
+    elif args.data:
+        data = load_dataset(args.data)
+    else:
+        data = make_dataset(args.seed)
+    if args.smoke:
+        data = replace(data, train=data.train[:1], val=data.val[:1], test=data.test[:1], faults=data.faults[:1])
+    path = train(data, args.output, config)
     print(f"Lyophilization checkpoint: {path}")
 
 

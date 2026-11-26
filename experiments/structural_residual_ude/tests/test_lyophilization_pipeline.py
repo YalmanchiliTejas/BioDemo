@@ -1,4 +1,5 @@
 """End-to-end fitting and evidence contracts for the lyophilization pipeline."""
+import csv
 from dataclasses import replace
 import json
 
@@ -9,7 +10,9 @@ from biocore.method_a.artifact import load_artifact, save_artifact, sha256, writ
 from biocore.method_a.config import DTYPE, LyoModelConfig, LyoTrainConfig, seed_everything
 from biocore.method_a.evaluate import evaluate, few_shot_scaling, score_model
 from biocore.method_a.loss import lyophilization_loss
-from biocore.method_a.lyo_data import load_dataset, make_dataset, save_dataset, validate_splits
+from biocore.method_a.lyo_data import (
+    load_dataset, load_simulation_dataset, make_dataset, save_dataset, validate_splits,
+)
 from biocore.method_a.model import HybridLyophilizationUDE, LyophilizationSolver
 from biocore.method_a.train import data_fingerprint, minibatches, solve_batches, train
 
@@ -39,6 +42,38 @@ def test_dataset_roundtrip_and_provenance(data, tmp_path):
         validate_splits(replace(data, val=(data.train[0],)))
     with pytest.raises(ValueError, match="evaluation-only"):
         validate_splits(replace(data, train=(replace(data.train[0], fault=True),)))
+
+
+def test_simulation_splits_keep_sparse_observations_and_endpoint(tmp_path):
+    write_json(tmp_path / "metadata.json", {"plant_constants": {"frozen_height": .006}})
+    source = {
+        "y0": torch.zeros((1, 1), dtype=DTYPE),
+        "t_eval": torch.tensor([[0., 250., 810.]], dtype=DTYPE),
+        "process_args": torch.tensor([[251., 13.]], dtype=DTYPE),
+        "tb_obs_k": torch.tensor([[240., 241., 242.]], dtype=DTYPE),
+        "ld_obs_m": torch.tensor([[0., float("nan"), .005]], dtype=DTYPE),
+        "ld_mask": torch.tensor([[True, False, True]]),
+        "t_end_sec": torch.tensor([900.], dtype=DTYPE),
+    }
+    modes = {"train": "normal", "val": "normal", "test_normal": "normal",
+             "test_fault": "kv_edge_fault"}
+    for name, mode in modes.items():
+        torch.save(dict(source, fault_modes=[mode]), tmp_path / f"{name}.pt")
+
+    imported = load_simulation_dataset(tmp_path)
+    assert imported.split_ids() == dict(train=["train-000"], val=["val-000"],
+                                        test=["test_normal-000"], faults=["test_fault-000"])
+    assert imported.completion_remaining_fraction == .001
+    assert imported.faults[0].fault
+    assert imported.provenance["fault_modes"] == {"test_fault-000": "kv_edge_fault"}
+    assert imported.provenance["source_splits"]["train"]["sha256"] == sha256(tmp_path / "train.pt")
+    batch = imported.train[0]
+    assert batch.times.tolist() == [0., 250., 810., 900.]
+    assert batch.duration_s == 900.
+    assert batch.process_args.tolist() == [251., 13., .006]
+    assert batch.primary_mask.tolist() == [True, True, True, False]
+    assert batch.obs_mask.tolist() == [[True, True], [True, False], [True, True], [False, False]]
+    assert batch.observations[batch.obs_mask].tolist() == [240., 0., 241., 242., .005]
 
 
 @pytest.mark.parametrize("corruption", ["units", "nonfinite", "mask", "mask_type", "endpoint"])
@@ -169,6 +204,16 @@ def test_training_provenance_warmup_and_evaluation(data, tmp_path):
     config = LyoTrainConfig(epochs=3, warmup_fraction=.34, batch_size=2)
     path = train(data, tmp_path/"run", config)
     history = json.loads((path.parent/"training_history.json").read_text())
+    with (path.parent/"training_metrics.csv").open(newline="") as metrics_file:
+        metrics = list(csv.DictReader(metrics_file))
+    assert len(metrics) == len(history) == config.epochs
+    for metric, row in zip(metrics, history):
+        assert int(metric["epoch"]) == row["epoch"]
+        assert metric["phase"] == row["phase"]
+        for key in ("train_loss", "val_loss", "physics_lr", "residual_lr"):
+            assert float(metric[key]) == row[key]
+        assert row["physics_lr"] == config.physics_lr
+        assert row["residual_lr"] == config.residual_lr
     assert history[0]["phase"] == "physics_only" and history[0]["grad_norm_mlp"] == 0.
     assert history[1]["phase"] == "hybrid" and history[1]["grad_norm_mlp"] > 0.
     assert {"temperature", "duration", "coverage", "operating", "residual", "state", "total"} == set(history[0]["train"])

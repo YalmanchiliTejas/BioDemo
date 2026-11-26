@@ -31,6 +31,49 @@ coverage and censoring; it does not assert monotonic improvement. The default is
 zero extra fits. `--report-only` writes melt-bound diagnostics without raising
 the strict physical-validity error. Solver/nonfinite failures still raise.
 
+### Smoke test with the simulator
+
+From this directory, after installing the experiment, generate the split files once
+and run a five-epoch check using one batch from each split.
+
+```bash
+.venv/bin/python -m biocore.simulation --output artifacts/simulated
+.venv/bin/python -m biocore.method_a.train --simulation-dir artifacts/simulated --smoke --output artifacts/smoke
+cat artifacts/smoke/training_metrics.csv
+.venv/bin/python -m biocore.method_a.evaluate artifacts/smoke/best.safetensors --output artifacts/smoke-evaluation
+```
+
+`--simulation-dir` uses the simulator's 20 training, 10 validation, 10 normal
+test and 10 fault test batches. It keeps the irregular timestamps and sparse layer
+observations and extends the solve window to the recorded endpoint with a masked
+sensor row. The endpoint is the first simulator grid sample with at most 0.1% of
+the layer remaining. The run records the source split seeds and hashes.
+
+### Submit to Slurm
+
+Install the experiment in `.venv` on the cluster with the setup commands above,
+or set `BIOCORE_PYTHON` to the Python executable of a shared environment where
+the experiment is installed. From this directory, submit the smoke job.
+
+```bash
+SIM_DATA="$SCRATCH/biocore-lyo/simulation"
+.venv/bin/python -m biocore.simulation --output "$SIM_DATA"
+SBATCH_TIMELIMIT=00:15:00 ./slurm.sh --simulation-dir "$SIM_DATA" --smoke
+```
+
+Set `SBATCH_ACCOUNT` or `SBATCH_PARTITION` if your cluster requires them. The
+launcher requests one CPU and 4 GB of memory by default. It writes job logs to
+`$SCRATCH/biocore-lyo/slurm-<jobid>.out` and `.err`, and training artifacts to
+`$SCRATCH/biocore-lyo/run-<jobid>/`. Set `BIOCORE_RUN_ROOT` to use a different
+shared output directory.
+
+After checking the smoke job's CSV and checkpoint, reuse the same split files
+for a full run.
+
+```bash
+./slurm.sh --simulation-dir "$SIM_DATA" --epochs 120
+```
+
 ## Observations and SI data contract
 
 `lyo_data.py` defines `LyoBatch` and `LyoDataset`. A batch has:
@@ -72,7 +115,7 @@ and optional `fault`. Train/val/test must be nonempty and all IDs disjoint;
 faults may be empty for experimental data. Include source identifiers, revisions
 and the origin of the primary mask/endpoint definition in `provenance`.
 
-The synthetic generator uses an independent NumPy RK4 plant with scalar
+The default synthetic generator uses an independent NumPy RK4 plant with scalar
 bisection for the heat/mass balance. Defaults: 15 train, 10 validation, 15 normal
 test and 10 evaluation-only 35%-higher-cake-resistance cases; variable fill heights,
 shelf ramps, 12–15 irregular timestamps plus a measured endpoint, 0.15 K sensor
@@ -199,7 +242,8 @@ declare process accuracy based on synthetic thresholds.
 | `best.json` | Schema v2, model type, SI units, model/training config, software versions, best validation epoch, source provenance, split IDs and fingerprints. |
 | `best.sha256.json` | Weight/sidecar integrity hashes. Hashes detect changes, not publisher authenticity. |
 | `dataset.json` | Actual observed input snapshot; no synthetic truth. Its hash is frozen in artifact metadata. |
-| `training_history.json` | Each loss component, phase, parameter-group gradient norms, solver work, full validation objective. |
+| `training_metrics.csv` | Flushed after each epoch. Contains train/validation loss, phase and both Adam learning rates. The residual group is frozen during `physics_only`. |
+| `training_history.json` | Written at the end of training. Contains loss components, phase, learning rates, gradient norms and solver work. |
 | `evaluation.json` | Held-out metrics, coverage/censoring, coefficient values, physical-validity diagnostics and limitations. |
 | `method_b_handoff.json` | Schema v2 SI trajectories with observed masks, discrepancies, heat/sublimation, Kv/Rp priors/corrections, endpoint status and validity flags. Undefined temperatures are null. |
 

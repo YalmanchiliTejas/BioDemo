@@ -4,6 +4,7 @@ The plant is for software checks, not experimental validation. No torch model,
 neural parameters, or benchmark truth is used by the training data loader.
 """
 from dataclasses import dataclass, field
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -11,6 +12,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from ..simulation import COMPLETION_REMAINING_FRACTION, SPLIT_SEEDS
 from .config import DTYPE
 
 UNITS = {"time": "s", "temperature": "K", "pressure": "Pa", "length": "m"}
@@ -197,6 +199,65 @@ def make_dataset(seed: int = 2023, split_sizes=(15, 10, 15, 10)) -> LyoDataset:
                       {"kind": "synthetic", "generator": "numpy-rk4-bisection-lyo-v1",
                        "plant_coefficients": PLANT_COEFFICIENTS, "sensor_noise_sd_k": .15,
                        "endpoint_noise_sd_s": 180., "fault": "35% higher cake resistance"})
+    validate_splits(data)
+    return data
+
+
+def load_simulation_dataset(directory: Path) -> LyoDataset:
+    """Adapt the four split files from biocore.simulation to observed batches."""
+    directory = Path(directory)
+    metadata = json.loads((directory / "metadata.json").read_text())
+    height = float(metadata["plant_constants"]["frozen_height"])
+    completion = metadata.get("completion_remaining_fraction", COMPLETION_REMAINING_FRACTION)
+    seeds = metadata.get("split_seeds", SPLIT_SEEDS)
+    groups, sources, faults = {}, {}, {}
+    for split, name in (("train", "train"), ("val", "val"),
+                        ("test", "test_normal"), ("faults", "test_fault")):
+        path = directory / f"{name}.pt"
+        with path.open("rb") as stream:
+            sources[name] = {"file": path.name, "seed": seeds[name],
+                             "sha256": hashlib.file_digest(stream, "sha256").hexdigest()}
+            stream.seek(0)
+            source = torch.load(stream, map_location="cpu", weights_only=True)
+        fields = ("t_eval", "process_args", "tb_obs_k", "ld_obs_m",
+                  "ld_mask", "t_end_sec", "fault_modes")
+        n_batches = len(source["y0"])
+        if any(len(source[key]) != n_batches for key in fields):
+            raise ValueError(f"Mismatched batch counts in {path.name}")
+        if source["process_args"].shape != (n_batches, 2):
+            raise ValueError(f"Expected shelf temperature and chamber pressure in {path.name}")
+        batches = []
+        for i, mode in enumerate(source["fault_modes"]):
+            batch_id = f"{name}-{i:03d}"
+            fault = mode != "normal"
+            if fault != (split == "faults"):
+                raise ValueError(f"Unexpected fault mode {mode!r} in {batch_id}")
+            if fault:
+                faults[batch_id] = mode
+            times = source["t_eval"][i]
+            endpoint = source["t_end_sec"][i]
+            if not times[-1] < endpoint:
+                raise ValueError(f"Expected samples before the drying endpoint in {batch_id}")
+            observations = torch.stack((source["tb_obs_k"][i], source["ld_obs_m"][i]), dim=-1)
+            layer_mask = source["ld_mask"][i]
+            mask = torch.stack((torch.ones_like(layer_mask), layer_mask), dim=-1)
+            controls = source["process_args"][i]
+            # Extend the solve window to the endpoint, where no sensor was sampled.
+            batches.append(LyoBatch(
+                batch_id, torch.cat((times, endpoint.reshape(1))), source["y0"][i],
+                torch.cat((controls, controls.new_tensor([height]))),
+                torch.cat((observations, observations.new_full((1, 2), math.nan))),
+                torch.cat((mask, mask.new_zeros((1, 2)))),
+                torch.cat((mask[:, 0], mask.new_zeros(1))),
+                duration_s=float(endpoint), fault=fault,
+            ))
+        groups[split] = tuple(batches)
+    data = LyoDataset(
+        **groups, seed=seeds["train"], completion_remaining_fraction=completion,
+        provenance={"kind": "synthetic", "generator": "biocore.simulation",
+                    "source_splits": sources, "fault_modes": faults,
+                    "endpoint": "first simulated grid sample at or below the remaining fraction"},
+    )
     validate_splits(data)
     return data
 
