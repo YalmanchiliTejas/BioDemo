@@ -46,6 +46,14 @@ CREATE TABLE IF NOT EXISTS cmo_delivery_files (
   PRIMARY KEY (tenant_id, delivery_id, path), UNIQUE (tenant_id, delivery_id, position),
   FOREIGN KEY (tenant_id, delivery_id) REFERENCES cmo_deliveries (tenant_id, id));
 
+-- What intake did with every uploaded file, including the ones not read (nothing is dropped silently).
+CREATE TABLE IF NOT EXISTS cmo_delivery_intake (
+  tenant_id TEXT NOT NULL, delivery_id TEXT NOT NULL, position INTEGER NOT NULL, source TEXT NOT NULL, path TEXT NOT NULL,
+  outcome TEXT NOT NULL CHECK (outcome IN ('added','renamed','duplicate','set_aside','unreadable','system','blocked')),
+  reason TEXT NOT NULL, size_bytes BIGINT NOT NULL, sha256 TEXT NOT NULL,
+  PRIMARY KEY (tenant_id, delivery_id, position),
+  FOREIGN KEY (tenant_id, delivery_id) REFERENCES cmo_deliveries (tenant_id, id));
+
 CREATE TABLE IF NOT EXISTS cmo_templates (
   tenant_id TEXT NOT NULL, id TEXT NOT NULL, cmo TEXT NOT NULL, fingerprint TEXT NOT NULL, kind TEXT NOT NULL,
   version INTEGER NOT NULL, mapping TEXT NOT NULL, headers TEXT NOT NULL, actor TEXT NOT NULL, at TEXT NOT NULL,
@@ -144,6 +152,8 @@ DROP TRIGGER IF EXISTS cmo_deliveries_append_only ON cmo_deliveries;
 CREATE TRIGGER cmo_deliveries_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON cmo_deliveries FOR EACH STATEMENT EXECUTE FUNCTION cmo_append_only();
 DROP TRIGGER IF EXISTS cmo_delivery_files_append_only ON cmo_delivery_files;
 CREATE TRIGGER cmo_delivery_files_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON cmo_delivery_files FOR EACH STATEMENT EXECUTE FUNCTION cmo_append_only();
+DROP TRIGGER IF EXISTS cmo_delivery_intake_append_only ON cmo_delivery_intake;
+CREATE TRIGGER cmo_delivery_intake_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON cmo_delivery_intake FOR EACH STATEMENT EXECUTE FUNCTION cmo_append_only();
 DROP TRIGGER IF EXISTS cmo_templates_append_only ON cmo_templates;
 CREATE TRIGGER cmo_templates_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON cmo_templates FOR EACH STATEMENT EXECUTE FUNCTION cmo_append_only();
 DROP TRIGGER IF EXISTS cmo_ignore_rules_append_only ON cmo_ignore_rules;
@@ -151,7 +161,7 @@ CREATE TRIGGER cmo_ignore_rules_append_only BEFORE UPDATE OR DELETE OR TRUNCATE 
 
 -- 2. Tenant row-level security --------------------------------------------------
 DO $$ DECLARE t text; BEGIN
-  FOREACH t IN ARRAY ARRAY['cmo_workspaces','cmo_deliveries','cmo_delivery_files','cmo_templates','cmo_runs','cmo_run_notes','cmo_run_stages','cmo_documents','cmo_layouts','cmo_elements','cmo_issues','cmo_measurements','cmo_measurement_rules','cmo_extraction_reviews','cmo_ignore_rules'] LOOP
+  FOREACH t IN ARRAY ARRAY['cmo_workspaces','cmo_deliveries','cmo_delivery_files','cmo_delivery_intake','cmo_templates','cmo_runs','cmo_run_notes','cmo_run_stages','cmo_documents','cmo_layouts','cmo_elements','cmo_issues','cmo_measurements','cmo_measurement_rules','cmo_extraction_reviews','cmo_ignore_rules'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', t);
@@ -161,14 +171,14 @@ DO $$ DECLARE t text; BEGIN
 END $$;
 
 -- 3. Runtime role: insert-only except the columns the application updates -------
-GRANT SELECT, INSERT ON cmo_workspaces, cmo_deliveries, cmo_delivery_files, cmo_templates, cmo_run_notes, cmo_documents, cmo_layouts, cmo_elements, cmo_measurement_rules, cmo_extraction_reviews, cmo_ignore_rules TO "lifesci_app";
+GRANT SELECT, INSERT ON cmo_workspaces, cmo_deliveries, cmo_delivery_files, cmo_delivery_intake, cmo_templates, cmo_run_notes, cmo_documents, cmo_layouts, cmo_elements, cmo_measurement_rules, cmo_extraction_reviews, cmo_ignore_rules TO "lifesci_app";
 GRANT SELECT, INSERT, UPDATE ON cmo_runs, cmo_run_stages, cmo_issues, cmo_measurements TO "lifesci_app";
 
 -- 4. Close the Supabase Data API ----------------------------------------------
 DO $$ DECLARE r text; BEGIN
   FOREACH r IN ARRAY ARRAY['anon','authenticated'] LOOP
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
-      EXECUTE format('REVOKE ALL ON cmo_workspaces, cmo_deliveries, cmo_delivery_files, cmo_templates, cmo_runs, cmo_run_notes, cmo_run_stages, cmo_documents, cmo_layouts, cmo_elements, cmo_issues, cmo_measurements, cmo_measurement_rules, cmo_extraction_reviews, cmo_ignore_rules FROM %I', r);
+      EXECUTE format('REVOKE ALL ON cmo_workspaces, cmo_deliveries, cmo_delivery_files, cmo_delivery_intake, cmo_templates, cmo_runs, cmo_run_notes, cmo_run_stages, cmo_documents, cmo_layouts, cmo_elements, cmo_issues, cmo_measurements, cmo_measurement_rules, cmo_extraction_reviews, cmo_ignore_rules FROM %I', r);
       
     END IF;
   END LOOP;

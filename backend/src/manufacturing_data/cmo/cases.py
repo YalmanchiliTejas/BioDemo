@@ -166,9 +166,13 @@ class CaseService:
             with tenant_scope(tenant): run=self.ingestion.get(entry['job_id'])
             active.append(run)
             versions.append({'job_id':entry['job_id'],'package_id':entry['id'],'hash':entry['hash'],'version':entry['version']})
+            checked=set()
             for m in run['measurements']:
                 if m['status'] in ACCEPTED:
-                    self.ingestion.original(run['id'],m['source_id'])
+                    # Each original is confirmed once, under the case's tenant, against the run already loaded.
+                    if m['source_id'] not in checked:
+                        with tenant_scope(tenant): self.ingestion.original(run['id'],m['source_id'],run=run)
+                        checked.add(m['source_id'])
                     rows.append({**m,'ingestion_id':run['id']})
             pending=sum(m['status']=='needs_review' for m in run['measurements'])
             if pending: gaps.append(f"{entry['name']}: {pending} unverified measurements excluded")
@@ -265,9 +269,10 @@ class CaseService:
         for item in self.imports(case_id,tenant):
             lines.append(f"- {item['name']}, version {item['version']}, {item['status']}; package hash {item['hash']}")
             if item['status']=='complete':
-                with tenant_scope(tenant): documents=self.ingestion.get(item['job_id'])['documents']
+                with tenant_scope(tenant): stored=self.ingestion.get(item['job_id'])
+                documents=stored['documents']
                 for doc in documents:
-                    self.ingestion.original(item['job_id'],doc['source_id'])
+                    with tenant_scope(tenant): self.ingestion.original(item['job_id'],doc['source_id'],run=stored)
                     lines.append(f"  - [{doc['path']}](/api/cmo-ingestion/runs/{item['job_id']}/sources/{doc['source_id']}); SHA-256 {doc['sha256']}")
         for job in jobs:
             result=job['result']

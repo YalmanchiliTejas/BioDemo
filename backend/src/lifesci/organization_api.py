@@ -38,6 +38,9 @@ def install_organization_api(app, platform, resolver, ctx_dep, multi_tenant, dev
     else:
         def account_actor(request: Request):
             claims = verifier.verify(request.headers.get('authorization'))
+            if claims.get('is_anonymous') is True and request.method == 'GET' and request.url.path == '/v1/account':
+                request.state.account_email = None  # demo visitors may list (only) their demo workspace
+                return claims['sub']
             if not claims.get('email') or claims.get('is_anonymous') is True:
                 raise HTTPException(403, 'A verified account is required')
             request.state.account_email = claims['email']

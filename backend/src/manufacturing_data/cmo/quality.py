@@ -172,3 +172,22 @@ def summarize(run):
 
 # Kept as public imports for existing delivery callers.
 from ...ingestion.verification import batch_completeness, expectations
+
+
+def provisional_payload(run):
+    """Values of a delivery that is still in review, with each value's review status and the open checks counted.
+    Nothing is accepted here on a reviewer's behalf; rejected values are left out."""
+    usable={'auto_accepted','accepted','corrected','needs_review'}
+    measurements=[m for m in run['measurements'] if m['status'] in usable]
+    issues=[i for i in run.get('issues',[]) if i.get('status')=='open']
+    counts={}
+    for i in issues: counts[i.get('rule_code','unclassified')]=counts.get(i.get('rule_code','unclassified'),0)+1
+    return {'schema_version':'provisional-cmo-1','run_id':run['id'],'cmo':run['cmo'],'verified':False,
+            'package_id':run.get('package_id'),'delivery_name':run.get('delivery_name'),'completed_at':run.get('completed_at'),
+            'superseded_by':run.get('superseded_by'),'disclosure':run.get('disclosure'),
+            'coverage':{k:v for k,v in (run.get('coverage') or {}).items() if k!='by_document'},
+            'review':{'verified_package':bool(run.get('summary',{}).get('verified_package')),
+                      'pending_values':sum(m['status']=='needs_review' for m in measurements),
+                      'rejected_values':sum(m['status']=='rejected' for m in run['measurements']),
+                      'open_issues':len(issues),'open_issue_counts':dict(sorted(counts.items()))},
+            'measurements':measurements}

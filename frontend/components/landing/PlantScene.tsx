@@ -136,7 +136,7 @@ export const PlantScene = forwardRef<SVGGElement, { className?: string; initial:
         <Box x={56} y={468} w={118} d={92} h={74} tone="crate" />
         <Quad face="top" at={74} a0={56} a1={174} b0={509} b1={519} fill="#0e7490" />
         <Quad face="left" at={560} a0={76} a1={150} b0={22} b1={52} fill="#f3efe7" stroke="#a39c8e" />
-        <Face face="left" x={84} y={560} z={42}><Label x={0} y={0} size={10} fill="#42413e">CMO · OCT</Label></Face>
+        <Face face="left" x={84} y={560} z={42}><Label x={0} y={0} size={10} fill="#42413e">CDMO · OCT</Label></Face>
         <Sheet x={84} y={476} z={74} w={52} d={36} tag="ZIP" tagFill="#42413e" />
         <Box x={196} y={500} w={70} d={56} h={40} tone="crate" />
         <Sheet x={206} y={508} z={40} w={46} d={34} tag="CoA" tagFill="#82807b" />

@@ -59,9 +59,31 @@ class Adapter:
 
 class ModelCatalog:
     def __init__(self, process_family='pharmaceutical_primary_drying'):
+        if process_family is None:
+            from ..process_models.registry import models
+            from .cho_adapter import CHOAdapter
+            self.adapters = {}
+            for family in ('pharmaceutical_primary_drying','chemical_batch_reaction','aerobic_fermentation'):
+                self.adapters.update(ModelCatalog(family).adapters)
+            self.adapters.update(models())
+            adapter = CHOAdapter(); self.adapters[adapter.id] = adapter
+            return
+        if process_family == 'cho_batch':
+            from .cho_adapter import CHOAdapter
+            adapter = CHOAdapter(); self.adapters = {adapter.id: adapter}; return
+        if process_family == 'chemical_batch_reaction':
+            from ..chemical_reactor.model import ReactorAdapter
+            adapter = ReactorAdapter()
+            self.adapters = {adapter.id: adapter}
+            return
         if process_family == 'aerobic_fermentation':
             from ..fermentation.model import adapters
             self.adapters = adapters()
+            return
+        from ..process_models.registry import models
+        reduced = {key: adapter for key, adapter in models().items() if adapter.family == process_family}
+        if reduced:
+            self.adapters = reduced
             return
         if process_family != 'pharmaceutical_primary_drying':
             raise ValueError('unknown physical process family')
@@ -80,4 +102,7 @@ class ModelCatalog:
         return self.adapters[model_id]
 
     def snapshot(self, config=None):
-        return [{**a.describe(), **({"applicability": a.applicability(config)} if config is not None else {})} for a in self.adapters.values()]
+        from .contracts import contract
+        from .hybrid import capabilities
+        return [{**a.describe(), "analysis_contract": contract(a), "hybrid_adaptation": capabilities(a.id),
+                 **({"applicability": a.applicability(config)} if config is not None else {})} for a in self.adapters.values()]

@@ -104,6 +104,15 @@ class LabRunIn(Command):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class CaseCloseIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    root_cause: str = Field(min_length=1, max_length=4000)
+    actions_taken: str = Field(min_length=1, max_length=4000)
+    outcome: str = Field(min_length=1, max_length=4000)
+    expected_revision: int
+    reason: str = Field(default="", max_length=2000)
+
+
 class CaseIn(Command):
     case_id: str
     owner_id: str
@@ -308,6 +317,10 @@ def install_suite_api(p: Any, app: Any, ctx_dep: Any, idempotent: Any) -> None:
     def case(body: CaseIn, ctx: AccessContext = Depends(ctx_dep), key: str | None = Header(None, alias="Idempotency-Key")):
         p.identity.require(ctx, "propose", "case", body.case_id, site_id=body.site_id)
         return command(ctx, key, "suite:case", body, lambda: p.cases.open(ctx, **body.model_dump()))
+
+    @app.post("/v1/quality/cases/{cid}/close")
+    def close_case(cid: str, body: CaseCloseIn, ctx: AccessContext = Depends(ctx_dep)):
+        return p.cases.close(ctx, cid, **body.model_dump())
 
     @app.post("/v1/quality/cases/{cid}/review-package", status_code=201)
     def package(cid: str, ctx: AccessContext = Depends(ctx_dep)):

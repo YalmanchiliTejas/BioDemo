@@ -192,6 +192,21 @@ def detect_emerging_concern(series: Sequence[float], spec_limits: tuple[float | 
     if lo is not None and hi is not None and lo >= hi:
         raise ValueError("lower specification limit must be below upper")
     n = baseline_n or min(10, x.size // 2)
+    if 2 <= n <= x.size and np.all(x[:n] == x[0]):
+        # A constant baseline has no estimable sigma. Specification comparisons
+        # remain meaningful; standardized trend tests must be explicitly withheld.
+        outside = [i for i, v in enumerate(x) if (lo is not None and v < lo) or (hi is not None and v > hi)]
+        return _envelope("detect_emerging_concern", {"series": x, "spec_limits": [lo, hi], "baseline_n": n,
+                "lam": lam, "L": L, "k": k, "h": h, "recent_window": recent_window},
+            {"status": "out_of_spec_handle_via_deviation_process" if outside else "insufficient_baseline_variation",
+             "concern": False, "signals": {}, "active_signals": {}, "evidence_indices": [],
+             "out_of_spec_indices": outside, "minimum_margin_to_spec_sigma": None,
+             "first_signal_index": None, "trend_slope_per_point": None, "trend_p_value": None,
+             "parameters": {"spec_limits": [lo, hi], "baseline_n": n, "lam": lam, "L": L, "k": k, "h": h,
+                            "recent_window": recent_window},
+             "basis": {"signals": [], "evidence_indices": [], "series_hash": content_hash(x.tolist()), "n_points": int(x.size)},
+             "issues": ["zero baseline variation; statistical trend rules withheld"]},
+            ["A constant baseline does not establish process stability; specification checks still apply"])
     mu, sd, n = _baseline(x, n, None, None)
     out_of_spec = [i for i, v in enumerate(x) if (lo is not None and v < lo) or (hi is not None and v > hi)]
     rules, ew, cu = _we_rules(x, mu, sd), _ewma(x, mu, sd, lam, L), _cusum(x, mu, sd, k, h)

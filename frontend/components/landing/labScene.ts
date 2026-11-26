@@ -108,12 +108,12 @@ export async function createLab(container: HTMLElement, { still = false, initial
   sign(c, b, 1.5, 0.26, 'LYOPHILISATION', 'LYO-02 · production', T(ROOM.x1 - 0.01, 3.2, -5.45, -Math.PI / 2));
   await tick();
 
-  // goods receipt for CMO deliveries
+  // goods receipt for CDMO deliveries
   dockDoor(c, b.at(T(ROOM.x0, 0, 3.1, Math.PI / 2)));
   goodsReceipt(c, b.at(T(-8.4, 0, 2.3)));
   floorTape(c, b, -10.7, 0.8, -6.0, 5.9, c.m.tape);
   floorText(c, b, 'QUARANTINE', 1.6, 0.28, T(-8.6, 0, 1.25));
-  sign(c, b, 1.6, 0.28, 'GOODS RECEIPT', 'CMO deliveries · quarantine', T(ROOM.x0 + 0.01, 2.75, 0.4, Math.PI / 2));
+  sign(c, b, 1.6, 0.28, 'GOODS RECEIPT', 'CDMO deliveries · quarantine', T(ROOM.x0 + 0.01, 2.75, 0.4, Math.PI / 2));
 
   // glass-walled review office
   reviewOffice(c, b, 6.2, 1.2, ROOM.x1, ROOM.z1);

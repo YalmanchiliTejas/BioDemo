@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Any, Callable, Protocol
 
 from .evidence import STATUS_CURRENT
-from .identity import AccessContext, AuthorizationError, Decision, IdentityService
+from .identity import AccessContext, AuthorizationError, Decision, IdentityService, authentication_assertion
 from .ids import content_hash, iso, new_id, utc_now
 from .ownership import OwnershipRegistry
 from .store import ConflictError, RecordStore, Transaction
@@ -22,6 +22,7 @@ from .store import ConflictError, RecordStore, Transaction
 RISK_POLICY: dict[str, tuple[str, tuple[str, ...]]] = {
     "review_physical_analysis": ("medium", ("engineering",)),
     "review_scientific_model_adapter": ("medium", ("engineering",)),
+    "review_model_extension": ("medium", ("engineering",)),
     "release_batch": ("critical", ("qa", "qa_reviewer")),
     "reject_batch": ("critical", ("qa", "qa_reviewer")),
     "invalidate_result": ("critical", ("qa", "qa_reviewer")),
@@ -84,8 +85,12 @@ class ActionService:
                 payload: dict[str, Any], basis: list[dict[str, Any]], rationale: str, expected_result: str,
                 owner_id: str, follow_up_measure: str | None = None, constraints: list[str] | None = None,
                 change_evidence: str | None = None, site_id: str | None = None, record_class: str | None = None,
-                mission_id: str | None = None) -> dict[str, Any]:
-        """Create a proposal. No side effect occurs; risk and required roles come from policy, not the caller."""
+                mission_id: str | None = None, origin: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Create a proposal. No side effect occurs; risk and required roles come from policy, not the caller.
+
+        ``origin`` is set by the host, never taken from a request body: what the cited result says in the host's own
+        words, and whether the assistant drafted the proposal. It informs the approver; it is not part of what is
+        approved, which stays the content fields."""
         self.identity.require(ctx, "propose", "proposal", site_id=site_id)
         if not basis:
             raise ValueError("a proposal requires at least one evidence reference in its basis")
@@ -102,7 +107,7 @@ class ActionService:
             "requested_by": ctx.actor_id, "requested_by_kind": ctx.actor_kind, "mission_id": mission_id,
             "status": "proposed",  # proposed | approved | rejected | stale | withdrawn
             "execution_status": "not_started", "effectiveness": "unknown", "stale_reasons": [],
-            "created_at": iso(utc_now()),
+            "created_at": iso(utc_now()), **({"origin": origin} if origin else {}),
         }
         state["content_hash"] = content_hash(_content(state))
         with self.store.transaction(ctx.actor_id) as tx:
@@ -126,11 +131,24 @@ class ActionService:
                 raise ValueError("cannot revise a proposal whose intent has been dispatched")
             state = {**rec.state, **{k: v for k, v in changes.items() if k in CONTENT_FIELDS + (
                 "rationale", "expected_result", "constraints", "follow_up_measure", "owner_id")}}
+            # The approval policy follows the content: a revised operation is held to that operation's
+            # risk and approver roles, never to those of the operation it replaced.
+            risk, roles = RISK_POLICY.get(state["operation"], DEFAULT_RISK)
+            state["risk"], state["required_roles"] = risk, list(roles)
+            if state.get("site_id") != rec.state.get("site_id"):
+                self.identity.require(ctx, "propose", "proposal", proposal_id, site_id=state.get("site_id"), tx=tx)
             if "basis" in changes:
-                for ref in changes["basis"]:
+                if not state["basis"]:
+                    raise ValueError("a proposal requires at least one evidence reference in its basis")
+                if not self.identity.check_derived(ctx, state["basis"], tx=tx):
+                    raise PermissionError("reviser cannot read every basis source")
+                for ref in state["basis"]:
                     tx.add_edge(ctx.tenant_id, (ref["kind"], ref["id"]), ("proposal", proposal_id), "basis_of")
             state["content_hash"] = content_hash(_content(state))
             material = state["content_hash"] != rec.state["content_hash"]
+            if material and ctx.actor_id not in state.get("revised_by", []):
+                # Whoever wrote the content under review is a requester of it and cannot also approve it.
+                state["revised_by"] = [*state.get("revised_by", []), ctx.actor_id]
             if material or rec.state["status"] == "stale":
                 state["status"] = "proposed"
                 state["execution_status"] = "not_started"
@@ -157,15 +175,15 @@ class ActionService:
                 raise ValueError(f"proposal is {p['status']}")
             if ctx.actor_kind == "agent":
                 raise AuthorizationError(Decision(False, "agent credentials cannot approve proposals"))
-            if ctx.actor_id == p["requested_by"]:
+            if ctx.actor_id == p["requested_by"] or ctx.actor_id in p.get("revised_by", []):
                 raise AuthorizationError(Decision(False, "requesters cannot approve their own proposals"))
             if role not in ctx.roles or role not in p["required_roles"]:
                 raise AuthorizationError(Decision(False, f"role {role} not held or not required"))
             self.identity.require(ctx, "approve", "proposal", proposal_id, site_id=p.get("site_id"), tx=tx)
             scoped = self.identity.context_for(ctx.tenant_id, ctx.actor_id, role=role)
             self.identity.require(scoped, "approve", "proposal", proposal_id, site_id=p.get("site_id"), tx=tx)
-            if p["risk"] in ("high", "critical") and not (authentication or {}).get("method"):
-                raise PermissionError("high-risk approval requires re-authentication (authentication.method)")
+            assertion = authentication_assertion(ctx, authentication, purpose="high-risk approval",
+                                                 required=p["risk"] in ("high", "critical"))
             approvals = self._approvals(tx, ctx.tenant_id, proposal_id, p["content_hash"])
             if any(a["role"] == role for a in approvals):
                 raise ValueError(f"role {role} already decided this revision")
@@ -173,7 +191,7 @@ class ActionService:
             approval = {"approval_id": approval_id, "proposal_id": proposal_id, "proposal_revision": rec.revision,
                         "content_hash": p["content_hash"], "actor_id": ctx.actor_id, "role": role,
                         "decision": decision, "comment": comment, "decided_at": iso(utc_now()),
-                        "authentication": {"method": (authentication or {}).get("method", "session")}}
+                        "authentication": assertion}
             tx.put(ctx.tenant_id, "approval", approval_id, approval, expected_revision=None, action=decision,
                    event_type=f"action.{decision}", event_payload={"proposal_id": proposal_id, "role": role,
                                                                    "mission_id": p.get("mission_id")})

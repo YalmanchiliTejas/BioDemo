@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { processRequest } from '@/lib/process-api';
+import { cached } from '@/lib/cache';
 import type { ArtifactRef } from './AnalysisArtifact';
 
 type Row = { result_id: string; batch_id: string | null; value: number | null; lower: number | null; upper: number | null; unit: string; status: string; source: { file: string; row: number }; specification: { file: string; row: number | null; revision: string | null } };
@@ -30,7 +31,7 @@ function AssayChart({ rows }: { rows: Row[] }) {
 }
 
 export function DemoDeviationsArtifact({ threadId, artifact }: { threadId: string; artifact: ArtifactRef }) {
-  const [data, setData] = useState<Data | null>(null);
+  const [data, setData] = useState<Data | null>(() => cached<Data>(`/v1/process-model/conversations/${threadId}/artifacts/${artifact.kind}/${encodeURIComponent(artifact.id)}`) ?? null);
   const [error, setError] = useState('');
   useEffect(() => {
     let alive = true;

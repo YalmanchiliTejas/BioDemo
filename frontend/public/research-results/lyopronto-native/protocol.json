@@ -1,0 +1,49 @@
+{
+  "version": "lyopronto-native-agent-20261108-v1",
+  "upstream_commit": "c6a9225a9e551ae4e7c11c1ef056b67c6204afbd",
+  "seed": 20261108,
+  "cases": 24,
+  "families": {
+    "report": 6,
+    "recipe_selection": 6,
+    "missing_inputs": 6,
+    "scope_limits": 6
+  },
+  "evaluation_target": "Current workspace assistant with a research-only native LyoPRONTO connector; correctness of scientific tool use, not simulator accuracy or model superiority",
+  "excluded": "No BioDemo physical model, old evaluator, old scenarios, SI-to-native model adaptation, calibration, hypothetical hot-vial shifts or simulator-comparison arms",
+  "runtime": "Unmodified ToolLoop/ModelGateway/conversation services; local subclass adds two typed tools after capability selection; no production tool enablement",
+  "grading": "Native upstream reference, independent output-column/constraint extraction; 1%/0.01h endpoint tolerance, .1C temperature, 1%/.001kg/h batch flux; recipe feasibility and <=5% time regret to exhaustive allowed-grid reference; missing-input and scope decisions scored separately",
+  "leakage": "Private native reference files never seeded into workspace or tools; agent receives case inputs and raw model outputs only. Same-model result reproduction measures tool competence, not independent forecast accuracy.",
+  "replication": "One fresh session per new authored case; not physical replication or a general reliability estimate",
+  "sources_sha256": {
+    "benchmarks/lyopronto_native/suite.py": "bd580ce7fe70af78aeb395b65125099a5ca37af898b4ba7c411c67cb89d6708b",
+    "benchmarks/lyopronto_native/solver.py": "52cc6e70d2b85cbe17f733e73d8eed29c02d4cd489688845868b7563f309e201",
+    "benchmarks/lyopronto_native/connector.py": "3657f784d56c071f68fd502385faea50b377b956a93121fc536a59bd094d9727",
+    "benchmarks/lyopronto_native/run.py": "5bd1d5fc61f5f976b0f31a109204621056b9473d745dcf9235bda982f6212377",
+    "benchmarks/lyopronto_native/grade.py": "445e23dbcb6e0a3f548cf70cbc88534adc4193b98441a8ba09547f0d3fb4a40b",
+    "backend/benchmarks/agent_pilot/runner.py": "20b097f328b798e3caaf31802d1ecf39360650cbdae12e52299720eb00bc86fb",
+    "backend/src/lifesci/process_engineering/conversation.py": "d06aa3a3e9edd88712f1cf68ae0fa03da49c705df6203f723d9e539296cc1ee8",
+    "backend/src/lifesci/process_engineering/tool_loop.py": "c8e14ef52fadd9a8f99ab5c23a9bc7f2588b1d8af8387d8cb0680ab6d913145e",
+    "backend/src/lifesci/process_engineering/workspace.py": "bfd9c90d2fb356470bfc1f62ee7af0edd2a169ae5d6fef8373fb002f203b343e",
+    "backend/src/lifesci/process_engineering/grounding.py": "8739063b312f5b670c782540a4214dab5b8500a79f04ad8bfd9065bcab869f13"
+  },
+  "environment": {
+    "python": "3.14.4",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "ruamel.yaml": "0.19.1"
+  },
+  "agent_limits": {
+    "model_calls": 10,
+    "tool_calls": 16,
+    "loop_seconds": 300,
+    "solver_calls": 12
+  },
+  "campaign_limits": {
+    "estimate_usd": 10,
+    "max_requests": 240,
+    "max_seconds": 1800,
+    "workers": 2
+  },
+  "status": "frozen_before_generation_and_inference"
+}

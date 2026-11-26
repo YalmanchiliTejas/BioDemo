@@ -1,22 +1,27 @@
 """Conversation decisions are typed data, never executable solver programs."""
 from typing import Any, Literal
 from datetime import datetime
-from pydantic import Field, model_validator
+from pydantic import Field, PrivateAttr, model_validator
 from .schemas import PipelineSpec, StrictModel
 
 class ChatPipelineSpec(PipelineSpec):
     max_solver_calls: int = Field(default=32, ge=2, le=32, strict=True)
     max_wall_seconds: float = Field(default=30., ge=1., le=30.)
 
-Operator = Literal['physical_demo_context', 'physical_context_variant', 'physical_pipeline_prepare',
+Operator = Literal['model_library_catalog','model_library_configure','model_library_import_runs','model_library_prepare','model_library_execute','model_library_read','model_library_refresh','model_library_propose_extension','physical_demo_context', 'physical_context_variant', 'physical_pipeline_prepare',
     'physical_pipeline_execute', 'physical_results_compare', 'physical_results_assess',
     'physical_analysis_review', 'physical_model_adapter_propose',
     'bioprocess_demo_case', 'bioprocess_forecast', 'cho_dataset_forecast',
-    'workspace_search', 'workspace_read', 'workspace_propose_action', 'workspace_checkpoint']
+    'workspace_search', 'workspace_read', 'workspace_propose_action', 'workspace_propose_rule',
+    'workspace_propose_investigation', 'workspace_run_task', 'workspace_open_task_result', 'workspace_propose_routine']
 
 class ConversationIn(StrictModel):
     site_id: str = Field(default='NF1', min_length=1, max_length=100)
-    mission_id: str | None = Field(default=None, min_length=1, max_length=100)
+
+class ConversationUpdate(StrictModel):
+    title: str | None = Field(default=None, min_length=1, max_length=90)
+    archived: bool | None = None
+
 
 class DisplayContext(StrictModel):
     """Untrusted user-supplied display content, distinct from authorized sources."""
@@ -34,6 +39,8 @@ class MessageIn(StrictModel):
     # Verified CMO delivery datasets published as platform evidence (cmo-verified-delivery:<run>).
     dataset_ids: list[str] = Field(default_factory=list, max_length=5)
     display_context: DisplayContext | None = None
+    # The person chose to include deliveries that are still in review for this message. Never set by the assistant.
+    include_unverified: bool = False
 
 class WorkflowNode(StrictModel):
     node_id: str = Field(pattern=r'^[a-z][a-z0-9_]{0,49}$')
@@ -42,34 +49,78 @@ class WorkflowNode(StrictModel):
     depends_on: list[str] = Field(default_factory=list, max_length=10)
     payload: dict[str, Any] = Field(default_factory=dict)
 
+class ReplyClaim(StrictModel):
+    """One factual statement in the reply and the exact inspected words behind it."""
+    text: str = Field(min_length=1, max_length=500)
+    kind: Literal['observed', 'derived'] = 'observed'
+    source_id: str = Field(min_length=1, max_length=300)
+    quote: str = Field(min_length=1, max_length=500)
+
 class ChatDecision(StrictModel):
     reply: str = Field(min_length=1, max_length=4000)
     questions: list[str] = Field(default_factory=list, max_length=4)
+    claims: list[ReplyClaim] = Field(default_factory=list, max_length=8)
     workflow: list[WorkflowNode] = Field(default_factory=list, max_length=10)
     continue_after_workflow: bool = False
-    notify_user: bool = True
+    # Steps over a per-turn cap, held back by the host (titles), offered to the user as one click.
+    _held_back: list[str] = PrivateAttr(default_factory=list)
+
+    def _hold_over_cap(self, kinds, limit, message):
+        """Run the first `limit` steps of these kinds and hold the rest, instead of rejecting a sound plan.
+        Refused (the old error) only when a step that would run depends on one held back."""
+        capped = [n for n in self.workflow if n.task_kind in kinds]
+        if len(capped) <= limit:
+            return
+        held = {n.node_id for n in capped[limit:]}
+
+        def binds(value):
+            if isinstance(value, dict):
+                return value.get('$node') in held or any(binds(v) for v in value.values())
+            return isinstance(value, list) and any(binds(v) for v in value)
+        kept = [n for n in self.workflow if n.node_id not in held]
+        if any(held & set(n.depends_on) or binds(n.payload) for n in kept):
+            raise ValueError(message)
+        self.workflow = kept
+        self._held_back = [*self._held_back, *(n.title for n in capped[limit:])]
 
     @model_validator(mode='after')
     def clarify_or_execute(self):
-        if self.questions and any(n.task_kind != 'workspace_checkpoint' for n in self.workflow):
+        # Discovery can resolve the uncertainty behind a provisional question.
+        # Numerical work and proposals still require clarification first.
+        if self.questions and any(n.task_kind not in ('workspace_search', 'workspace_read') for n in self.workflow):
             raise ValueError('ask for missing information before running a workflow')
         if self.continue_after_workflow and not self.workflow:
             raise ValueError('continuation requires tool work')
-        if sum(n.task_kind == 'physical_pipeline_execute' for n in self.workflow) > 3:
-            raise ValueError('at most three numerical analyses per conversational turn')
-        if sum(n.task_kind in ('bioprocess_forecast', 'cho_dataset_forecast') for n in self.workflow) > 3:
-            raise ValueError('at most three bioprocess forecasts per conversational turn')
+        self._hold_over_cap(('physical_pipeline_execute','model_library_execute'), 3, 'at most three numerical analyses per conversational turn')
+        self._hold_over_cap(('bioprocess_forecast', 'cho_dataset_forecast'), 3, 'at most three bioprocess forecasts per conversational turn')
         if sum(n.task_kind == 'physical_results_assess' for n in self.workflow) > 1:
             raise ValueError('at most one agent interpretation per conversational turn')
         return self
 
 WorkspaceKind = Literal['case', 'evidence', 'batch', 'sample', 'procedure_instance', 'claim',
-    'proposal', 'physical_analysis_context', 'process_simulation', 'engineering_chat_turn']
+    'proposal', 'physical_analysis_context', 'physical_model_dataset', 'physical_model_checkpoint', 'physical_interval_calibration', 'physical_analysis_result', 'process_simulation', 'engineering_chat_turn', 'deviation_signal', 'specification', 'assistant_alarm', 'assistant_work_request']
 
 class WorkspaceSearch(StrictModel):
-    kinds: list[WorkspaceKind] = Field(default_factory=list, max_length=10)
+    """mode=search: records by kind and query. mode=links: records sharing an identifier with record_id (record_kind
+    optional: omit it for an identifier such as a batch, lot or equipment ID). mode=similar_cases: closed cases similar
+    to case_id and/or the query text."""
+    mode: Literal['search', 'links', 'similar_cases'] = 'search'
+    kinds: list[WorkspaceKind] = Field(default_factory=list, max_length=20)
     query: str = Field(default='', max_length=200)
     limit: int = Field(default=20, ge=1, le=50)
+    record_kind: WorkspaceKind | None = None
+    record_id: str | None = Field(default=None, max_length=300)
+    case_id: str | None = Field(default=None, max_length=300)
+    include_open: bool = False
+    site_id: str | None = Field(default=None, max_length=100, description='Optional; must be this conversation\'s site.')
+
+    @model_validator(mode='after')
+    def mode_inputs(self):
+        if self.mode == 'links' and not self.record_id:
+            raise ValueError('links needs record_id')
+        if self.mode == 'similar_cases' and not (self.case_id or self.query.strip()):
+            raise ValueError('similar_cases needs case_id or query')
+        return self
 
 class WorkspaceRead(StrictModel):
     kind: WorkspaceKind
@@ -95,21 +146,26 @@ class WorkspaceProposal(StrictModel):
     follow_up_measure: str = Field(min_length=5, max_length=1000)
     constraints: list[str] = Field(default_factory=list, max_length=10)
 
-class WorkspaceCheckpoint(StrictModel):
-    """A reviewable work checkpoint, never an approval or a completed plant action."""
-    summary: str = Field(min_length=10, max_length=2000)
-    observations: list[str] = Field(default_factory=list, max_length=10)
-    hypotheses: list[str] = Field(default_factory=list, max_length=10)
-    unknowns: list[str] = Field(default_factory=list, max_length=10)
-    next_action: str = Field(min_length=5, max_length=1000)
-    work_status: Literal['investigating', 'awaiting_evidence', 'awaiting_engineer_review']
-    basis: list[SourceRef] = Field(min_length=1, max_length=10)
+class WorkspaceRuleProposal(StrictModel):
+    """A standing instruction the user stated in this turn, saved as a PROPOSED rule only."""
+    text: str = Field(min_length=3, max_length=2000)
+    scope: Literal['user', 'site', 'org'] = 'user'
+    # The user's own words, copied exactly from this turn's message: rules come from the user, never from sources.
+    user_quote: str = Field(min_length=3, max_length=2000)
+
+class WorkspaceInvestigationProposal(StrictModel):
+    """A full multi-agent investigation the user asked for, saved as a PROPOSAL; only a person can start it."""
+    objective: str = Field(min_length=3, max_length=2000)
+    case_id: str | None = Field(default=None, max_length=160)
+    rationale: str = Field(default='', max_length=1000)
+    # The user's own words from this turn: an investigation spends budget, so it must come from the user.
+    user_quote: str = Field(min_length=3, max_length=2000)
 
 class WatchIn(StrictModel):
     enabled: bool
     expected_revision: int = Field(ge=1)
     objective: str = Field(default='', max_length=2000)
-    kinds: list[Literal['case', 'evidence', 'batch', 'sample']] = Field(default_factory=lambda: ['case'])
+    kinds: list[Literal['case', 'evidence', 'batch', 'sample', 'deviation', 'alarm', 'team_request']] = Field(default_factory=lambda: ['case'])
     max_runs: int = Field(default=3, ge=1, le=10)
     every_minutes: int | None = Field(default=None, ge=15, le=10080)
     # Count limits bound inference admissions, not unknown Modal monetary billing.

@@ -89,6 +89,31 @@ Task and evidence-request proposals are handled by the review workflow.
 Tool inputs are validated with Pydantic. Entity links and schema mappings are
 candidates until corroborated; no benchmark-specific mappings are embedded.
 
+## Entity links across files
+
+Ingestion types identifier columns as batch, lot, material, equipment, sample,
+site, campaign, deviation, CAPA or investigation (a lot is no longer folded into
+batch). `entity_graph(entity_id, hops<=2)` follows links across sources. Links
+are derived at query time from `relations`, so scope, `as_of` and source
+permission apply exactly as for evidence. Each link states its basis:
+
+| Predicate | Basis | Status |
+|---|---|---|
+| `same_record` | both IDs in explicit ID columns of one row; cites that cell | extracted |
+| `same_identifier` | equal after ignoring case and `- _ . /` (leading zeros kept) | extracted |
+| `source_label` | one ID guessed from a filename or sheet name | candidate |
+| `co_observed` | co-occurrence in a document extraction | candidate |
+
+Predicates say what was recorded together, not why; "processed on" or
+"consumed" is an interpretation to make from the cited row. Reviewers confirm or
+reject a link with `knowledge.review(store, link_id, decision, actor=, reason=)`;
+reviews are append-only and a historical replay ignores reviews made after its
+cutoff. Rejected links are not traversed.
+
+`ingest_package(..., source_namespace=ID)` keys sources by a stable delivery ID
+instead of the local path. CMO reprocessing uses it and starts from the
+superseded run's parsed store, so only changed files are re-parsed.
+
 ## Run the RLM from ingested files
 
 Set `BIODEMO_MANUFACTURING_STORE` to an **already ingested** store before

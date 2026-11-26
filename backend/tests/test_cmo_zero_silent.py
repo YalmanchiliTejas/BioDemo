@@ -321,7 +321,9 @@ def test_api_delivery_upload_auto_config_bulk_and_reprocess(tmp_path, monkeypatc
     body=io.StringIO(); csv.writer(body).writerows([['Lot','Elapsed time (h)','pH','Temperature (°C)'],['L-1',0,7.0,37],['L-1',1,7.1,37.1]])
     added=client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/files",params={'filename':'lot export.csv'},content=body.getvalue().encode())
     assert added.status_code==200 and added.json()['files'][0]['sha256']
-    assert client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/files",params={'filename':'run.exe'},content=b'x').status_code==400
+    blocked=client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/files",params={'filename':'run.exe'},content=b'x').json()
+    assert [e['outcome'] for e in blocked['intake'] if e['path']=='run.exe']==['blocked'] and 'run.exe' not in {f['path'] for f in blocked['files']}
+    assert not list((tmp_path/'runtime').rglob('run.exe'))  # an executable is listed, never stored
     archive=io.BytesIO()
     with zipfile.ZipFile(archive,'w') as z: z.writestr('../evil.csv','a')
     assert client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/files",params={'filename':'p.zip'},content=archive.getvalue()).status_code==400
@@ -367,3 +369,33 @@ def test_api_delivery_upload_auto_config_bulk_and_reprocess(tmp_path, monkeypatc
     url=f"/api/cmo-ingestion/runs/{gap['id']}/issues"
     assert client.post(url,json={'issue_id':missing['id'],'actor':'Parker'}).status_code==400
     assert client.post(url,json={'issue_id':missing['id'],'actor':'Parker','reason':'Sample not taken at hour 1'}).status_code==200
+
+
+@pytest.fixture(autouse=True)
+def bound_tenant():
+    """Service-level calls here run outside a request; bind a tenant explicitly (there is no default any more)."""
+    from src.manufacturing_data.cmo.persistence import tenant_scope
+    with tenant_scope('test-cdmo'): yield
+
+
+def test_review_counts_match_each_runs_summary_without_loading_it(service, tmp_path):
+    """The narrow count the work queue reads agrees with the summary computed from the whole run, at each stage."""
+    def counts():
+        return {r['id']: (r['needs_review'], r['open_issues'], r['unconfirmed_layouts']) for r in service.repo.review_counts()}
+    def expected(run):
+        s = service.get(run['id'])['summary']
+        return (s['needs_review'], s['open_issues'], s['unconfirmed_layouts'])
+    raw = tmp_path/'d1'
+    write_csv(raw/'process.csv', ['batch_id','elapsed_h','temperature [degC]','raman 1800 [unspecified]','Operator'],
+              [['B-1',0,35,10,'JS'],['B-1',1,36,11,'JS'],['B-2',0,35,12,'JS']])
+    first = service.run(raw, 'acme', 'D')
+    assert counts() == {first['id']: expected(first)} and expected(first)[0] > 0 and expected(first)[2] == 1
+    target = next(m for m in first['measurements'] if m['status'] == 'needs_review')
+    service.review(first['id'], target['id'], 'correct', 'qa', 'Transcribed from the instrument printout', binding=digest(target), value=35.5)
+    assert counts() == {first['id']: expected(first)}                     # a corrected value is counted once, not twice
+    layout = first['layouts'][0]
+    service.confirm_template(first['id'], layout['fingerprint'], {**layout['mapping'], 'units': {'raman 1800 [unspecified]': 'unspecified'},
+                             'ignored_columns': ['Operator']}, 'qa', 'Compared mapping with original source')
+    second = service.carry_over(first['id'], service.run(raw, 'acme', 'D'))
+    assert counts() == {second['id']: expected(second)}                   # the superseded run is no longer listed
+    assert [r['status'] for r in service.repo.review_counts()] == ['complete']

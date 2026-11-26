@@ -128,17 +128,20 @@ def prepare_source(source_id: str, rel: str, path: Path, scope: str,
             frame = raw.select([_text(pl.col(c),raw.schema[c]).alias(c) for c in columns]).with_row_index('__row', offset=row_start)
             fallback_kind, fallback_id = _entity_from_context(rel, sheet, {})
             id_expr, kind_expr = pl.lit(fallback_id, dtype=pl.String), pl.lit(fallback_kind, dtype=pl.String)
+            # Whether the row's own entity came from an explicit ID column (vs a filename/sheet label guess).
+            explicit_expr = pl.lit(False)
             entity_columns = []
-            for header, column in zip(headers, columns):
+            for index, (header, column) in enumerate(zip(headers, columns), 1):
                 key = _key(header)
                 kind = next((kind for marker,kind in ENTITY_WORDS.items()
                              if marker in key and (key.endswith('id') or key == marker or key.endswith('number'))), None)
                 if kind:
-                    entity_columns.append((kind, column))
-            for kind, column in reversed(entity_columns):
+                    entity_columns.append((kind, column, index))
+            for kind, column, _ in reversed(entity_columns):
                 valid = pl.col(column).is_not_null() & (pl.col(column).str.strip_chars() != '')
                 id_expr = pl.when(valid).then(pl.col(column).str.strip_chars()).otherwise(id_expr)
                 kind_expr = pl.when(valid).then(pl.lit(kind)).otherwise(kind_expr)
+                explicit_expr = pl.when(valid).then(pl.lit(True)).otherwise(explicit_expr)
             occurred, published = pl.lit(None, dtype=pl.String), pl.lit(None, dtype=pl.String)
             for header, column in zip(headers, columns):
                 key = _key(header)
@@ -161,21 +164,29 @@ def prepare_source(source_id: str, rel: str, path: Path, scope: str,
                 field_times = pl.col(field_column).replace_strict(maps, default=None, return_dtype=pl.String)
             frame = frame.with_columns(id_expr.alias('__entity_id'), kind_expr.alias('__entity_kind'),
                                        occurred.alias('__occurred_at'), pl.coalesce(published, pl.lit(available)).cast(pl.String).alias('__available_at'),
-                                       field_times.alias('__field_times'))
+                                       field_times.alias('__field_times'), explicit_expr.alias('__entity_explicit'))
             for kind, identifier in frame.select('__entity_kind','__entity_id').unique().iter_rows():
                 if kind and identifier:
                     entities.add((identifier, kind))
-            related = [(kind, pl.col(c).str.strip_chars()) for kind,c in entity_columns]
-            related += [(kind, pl.lit(identifier)) for kind,identifier in _related_entities(rel,sheet,{})]
-            for kind, expr in related:
-                links = frame.select(pl.col('__entity_id').alias('left'), expr.alias('right'), pl.col('__available_at').alias('available')).filter(
-                    pl.col('right').is_not_null() & (pl.col('right') != '')).unique()
+            related = [(kind, pl.col(c).str.strip_chars(), index) for kind,c,index in entity_columns]
+            related += [(kind, pl.lit(identifier), None) for kind,identifier in _related_entities(rel,sheet,{})]
+            for kind, expr, column_index in related:
+                links = frame.select(pl.col('__entity_id').alias('left'), expr.alias('right'), pl.col('__available_at').alias('available'),
+                                     pl.col('__row').alias('row'), pl.col('__entity_explicit').alias('explicit')).filter(
+                    pl.col('right').is_not_null() & (pl.col('right') != ''))
                 for identifier in links['right'].unique():
                     entities.add((identifier, kind))
-                # Compact relationships: retain earliest availability for each pair.
-                for left, right, when in links.group_by('left','right').agg(pl.col('available').min()).iter_rows():
-                    if left and left != right:
-                        relations.add((left,right,when))
+                # Compact relationships: earliest availability per pair, and the exact cell that first shows it.
+                # Both IDs read from explicit columns of one source row: an extracted fact with a citable cell.
+                # Anything involving a filename/sheet guess stays a label-level candidate.
+                explicit = pl.col('explicit') if column_index is not None else pl.lit(False)
+                for method, rows in (('same_record', links.filter(explicit)), ('source_label', links.filter(~explicit))):
+                    grouped = rows.sort('available', 'row', nulls_last=True).group_by('left','right', maintain_order=True).agg(
+                        pl.col('available').min(), pl.col('row').first())
+                    for left, right, when, row in grouped.iter_rows():
+                        if left and left != right:
+                            evidence = f'b1:{source_id}:{sheet_index}:{row}:{column_index}' if method == 'same_record' else None
+                            relations.add((left,right,when,method,evidence))
             schema = []
             for i, (header, column) in enumerate(zip(headers,columns),1):
                 series = frame[column]

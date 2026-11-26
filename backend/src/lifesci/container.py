@@ -55,6 +55,8 @@ class Platform:
     bioprocess: Any = field(init=False)
     engineering_conversations: Any = field(init=False)
     fermentation: Any = field(init=False)
+    investigations: Any = field(init=False)
+    case_science: Any = field(init=False)
     allow_unqualified: bool = False
     providers: dict[str, Any] | None = None
     api_extensions: list[Callable[..., None]] = field(default_factory=list)
@@ -71,6 +73,8 @@ class Platform:
         self.signatures = SignatureService(s, self.identity)
         self.actions = ActionService(s, self.identity, self.ownership)
         self.missions = MissionService(s, self.identity)
+        from .rules import RuleService
+        self.rules = RuleService(s, self.identity)
         self.assurance = AssuranceService(s, self.identity)
         self.queue = WorkQueue(s)
         from .procedures import ProcedureService
@@ -84,6 +88,14 @@ class Platform:
         self.network = NetworkService(s, self.identity)
         self.transfers = TransferService(s, self.identity)
         self.cases = CaseService(s, self.identity)
+        from .quality_workflow import QualityWorkflowService
+        self.quality_workflow = QualityWorkflowService(self)
+        # Per-user assistant memory: owner-only unless the owner granted read access (src/lifesci/memory.py).
+        from .memory import MemoryGrants
+        self.memory = MemoryGrants(s, self.identity)
+        from . import embeddings
+        from .agent_memory import AgentMemory
+        self.agent_memory = AgentMemory(self, embeddings.from_env())
         self.packages = PackageService(s, self.identity, self.evidence, self.signatures)
         self.artifacts = ArtifactService(s, self.identity, self.evidence)
         registry = default_registry()
@@ -92,7 +104,9 @@ class Platform:
         providers = self.providers if self.providers is not None else self._env_providers()
         self.gateway = ModelGateway(s, self.identity, registry, providers,
                                     router=Router(registry, allow_unqualified=self.allow_unqualified, task_profile_bindings=bindings))
-        self.gateway.telemetry = self.telemetry
+        # Optional bounded decision model (trial option C): off unless LIFESCI_DECISION_ADAPTER=jev and a key are set.
+        from .gateway.decisions import DecisionAdapter
+        self.gateway.decisions = DecisionAdapter.from_env(self.gateway)
         from .lyophilization.service import ProcessModelService, register_handlers
         self.process_models = ProcessModelService(self)
         register_handlers(self.gateway)
@@ -111,8 +125,40 @@ class Platform:
         self.bioprocess = BioprocessService(self)
         from .process_engineering.conversation import EngineeringConversationService
         self.engineering_conversations = EngineeringConversationService(self)
+        from .workspace_tasks import WorkspaceTaskService
+        self.workspace_tasks = WorkspaceTaskService(self)
         from .process_engineering.responsibilities import AssistantResponsibilities
         self.assistant_responsibilities = AssistantResponsibilities(self)
+        from .assistant_routines import AssistantRoutineService
+        self.assistant_routines = AssistantRoutineService(self)
+        from .work_plans import WorkPlanService
+        self.work_plans = WorkPlanService(self)
+        from .worklist import WorklistService
+        self.worklist = WorklistService(self)
+        from .investigations import InvestigationService
+        self.investigations = InvestigationService(self)
+        from .case_science import CaseScienceService
+        self.case_science = CaseScienceService(self)
+        # Deviation signals: detection on committed events, then alerts and assistant triage (docs/architecture/deviation-signals-and-alerts.md).
+        from .specifications import SpecificationService
+        self.specifications = SpecificationService(s, self.identity)
+        from .signals import SignalService, register_signal_listeners
+        self.signals = SignalService(self)
+        from .alerts import AlertService
+        self.alerts = AlertService(self)
+        from .signal_followup import SignalFollowUp
+        self.signal_followup = SignalFollowUp(self)
+        from .triage import TriageService
+
+        def report_triage(tenant: str, signal_id: str, triage: dict) -> None:
+            state = self.signals.annotate(tenant, signal_id, triage=triage)
+            if triage.get('status') == 'ready':
+                self.alerts.on_triage_ready(tenant, state)
+        self.triage = TriageService(self, report=report_triage)
+        register_signal_listeners(self)
+        s.subscribe(self.signal_followup.on_event)
+        from .demo import DemoService
+        self.demo = DemoService(self)
         from .fermentation.service import FermentationService
         self.fermentation = FermentationService(self)
         from .collab import RemoteSessionService
@@ -131,6 +177,11 @@ class Platform:
             out["openai"] = OpenAIProvider()
         if all(modal_settings()):
             out["modal"] = ModalProvider()
+            from .gateway.configuration import INTERPRETER_PROVIDER, interpreter_effort
+            effort = interpreter_effort(os.environ)
+            if effort:  # the same deployment, with this effort, for the explanation role only
+                out[INTERPRETER_PROVIDER] = ModalProvider(environ={**os.environ, "MODAL_COMPLETION_REASONING_EFFORT": effort,
+                                                                    "MODAL_COMPLETION_JSON": "1"})
         return out
 
     @classmethod
@@ -144,12 +195,18 @@ class Platform:
             raise
 
     def extend_api(self, app: Any, ctx_dep: Any, idempotent: Any) -> None:
+        from .quality_workflow_api import install_quality_workflow_api
+        install_quality_workflow_api(self, app, ctx_dep)
         from .suite_api import install_suite_api
         install_suite_api(self, app, ctx_dep, idempotent)
         from .lyophilization.api import install_process_api
         install_process_api(self, app, ctx_dep, idempotent)
         from .process_engineering.api import install_analysis_api
         install_analysis_api(self, app, ctx_dep, idempotent)
+        from .workspace_tasks_api import install_workspace_tasks_api
+        install_workspace_tasks_api(self, app, ctx_dep, idempotent)
+        from .worklist import install_worklist_api
+        install_worklist_api(self, app, ctx_dep)
         from .fermentation.api import install_fermentation_api
         install_fermentation_api(self, app, ctx_dep, idempotent)
         for extension in self.api_extensions:

@@ -19,9 +19,12 @@ Set these server environment variables (or CLI-loaded `backend/.env.local`):
 ```dotenv
 LIFESCI_CONNECTOR_ALLOWED_HOSTS=mes.example.com,lims.example.com,historian.example.com
 LIFESCI_CONNECTOR_FILE_ROOT=/approved/exports
+LIFESCI_CONNECTOR_SECRET_ENVS=LIMS_READ_TOKEN
 LIFESCI_TENANTS=your-tenant
 LIMS_READ_TOKEN=replace-in-your-secret-store
 ```
+
+A connection may reference only secret names listed in `LIFESCI_CONNECTOR_SECRET_ENVS`.
 
 Only explicitly listed hosts can be contacted. HTTPS is required for remote REST
 endpoints and MQTT uses TLS remotely; plaintext HTTP/MQTT is allowed on loopback for

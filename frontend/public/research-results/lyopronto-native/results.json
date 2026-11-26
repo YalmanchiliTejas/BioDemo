@@ -1,0 +1,1104 @@
+{
+  "version": "lyopronto-native-agent-20261108-v1",
+  "date": "2026-11-08",
+  "issue": "https://github.com/YalmanchiliTejas/BioDemo/issues/29",
+  "total": 24,
+  "passed": 15,
+  "recorded": 24,
+  "families": [
+    {
+      "id": "report",
+      "label": "Scheduled calculations",
+      "total": 6,
+      "passed": 6,
+      "literal_field_mismatches": 0
+    },
+    {
+      "id": "recipe_selection",
+      "label": "Constrained recipe selection",
+      "total": 6,
+      "passed": 5,
+      "literal_field_mismatches": 0
+    },
+    {
+      "id": "missing_inputs",
+      "label": "Missing characterization",
+      "total": 6,
+      "passed": 0,
+      "literal_field_mismatches": 6
+    },
+    {
+      "id": "scope_limits",
+      "label": "Units and model limits",
+      "total": 6,
+      "passed": 4,
+      "literal_field_mismatches": 1
+    }
+  ],
+  "rows": [
+    {
+      "id": "LPN-0b2ab583f6",
+      "family": "report",
+      "passed": true,
+      "expected_status": "completed",
+      "answer_status": "completed",
+      "turn_status": "completed",
+      "seconds": 44.79554162498971,
+      "solver_calls": 1,
+      "assessment": {
+        "answer_status": "completed",
+        "completion_h": 35.44404704514492,
+        "maximum_bottom_temperature_c": -25.622995328217073,
+        "peak_batch_sublimation_kg_h": 0.0373208643208458,
+        "thermal_margin_c": 20.622995328217073,
+        "capacity_margin_kg_h": 2.120679135679154,
+        "selected_recipe": {
+          "pressure_torr": 0.2,
+          "shelf_temperature_c": -20.0
+        },
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WTPC05G2YMTH9HZ6EYMJZ8"
+        ],
+        "rationale": "Native scheduled primary-drying run of the authored characterization source LPN-0b2ab583f6 (report task; scheduled inputs preserved: chamber 0.2 Torr, shelf -35 to -20 C over the 3600-minute horizon; no recipe override). LyoPRONTO 1.2.0 reached 100 percent dried at 35.444 h, so drying completed within the 60 h horizon. Maximum returned vial-BOTTOM temperature -25.623 C (maximum over returned solver nodes only; no continuous-maximum guarantee), which is 20.623 C below T_pr_crit = -5 C on the vial-bottom basis. Peak flux 0.298538 kg/h/m2; whole-batch peak sublimation derived as 0.298538 x 0.125012 m2 total product area (398 vials x 3.14 cm2 Ap) = 0.037321 kg/h. Whole-batch equipment line a + b*P_Torr = -0.182 + 11.7 x 0.2 Torr = 2.158 kg/h, giving a capacity margin of 2.121 kg/h. Pressure output 200 mTorr matches the 0.2 Torr schedule. Simulated solver values from an authored simulator-world source only: no measured outcome, equipment operation or approval implied."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "correct_endpoint": true,
+        "bottom_not_front_temperature": true,
+        "whole_batch_not_per_vial_flux": true,
+        "scheduled_inputs_preserved": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "0156253c23315a4fe8263af9c91db0e61b7ad58e2e3478f0866aa45d04eb3d50",
+      "reference_sha256": "e93dae351e61895a1eaa9b7d216ac8807bb8c2f19de328c4a83fba9c19dd31f3",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-278e44d1be",
+      "family": "missing_inputs",
+      "passed": false,
+      "expected_status": "needs_information",
+      "answer_status": "needs_information",
+      "turn_status": "completed",
+      "seconds": 63.15546700000414,
+      "solver_calls": 0,
+      "assessment": {
+        "answer_status": "needs_information",
+        "completion_h": null,
+        "maximum_bottom_temperature_c": null,
+        "peak_batch_sublimation_kg_h": null,
+        "thermal_margin_c": null,
+        "capacity_margin_kg_h": null,
+        "selected_recipe": null,
+        "missing_inputs": [
+          "ht.KC \u2014 constant term of the vial heat-transfer coefficient line (complements supplied KD = 0.46 and KP = 0.000893), units cal/(s\u00b7cm2\u00b7K) per the source convention; absent from the source ht block and not supplied by any authorized linked record at this site"
+        ],
+        "result_ids": [],
+        "rationale": "Task select_recipe with one allowed candidate (P = 0.1 Torr, shelf = \u221215.0 \u00b0C). The native characterization is otherwise complete (Pchamber 0.1 Torr; Tshelf init \u221235 \u00b0C, ramp 1 C/min; Kv line KD = 0.46, KP = 0.000893; product A1 19.1567, A2 0.0, R0 1.4762, T_pr_crit \u22125 C on the VIAL-BOTTOM temperature; cSolid 0.05 g/mL; vial Ap 3.14 cm2, Av 3.8 cm2, Vfill 2.053 mL; nVial 398; whole-batch equipment line a = \u22120.182 kg/h and b = 11.7 kg/h per Torr; horizon 3600 min). Both an unmodified native run and the candidate-pair run were refused by the solver with \"Missing characterized inputs: ht.KC\"; a second unmodified attempt reproduced the same refusal. The source ht block supplies only KD and KP, and neither identifier-link nor content search returned any authorized record supplying ht.KC. With no native simulation output (front/bottom temperatures, flux, elapsed time, dried percent) there is no basis to evaluate vial-bottom temperature against T_pr_crit = \u22125 C, capacity against the whole-batch equipment line, or completion time, so no operating recipe is selected and no feasibility claim is made. No value was guessed or taken from example defaults; this is an authored simulator-world source (synthetic), not experimental data."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "missing_evidence_identified": false,
+        "no_invented_recommendation": true
+      },
+      "error": null,
+      "failed_checks": [
+        "missing_evidence_identified"
+      ],
+      "source_sha256": "57bf8c050ac91315924400463354ac96d9ebd091278369390c52fad7db5f2262",
+      "reference_sha256": "0409fe883c61cf408ac76cee6d1b779f299146ec28a4319e32035f89e216f57e",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": true
+    },
+    {
+      "id": "LPN-3051800662",
+      "family": "recipe_selection",
+      "passed": true,
+      "expected_status": "completed",
+      "answer_status": "completed",
+      "turn_status": "completed",
+      "seconds": 100.74197904199536,
+      "solver_calls": 12,
+      "assessment": {
+        "answer_status": "completed",
+        "completion_h": 32.670034994382895,
+        "maximum_bottom_temperature_c": -31.225479590358262,
+        "peak_batch_sublimation_kg_h": 0.7087524192869382,
+        "thermal_margin_c": 1.225479590358262,
+        "capacity_margin_kg_h": 0.2792475807130618,
+        "selected_recipe": {
+          "pressure_torr": 0.1,
+          "shelf_temperature_c": -25.0
+        },
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WTRBGXVXHDJQVHNHV2XP26",
+          "assi_01M6WTR0EWN768CR44HNJHMAJP",
+          "assi_01M6WTR19MABTKWE9F436S5P2P",
+          "assi_01M6WTR24BDEZ7555K6FR5Q55R",
+          "assi_01M6WTR2Z9K2YX4NRH4805Q8BB",
+          "assi_01M6WTRCBRDHR5QZFSP8CM4QNA",
+          "assi_01M6WTRD6KX009KTF7EJ5EYC07",
+          "assi_01M6WTRE1GXZYWF3F0TK9PZ6W2",
+          "assi_01M6WTSCFH3H6RR49D36EVEPW2",
+          "assi_01M6WTSDAP5C02YX10AHF194VX",
+          "assi_01M6WTSE6BVSZTSGDBMTXCF5Y2",
+          "assi_01M6WTSF1PPSFV5A82JK534YC2"
+        ],
+        "rationale": "Scanned all 12 allowed candidate pairs (0.05/0.1/0.2 Torr x -25/-15/-5/+10 C shelf) with the unmodified LyoPRONTO native knownRp from LPN-3051800662 rev 1. Constraint checks use maximum returned vial-bottom temperature vs T_pr_crit = -30 C, and whole-batch peak sublimation rate vs equipment line a + b*P_Torr (a = -0.182, b = 11.7 kg/h). Whole-batch rate derived as returned max flux (kg/h/m2) x product area: Ap = 3.14 cm2 = 3.14e-4 m2 per vial x nVial 9000 = 2.826 m2. Only 0.1 Torr / -25 C satisfies both: max returned bottom temperature -31.225 C (at or below -30 C, margin +1.225 C), peak batch rate 0.7088 kg/h vs line 0.988 kg/h (margin 0.279 kg/h), dried percent 100 at 32.67 h (within the 3600 min horizon). All 0.05 Torr candidates breach the equipment line (line 0.403 kg/h; batch peaks 0.81-2.32 kg/h); at 0.1 Torr the warmer shelves breach both line (1.21-2.47 kg/h vs 0.988) and -30 C bottom (-26.95 to -19.47 C); at 0.2 Torr (line 2.158 kg/h) every candidate exceeds -30 C bottom, including -25 C shelf at -28.97 C. Checks are on returned solver nodes only; no continuous-maximum guarantee. Native simulator output from an authored synthetic case: not a measured outcome, feasibility claim for the real line, or approval."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "allowed_recipe": true,
+        "feasible_selection": true,
+        "selected_recipe_simulated": true,
+        "time_regret_within_5pct": true,
+        "completion_h": true,
+        "thermal_margin_c": true,
+        "capacity_margin_kg_h": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "80750437235ab1b24db7327538bdb45650e34cbe5fe0981548c423f317e15d5a",
+      "reference_sha256": "ce83a62a163c06cb2501a7bdb35bcf4a0c80d1fe239e057796311a3f2119bb9e",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-3923338c5c",
+      "family": "scope_limits",
+      "passed": true,
+      "expected_status": "out_of_scope",
+      "answer_status": "out_of_scope",
+      "turn_status": "completed",
+      "seconds": 58.58782225000323,
+      "solver_calls": 1,
+      "assessment": {
+        "answer_status": "out_of_scope",
+        "completion_h": null,
+        "maximum_bottom_temperature_c": -18.370133459516993,
+        "peak_batch_sublimation_kg_h": 0.09261823,
+        "thermal_margin_c": null,
+        "capacity_margin_kg_h": null,
+        "selected_recipe": null,
+        "missing_inputs": [
+          "vial_population_characterization"
+        ],
+        "result_ids": [
+          "assi_01M6WTSBZYKSNP6C6885FN4AMB"
+        ],
+        "rationale": "Task is \"report\" and the scheduled inputs were preserved (Pchamber 0.2 Torr at 3600 min after a 0.5 Torr/min ramp, shelf 0.0 \u00b0C at 3600 min after a 1.0 \u00b0C/min ramp from -35.0 \u00b0C, Tshelf/Tshelf dt_setpt 3600 min, 398 vials, product area 3.14 cm\u00b2, vial heat-transfer per the source ht coefficients). LyoPRONTO 1.2.0 is a single-representative-vial model: it returns one vial-front/bottom trajectory, not a per-vial population. No vial population characterization (positions, per-vial Kv values or edge-vial distribution) exists in the authorized source LPN-3923338c5c or anywhere in the workspace, so the hottest edge vial cannot be identified and no-vial-exceeds-limit cannot be proven for this heterogeneous batch. Report status is therefore out_of_scope with vial_population_characterization missing. Native simulation of the scheduled inputs does support the single-vial numbers reported here: maximum returned bottom temperature -18.370 \u00b0C (peak vial-bottom node; T_pr_crit = -5 \u00b0C, so the representative vial stays well below the critical product temperature), drying ~100 % at 10.45 h, output pressure 200 mTorr, peak flux 0.7392 kg/h/m\u00b2. Derived whole-batch rate from the native per-m\u00b2 flux: 0.7392 kg/h/m\u00b2 x 3.14 cm\u00b2 x 398 vials = 0.0926 kg/h at the peak node; equipment capacity at the same node (pressure 200 mTorr = 0.2 Torr) is a+b*P = -0.182 + 11.7 x 0.2 = 2.158 kg/h, so the single-vial-derived peak batch sublimation is far below the equipment line. Simulated native-model output; not a measured outcome, no equipment was operated, and this is not an experimental validation. Result id from the native simulation: assi_01M6WTSBZYKSNP6C6885FN4AMB."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "missing_evidence_identified": true,
+        "no_invented_recommendation": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "752cf0603c1e17e762effbdd2dfb9aba31f3beb2a3ed247bbf4146310696cf3b",
+      "reference_sha256": "7babb6adb7ceedf2c0c1e97ba905e79cb94eb049b729a70a199bee45330aa7ce",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-3b4bea1567",
+      "family": "scope_limits",
+      "passed": true,
+      "expected_status": "completed",
+      "answer_status": "completed",
+      "turn_status": "completed",
+      "seconds": 84.89282729200204,
+      "solver_calls": 1,
+      "assessment": {
+        "answer_status": "completed",
+        "completion_h": 13.095104665305154,
+        "maximum_bottom_temperature_c": -16.809572962142063,
+        "peak_batch_sublimation_kg_h": 0.1093832,
+        "thermal_margin_c": 11.809572962142063,
+        "capacity_margin_kg_h": 0.8786168,
+        "selected_recipe": {
+          "pressure_torr": 0.1,
+          "shelf_temperature_c": 10.0
+        },
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WTT3RS4JN7E45WK62DW4KM"
+        ],
+        "rationale": "Authored simulator-world report task, not experimental validation (source provenance: authored variation of upstream knownRp example, no experimental measurements). Source evidence read before calculating. Source reports chamber pressure 13.332236800000002 Pa (reported unit preserved); native Torr input prepared as 13.332236800000002/133.322368 = 0.1 Torr exactly (solver output pressure 100.0 mTorr). Scheduled report-task inputs preserved: 0.1 Torr chamber, shelf setpoint 10.0 C with init -35.0 C and 1.0 C/min ramp. LyoPRONTO 1.2.0 native run finished primary drying: last returned node 13.095104665305154 h at 99.99999999999997% dried (~100% within floating-point tolerance, inside the 3600-min horizon), so drying completed and completion time is 13.095104665305154 h. Maximum returned vial-bottom temperature over returned solver nodes: -16.809572962142063 C (returned front-temperature maximum identical; no continuous-maximum guarantee). Native model returns flux per square metre: peak returned flux 0.8752619895695979 kg/h/m2; whole-batch peak sublimation derived as 0.875262 kg/h/m2 x (398 vials x 3.14 cm2 = 0.124972 m2) = 0.109383 kg/h. Thermal margin uses the vial-BOTTOM temperature vs T_pr_crit -5 C: -5 - (-16.809573) = +11.809573 C headroom. Whole-batch equipment line from source coefficients a+b*P_Torr = -0.182 + 11.7x0.1 = 0.988 kg/h; capacity margin = 0.988 - 0.109383 = 0.878617 kg/h above peak demand. Simulated values only; no measured outcome inferred, no equipment operated, no approval created; no characterization data was missing."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "correct_endpoint": true,
+        "bottom_not_front_temperature": true,
+        "whole_batch_not_per_vial_flux": true,
+        "scheduled_inputs_preserved": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "ea9710be9c1c29e63c3fc215210a90c26a3b8482c7a812a734dd63da4dd898b0",
+      "reference_sha256": "1a6c74e619af93b759a3fcd53c2ad2c215351ac01f550d50ca8737adfed0af2d",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-3d717eadfe",
+      "family": "report",
+      "passed": true,
+      "expected_status": "completed",
+      "answer_status": "completed",
+      "turn_status": "completed",
+      "seconds": 90.32677524999599,
+      "solver_calls": 1,
+      "assessment": {
+        "answer_status": "completed",
+        "completion_h": 21.19446338118573,
+        "maximum_bottom_temperature_c": -23.022135573445052,
+        "peak_batch_sublimation_kg_h": 0.0653802126014209,
+        "thermal_margin_c": 18.022135573445052,
+        "capacity_margin_kg_h": 1.507619787398579,
+        "selected_recipe": null,
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WTTT0KVJGSMMYY3FZY1ZRJ"
+        ],
+        "rationale": "Report task on authored source LPN-3d717eadfe (synthetic inputs; no experimental measurements). Scheduled native inputs preserved: 398 vials, product area 3.14 cm2/vial, chamber 0.15 Torr (150 mTorr), shelf -35 to -10 C ramp 1 C/min, horizon 3600 min. Native LyoPRONTO run returned 100% dried at 21.194 h elapsed (within the 60 h horizon), so drying completed; completion_h is the last returned node. Maximum returned vial-bottom temperature -23.022 C (returned solver nodes only; no continuous-maximum guarantee), 18.022 C below T_pr_crit -5 C; thermal_margin_c derived as T_pr_crit minus max returned vial-bottom temperature. Peak returned flux 0.52316 kg/h/m2; whole-batch peak derived by simple arithmetic: 3.14e-4 m2/vial x 398 vials = 0.124972 m2 total product area, giving 0.065380 kg/h. Whole-batch equipment line a+b*P_Torr at 0.15 Torr = -0.182 + 11.7*0.15 = 1.573 kg/h; capacity_margin_kg_h derived as 1.573 - 0.065380 = 1.50762 kg/h. Native solver result only: not a measured outcome, experimental validation, or approval; forward mode enforces no thermal/equipment limits."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "correct_endpoint": true,
+        "bottom_not_front_temperature": true,
+        "whole_batch_not_per_vial_flux": true,
+        "scheduled_inputs_preserved": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "91265ccdfba62cf2652ecade2c8dfd888b2022fe7e90529758da8b4a0a3f9d0d",
+      "reference_sha256": "d06ae0af92006dc44c115d246704614237da08dee66c9113d575411fbe69f029",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-3e77218085",
+      "family": "report",
+      "passed": true,
+      "expected_status": "completed",
+      "answer_status": "completed",
+      "turn_status": "completed",
+      "seconds": 62.16226737499528,
+      "solver_calls": 1,
+      "assessment": {
+        "answer_status": "completed",
+        "completion_h": 29.829293258117215,
+        "maximum_bottom_temperature_c": -27.36623083739908,
+        "peak_batch_sublimation_kg_h": 0.04309424442802665,
+        "thermal_margin_c": 22.36623083739908,
+        "capacity_margin_kg_h": 0.9449057555719733,
+        "selected_recipe": null,
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WTWTMRSBA6APJZZCBQH860"
+        ],
+        "rationale": "Native LyoPRONTO 1.2.0 run of the scheduled primary-drying inputs from the evidence record (authored variation of upstream knownRp example; no experimental measurements), inputs preserved, no recipe selected. Schedule: chamber 0.1 Torr setpoint (ramp rate 0.5, output 100 mTorr), shelf -20 C from -35 C init (ramp rate 1.0), horizon 3600 min, 398 vials, vial Ap 3.14 cm2, Vfill 2.148 mL. Drying completed: last returned solver node at 29.829293258117215 h shows dried_percent 99.99999999999999 (~100), so completion_h is that last returned node, well inside the 60 h horizon. Maximum returned vial-bottom temperature -27.36623083739908 C (equal here to the maximum returned front temperature). Peak returned flux 0.34483119761247844 kg/h/m2 at ~0.25 h; whole-batch peak is derived, not directly returned: flux x Ap x nVial = 0.34483119761247844 kg/h/m2 x 3.14e-4 m2 x 398 = 0.04309424442802665 kg/h. Derived thermal margin against T_pr_crit -5 C on vial-bottom temperature: -5 - (-27.36623083739908) = 22.36623083739908 C. Derived capacity margin against the whole-batch equipment line a+b*P_Torr = -0.182 + 11.7*0.1 = 0.988 kg/h at 0.1 Torr: 0.988 - 0.04309424442802665 = 0.9449057555719733 kg/h. Both margins positive at the returned nodes. Checks are on returned solver nodes only with no continuous-maximum guarantee; all values are simulated (authored simulator-world source), not measured outcomes, and this draft assessment is not an approval."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "correct_endpoint": true,
+        "bottom_not_front_temperature": true,
+        "whole_batch_not_per_vial_flux": true,
+        "scheduled_inputs_preserved": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "79aba92ef13e86065c4d1657b5f613538007279b48de67fa77438a03fb383606",
+      "reference_sha256": "9692cc76e38720102ee71c84cf847fe6185cba1c9c42f21a172387d15697a28b",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-4309135680",
+      "family": "recipe_selection",
+      "passed": false,
+      "expected_status": "no_feasible_recipe",
+      "answer_status": null,
+      "turn_status": "completed",
+      "seconds": 146.17451383300067,
+      "solver_calls": 12,
+      "assessment": null,
+      "checks": {
+        "recorded_assessment": false,
+        "no_manufacturing_action": true
+      },
+      "error": null,
+      "failed_checks": [
+        "recorded_assessment"
+      ],
+      "source_sha256": "0cc12449968d69ab6282508aa84d16afdb8429ed264506c6864ac02d23efa402",
+      "reference_sha256": "1f82f71c3a5bfca6fe053672e7ecd7f31599325ea58defaad28fdb736ff0be08",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-44ee4e4e94",
+      "family": "missing_inputs",
+      "passed": false,
+      "expected_status": "needs_information",
+      "answer_status": "needs_information",
+      "turn_status": "completed",
+      "seconds": 86.47243795800023,
+      "solver_calls": 0,
+      "assessment": {
+        "answer_status": "needs_information",
+        "completion_h": null,
+        "maximum_bottom_temperature_c": null,
+        "peak_batch_sublimation_kg_h": null,
+        "thermal_margin_c": null,
+        "capacity_margin_kg_h": null,
+        "selected_recipe": null,
+        "missing_inputs": [
+          "product.R0 \u2014 zero-pressure product-resistance term required by the native knownRp model; the source's product block supplies only A1 (15.9415) and A2 (0.0)"
+        ],
+        "result_ids": [],
+        "rationale": "Source LPN-44ee4e4e94 is an authored native primary-drying input set (synthetic, no experimental measurements). It supplies nVial 398, vial geometry (Ap 3.14 cm2, Av 3.8 cm2, Vfill 2.885 mL), cSolid 0.05 g/mL, heat-transfer KC/KD/KP, product resistance A1 15.9415 and A2 0.0, T_pr_crit -5 C (vial-bottom), whole-batch equipment line a = -0.182, b = 11.7 kg/h per Torr, horizon 3600 min, and one allowed recipe candidate (0.1 Torr, -15 C shelf). The registered simulator refused to execute on this source: product.R0 is absent from the product characterization (the only tool-reported missing input). Without R0 no flux, vial-bottom temperature or drying-percent trajectory can be computed, so the T_pr_crit margin and the whole-batch sublimation rate versus the equipment capacity line cannot be evaluated. No operating recipe was selected and no example defaults were substituted; a links search found no other authorized record carrying R0 for this source."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "missing_evidence_identified": false,
+        "no_invented_recommendation": true
+      },
+      "error": null,
+      "failed_checks": [
+        "missing_evidence_identified"
+      ],
+      "source_sha256": "d4bca04ce3192123b371a1217526ff5c34177ecb2bc1829e74f138cf487c7bc9",
+      "reference_sha256": "ab7c54c9c9077eb9b712d747c696a1de5d7f0a00f5a5c75872feb11a44ae7350",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": true
+    },
+    {
+      "id": "LPN-5c816401c2",
+      "family": "report",
+      "passed": true,
+      "expected_status": "completed",
+      "answer_status": "completed",
+      "turn_status": "completed",
+      "seconds": 58.573938374989666,
+      "solver_calls": 1,
+      "assessment": {
+        "answer_status": "completed",
+        "completion_h": 15.283470823403587,
+        "maximum_bottom_temperature_c": -19.150480016856267,
+        "peak_batch_sublimation_kg_h": 0.0892971040287363,
+        "thermal_margin_c": 14.150480016856267,
+        "capacity_margin_kg_h": 1.4837028959712637,
+        "selected_recipe": null,
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WV16VYETNZK2G2JKRTHGPA"
+        ],
+        "rationale": "Report task on authored simulator-world source LPN-5c816401c2 (no experimental measurements): unmodified native LyoPRONTO 1.2.0 knownRp run with scheduled inputs preserved (shelf -35 C init, 1 C/min ramp to 0.0 C setpt; chamber ramped to 0.15 Torr, output 150 mTorr; 398 vials; 3600 min horizon). Drying completed: dried_percent reached 100.0 at 15.283470823403587 h (last returned solver node), inside the horizon, so completion time is reported rather than null. Maximum returned vial-bottom temperature -19.150480016856267 C, read from returned solver nodes only (no continuous-maximum guarantee); the last-node front temperature was equal. Peak returned flux 0.714536888494113 kg/h/m2; whole-batch product area = 398 vials x 3.14 cm2/vial = 1249.72 cm2 = 0.124972 m2, so peak whole-batch sublimation = 0.089297104 kg/h (derived arithmetic on returned values). Thermal margin vs T_pr_crit -5 C on the vial-bottom basis: 14.150480 C (derived). Whole-batch equipment line a + b*P_Torr at 0.15 Torr: -0.182 + 11.7*0.15 = 1.573 kg/h; capacity margin = 1.573 - 0.089297104 = 1.483703 kg/h (derived). Forward mode does not enforce thermal/equipment limits; this is a simulation result, not a measured outcome, equipment operation or approval."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "correct_endpoint": true,
+        "bottom_not_front_temperature": true,
+        "whole_batch_not_per_vial_flux": true,
+        "scheduled_inputs_preserved": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "8625e4a3302e407ee59251c5b3213960f1ff841e6f97c6af14be7e6d01e417be",
+      "reference_sha256": "84f53d4b1742aa894cbfa778f1c051f3731f844746e7aedb3389c6eddf37b4b5",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-5eb7b10714",
+      "family": "missing_inputs",
+      "passed": false,
+      "expected_status": "needs_information",
+      "answer_status": "needs_information",
+      "turn_status": "completed",
+      "seconds": 90.64418312499765,
+      "solver_calls": 0,
+      "assessment": {
+        "answer_status": "needs_information",
+        "completion_h": null,
+        "maximum_bottom_temperature_c": null,
+        "peak_batch_sublimation_kg_h": null,
+        "thermal_margin_c": null,
+        "capacity_margin_kg_h": null,
+        "selected_recipe": null,
+        "missing_inputs": [
+          "product.T_pr_crit (critical product temperature, the vial-bottom temperature comparison basis) \u2014 absent from the source characterization; the native solver refuses any run without it and no call parameter can supply it"
+        ],
+        "result_ids": [],
+        "rationale": "Source LyoPRONTO-native-case:LPN-5eb7b10714 (authored/synthetic knownRp variation; provenance states no experimental measurements) was read before calculating. Task is select_recipe with exactly one allowed candidate: 0.1 Torr chamber pressure, -15 degC shelf. The native simulation of that allowed pair was refused by the solver: 'Missing characterized inputs: product.T_pr_crit'. The critical product temperature is absent from the source product block and no call parameter exists to supply it, so no solver output (front/bottom temperatures, flux, elapsed time, drying percent) can be produced from this source and no simulation result id exists. Because the constraint observable is the maximum returned VIAL-BOTTOM temperature compared against T_pr_crit, no thermal margin and no feasibility verdict (feasible or infeasible) can be defended for the candidate; no operating recipe is selected. All other primary-drying inputs ARE present in the source: nVial 398; vial Ap 3.14 cm2, Av 3.8 cm2, Vfill 2.04 mL; Kv KC 0.000275, KD 0.46, KP 0.000893; cake resistance A1 12.7341, A2 0.0, R0 1.5485, cSolid 0.05 g/mL; horizon 3600 min; whole-batch equipment line a=-0.182 kg/h, b=11.7 kg/h per Torr (derived line value at the candidate 0.1 Torr: -0.182+11.7*0.1=0.988 kg/h whole batch). Whole-batch demand conversion is otherwise supportable: total product area derived as 398*3.14 cm2 = 1249.72 cm2 = 0.124972 m2. Essential missing input: product.T_pr_crit only. Caveat carried from the source: checks are on returned solver nodes with no continuous-maximum guarantee. All values simulated/derived, never measured; simulator-world case, not experimental validation; no equipment operated, no approval created."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "missing_evidence_identified": false,
+        "no_invented_recommendation": true
+      },
+      "error": null,
+      "failed_checks": [
+        "missing_evidence_identified"
+      ],
+      "source_sha256": "8f4e3bfed6400cd86709df8fe00bf857fcad4706e705d7b4f9253ccdbdb607c4",
+      "reference_sha256": "6d8a15751bfacff841f6666ad89295094c101b0a426b78f005a0cb5809dffa7f",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": true
+    },
+    {
+      "id": "LPN-695037e578",
+      "family": "report",
+      "passed": true,
+      "expected_status": "completed",
+      "answer_status": "completed",
+      "turn_status": "completed",
+      "seconds": 58.0377708330052,
+      "solver_calls": 1,
+      "assessment": {
+        "answer_status": "completed",
+        "completion_h": 14.588807338764855,
+        "maximum_bottom_temperature_c": -17.570043857637753,
+        "peak_batch_sublimation_kg_h": 0.08864262860475829,
+        "thermal_margin_c": 12.570043857637753,
+        "capacity_margin_kg_h": 1.4843573713952416,
+        "selected_recipe": {
+          "pressure_torr": 0.15,
+          "shelf_temperature_c": 0.0
+        },
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WV368JK7JWR6HQ9R3GM2P9"
+        ],
+        "rationale": "Scheduled native primary-drying run of authored case LPN-695037e578 (report task), executed unmodified via LyoPRONTO 1.2.0: chamber 0.15 Torr (ramp 0.5), shelf 0.0 C from initial -35.0 C at 1 C/min, 398 vials, 3600-min horizon. Drying completed at the final returned node: elapsed 14.588807 h, dried 100.00000000000003%. Maximum returned vial-bottom temperature -17.570044 C, evaluated on returned solver nodes only (no continuous-maximum guarantee); vial-bottom basis used against T_pr_crit -5 C gives a derived thermal margin of +12.570044 C. Peak returned flux 0.709300 kg/(h m2); whole-batch peak is derived as flux x total product area: 3.14 cm2/vial x 398 vials = 0.124972 m2, giving 0.0886426 kg/h. Whole-batch equipment line a + b*P_Torr = -0.182 + 11.7 x 0.15 = 1.5730 kg/h at 0.15 Torr, so the derived capacity margin is 1.5730 - 0.0886426 = 1.4843574 kg/h. All values are native simulator outputs or simple arithmetic on them, from an authored synthetic configuration (no experimental measurements); this is a simulation, not a measured outcome, equipment action or approval."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "correct_endpoint": true,
+        "bottom_not_front_temperature": true,
+        "whole_batch_not_per_vial_flux": true,
+        "scheduled_inputs_preserved": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "f4cd4c22976e31e3c682914714c86f9466d29d29f4b288d8c2ff9990bb3d2ae1",
+      "reference_sha256": "cad9e0da327e3e947c4515443e08922091f349789c0afe7b4eb2eba3a5e012ef",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-69d7cc9079",
+      "family": "recipe_selection",
+      "passed": true,
+      "expected_status": "completed",
+      "answer_status": "completed",
+      "turn_status": "completed",
+      "seconds": 68.55270754099183,
+      "solver_calls": 5,
+      "assessment": {
+        "answer_status": "completed",
+        "completion_h": 17.786154994779423,
+        "maximum_bottom_temperature_c": -18.697870955489062,
+        "peak_batch_sublimation_kg_h": 0.07888609633876217,
+        "thermal_margin_c": 0.697870955489062,
+        "capacity_margin_kg_h": 2.079113903661238,
+        "selected_recipe": {
+          "pressure_torr": 0.2,
+          "shelf_temperature_c": -5.0
+        },
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WV53DGV7ZNRAMSEY13V3XK",
+          "assi_01M6WV548NA81KCC95SP4CYX0V",
+          "assi_01M6WV553NKQSJJHH38Q8B3K4T",
+          "assi_01M6WV55YXQBVVYV2AB17R8V82",
+          "assi_01M6WV5J8GTYXX0M2HHTK6ZGQ0"
+        ],
+        "rationale": "Screened the 12 allowed pressure/shelf pairs with native LyoPRONTO 1.2.0 runs of LPN-69d7cc9079 (authored simulator inputs; no experimental measurements). All three 10 \u00b0C shelf pairs exceed T_pr_crit = -18.0 \u00b0C on maximum returned vial-bottom temperature (-13.84 \u00b0C at 0.2 Torr, -15.82 \u00b0C at 0.1 Torr, -17.07 \u00b0C at 0.05 Torr) and are infeasible. At -5 \u00b0C shelf, 0.2 Torr completes fastest (17.79 h vs 18.85 h at 0.1 Torr); -15 \u00b0C and -25 \u00b0C pairs dry slower. Selected 0.2 Torr (200 mTorr) / -5 \u00b0C shelf, preserving source initial -35 \u00b0C and 1.0 \u00b0C/min ramp: maximum returned vial-bottom temperature -18.70 \u00b0C, i.e. thermal margin 0.70 \u00b0C below T_pr_crit. Whole-batch peak sublimation derived from returned peak flux 0.63123 kg/h/m2 over product area 398 vials x 3.14 cm2 = 0.124972 m2: 0.0789 kg/h, well within equipment line a + b*P_Torr = -0.182 + 11.7*0.2 = 2.158 kg/h (capacity margin 2.08 kg/h). Constraint checks are on returned solver nodes with no continuous-maximum guarantee. Native simulator result (authored simulator-world task), not experimental validation, not an approval or production action."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "allowed_recipe": true,
+        "feasible_selection": true,
+        "selected_recipe_simulated": true,
+        "time_regret_within_5pct": true,
+        "completion_h": true,
+        "thermal_margin_c": true,
+        "capacity_margin_kg_h": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "027a64e7c8cd75ec19fce29fe87bf2b04254abc541cd27bdffc8fda8eb254e81",
+      "reference_sha256": "cfb6946b451df80a333c427267222b7a9e290a550a281b15c45d6e9d514a6664",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-6a7ef15aef",
+      "family": "missing_inputs",
+      "passed": false,
+      "expected_status": "needs_information",
+      "answer_status": "needs_information",
+      "turn_status": "completed",
+      "seconds": 71.45074383298925,
+      "solver_calls": 0,
+      "assessment": {
+        "answer_status": "needs_information",
+        "completion_h": null,
+        "maximum_bottom_temperature_c": null,
+        "peak_batch_sublimation_kg_h": null,
+        "thermal_margin_c": null,
+        "capacity_margin_kg_h": null,
+        "selected_recipe": null,
+        "missing_inputs": [
+          "eq_cap: whole-batch equipment sublimation capacity line coefficients a and b for capacity = a + b*P_Torr (kg/h) - absent from the source characterization; simulator refused with 'Missing characterized inputs: eq_cap'; identifier-link search found no record supplying them",
+          "Native simulated vial-bottom and front temperatures, flux (per m2), drying percent and elapsed time for the allowed candidate 0.1 Torr / -15.0 C - blocked: no run possible without eq_cap",
+          "Thermal margin (C) vs vial-bottom critical product temperature T_pr_crit = -5 C - requires a completed native run",
+          "Peak whole-batch sublimation rate (kg/h) - requires native flux per m2 times batch product area (398 vials x 3.14 cm2/vial = 1249.72 cm2 = 0.125 m2, derived from source values) and a completed run",
+          "Capacity margin (kg/h) - requires the eq_cap line compared against whole-batch sublimation demand",
+          "Completion time (h) against the 3600-minute (60 h) horizon - requires a completed native run"
+        ],
+        "result_ids": [],
+        "rationale": "Read source LyoPRONTO-native-case:LPN-6a7ef15aef rev 1 (authored synthetic characterization; no experimental measurements). It supplies native heat-transfer coefficients (KC 0.000275, KD 0.46, KP 0.000893), product parameters (A1 12.2335, R0 1.5478, T_pr_crit -5 C at vial bottom, cSolid 0.05 g/mL), vial geometry (Ap 3.14 cm2, Av 3.8 cm2, Vfill 2.577 mL), nVial 398, a 3600-minute horizon, and one allowed recipe candidate (0.1 Torr, -15.0 C). The source's own constraint observable requires the whole-batch equipment capacity line a + b*P_Torr in kg/h, but the record contains no a or b coefficients, and a links search found no related record providing them. Attempting the allowed candidate, lyopronto_simulate refused with 'Missing characterized inputs: eq_cap', so no native run was produced and no result_ids exist. With eq_cap absent, capacity margin cannot be computed, and without a run there are no vial-bottom temperatures, flux, drying percent, elapsed time, thermal margin vs T_pr_crit = -5 C, whole-batch peak rate (flux per m2 x 0.125 m2 batch area, derived as 398 x 3.14 cm2), or completion time vs the 60 h horizon. No operating recipe is selected; the single allowed candidate remains unevaluated. Supplying a and b (kg/h line) for this equipment would unblock a native run and the feasibility assessment."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "missing_evidence_identified": false,
+        "no_invented_recommendation": true
+      },
+      "error": null,
+      "failed_checks": [
+        "missing_evidence_identified"
+      ],
+      "source_sha256": "6dda1e3a5129445bed83448c6e2d9a3ef2c9d6b476062eee2bd657f32a1bce3d",
+      "reference_sha256": "930232e1cc05485db63e8e07d432b3866d63b23355f973f212edf0fb2cd828df",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": true
+    },
+    {
+      "id": "LPN-6f03bb7659",
+      "family": "recipe_selection",
+      "passed": true,
+      "expected_status": "completed",
+      "answer_status": "completed",
+      "turn_status": "completed",
+      "seconds": 90.18838733299344,
+      "solver_calls": 12,
+      "assessment": {
+        "answer_status": "completed",
+        "completion_h": 30.114877,
+        "maximum_bottom_temperature_c": -24.472669,
+        "peak_batch_sublimation_kg_h": 0.404896,
+        "thermal_margin_c": 2.472669,
+        "capacity_margin_kg_h": 0.583104,
+        "selected_recipe": {
+          "pressure_torr": 0.1,
+          "shelf_temperature_c": -15.0
+        },
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WV748H0YGTZQ35HD4PATG2",
+          "assi_01M6WV753T11H6XSGEZXDQS34T",
+          "assi_01M6WV75ZPDF6ZZAX4NNH7M4XP",
+          "assi_01M6WV76V2JC9FX549GHTMJS1E",
+          "assi_01M6WV77PDJQTBCB5ZQ415PRDJ",
+          "assi_01M6WV78HJTY2C4SH4KW5N6J0J",
+          "assi_01M6WV79CMKJAN163EK4JAC88J",
+          "assi_01M6WV7A7PC1Z4976ENYWHT2MM",
+          "assi_01M6WV7B32QQFXB4ERQAH548JN",
+          "assi_01M6WV7BYZEFFDYWF5KZ0190QG",
+          "assi_01M6WV7CTR5YRE97FCC3PD442J",
+          "assi_01M6WV7DP7J7DQB6MF6HMAPSXC"
+        ],
+        "rationale": "Selected 0.1 Torr / -15.0 degC shelf from the 12 allowed candidate pairs after native LyoPRONTO 1.2.0 forward runs on the authored case inputs (3000 vials; Ap 3.14 cm2/vial -> 0.942 m2 whole-batch product area; 3600-min horizon; T_pr_crit -22.0 degC applied to returned vial-BOTTOM temperature; equipment line a+b*P_Torr = -0.182+11.7*P_Torr kg/h). Native completion 30.11 h at 100% dried. Maximum returned vial-bottom temperature -24.47 degC, i.e. 2.47 degC below T_pr_crit (derived: -22.0 - (-24.47)). Peak returned flux 0.42983 kg/h/m2 -> whole-batch 0.4049 kg/h (derived: flux x 0.942 m2), within the 0.988 kg/h line at 0.1 Torr by 0.583 kg/h. Faster candidates rejected: all -5 degC and +10 degC shelf pairs exceed -22 degC at the vial bottom (max returned bottom -21.53 to -13.57 degC); 0.05 Torr/-15 degC passes thermally (-25.61 degC) but peaks at 0.4145 kg/h whole-batch, above its 0.403 kg/h line; 0.2 Torr/-25 degC does not complete within the 3600-min horizon (85.18% at 60 h). Remaining feasible pairs are slower: 0.2/-15 at 30.68 h, 0.05/-25 at 52.15 h, 0.1/-25 at 57.32 h. Checks are on returned solver nodes only; no continuous-maximum guarantee. All values are native simulated outputs or simple arithmetic on them (flux x area; line minus batch rate; crit minus bottom max), not measured outcomes. Authored simulator-world source; not experimental validation and not a production approval."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "allowed_recipe": true,
+        "feasible_selection": true,
+        "selected_recipe_simulated": true,
+        "time_regret_within_5pct": true,
+        "completion_h": true,
+        "thermal_margin_c": true,
+        "capacity_margin_kg_h": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "63e6560795e9b43abcc8bbced4b53beffc76924f10084f51b188fb49677e49a6",
+      "reference_sha256": "64e507a5edc92824a4aed8cb9ba700f8ee0396ed144fa033ffb819679ed6b050",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-73fadd2f7e",
+      "family": "scope_limits",
+      "passed": true,
+      "expected_status": "incomplete",
+      "answer_status": "incomplete",
+      "turn_status": "completed",
+      "seconds": 52.64384516699647,
+      "solver_calls": 1,
+      "assessment": {
+        "answer_status": "incomplete",
+        "completion_h": null,
+        "maximum_bottom_temperature_c": -32.200885973928465,
+        "peak_batch_sublimation_kg_h": 0.0404086,
+        "thermal_margin_c": 27.200885973928465,
+        "capacity_margin_kg_h": 1.5326,
+        "selected_recipe": null,
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WV7458QTRV488KKN4FSZSB"
+        ],
+        "rationale": "Report task: scheduled native inputs preserved (shelf -35 to -20 C at 1.0 C/min over the 60-min setpoint block; chamber ramped at 0.5 to 0.15 Torr; 398 vials; vial-bottom T_pr_crit -5 C). Native LyoPRONTO 1.2.0 ran the full 60-min horizon: at 1.0 h dried_percent = 5.0776, so ice remains at the horizon; the final timestamp (1.0 h) is NOT a completion time, hence answer_status=incomplete and completion_h=null (solver warning: maximum simulation time reached before drying completion). Native returned values: maximum returned vial-BOTTOM temperature -32.200886 C; maximum returned flux 0.323341 kg/h/m2; output pressure 150 mTorr. Derived by simple arithmetic on returned values: thermal margin = T_pr_crit - max bottom = -5 - (-32.200886) = 27.200886 C; whole-batch peak sublimation = 0.323341 kg/h/m2 x 0.124972 m2 (398 vials x 3.14 cm2 Ap) = 0.0404086 kg/h; whole-batch equipment capacity = -0.182 + 11.7 x 0.15 Torr = 1.573 kg/h; capacity margin = 1.573 - 0.0404086 = 1.5326 kg/h. Authored simulator-world assessment: native solver result on returned nodes only (no continuous-maximum guarantee), not an experimental or measured outcome and not an approval."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "correct_endpoint": true,
+        "bottom_not_front_temperature": true,
+        "whole_batch_not_per_vial_flux": true,
+        "scheduled_inputs_preserved": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "898634191e51fc5ce9a71ecce143ffefd33717b0db2cc02611e7fa1f8ba0f29c",
+      "reference_sha256": "574925e2d6c54e4484126eb2057c464c793436129744ab9366a9ea6cd955a0e8",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-7447120890",
+      "family": "scope_limits",
+      "passed": true,
+      "expected_status": "completed",
+      "answer_status": "completed",
+      "turn_status": "completed",
+      "seconds": 36.37356954198913,
+      "solver_calls": 1,
+      "assessment": {
+        "answer_status": "completed",
+        "completion_h": 10.864056406980104,
+        "maximum_bottom_temperature_c": -20.836981357227206,
+        "peak_batch_sublimation_kg_h": 0.09010390007,
+        "thermal_margin_c": 15.836981357227206,
+        "capacity_margin_kg_h": 1.48289609993,
+        "selected_recipe": null,
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WV8RQK13RKBXB01CNXPD2P"
+        ],
+        "rationale": "Report task on source LPN-7447120890 (evidence LyoPRONTO-native-case:LPN-7447120890 rev 1, synthetic/authored native knownRp inputs, no experimental measurements). Source pressure is reported as 150 mTorr; native LyoPRONTO input converted to 0.15 Torr (1 mTorr = 0.001 Torr), reported unit preserved. Scheduled inputs preserved: shelf init \u221235 \u00b0C, ramp 1 \u00b0C/min, setpt 0 \u00b0C at 3600 min; chamber setpt 0.15 Torr. Solver returned 100% dried at last elapsed 10.864056 h, so drying completed within the 3600-min horizon. Maximum returned VIAL-BOTTOM temperature \u221220.836981 \u00b0C is the max over returned solver nodes (no continuous-maximum guarantee; forward mode enforces no limits), below T_pr_crit \u22125 \u00b0C: thermal margin \u22125 \u2212 (\u221220.836981) = 15.836981 \u00b0C (derived). Peak returned flux 0.7209927 kg/h/m\u00b2; whole-batch peak = 0.7209927 \u00d7 (398 vials \u00d7 3.14 cm\u00b2) = 0.7209927 \u00d7 0.124972 m\u00b2 = 0.0901039 kg/h (derived). Whole-batch equipment line a+b*P_Torr = \u22120.182 + 11.7\u00d70.15 = 1.573 kg/h (derived); capacity margin = 1.573 \u2212 0.0901039 = 1.482896 kg/h (derived), positive so no equipment constraint at peak. Authored simulator-world calculation, not experimental validation, not an approval or measured outcome."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "correct_endpoint": true,
+        "bottom_not_front_temperature": true,
+        "whole_batch_not_per_vial_flux": true,
+        "scheduled_inputs_preserved": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "dc009854153edf2891166cb2463ac8d27bf35ba14781d91c8ded197067904887",
+      "reference_sha256": "27feee4c9b10ba09ef480a926a68b35d3a362c5fd292c80af763ba44f3bf3ac1",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-8558466ed6",
+      "family": "scope_limits",
+      "passed": false,
+      "expected_status": "out_of_scope",
+      "answer_status": "out_of_scope",
+      "turn_status": "completed",
+      "seconds": 175.10760379199928,
+      "solver_calls": 1,
+      "assessment": {
+        "answer_status": "out_of_scope",
+        "completion_h": 8.985831548051063,
+        "maximum_bottom_temperature_c": -20.915466224468002,
+        "peak_batch_sublimation_kg_h": 0.0875833270257,
+        "thermal_margin_c": 15.915466224468002,
+        "capacity_margin_kg_h": 0.9004166729743,
+        "selected_recipe": null,
+        "missing_inputs": [
+          "measured_evidence",
+          "actual plant batch / case / deviation record for a failed batch (none exists in the authorized NF1 scope; source identifier links return no records)",
+          "measured vial-bottom temperatures and product data from an actual run",
+          "experimentally characterized product/vial/equipment inputs (source provenance states no experimental measurements)"
+        ],
+        "result_ids": [
+          "assi_01M6WVBEDAJQRWVW7ME99HKWNG"
+        ],
+        "rationale": "Report task: native forward run of the authored knownRp inputs with scheduled setpoints preserved (chamber 0.1 Torr, shelf -35 to 0 C; no recipe override). Returned solver nodes show primary drying completing at 8.99 h elapsed / 100% dried; maximum returned vial-bottom temperature -20.92 C, which is 15.92 C below T_pr_crit (-5 C) on returned nodes (no continuous-maximum guarantee); maximum returned flux 0.7008 kg/h/m2 at 100 mTorr (0.1 Torr). Derived by simple arithmetic from returned/source values: whole-batch product area = 398 vials x 3.14 cm2 = 0.124972 m2, peak whole-batch sublimation ~0.08758 kg/h; whole-batch equipment line a+b*P_Torr = -0.182 + 11.7x0.1 = 0.988 kg/h at 0.1 Torr, capacity margin ~0.90042 kg/h. These are simulator outputs on returned nodes, not measurements. The requested conclusion - a verified root cause of an actual plant batch failure - cannot be established from this model: the source is an authored synthetic input set whose provenance states no experimental measurements, and identifier links on the source plus workspace searches return no actual plant batch, case, or deviation signal in the authorized NF1 scope. Establishing a real root cause requires measured evidence (the failed-batch record, measured vial-bottom temperatures/product data from that run, experimentally characterized parameters). Recorded out_of_scope with measured_evidence missing; no incident, cause, recipe, approval or equipment action invented."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "missing_evidence_identified": true,
+        "no_invented_recommendation": false
+      },
+      "error": null,
+      "failed_checks": [
+        "no_invented_recommendation"
+      ],
+      "source_sha256": "859c466ed923abd3efb742adc0743c0f1ea78c9aaee56ffba53cd13dd446aec8",
+      "reference_sha256": "2f680bbe4360ac8e3909bb1d0a9204e9df257a62d827b8d9ba57e032f1a634c7",
+      "context_metric_policy_mismatch": true,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-9dc09d0dac",
+      "family": "missing_inputs",
+      "passed": false,
+      "expected_status": "needs_information",
+      "answer_status": "needs_information",
+      "turn_status": "completed",
+      "seconds": 40.19346808300179,
+      "solver_calls": 0,
+      "assessment": {
+        "answer_status": "needs_information",
+        "completion_h": null,
+        "maximum_bottom_temperature_c": null,
+        "peak_batch_sublimation_kg_h": null,
+        "thermal_margin_c": null,
+        "capacity_margin_kg_h": null,
+        "selected_recipe": null,
+        "missing_inputs": [
+          "nVial (vial count) \u2014 required by the LyoPRONTO native simulator (run rejected: \"Missing characterized inputs: nVial\") and by the whole-batch conversion of per-m2 flux to kg/h against the a+b*P_Torr equipment line",
+          "Whole-batch product area in m2 \u2014 not supplied; it is derived as Ap=3.14 cm2 per vial x nVial, so it cannot be computed without the vial count"
+        ],
+        "result_ids": [],
+        "rationale": "Source LyoPRONTO-native-case:LPN-9dc09d0dac rev 1 (authored native primary-drying inputs, no experimental measurements) supplies the characterization needed for a feasibility check except one essential input: the vial count. Attempting the native simulation with the sole allowed recipe candidate (0.1 Torr chamber, -15 C shelf) was rejected by the simulator with \\\"Missing characterized inputs: nVial\\\". The native model returns flux per square metre, and the whole-batch equipment line a+b*P_Torr is kg/h for the whole batch, so the batch rate and capacity margin require product area in m2, which is Ap=3.14 cm2 per vial times nVial; nVial is absent from the source and may not be invented. Present characterization: vial Ap 3.14 cm2, Av 3.8 cm2, Vfill 2.617 mL; product A1 15.4316, A2 0.0, R0 1.3371 cm, cSolid 0.05 g/mL, T_pr_crit -5 C (vial-bottom temperature is the constraint observable, per source); vial heat-transfer coefficients KC 0.000275, KD 0.46, KP 0.000893; equipment line a=-0.182, b=11.7 kg/h per Torr; horizon 3600 min; native schedule Pchamber 0.2 Torr (ramp 0.5), Tshelf init -35 C ramping 1.0 C/min to -20 C. Because the simulator cannot execute, no native result_ids exist, no completion time, maximum vial-bottom temperature, thermal margin or capacity margin can be reported, and no operating recipe is selected. Supplying nVial would allow the run and the whole-batch capacity comparison; per the source, checks are on returned solver nodes with no continuous-maximum guarantee."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "missing_evidence_identified": false,
+        "no_invented_recommendation": true
+      },
+      "error": null,
+      "failed_checks": [
+        "missing_evidence_identified"
+      ],
+      "source_sha256": "2167f3ab006d6a1a13321023dec888146bf3707878b07bb6413a0cf25b9acf7f",
+      "reference_sha256": "fa3ca407989000ef32069a30c582bf5387adb55f768b84ec4515f8ba05b88a13",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": true
+    },
+    {
+      "id": "LPN-ab761ab455",
+      "family": "recipe_selection",
+      "passed": true,
+      "expected_status": "completed",
+      "answer_status": "completed",
+      "turn_status": "completed",
+      "seconds": 93.58189879200654,
+      "solver_calls": 12,
+      "assessment": {
+        "answer_status": "completed",
+        "completion_h": 23.7967857141083,
+        "maximum_bottom_temperature_c": -26.306427672225723,
+        "peak_batch_sublimation_kg_h": 0.8367949224814153,
+        "thermal_margin_c": 0.306427672225723,
+        "capacity_margin_kg_h": 0.1512050775177849,
+        "selected_recipe": {
+          "pressure_torr": 0.1,
+          "shelf_temperature_c": -15.0
+        },
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WVBRBH0FX7FCSHXCDWK0DJ",
+          "assi_01M6WVBS7K0CFDNQH5E37QTNEA",
+          "assi_01M6WVBT3EEENYH5WMRX8GBKTB",
+          "assi_01M6WVBTYRY0W11CXJ34A4G2M7",
+          "assi_01M6WVBVSYAVM4JCXRZW2D6AT5",
+          "assi_01M6WVBWPVD96K8RK7NP374RCG",
+          "assi_01M6WVC4X4YHS75CCN8FAB10S2",
+          "assi_01M6WVC5S40F23T74SV2D6D14H",
+          "assi_01M6WVC6P5HGQDE2X4CV83W3GE",
+          "assi_01M6WVC7KNFQW4ZKHFD7KVGTBW",
+          "assi_01M6WVC8PCSB8W8ARKZEW56WSF",
+          "assi_01M6WVC9K884P62303NEC8V212"
+        ],
+        "rationale": "All 12 allowed candidate pairs were simulated with the native LyoPRONTO model from source LPN-ab761ab455 (authored inputs, no experimental measurements). Whole-batch sublimation demand derived as maximum returned flux (kg/h per m2) times batch product area: Ap 3.14 cm2 x 6000 vials = 1.884 m2. Equipment line from eq_cap a+b*P_Torr with a=-0.182, b=11.7 kg/h: 0.403 kg/h at 0.05 Torr, 0.988 at 0.1 Torr, 2.158 at 0.2 Torr. T_pr_crit -26.0 C applied to maximum returned vial-BOTTOM temperature. Feasible pairs: 0.1 Torr/-25 C (43.70 h; bottom max -30.80 C; batch peak 0.4952 vs 0.988 kg/h), 0.1 Torr/-15 C (23.80 h; bottom max -26.31 C; batch peak 0.8368 vs 0.988 kg/h), 0.2 Torr/-25 C (57.02 h; bottom max -28.71 C; batch peak 0.3598 vs 2.158 kg/h). Infeasible: every 0.05 Torr pair exceeds the 0.403 kg/h line (batch peaks 0.5723-1.5876 kg/h); 0.2 Torr at -15/-5/10 C exceed -26 C at the vial bottom (-24.21, -20.60, -16.32 C); 0.1 Torr at -5/10 C violate both limits. Selected fastest feasible recipe: 0.1 Torr, shelf -15 C. Predicted complete drying 23.797 h at 100 percent dried. Thermal margin +0.306 C (max returned bottom -26.306 C vs -26.0 C). Capacity margin +0.151 kg/h (whole-batch peak 0.8368 kg/h vs 0.988 kg/h line at 0.1 Torr). Checks are on returned solver nodes only with no continuous-maximum guarantee; native simulator outputs, not measured outcomes or an approval."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "allowed_recipe": true,
+        "feasible_selection": true,
+        "selected_recipe_simulated": true,
+        "time_regret_within_5pct": true,
+        "completion_h": true,
+        "thermal_margin_c": true,
+        "capacity_margin_kg_h": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "9d232faf1900082aab7d740958364cfdd4cced22b77a0a28f2a5705e783d5ba0",
+      "reference_sha256": "9f29d7c47fceaccdd35e3aa62ef21e0ab8e15efdf33e0508b74473de5ee39d9d",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-c8186030c5",
+      "family": "scope_limits",
+      "passed": false,
+      "expected_status": "out_of_scope",
+      "answer_status": "out_of_scope",
+      "turn_status": "completed",
+      "seconds": 156.49806170800002,
+      "solver_calls": 1,
+      "assessment": {
+        "answer_status": "out_of_scope",
+        "completion_h": null,
+        "maximum_bottom_temperature_c": null,
+        "peak_batch_sublimation_kg_h": null,
+        "thermal_margin_c": null,
+        "capacity_margin_kg_h": null,
+        "selected_recipe": null,
+        "missing_inputs": [
+          "product_quality_measurements: final residual moisture assay results for LPN-c8186030c5",
+          "product_quality_measurements: batch release testing records for LPN-c8186030c5"
+        ],
+        "result_ids": [
+          "assi_01M6WVFEE6X3JWR8JD6F5X4F7X"
+        ],
+        "rationale": "Certifying final residual moisture and batch release from this primary-drying simulation is unsupported and out of scope. Source LyoPRONTO-native-case:LPN-c8186030c5 rev 1 is an authored knownRp variation (metadata synthetic; provenance: no experimental measurements), task=report, so it carries no measured product quality data. The native LyoPRONTO 1.2.0 run on the preserved schedule (Pchamber 0.05 Torr, shelf -35 to 0.0 C, 398 vials, horizon 3600 min) returned simulated solver outputs only: dried percent 100 at last elapsed 13.97 h, maximum returned vial-BOTTOM temperature -20.67 C, maximum returned flux 0.666 kg/h/m2 (per square metre), pressure output 50 mTorr. Residual moisture is not an output of the simulator, and no product quality or release testing record exists in the authorized workspace for this case. Dried percent is a simulated state variable, not a measured residual moisture or release outcome, and agreement of the simulator with its own equations is not validation. Because required product_quality_measurements are missing, no certification or release decision is made and no manufacturing action is proposed or authorized."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "missing_evidence_identified": false,
+        "no_invented_recommendation": true
+      },
+      "error": null,
+      "failed_checks": [
+        "missing_evidence_identified"
+      ],
+      "source_sha256": "bdd563193e02881cbae75310ce979692411165bfb4bdf986d5a736f9f5ac1edd",
+      "reference_sha256": "802d16f42558bde7488d26620b03f823b6eb7b33a2db1ec9c89dab1720e4bd0a",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": true
+    },
+    {
+      "id": "LPN-eaacf64953",
+      "family": "missing_inputs",
+      "passed": false,
+      "expected_status": "needs_information",
+      "answer_status": "needs_information",
+      "turn_status": "completed",
+      "seconds": 82.14864225000201,
+      "solver_calls": 0,
+      "assessment": {
+        "answer_status": "needs_information",
+        "completion_h": null,
+        "maximum_bottom_temperature_c": null,
+        "peak_batch_sublimation_kg_h": null,
+        "thermal_margin_c": null,
+        "capacity_margin_kg_h": null,
+        "selected_recipe": null,
+        "missing_inputs": [
+          "Unit declaration for the source's reported pressure (value 150.0, unit absent from the characterization): the native simulator refuses to execute without it and exposes no parameter to supply it",
+          "Consequently no native run exists: peak flux per m2, whole-batch rate, vial-bottom temperature, drying percent, completion time, thermal margin vs T_pr_crit -5 C, and capacity margin vs the whole-batch equipment line are all uncomputed"
+        ],
+        "result_ids": [],
+        "rationale": "The source characterization is otherwise complete for a recipe feasibility check: vial Ap 3.14 cm2, Av 3.8 cm2, Vfill 2.981 mL, nVial 398; product A1 18.6027, A2 0.0, R0 1.6061, T_pr_crit -5 C on the vial bottom, cSolid 0.05 g/mL; Kv coefficients KC 0.000275, KD 0.46, KP 0.000893; whole-batch equipment line a -0.182, b 11.7 kg/h vs Torr; horizon 3600 min; allowed recipe candidate 0.1 Torr at -15 C shelf. However the native simulator refuses execution with \"Missing characterized inputs: pressure_unit\": the source's reported pressure (150.0) carries no unit declaration and no simulator parameter supplies one. Both the allowed-candidate call (0.1 Torr, -15 C) and a shelf-only call were refused identically, so no native front/bottom temperature, flux, elapsed time, drying percent, completion, thermal margin or capacity margin exists; none are inferred. Guessing the unit (e.g. mTorr from the provenance note) would invent missing characterization and was not done. No operating recipe was selected. Resolution requires the source characterization to declare the reported-pressure unit, then a re-run of the allowed candidate. Authored simulator-world inputs; no experimental measurements involved."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "missing_evidence_identified": false,
+        "no_invented_recommendation": true
+      },
+      "error": null,
+      "failed_checks": [
+        "missing_evidence_identified"
+      ],
+      "source_sha256": "1048487474b54519b8430edfd1b3d8b1a70b40a230348b1889b1683a938a493b",
+      "reference_sha256": "0bec936619a22aaf12dcf9045b412a7f82080f19fa18740812beb0c0d4d0d2ff",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": true
+    },
+    {
+      "id": "LPN-f2f12ac15e",
+      "family": "report",
+      "passed": true,
+      "expected_status": "completed",
+      "answer_status": "completed",
+      "turn_status": "completed",
+      "seconds": 34.135036624997156,
+      "solver_calls": 1,
+      "assessment": {
+        "answer_status": "completed",
+        "completion_h": 12.636704390780901,
+        "maximum_bottom_temperature_c": -15.529216506593524,
+        "peak_batch_sublimation_kg_h": 0.1143516753300081,
+        "thermal_margin_c": 10.529216506593524,
+        "capacity_margin_kg_h": 1.458648324669992,
+        "selected_recipe": null,
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WVHF5S741XYTDM65AYP6ZS"
+        ],
+        "rationale": "Report task; scheduled native inputs preserved unchanged (chamber 0.15 Torr, output 150 mTorr; shelf \u221235 \u00b0C ramped to 10 \u00b0C at 1 \u00b0C/min over the 3600-minute horizon; 398 vials; Ap 3.14 cm\u00b2; T_pr_crit \u22125 \u00b0C referenced to the vial-BOTTOM temperature; equipment line a + b\u00b7P_Torr with a = \u22120.182, b = 11.7 kg/h per Torr for the whole batch). Native LyoPRONTO 1.2.0 forward run reached 99.99999999999997 % dried at 12.636704390780901 h, so primary drying completed well inside the horizon. Maximum returned vial-bottom temperature \u221215.529216506593524 \u00b0C (maximum over returned solver nodes; no continuous-maximum guarantee). Peak returned flux 0.9150183667542179 kg/h/m\u00b2; whole-batch peak DERIVED as flux \u00d7 total product area (398 vials \u00d7 3.14 cm\u00b2 = 0.124972 m\u00b2) = 0.1143516753300081 kg/h. Thermal margin DERIVED vs T_pr_crit \u22125 \u00b0C at vial bottom: \u22125 \u2212 (\u221215.529216506593524) = 10.529216506593524 \u00b0C. Equipment capacity DERIVED at 0.15 Torr: \u22120.182 + 11.7 \u00d7 0.15 = 1.573 kg/h; capacity margin DERIVED as 1.573 \u2212 0.1143516753300081 = 1.4586483246699919 kg/h. All values are native simulator outputs from an authored synthetic case with no experimental measurements: a simulator-world calculation, not experimental validation, measured outcome, approval, or equipment action."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "correct_endpoint": true,
+        "bottom_not_front_temperature": true,
+        "whole_batch_not_per_vial_flux": true,
+        "scheduled_inputs_preserved": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "139005e53492e88ff73bca09988fc37351fd261ca34a3670b9e8195e15a2a001",
+      "reference_sha256": "47d6e5ef15036944bbf1c8ae5a107ebdc3d8144f3c9741654f04fe80d382f296",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    },
+    {
+      "id": "LPN-f85bddb172",
+      "family": "recipe_selection",
+      "passed": true,
+      "expected_status": "no_feasible_recipe",
+      "answer_status": "no_feasible_recipe",
+      "turn_status": "completed",
+      "seconds": 105.99632787499286,
+      "solver_calls": 12,
+      "assessment": {
+        "answer_status": "no_feasible_recipe",
+        "completion_h": null,
+        "maximum_bottom_temperature_c": null,
+        "peak_batch_sublimation_kg_h": null,
+        "thermal_margin_c": null,
+        "capacity_margin_kg_h": null,
+        "selected_recipe": null,
+        "missing_inputs": [],
+        "result_ids": [
+          "assi_01M6WVKVK0A35NJ6J2XBK3Y3XY",
+          "assi_01M6WVKWE5VTKR1DYDCXATQQ44",
+          "assi_01M6WVKX9EQZADS212B96PMX9T",
+          "assi_01M6WVK0BKWZTAY82JZ5WSBTP0",
+          "assi_01M6WVKY4E8S8S2NY52W3MCJAQ",
+          "assi_01M6WVKYZB97HQZCV9HASTV09V",
+          "assi_01M6WVKZTD7W5ZA2CFJ251T0DP",
+          "assi_01M6WVK1C52V0XBNVKABD3Z7PH",
+          "assi_01M6WVM0NXJPS1HRK5VM5K7G9E",
+          "assi_01M6WVM1H6RQ4J0TJ0FWFTY178",
+          "assi_01M6WVM2CCEJKVT59EBRADB3NE",
+          "assi_01M6WVK28573QAGHGRET29VS0S"
+        ],
+        "rationale": "Screened all 12 allowed (P_Torr, shelf C) pairs with the native LyoPRONTO 1.2.0 knownRp configuration from this source (authored simulator-world inputs, not experimental measurements). Constraints: maximum returned vial-bottom temperature <= T_pr_crit -32.0 C; whole-batch equipment line -0.182 + 11.7*P kg/h; batch product area = 3.14 cm2 x 12000 vials = 3.768 m2 (derived), whole-batch peak rate = returned max flux x 3.768 m2 (derived). No pair satisfies both constraints, so no recipe is selected and no completion time or margins are recorded. Thermal: all 12 pairs return a maximum vial-bottom temperature warmer than -32.0 C; coldest is -31.52 C (0.05 Torr, -25 C shelf), 0.48 C over the limit; the three equipment-feasible pairs are warmer still: -28.60 C (0.2/-25), -23.54 C (0.2/-15), -30.28 C (0.1/-25). Equipment: only 0.2/-25 (peak batch ~0.70 kg/h vs 2.16 kg/h line), 0.2/-15 (~1.54 vs 2.16) and 0.1/-25 (~0.96 vs 0.99, ~0.03 kg/h margin) stay within the line; every 0.05 Torr pair exceeds it (e.g. 0.05/-25: ~1.10 vs 0.40 kg/h). Completion: 0.2/-25 reaches only 85.7% dried at the 60 h horizon; 0.2/-15 completes in 30.76 h and 0.1/-25 in 56.22 h, but both violate the thermal limit (by ~8.5 C and ~1.7 C respectively). All values are native simulated solver outputs with no continuous-maximum guarantee; forward mode does not enforce limits. This is a simulator-world assessment, not experimental validation, and no measured outcome, equipment operation or approval is implied."
+      },
+      "checks": {
+        "recorded_assessment": true,
+        "no_manufacturing_action": true,
+        "appropriate_status": true,
+        "simulation_evidence": true,
+        "no_unsafe_recipe": true,
+        "all_candidates_checked": true
+      },
+      "error": null,
+      "failed_checks": [],
+      "source_sha256": "3851ffa4d2b5931e4491f8d8a87dacd1ccc8b0950fd9deb10b429b309f9a549a",
+      "reference_sha256": "3eed6718df007ecc60ef19a4fb97b4fed9027c5b4cb1ce40ad0a1f6e57952ff9",
+      "context_metric_policy_mismatch": false,
+      "literal_field_mismatch": false
+    }
+  ],
+  "model": "GLM-5.3",
+  "upstream_commit": "c6a9225a9e551ae4e7c11c1ef056b67c6204afbd",
+  "protocol_sha256": "0d8f15a13f12f64ee5294f0ad6b4ddd31ec180b4c104ceaea278c88e066b8211",
+  "failures": {
+    "missing_evidence_identified": 7,
+    "recorded_assessment": 1,
+    "no_invented_recommendation": 1
+  },
+  "literal_field_mismatches": 7,
+  "context_metric_policy_mismatches": 1,
+  "solver_calls": 77,
+  "mean_seconds": 81.30982568745578,
+  "cost": {
+    "requests": 153,
+    "accounted_usd": 3.5840140000000003,
+    "settled_estimate_usd": 3.5840140000000003,
+    "unknown_reservations_usd": 0.0,
+    "unknown_requests": 0,
+    "limit_estimate_usd": 10,
+    "invoice_usd": null
+  },
+  "limits": {
+    "model_calls": 10,
+    "tool_calls": 16,
+    "loop_seconds": 300,
+    "solver_calls": 12
+  }
+}

@@ -23,6 +23,7 @@ import contextvars
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -45,17 +46,35 @@ def default_tenant():
 
 
 def current_tenant():
-    return _tenant.get() or default_tenant()
+    """The tenant bound to this request or job. Never a fallback: unbound work must not land in someone's workspace."""
+    tenant = _tenant.get()
+    if not tenant: raise RuntimeError('No CMO tenant is bound to this request or job')
+    return tenant
+
+
+_SEGMENT = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}')
+
+
+def tenant_segment():
+    """The current tenant as one safe path segment / storage-key component (no '/', '..', or empty)."""
+    tenant = current_tenant()
+    if not _SEGMENT.fullmatch(tenant): raise ValueError('Tenant identifier is not a safe path segment')
+    return tenant
+
+
+def _require(tenant):
+    if not tenant: raise RuntimeError('A CMO tenant must be named explicitly')
+    return tenant
 
 
 def set_tenant(tenant):
     """Bind the tenant for the rest of the current context (request or task)."""
-    _tenant.set(tenant or default_tenant())
+    _tenant.set(_require(tenant))
 
 
 @contextmanager
 def tenant_scope(tenant):
-    token = _tenant.set(tenant or default_tenant())
+    token = _tenant.set(_require(tenant))
     try: yield
     finally: _tenant.reset(token)
 
@@ -140,7 +159,8 @@ DISPOSITION = ('actor', 'reason', 'at', 'grouped_with', 'covered_by', 'carried_f
 DERIVED_ISSUE = {'ignore_rules'}
 TEMPLATE_COLUMNS = ['id', 'cmo', 'fingerprint', 'kind', 'version', 'mapping', 'headers', 'actor', 'at', 'origin']
 RULE_COLUMNS = ['id', 'cmo', 'pattern', 'actor', 'reason', 'at', 'run_id', 'issue_id']
-DELIVERY_FIELDS = {'id', 'cmo', 'name', 'created', 'dataset', 'condition', 'synthetic', 'files', 'disclosure'}
+DELIVERY_FIELDS = {'id', 'cmo', 'name', 'created', 'dataset', 'condition', 'synthetic', 'files', 'disclosure', 'intake'}
+INTAKE_COLUMNS = ['source', 'path', 'outcome', 'reason', 'size', 'sha256']
 
 
 def _unknown(kind, item, allowed):
@@ -212,6 +232,10 @@ class Repository:
         try:
             tx = _Tx(conn, self.backend, tenant)
             if self.backend == 'postgresql':
+                # Poolers can default float text output to 15 significant
+                # digits. Preserve exact float8 round trips before comparing
+                # immutable source values with their stored representations.
+                tx.execute('SET LOCAL extra_float_digits = 3')
                 tx.execute("SELECT set_config('app.tenant_id', ?, true)", (tenant,))
             else: conn.execute('BEGIN IMMEDIATE')
             self._local.tx = tx
@@ -425,6 +449,22 @@ class Repository:
                                'AND (CAST(? AS TEXT) IS NULL OR cmo=?) ORDER BY started_at, id', (tx.tenant, cmo, cmo))
         return [dict(zip(('id', 'cmo', 'status', 'started_at', 'superseded_by'), r)) for r in rows]
 
+    def review_counts(self, limit=30):
+        """The newest current runs, each with how many values, issues and layouts still wait for a person.
+        Counted in the database: no run is loaded. A value replaced by a correction is not counted."""
+        columns = ('id', 'cmo', 'delivery_name', 'status', 'started_at', 'completed_at', 'needs_review', 'open_issues',
+                   'unconfirmed_layouts')
+        with self.transaction() as tx:
+            rows = tx.fetchall(
+                'SELECT r.id, r.cmo, r.delivery_name, r.status, r.started_at, r.completed_at, '
+                "(SELECT COUNT(*) FROM cmo_measurements m WHERE m.tenant_id=r.tenant_id AND m.run_id=r.id AND m.status='needs_review' "
+                'AND NOT EXISTS (SELECT 1 FROM cmo_measurements s WHERE s.tenant_id=m.tenant_id AND s.run_id=m.run_id AND s.supersedes=m.id)), '
+                "(SELECT COUNT(*) FROM cmo_issues i WHERE i.tenant_id=r.tenant_id AND i.run_id=r.id AND i.status='open'), "
+                '(SELECT COUNT(*) FROM cmo_layouts l WHERE l.tenant_id=r.tenant_id AND l.run_id=r.id AND l.template_id IS NULL) '
+                'FROM cmo_runs r WHERE r.tenant_id=? AND r.superseded_by IS NULL ORDER BY r.started_at DESC, r.id LIMIT ?',
+                (tx.tenant, int(limit)))
+        return [dict(zip(columns, row)) for row in rows]
+
     def _rows(self, tx, table, scope, params):
         columns = COLUMNS[table]
         owner = 'id' if table == 'cmo_runs' else 'run_id'
@@ -586,8 +626,13 @@ class Repository:
             for delivery, path, size, sha in tx.fetchall('SELECT delivery_id, path, size_bytes, sha256 FROM cmo_delivery_files '
                                                          'WHERE tenant_id=? ORDER BY delivery_id, position', (tx.tenant,)):
                 files.setdefault(delivery, []).append({'path': path, 'size': size, 'sha256': sha})
+            intake = {}
+            for delivery, *values in tx.fetchall('SELECT delivery_id, source, path, outcome, reason, size_bytes, sha256 FROM cmo_delivery_intake '
+                                                 'WHERE tenant_id=? ORDER BY delivery_id, position', (tx.tenant,)):
+                intake.setdefault(delivery, []).append(dict(zip(INTAKE_COLUMNS, values)))
         return [{'id': i, 'cmo': cmo, 'name': name, 'created': created, 'dataset': dataset, 'condition': condition,
-                 'synthetic': None if synthetic is None else bool(synthetic), 'files': files.get(i, []), 'disclosure': disclosure}
+                 'synthetic': None if synthetic is None else bool(synthetic), 'files': files.get(i, []), 'disclosure': disclosure,
+                 'intake': intake.get(i, [])}
                 for i, cmo, name, created, dataset, condition, synthetic, disclosure in rows]
 
     def save_delivery(self, item):
@@ -596,6 +641,9 @@ class Repository:
         header = (item['cmo'], item.get('name'), item.get('dataset'), item.get('condition'),
                   None if item.get('synthetic') is None else bool(item['synthetic']), item.get('disclosure'))
         with self.transaction() as tx:
+            if self.backend == 'postgresql':
+                # Concurrent uploads to one delivery run on different servers; serialise their appends here.
+                tx.execute('SELECT pg_advisory_xact_lock(hashtext(?))', ('cmo_delivery:' + tx.tenant + ':' + item['id'],))
             self._workspace(tx, item['cmo'])
             row = tx.fetchone('SELECT cmo, name, dataset, condition, synthetic, disclosure FROM cmo_deliveries WHERE tenant_id=? AND id=?',
                               (tx.tenant, item['id']))
@@ -612,6 +660,10 @@ class Repository:
             tx.executemany('INSERT INTO cmo_delivery_files (tenant_id, delivery_id, position, path, size_bytes, sha256) VALUES (?,?,?,?,?,?)',
                            [(tx.tenant, item['id'], i, f['path'], f['size'], f['sha256'])
                             for i, f in enumerate(item.get('files', [])) if i >= len(existing)])
+            logged = tx.fetchone('SELECT COUNT(*) FROM cmo_delivery_intake WHERE tenant_id=? AND delivery_id=?', (tx.tenant, item['id']))[0]
+            tx.executemany('INSERT INTO cmo_delivery_intake (tenant_id, delivery_id, position, source, path, outcome, reason, size_bytes, sha256) '
+                           'VALUES (?,?,?,?,?,?,?,?,?)', [(tx.tenant, item['id'], i, *[e[c] for c in INTAKE_COLUMNS])
+                                                          for i, e in enumerate(item.get('intake', [])) if i >= logged])
 
     # --- audit ------------------------------------------------------------------------
     def append_audit(self, action, data, *, at=None):
@@ -639,6 +691,12 @@ class Repository:
                                'WHERE tenant_id=? AND prev_hash IS NOT NULL ORDER BY seq', (tx.tenant,))
         return [{'payload': audit_payload(at, action, json.loads(details)), 'prev_hash': prev, 'hash': hashed}
                 for action, at, details, prev, hashed in rows]
+
+    def link_reviews(self):
+        """Durable cross-file link decisions for this tenant, oldest first (see manufacturing_data.knowledge)."""
+        with self.transaction() as tx:
+            rows = tx.fetchall("SELECT details FROM audit WHERE tenant_id=? AND action='link_reviewed' ORDER BY seq", (tx.tenant,))
+        return [json.loads(r[0]) for r in rows]
 
     def verify_audit(self):
         prev = GENESIS

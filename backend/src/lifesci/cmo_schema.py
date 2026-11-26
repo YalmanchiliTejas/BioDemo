@@ -25,6 +25,7 @@ TABLES: dict[str, dict] = {
     "cmo_workspaces": {"mutable": ()},
     "cmo_deliveries": {"mutable": ()},
     "cmo_delivery_files": {"mutable": ()},
+    "cmo_delivery_intake": {"mutable": ()},
     "cmo_templates": {"mutable": ()},
     "cmo_runs": {"mutable": ("configuration", "requested_configuration", "package_id", "delivery_name", "disclosure",
                              "status", "synthetic", "hosted_approved", "hosted_basis", "completed_at",
@@ -45,7 +46,7 @@ TABLES: dict[str, dict] = {
     "cmo_extraction_reviews": {"mutable": ()},
     "cmo_ignore_rules": {"mutable": ()},
 }
-APPEND_ONLY = ("cmo_deliveries", "cmo_delivery_files", "cmo_templates", "cmo_ignore_rules")
+APPEND_ONLY = ("cmo_deliveries", "cmo_delivery_files", "cmo_delivery_intake", "cmo_templates", "cmo_ignore_rules")
 
 _DEFERRED = "DEFERRABLE INITIALLY DEFERRED"
 
@@ -64,6 +65,14 @@ CREATE TABLE IF NOT EXISTS cmo_delivery_files (
   tenant_id TEXT NOT NULL, delivery_id TEXT NOT NULL, position INTEGER NOT NULL, path TEXT NOT NULL,
   size_bytes BIGINT NOT NULL, sha256 TEXT NOT NULL,
   PRIMARY KEY (tenant_id, delivery_id, path), UNIQUE (tenant_id, delivery_id, position),
+  FOREIGN KEY (tenant_id, delivery_id) REFERENCES cmo_deliveries (tenant_id, id));
+
+-- What intake did with every uploaded file, including the ones not read (nothing is dropped silently).
+CREATE TABLE IF NOT EXISTS cmo_delivery_intake (
+  tenant_id TEXT NOT NULL, delivery_id TEXT NOT NULL, position INTEGER NOT NULL, source TEXT NOT NULL, path TEXT NOT NULL,
+  outcome TEXT NOT NULL CHECK (outcome IN ('added','renamed','duplicate','set_aside','unreadable','system','blocked')),
+  reason TEXT NOT NULL, size_bytes BIGINT NOT NULL, sha256 TEXT NOT NULL,
+  PRIMARY KEY (tenant_id, delivery_id, position),
   FOREIGN KEY (tenant_id, delivery_id) REFERENCES cmo_deliveries (tenant_id, id));
 
 CREATE TABLE IF NOT EXISTS cmo_templates (

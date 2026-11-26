@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .identity import AccessContext, IdentityService
+from .identity import AccessContext, IdentityService, authentication_assertion
 from .ids import content_hash, iso, new_id, utc_now
 from .store import ConflictError, RecordStore, Transaction
 
@@ -48,9 +48,9 @@ class SignatureService:
              site_id: str | None = None) -> Signature:
         if meaning not in SIGNATURE_MEANINGS:
             raise ValueError(f"unknown signature meaning {meaning}")
-        auth = authentication or {}
-        if not auth.get("method"):
+        if ctx.authentication is None and not (authentication or {}).get("method"):
             raise PermissionError("signature requires an authenticated signing method (e.g. sso_reauth, mfa)")
+        auth = authentication_assertion(ctx, authentication, purpose="signature")
         with self.store.transaction(ctx.actor_id) as tx:
             self.identity.require(ctx, "sign", record_kind, record_id, site_id=site_id, tx=tx)
             record = tx.require(ctx.tenant_id, record_kind, record_id)
@@ -59,7 +59,7 @@ class SignatureService:
                     f"{record_kind}:{record_id} is at revision {record.revision}; signature targeted {expected_revision}")
             sig = Signature(new_id("sig"), ctx.tenant_id, record_kind, record_id, record.revision, record.content_hash,
                             ctx.actor_id, meaning, iso(utc_now()), reason,
-                            {"method": auth["method"], "assurance": auth.get("assurance", "unspecified")})
+                            auth)
             tx.put(ctx.tenant_id, "signature", sig.signature_id, sig.to_dict(), expected_revision=None,
                    action="sign", reason=reason, event_type="record.signed",
                    event_payload={"record_kind": record_kind, "record_id": record_id,

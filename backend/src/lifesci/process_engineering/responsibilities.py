@@ -10,7 +10,9 @@ from ..store import ConflictError
 from .conversation_schemas import WatchIn
 
 EVENT_TYPES = {'case': ('case.',), 'evidence': ('evidence.ingested', 'evidence.corrected'),
-               'batch': ('batch.',), 'sample': ('lab.', 'sample.')}
+               'batch': ('batch.',), 'sample': ('lab.', 'sample.'),
+               'deviation': ('signal.raised', 'signal.escalated', 'case.'),
+               'alarm': ('alarm.raised',), 'team_request': ('work.requested',)}
 
 
 class AssistantResponsibilities:
@@ -26,6 +28,8 @@ class AssistantResponsibilities:
             if thread.revision != request.expected_revision:
                 raise ConflictError('conversation changed; refresh before configuring follow-up')
             mission = tx.require(ctx.tenant_id, 'mission', thread.state['mission_id'])
+            if mission.state.get('assistant_responsibility', {}).get('routine_id'):
+                raise ValueError('manage this named routine through its routine controls')
             if request.enabled and (not request.acknowledge_inference or not request.objective.strip() or not request.kinds):
                 raise ValueError('provide an objective, event kinds, and acknowledge inference usage')
             prior = mission.state.get('assistant_responsibility') or {}
@@ -36,7 +40,9 @@ class AssistantResponsibilities:
                 # Lifetime usage cannot be reset by toggling pause/resume.
                 'runs_admitted': prior.get('runs_admitted', 0), 'updated_at': iso(utc_now()),
                 'billing': 'Provider monetary billing is unknown; this is a run-count limit, not a dollar cap.'}
-            subscriptions = [{'type': event, 'site_id': thread.state['site_id']}
+            subscriptions = [{'type': event, 'site_id': thread.state['site_id'], 'require_site': True,
+                'authorized_owner_id': thread.state['owner_id'],
+                **({'owner_id': thread.state['owner_id']} if kind == 'team_request' else {})}
                 for kind in request.kinds for event in EVENT_TYPES[kind]] if request.enabled else []
             tx.put(ctx.tenant_id, 'mission', mission.id,
                 {**mission.state, 'assistant_responsibility': config, 'subscriptions': subscriptions,
@@ -63,6 +69,8 @@ class AssistantResponsibilities:
         """Return consumed IDs only after a durable turn outcome; retries resume that turn."""
         mission = self.p.missions.get(ctx, act.mission_id)
         config = mission.get('assistant_responsibility') or {}
+        if config.get('routine_id'):
+            return self.p.assistant_routines.run_activation(ctx, act)
         due = [o for o in mission['obligations'] if o.get('task_kind') == 'assistant_follow_up'
                and o['status'] == 'open' and o.get('due_at') and o['due_at'] <= iso(utc_now())]
         if not config.get('enabled') or (not act.pending_event_ids and not due):
@@ -86,7 +94,11 @@ class AssistantResponsibilities:
             for _, e in page:
                 if e.event_id in pending:
                     found.add(e.event_id)
-                    if not e.aggregate_id.startswith('engineering-user-instruction:'):
+                    internal=False
+                    if e.aggregate_kind=='evidence':
+                        rec=self.p.store.read().get(ctx.tenant_id,'evidence',e.aggregate_id)
+                        internal=bool(rec and rec.state.get('source_system') in ('scientific-model-catalog','process-analysis-assumptions','pharmaceutical-run-packet'))
+                    if not internal and not e.aggregate_id.startswith('engineering-user-instruction:'):
                         events.append(e)
             cursor = page[-1][0]
         if pending - found:

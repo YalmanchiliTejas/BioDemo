@@ -12,6 +12,7 @@ import { Companion } from '../agent/Companion';
 import { CompanionProvider, useCompanion } from '@/lib/companion-context';
 import { WorkspaceTutorial } from './WorkspaceTutorial';
 import { Sidebar } from './Sidebar';
+import { DemoBanner } from './DemoBanner';
 import { WorkspaceProvider } from '@/lib/workspace-context';
 import { TutorialProvider, useTutorial } from '@/lib/tutorial-context';
 
@@ -61,6 +62,7 @@ function WorkspaceShell({ children }: { children: ReactNode }) {
       <Sidebar />
       <div className="workspace-main-column">
         <TopHeader onSearch={() => setFinding(true)} />
+        <DemoBanner />
         <div className="workspace-content-row">
         <main id="main" className={`workspace-main ${home ? 'assistant-page' : ''}`}>
           {children}

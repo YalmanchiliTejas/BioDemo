@@ -1,0 +1,60 @@
+{
+  "version": "lyo-factorial-supplement-1",
+  "status": "frozen_before_any_supplement_simulation",
+  "frozen_at_utc": "2026-11-03T05:22:50.122243+00:00",
+  "cases": 32,
+  "motivation": "Post hoc primary-study coverage gap; prospectively frozen complete factorial supplement, never pooled.",
+  "factor_levels": {
+    "shelf_temperature_c": [
+      -28.0,
+      -24.0,
+      -20.0,
+      -16.0
+    ],
+    "load_vials": [
+      4000,
+      11000
+    ],
+    "vapor_capacity_kg_h": [
+      0.4,
+      1.49
+    ],
+    "hidden_kv_scale": [
+      1.0,
+      1.25
+    ]
+  },
+  "design": "Full factorial, no random sampling, no outcome-based exclusion or tuning.",
+  "task": "pretransfer KEEP only",
+  "arms": [
+    "B",
+    "C"
+  ],
+  "fitting": "none; no receiving observations",
+  "initialization": "per-population equilibrium; constant setpoint from t=0, no startup ramp",
+  "censoring": "Existing study.target: no completion after overload; thermal requires onset strictly before overload.",
+  "metrics": [
+    "truth class support",
+    "warning confusion/abstentions",
+    "reference/model failures",
+    "completion MAE and signed error conditional on prediction",
+    "completion coverage over eligible reference cases"
+  ],
+  "hidden_shift_interpretation": "Receiving Kv multiplier is unknown to predictors; misses need not imply inferable model error.",
+  "reference_limitation": "Shared constitutive laws, unvalidated pressure response; no plant validation.",
+  "case_plan_sha256": "800fafd5a6a7458703009aeab1778d30762fec6745346fdef1c50669b58934c9",
+  "source_sha256": {
+    "backend/benchmarks/lyo_study/stress.py": "1f70459622ffa86dba0149ab414c211d4e936a772ec1b1618e93c6999fc53287",
+    "backend/benchmarks/lyo_study/study.py": "638eb44a4bc095b13f9ebb298b80288f19d3b615f0ade7bb78b5caeb1e7dd878",
+    "backend/benchmarks/physics_value/lyo_reference.py": "f4b9f0f0d821ea76313b56ff4b12e6446abe69b46178cd38e85b53cc36b2c25f",
+    "backend/src/lifesci/lyophilization/model.py": "7a304ddde27f70856914965b0cfd7c6ce27011f2c5b6cdb4e9b523d9e43d7ae1",
+    "backend/src/lifesci/lyophilization/heterogeneous.py": "c48db66383cee7c40ec5d00629c0720f7a41f025edbbb119317e210ca652fc87",
+    "backend/src/lifesci/lyophilization/case.py": "0af47e60be5bd5473ea92dc90d08e3ee8329c716939d02bc248aca34c1bc6e64",
+    "backend/src/lifesci/ids.py": "e4b448699014eb6da2766cf02e60fd105b57d1e0b01469a3b835de10fea8be34"
+  },
+  "environment": {
+    "python": "3.14.4",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1"
+  }
+}

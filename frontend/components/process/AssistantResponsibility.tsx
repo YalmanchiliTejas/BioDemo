@@ -24,8 +24,8 @@ export function AssistantResponsibility<T extends { id: string; revision: number
     } catch (e) { setError(String(e)); }
     finally { setBusy(false); }
   }
-  return <details className="my-3 rounded-card border border-border-hairline p-3 text-xs">
-    <summary className="cursor-pointer font-medium">Follow-up responsibility · {thread.mission_status === 'paused_budget' ? 'run limit reached' : watch?.enabled ? 'watching for changes' : 'off'}</summary>
+  return <details className="my-2 text-xs text-text-secondary [&[open]]:rounded-card [&[open]]:bg-surface [&[open]]:p-4 [&[open]]:shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
+    <summary className="cursor-pointer list-none text-text-tertiary hover:text-brand-teal">{thread.mission_status === 'paused_budget' ? 'Follow-up paused: run limit reached' : watch?.enabled ? '● Keeping an eye on this for you' : 'Keep an eye on this for me…'}</summary>
     <div className="mt-3 space-y-3">
       <label className="block">What should I keep working on?<textarea value={objective} maxLength={2000} onChange={e => setObjective(e.target.value)} className="mt-2 block w-full rounded border border-border-strong bg-surface p-2" placeholder="Review new deviations, inspect supporting records and prepare evidence requests for review." /></label>
       <fieldset><legend className="mb-2">Sources to follow in this site</legend><div className="flex flex-wrap gap-4">{[['case', 'Deviation cases'], ['evidence', 'New or corrected evidence'], ['batch', 'Batches'], ['sample', 'Samples']].map(([kind, label]) => <label key={kind} className="flex items-center gap-2"><input type="checkbox" checked={kinds.includes(kind)} onChange={e => setKinds(previous => e.target.checked ? [...previous, kind] : previous.filter(k => k !== kind))} />{label}</label>)}</div></fieldset>

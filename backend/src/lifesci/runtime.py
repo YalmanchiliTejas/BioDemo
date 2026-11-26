@@ -25,6 +25,7 @@ def run_coordinator(platform: Any, ctx: Any, act: Activation, reasons: list[str]
     now = iso(parse_iso(as_of)) if as_of else iso(utc_now())
     due = [o for o in mission["obligations"] if o["status"] == "open" and o.get("due_at")
            and o.get('task_kind') != 'assistant_follow_up'
+           and o.get('task_kind') not in ('quality_workspace_prepare','quality_scientific_analysis')
            and o["due_at"] <= now and o.get("surfaced_due_at") != o["due_at"]]
     completed, blocked = [], []
     for ob in due:
@@ -77,10 +78,12 @@ def run_coordinator(platform: Any, ctx: Any, act: Activation, reasons: list[str]
     consumed = list(act.pending_event_ids)
     if mission.get('assistant_responsibility', {}).get('enabled'):
         consumed = platform.assistant_responsibilities.run(ctx, act)
-        # The assistant may checkpoint a new evidence gap during this activation.
-        remaining = platform.missions.get(ctx, act.mission_id)['remaining_work']
+    quality_progress = None
+    if mission.get('scope', {}).get('quality_case_id'):
+        quality_progress = platform.quality_workflow.run_mission(ctx, act)
+        blocked.extend((quality_progress or {}).get('blocked_obligations', []))
     platform.missions.checkpoint(act, progress={"reasons": reasons, "completed_obligations": completed,
-        "blocked_obligations": blocked}, consumed_event_ids=consumed,
+        "blocked_obligations": blocked, "quality_workspace": quality_progress}, consumed_event_ids=consumed,
         remaining_work=remaining, surfaced_obligations=blocked)
 
 
@@ -135,6 +138,34 @@ class Runtime:
                     self._run_local(tenant, scheduler)
             except Exception:
                 log.exception("Runtime tick failed; persisted work will be retried")
+        investigations = getattr(self.platform, "investigations", None)
+        if investigations is not None:
+            try:
+                # Keeps running investigations current when nobody has the page open.
+                investigations.sync_active(lambda tenant, owner: self.platform.identity.context_for(tenant, owner))
+            except Exception:
+                log.exception("Investigation sync deferred to the next tick")
+        demo = getattr(self.platform, "demo", None)
+        if demo is not None:
+            try:
+                demo.tick()  # snapshot demo conversations into the corpus; expire 24 h workspaces
+            except Exception:
+                log.exception("Demo workspace upkeep deferred to the next tick")
+        memory = getattr(self.platform, "agent_memory", None)
+        if memory is not None:
+            try:
+                memory.tick(tenants)  # consolidate ("dream") owners with new activity; idle owners cost nothing
+            except Exception:
+                log.exception("Memory consolidation deferred to the next tick")
+        followup = getattr(self.platform, "signal_followup", None)
+        if followup is not None:
+            try:
+                followup.sweep(tenants)  # catches up alerts/triage a crashed process missed
+                triage = getattr(self.platform, "triage", None)
+                for tenant in tenants:
+                    triage and triage.refresh_active(tenant)
+            except Exception:
+                log.exception("Signal follow-up deferred to the next tick")
 
     def _run_local(self, tenant: str, scheduler: InProcessScheduler) -> None:
         for rec in self.platform.store.read().list(tenant, "mission"):

@@ -21,6 +21,7 @@ export type Analysis = { id: string; status: string; execution_status: string; i
     economics?: { oxygen_delivery_savings_usd_h: number; oxygen_delivery_savings_usd_basis: number; common_basis_hours: number; break_even_oxygen_usd_nm3: number | null;
       excluded: string[]; flow_basis: string; net_after_extra_feed_usd: number | null }; warnings: string[]; rationale?: string; recommendation?: string; equations: string[]; missing_inputs: string[] };
   validation: { rows: ValidationRow[]; conclusion: string; rmse: number; split: unknown; target_hash: string; prediction_commitment: string; published_outcomes?: unknown };
+  release_gate?: { status: string; blocking: string[]; attention: string[]; meaning?: string };
   resource_usage: { runtime_seconds: number; solver_calls: number; human_preparation_minutes: null } };
 type Agent = { output?: { analysis: { report_type?: string; assessment?: string; verification?: { status?: string } }; citations?: unknown[] }; status: string; scientific_scores: unknown; adapter_result: { issues?: string[]; run_id?: string }; score_boundary: string };
 type Review = { proposal_id: string; status: string; execution_status: string; required_roles: string[] };
@@ -109,6 +110,12 @@ export function FermentationTransfer({ initialCase = 'sulfolobus', initialTab = 
             <button disabled={busy} type="submit" className={`${button} !bg-brand-teal !text-white`}>{busy ? 'Working…' : 'Run deterministic assessment'}</button>
           </form>
           {dirty && result && <Callout tone="warning">Inputs changed. Displayed results describe the previous assumptions; rerun before review.</Callout>}
+          {result?.release_gate && <Callout tone={result.release_gate.blocking.length ? 'critical' : 'warning'} title={result.release_gate.blocking.length ? 'Not a basis for settings yet' : 'Screening use, with review'}>
+            <div data-testid="fermentation-release-gate" className="space-y-2 text-xs leading-6">
+              {result.release_gate.blocking.length > 0 && <><p>The calculation's own checks found problems that must be resolved, normally by characterizing the receiving vessel, before any number below is relied on:</p><ul className="list-disc pl-5">{result.release_gate.blocking.map(line => <li key={line}>{line}</li>)}</ul></>}
+              {result.release_gate.attention.length > 0 && <details><summary className="cursor-pointer">{result.release_gate.attention.length} further point{result.release_gate.attention.length === 1 ? '' : 's'} to keep in mind</summary><ul className="mt-1 list-disc pl-5">{result.release_gate.attention.map(line => <li key={line}>{line}</li>)}</ul></details>}
+            </div>
+          </Callout>}
           {result && <div className="space-y-4" data-testid="fermentation-results">
             <h3 className="text-sm font-semibold">Withheld experimental comparison</h3>
             <div className="overflow-x-auto"><table className={columns}><thead><tr><th>Receiver</th><th>Prediction</th><th>Published summary</th><th>Error</th><th>Reference</th></tr></thead><tbody>{result.validation.rows.map(row => <tr key={row.receiver_l}><td>{row.receiver_l} L</td><td>{fmt(row.predicted)} {row.unit}</td><td>{fmt(row.measured)}{row.measured_sd != null ? ` ± ${fmt(row.measured_sd)} SD` : ''} {row.unit}</td><td>{fmt(row.relative_error*100)}%</td><td>{row.source_location}</td></tr>)}</tbody></table></div>

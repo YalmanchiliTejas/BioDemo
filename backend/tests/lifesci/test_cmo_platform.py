@@ -159,3 +159,54 @@ def test_delivery_rbac_and_site_boundary(platform_client):
     p.identity.assign_role(TENANT, 'org-admin', 'admin')
     admin = {'X-Tenant-Id': TENANT, 'X-Actor-Id': 'org-admin'}
     assert client.post('/api/cmo-ingestion/runs/unknown/reviews', headers=admin, json={}).status_code == 403
+
+
+def test_shared_cmo_email_becomes_searchable_unverified_evidence(platform_client):
+    from email.message import EmailMessage
+    p, client = platform_client
+    note = EmailMessage(); note['From'] = 'qa@acme.example'; note['Subject'] = 'Deviation DV-58'
+    note.set_content('Filter integrity failed on lot A-105 during October. Investigation opened.')
+    note.add_attachment(b'Lot,Elapsed time (h),pH\nA-105,0,7.0\n', maintype='text', subtype='csv', filename='lots.csv')
+    delivery = client.post('/api/cmo-ingestion/deliveries', json={'cmo': 'Acme CDMO', 'name': 'October mail'}).json()
+    client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/files", params={'filename': 'DV-58.eml'}, content=note.as_bytes())
+    run = _wait(client, client.post('/api/cmo-ingestion/runs', json={'package_id': delivery['id']}).json()['id'])
+    ctx = p.identity.context_for(TENANT, 'priya')
+    thread = p.engineering_conversations.create(ctx, {'site_id': 'NF1'})
+    search = lambda: p.engineering_conversations.workspace.search(ctx, thread, kinds=['evidence'], query='A-105')['records']
+    assert not search()  # nothing reaches the assistant until a reviewer shares it
+    shared = client.post('/v1/cmo-documents', json={'run_id': run['id']}, headers=HEADERS)
+    assert shared.status_code == 201, shared.text
+    assert [d['path'] for d in shared.json()['shared']] == ['DV-58/message.txt']  # the table is data, not a document
+    [hit] = search()
+    assert hit['classification'] == 'unverified_cmo_document'
+    text = p.evidence.original(ctx, hit['id']).decode()
+    assert text.startswith('UNVERIFIED CMO DOCUMENT') and 'Filter integrity failed on lot A-105' in text
+    again = client.post('/v1/cmo-documents', json={'run_id': run['id']}, headers=HEADERS).json()
+    assert again['shared'] == shared.json()['shared'] and len(search()) == 1  # re-sharing is idempotent
+    listed = client.get('/v1/cmo-documents', params={'package_id': delivery['id']}, headers=HEADERS).json()['documents']
+    assert [d['path'] for d in listed] == ['DV-58/message.txt']
+    other = {'X-Tenant-Id': 'other-customer', 'X-Actor-Id': 'priya'}
+    assert client.post('/v1/cmo-documents', json={'run_id': run['id']}, headers=other).status_code in (403, 404)
+
+
+def test_standouts_are_calculated_at_measured_times_only():
+    from src.lifesci.cmo_datasets import standouts, summarize
+
+    def rows(batch, points, parameter="viability"):
+        return [{"id": f"{batch}-{t}", "batch": batch, "time": str(t), "parameter": parameter, "value": v, "unit": "%"} for t, v in points]
+    measurements = (rows("A", [(0, 90), (24, 91), (48, 89), (72, 88)]) + rows("B", [(0, 89), (24, 90), (48, 12), (72, 3)])
+                    + rows("C", [(0, 91), (24, 92), (50, 90)]) + rows("D", [(10, 1.0)], "glucose"))
+    found = summarize({"measurements": measurements, "guarantee": {"holds": True, "checks": []}}, series=True)["standouts"]
+    assert list(found)[0] == "basis" and "calculated" in found["basis"]
+    top = found["viability"]["largest_changes_between_consecutive_samples"][0]
+    assert top == {"batch": "B", "from_h": 24.0, "to_h": 48.0, "from": 90, "to": 12, "change": -78}
+    assert found["viability"]["typical_change_between_samples"] == 1.5   # the scale a 78-point drop is read against
+    apart = found["viability"]["largest_same_time_differences"]
+    # Only times where three or more runs were sampled; run C's 50 h reading is never matched to 48 h.
+    assert {a["time_h"] for a in apart} <= {0.0, 24.0} and all(a["runs_at_this_time"] == 3 for a in apart)
+    assert "glucose" not in found   # one reading: nothing to compare
+    per_batch = {}
+    for m in measurements:
+        per_batch.setdefault(m["batch"], {}).setdefault(m["parameter"], []).append(m)
+    assert standouts(per_batch) == {k: v for k, v in found.items() if k != "basis"}
+    assert "standouts" not in summarize({"measurements": measurements, "guarantee": {"holds": True, "checks": []}})

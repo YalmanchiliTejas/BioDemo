@@ -23,6 +23,8 @@ Run `.venv/bin/python -m pytest tests/lifesci -q` and
 `.venv/bin/python -m src.lifesci serve`. Status, measurements and gaps:
 [implementation guide](../docs/product/life-sciences-platform/implementation.md).
 
+For the workspace assistant and Prime investigation entry points, see [Agent code walkthrough](docs/agent-code.md).
+
 ## Pharmaceutical investigation MVP (active build)
 
 The [shared case workspace README](docs/pharma_mvp/README.md) tracks the new

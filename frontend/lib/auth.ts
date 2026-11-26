@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { clearCache } from './cache';
 
 /**
  * Sign-in and API identity. Supabase Auth when configured at build time; otherwise, and whenever
@@ -51,7 +52,10 @@ export function supabase(): SupabaseClient {
 export async function authHeaders(): Promise<Record<string, string>> {
   if (authMode() !== 'supabase') {
     const session = localSession();
-    return session ? { 'X-Tenant-Id': session.tenant_id, 'X-Actor-Id': session.actor_id } : {};
+    if (!session) return {};
+    // Laptop demo visitors are anonymous; the development API recognises them by this header.
+    return { 'X-Tenant-Id': session.tenant_id, 'X-Actor-Id': session.actor_id,
+      ...(session.actor_id.startsWith('demo-visitor-') ? { 'X-Demo-Visitor': '1' } : {}) };
   }
   // getSession refreshes an expired access token when a refresh token is available.
   const { data, error } = await supabase().auth.getSession();
@@ -64,7 +68,10 @@ export async function authHeaders(): Promise<Record<string, string>> {
 }
 
 /** Only same-site paths are accepted as a post-sign-in destination. */
-export function safeNext(value: string | null | undefined, fallback = '/dashboard/') {
+/** Where a signed-in person arrives when no destination was asked for: the trends of their own data. */
+export const LANDING = '/dashboard/';
+
+export function safeNext(value: string | null | undefined, fallback = LANDING) {
   return value && value.startsWith('/') && !value.startsWith('//') && !/[\\\x00-\x20]/.test(value) ? value : fallback;
 }
 
@@ -104,7 +111,20 @@ export async function signIn(email: string, password: string) {
   if (message) throw new Error(message);
 }
 
+/** Per-person data kept in this browser; removed on sign-out so the next person starts clean.
+ *  UI preferences (navigation, history panel, tutorial progress, chosen organization per user) are kept. */
+function clearPersonalStorage() {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('biodemo.engineering.conversation.') || ['mos.context.v1', 'cmo.reviewer', 'cmo.last'].includes(key)) localStorage.removeItem(key);
+    }
+    for (const key of ['mos.agent.v1', 'cmo.demoCmo', 'cmo.apiToken', 'mos.onboarding.goal', 'mos.onboarding.timezone']) sessionStorage.removeItem(key);
+  } catch { /* storage unavailable */ }
+}
+
 export async function signOut() {
+  clearCache();
+  clearPersonalStorage();
   if (authMode() !== 'supabase') { setLocalSession(null); return; }
   const { error } = await attempt(() => supabase().auth.signOut());
   if (error) throw new Error('Sign-out failed. Try again.');
@@ -170,6 +190,41 @@ export async function signUp(email: string, password: string) {
   return Boolean(data.session);
 }
 
+/** Demo workspaces: one click, no account. Supabase anonymous sign-in in production; on a laptop
+ *  (local test accounts) a generated local demo actor, which the development API accepts the same way. */
+export class DemoSignedInError extends Error {
+  constructor(public email: string) { super(`You're signed in as ${email}. The demo runs in a separate, anonymous workspace.`); }
+}
+
+export async function signInForDemo(captchaToken?: string) {
+  if (authMode() === 'development') {
+    const current = localSession();
+    if (current?.actor_id.startsWith('demo-visitor-')) return;
+    const id = `demo-visitor-${Math.random().toString(36).slice(2, 10)}`;
+    setLocalSession({ tenant_id: 'demo-pending', actor_id: id, email: '', name: 'Demo visitor' });
+    return;
+  }
+  const { data } = await attempt(() => supabase().auth.getSession());
+  const user = data.session?.user;
+  if (user?.is_anonymous) return; // a returning demo visitor keeps their workspace
+  // A real account never gets a demo tenant; say so instead of failing at the API.
+  if (user) throw new DemoSignedInError(user.email ?? 'an account');
+  // With CAPTCHA on in Supabase (Attack Protection), anonymous sign-in needs the Turnstile token from the demo page.
+  const { error } = await attempt(() => supabase().auth.signInAnonymously(captchaToken ? { options: { captchaToken } } : undefined));
+  if (error && /captcha/i.test(error.message ?? ''))
+    throw new Error('The bot check didn’t go through. Wait a moment for it to finish, then press Start again.');
+  if (error && /anonymous sign-ins are disabled/i.test(error.message ?? ''))
+    throw new Error('Demo sign-in isn’t switched on for this site yet (Supabase anonymous sign-ins are disabled).');
+  const message = plain(error, 'The demo could not start. Try again in a moment.');
+  if (message) throw new Error(message);
+}
+
+/** Local demo sessions send the tenant in a header, so point it at the new demo workspace. */
+export function adoptLocalDemoTenant(tenant: string) {
+  const session = localSession();
+  if (session && authMode() === 'development') setLocalSession({ ...session, tenant_id: tenant });
+}
+
 export async function selectOrganization(id: string) {
   let userId = localSession()?.actor_id;
   if (authMode() === 'supabase') {
@@ -177,6 +232,7 @@ export async function selectOrganization(id: string) {
     userId = error ? undefined : data.session?.user.id;
   }
   if (!userId) throw new Error(SIGNED_OUT_MESSAGE);
+  if (localStorage.getItem(`sievance.organization:${userId}`) !== id) clearCache();
   localStorage.setItem(`sievance.organization:${userId}`, id);
   // Drop the previous workspace's display preferences when changing organizations.
   localStorage.removeItem('mos.context.v1');

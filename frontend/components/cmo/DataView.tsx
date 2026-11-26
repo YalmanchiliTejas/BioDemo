@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Button, EmptyNote, Segmented, table } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { ACCEPTED, sourceLabel, type Measurement, type Run } from '@/lib/cmo-api';
+import { parameterLabel, ACCEPTED, sourceLabel, type Measurement, type Run } from '@/lib/cmo-api';
 import { statusPill } from './shared';
 
 type Scope = 'verified' | 'pending' | 'all';
@@ -51,7 +51,7 @@ export function DataView({ run, onInspect }: { run: Run; onInspect: (m: Measurem
         <div className="overflow-x-auto px-3 py-2">
           <table className="text-[12px] tabular-nums">
             <thead><tr><th className="sticky left-0 bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">Batch</th>
-              {parameters.map(p => <th key={p} className="px-2 py-2 text-[10.5px] font-medium text-text-tertiary"><span className="block max-w-[84px] truncate" title={p}>{p.replace(/_/g, ' ')}</span></th>)}</tr></thead>
+              {parameters.map(p => <th key={p} className="px-2 py-2 text-[10.5px] font-medium text-text-tertiary"><span className="block max-w-[84px] truncate" title={p}>{parameterLabel(p)}</span></th>)}</tr></thead>
             <tbody>
               {batches.map(b => (
                 <tr key={b} className="border-t border-border-hairline">
@@ -80,7 +80,7 @@ export function DataView({ run, onInspect }: { run: Run; onInspect: (m: Measurem
           <select aria-label="Filter by batch" className="h-7 rounded-control border border-border-strong px-2 text-xs" value={batch} onChange={e => { setBatch(e.target.value); setPage(0); }}>
             <option value="">All batches</option>{batches.map(b => <option key={b} value={b}>{b}</option>)}</select>
           <select aria-label="Filter by parameter" className="h-7 rounded-control border border-border-strong px-2 text-xs" value={parameter} onChange={e => { setParameter(e.target.value); setPage(0); }}>
-            <option value="">All parameters</option>{parameters.map(p => <option key={p} value={p}>{p.replace(/_/g, ' ')}</option>)}</select>
+            <option value="">All parameters</option>{parameters.map(p => <option key={p} value={p}>{parameterLabel(p)}</option>)}</select>
           {(batch || parameter) && <Button size="sm" variant="ghost" onClick={() => { setBatch(''); setParameter(''); }}>Clear filters</Button>}
           <span className="ml-auto text-xs text-text-tertiary">{rows.length.toLocaleString()} values</span>
         </div>
@@ -90,7 +90,7 @@ export function DataView({ run, onInspect }: { run: Run; onInspect: (m: Measurem
             <tbody>
               {visible.map(m => (
                 <tr key={m.id} className={cn(table.tr, 'cursor-pointer')} onClick={() => onInspect(m)}>
-                  <td className={cn(table.td, 'whitespace-nowrap')}>{m.batch}</td><td className={table.td}>{m.time}</td><td className={cn(table.td, 'whitespace-nowrap')}>{m.parameter.replace(/_/g, ' ')}</td>
+                  <td className={cn(table.td, 'whitespace-nowrap')}>{m.batch}</td><td className={table.td}>{m.time}</td><td className={cn(table.td, 'whitespace-nowrap')}>{parameterLabel(m.parameter)}</td>
                   <td className={cn(table.td, 'whitespace-nowrap text-right')}>{m.value === null ? '—' : Number(m.value.toPrecision(8))} <span className="text-text-tertiary">{m.unit}</span></td>
                   <td className={cn(table.td, 'font-mono text-xs text-text-secondary')}>{m.value_raw}{m.unit_raw ? ` ${m.unit_raw}` : ''}</td>
                   <td className={table.td}>{statusPill(m.status)}</td>

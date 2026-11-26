@@ -22,7 +22,7 @@ const members = [{ actor_id: 'preview-colleague', email: 'colleague@example.test
     const page = await context.newPage();
     const exceptions = [];
     page.on('pageerror', error => exceptions.push(error.message));
-    await page.addInitScript(() => { localStorage.setItem('sievance.organization:preview-user', 'preview-org'); if (!localStorage.getItem('cmo.reviewer')) localStorage.setItem('cmo.reviewer', 'Preview Reviewer'); });
+    await page.addInitScript(() => { localStorage.setItem('sievance.local-session.v1', JSON.stringify({ tenant_id: 'preview-org', actor_id: 'preview-user', email: 'preview@example.test', name: 'Preview User' })); localStorage.setItem('sievance.organization:preview-user', 'preview-org'); if (!localStorage.getItem('cmo.reviewer')) localStorage.setItem('cmo.reviewer', 'Preview Reviewer'); });
     await page.route('**/*', async route => {
       const request = route.request();
       const url = new URL(request.url());
@@ -32,6 +32,10 @@ const members = [{ actor_id: 'preview-colleague', email: 'colleague@example.test
       let data;
       if (url.pathname === '/v1/account') data = { ...account, organizations: [{ ...org, roles: [memberRole] }, account.organizations[1]] };
       else if (url.pathname === '/v1/me') data = { tenant_id: org.id, actor_id: 'preview-user', roles: [memberRole], site_ids: [], auth_mode: 'development' };
+      else if (url.pathname === '/v1/signals') data = { signals: [] };
+      else if (url.pathname === '/v1/quality/workspaces') data = { items: [] };
+      else if (url.pathname === '/v1/work-plans') data = { plans: [] };
+      else if (url.pathname === '/v1/process-model/conversations') data = { conversations: [] };
       else if (url.pathname === '/v1/connectors') data = { items: [connection] };
       else if (url.pathname === '/v1/connectors/catalog') data = { families: [{ system: 'LIMS', record_type: 'lab result', template: { template_id: 'preview', version: '1', fields: [] } }, { system: 'MES', record_type: 'batch record', template: { template_id: 'preview-mes', version: '1', fields: [] } }], transports: [{ transport: 'rest', available: true }] };
       else if (url.pathname === '/api/cmo-ingestion/runs') {
@@ -48,9 +52,9 @@ const members = [{ actor_id: 'preview-colleague', email: 'colleague@example.test
     const check = name => console.log(`PASS ${name}`);
     const noOverflow = async () => assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.goto(`${base}/dashboard/`);
-    await page.getByRole('link', { name: 'October delivery Preview partner' }).waitFor();
+    await page.getByRole('link', { name: /Deliveries 1 to review/ }).waitFor();
     assert.equal(await page.getByRole('dialog', { name: 'Workspace guide' }).count(), 0);
-    check('dashboard loads real API-shaped counts and recent work without an automatic tutorial');
+    check('overview loads real API-shaped summaries without an automatic tutorial');
     await page.getByLabel('Filter navigation', { exact: true }).fill('profile');
     await page.getByRole('navigation', { name: 'Primary', exact: true }).getByRole('link', { name: 'My profile', exact: true }).waitFor();
     await page.getByLabel('Filter navigation', { exact: true }).fill('');
@@ -63,10 +67,9 @@ const members = [{ actor_id: 'preview-colleague', email: 'colleague@example.test
     for (const width of [900, 1024]) {
       await page.setViewportSize({ width, height: 1000 });
       await noOverflow();
-      assert(await page.locator('.delivery-table').evaluate(node => node.getBoundingClientRect().right <= node.closest('.workspace-panel').getBoundingClientRect().right));
     }
     await page.setViewportSize({ width: 1440, height: 1050 });
-    check('tablet widths keep delivery columns within their panel');
+    check('tablet widths keep the overview within the page');
     await page.getByRole('button', { name: 'Open workspace guide', exact: true }).click();
     const guide = page.getByRole('dialog', { name: 'Workspace guide' });
     await guide.getByRole('button', { name: 'Connect your data' }).click();
@@ -124,7 +127,7 @@ const members = [{ actor_id: 'preview-colleague', email: 'colleague@example.test
     check('non-administrators see their scope without team mutation controls');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${base}/dashboard/`);
-    await page.getByRole('link', { name: 'October delivery Preview partner' }).waitFor();
+    await page.getByRole('link', { name: /Deliveries 1 to review/ }).waitFor();
     await noOverflow();
     await page.getByRole('button', { name: 'Open workspace guide', exact: true }).click();
     await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
@@ -143,11 +146,11 @@ const members = [{ actor_id: 'preview-colleague', email: 'colleague@example.test
     await page.screenshot({ path: `${output}/dashboard-mobile.png`, fullPage: true });
     failRuns = true;
     await page.reload();
-    await page.getByRole('alert').filter({ hasText: 'Preview delivery service unavailable' }).waitFor();
-    assert(await page.getByText('Unavailable', { exact: true }).count() > 0);
+    await page.getByRole('alert').filter({ hasText: 'Some information is unavailable.' }).waitFor();
+    await page.getByRole('link', { name: /Deliveries Unavailable: Preview delivery service unavailable/ }).waitFor();
     failRuns = false;
     await page.getByRole('button', { name: 'Try again', exact: true }).click();
-    await page.getByRole('link', { name: 'October delivery Preview partner' }).waitFor();
+    await page.getByRole('link', { name: /Deliveries 1 to review/ }).waitFor();
     check('API failures stay explicit and retry restores dashboard data');
     await page.goto(`${base}/onboarding/start/`);
     await page.getByRole('heading', { name: 'Bring your context along.' }).waitFor();

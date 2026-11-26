@@ -7,7 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { Button, Callout, LinkButton } from '@/components/ui';
 import { BrandMark } from '@/components/shell/BrandMark';
 import { useAppContext } from '@/lib/app-context';
-import { authMode, updatePassword, useSession } from '@/lib/auth';
+import { authMode, LANDING, updatePassword, useSession } from '@/lib/auth';
 
 const MIN_LENGTH = 12;
 const fieldClass = 'mt-1 w-full h-10 px-3 rounded-control border border-border-strong bg-surface text-[14px] text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-teal';
@@ -43,7 +43,7 @@ export default function SetPasswordPage() {
     if (password.length < MIN_LENGTH) { setError(`Use at least ${MIN_LENGTH} characters.`); return; }
     if (password !== confirm) { setError('The two passwords do not match.'); return; }
     setBusy(true);
-    try { await updatePassword(password); setDone(true); setTimeout(() => router.replace(linkType === 'recovery' ? '/dashboard/' : '/onboarding/start/'), 1200); }
+    try { await updatePassword(password); setDone(true); setTimeout(() => router.replace(linkType === 'recovery' ? LANDING : '/onboarding/start/'), 1200); }
     catch (err) { setError((err as Error).message); setBusy(false); }
   };
 

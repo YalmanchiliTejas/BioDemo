@@ -425,3 +425,41 @@ def test_nested_service_calls_commit_atomically(env):
             raise RuntimeError("crash before commit")
     tx = env.s.read()
     assert tx.get(T, "batch", "B1") is None and tx.list(T, "proposal") == []  # no orphan proposal
+
+
+def _select_contract(store, tenant="sel-a", other="sel-b"):
+    """The filtered, trimmed read behaves the same on both backends (also run on PostgreSQL in test_postgres)."""
+    with store.transaction("t") as tx:
+        tx.put(tenant, "widget", "w1", {"site_id": "S1", "status": "open", "n": 3, "flag": True, "big": "x" * 5000,
+                                        "nest": {"state": "qa_review", "items": [{"k": 1}]}}, expected_revision=None, action="c")
+        tx.put(tenant, "widget", "w2", {"site_id": "S1", "status": "done", "n": 4, "flag": False, "nest": {}}, expected_revision=None, action="c")
+        tx.put(tenant, "widget", "w3", {"site_id": "S2", "status": "open", "n": 3, "flag": True}, expected_revision=None, action="c")
+        tx.put(tenant, "gadget", "w1", {"site_id": "S1", "status": "open"}, expected_revision=None, action="c")
+    with store.transaction("t") as tx:
+        tx.put(other, "widget", "x1", {"site_id": "S1", "status": "open"}, expected_revision=None, action="c")
+    with store.transaction("t") as tx:   # only the current revision of a record is read
+        tx.put(tenant, "widget", "w2", {"site_id": "S1", "status": "open", "n": 4, "flag": False, "nest": {}}, expected_revision=1, action="u")
+    read = store.read()
+    ids = lambda rows: sorted(r["id"] for r in rows)
+    assert ids(read.select(tenant, "widget")) == ["w1", "w2", "w3"]                      # one tenant, one kind
+    assert ids(read.select(tenant, "widget", where={"site_id": "S1", "status": "open"})) == ["w1", "w2"]
+    assert ids(read.select(tenant, "widget", where={"status": ["done", "closed"]})) == []  # w2's old revision is not current
+    assert ids(read.select(tenant, "widget", where={"n": 3})) == ["w1", "w3"]
+    assert ids(read.select(tenant, "widget", where={"flag": False})) == ["w2"]
+    assert ids(read.select(tenant, "widget", ids=["w3", "missing"])) == ["w3"]
+    assert read.select(tenant, "widget", ids=[]) == [] and read.select(tenant, "widget", where={"status": []}) == []
+    row, = read.select(tenant, "widget", ("status", "flag", "n", "nest.state", "nest.items", "absent"), ids=["w1"])
+    assert row == {"id": "w1", "revision": 1, "updated_at": row["updated_at"], "status": "open", "flag": True, "n": 3,
+                   "nest.state": "qa_review", "nest.items": [{"k": 1}], "absent": None}
+    assert "big" not in row                                                                # nothing unasked is returned
+    assert [r["revision"] for r in read.select(tenant, "widget", ids=["w2"])] == [2]
+    assert len(read.select(tenant, "widget", limit=2)) == 2
+    for bad in ({"fields": ("Bad-Name",)}, {"where": {"a.b": 1}}, {"where": {"x'; --": 1}}):
+        with pytest.raises(KeyError):
+            read.select(tenant, "widget", **bad)
+    with pytest.raises(ValueError):
+        read.select(tenant, "widget", where={"n": 3.5})
+
+
+def test_select_filters_and_trims_in_the_database():
+    _select_contract(RecordStore())

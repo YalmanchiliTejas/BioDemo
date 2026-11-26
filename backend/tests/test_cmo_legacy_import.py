@@ -30,12 +30,14 @@ def legacy(tmp_path, monkeypatch):
     with (raw / 'process.csv').open('w', newline='') as stream:
         csv.writer(stream).writerows([['batch_id', 'elapsed_h', 'pH [pH]'], ['B', 0, 7], ['B', 1, 7.1]])
     service = IngestionService(tmp_path / 'producer')
-    run = service.run(raw, 'acme', 'D')
-    m = run['measurements'][0]
-    run = service.review(run['id'], m['id'], 'accept', 'qa', 'Checked source', binding=digest(m))
+    with tenant_scope('demo-cdmo'):
+        run = service.run(raw, 'acme', 'D')
+        m = run['measurements'][0]
+        run = service.review(run['id'], m['id'], 'accept', 'qa', 'Checked source', binding=digest(m))
+        entries = service.repo.audit_entries()
     events = []
     prev = '0' * 64
-    for entry in service.repo.audit_entries():
+    for entry in entries:
         events.append((entry['payload'], prev, entry['hash'])); prev = entry['hash']
     path = tmp_path / 'old.sqlite'
     con = sqlite3.connect(path); con.executescript(LEGACY_SCHEMA)

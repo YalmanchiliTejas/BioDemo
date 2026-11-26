@@ -215,7 +215,9 @@ class LabService:
                        {"exception_id": exc_id, "instance_id": run_id, "step_id": step_id, "execution_id": exec_id,
                         "site_id": run["site_id"], "violations": param_violations, "status": "open", "detected_by": ctx.actor_id,
                         "detected_at": iso(utc_now())}, expected_revision=None, action="exception", event_type="lab.exception",
-                       event_payload={"run_id": run_id, "step_id": step_id, "parameter": v["name"], "value": v["value"]})
+                       event_payload={"run_id": run_id, "step_id": step_id, "parameter": v["name"], "value": v["value"],
+                                      "low": v.get("low"), "high": v.get("high"), "site_id": run["site_id"],
+                                      "exception_id": exc_id})
                 st.update(status="exception", version=st["version"] + 1)
                 tx.put(ctx.tenant_id, "procedure_instance", run_id, new, expected_revision=rec.revision, action="step_exception")
                 return {**base, "status": "exception", "exception_id": exc_id, "run_status": run["status"]}
@@ -477,7 +479,10 @@ class LabService:
                      "calculation_validated": bool(method_ref), "analytical_validity": "not_assessed", "review": None, "history": history}
             rec = tx.put(ctx.tenant_id, "result", rid, state, expected_revision=cur.revision if cur else None,
                          action="record_result" if not cur else "correct_result", event_type="lab.result_recorded",
-                         event_payload={"result_id": rid, "sample_id": sample_id})
+                         event_payload={"result_id": rid, "sample_id": sample_id, "site_id": site,
+                                        "batch_id": sample.state["batch_id"], "analyte": analyte, "value": value, "unit": unit,
+                                        "low": (limits or {}).get("low"), "high": (limits or {}).get("high"),
+                                        "limit_evaluation": (state["limit_evaluation"] or {}).get("evaluation")})
             tx.add_edge(ctx.tenant_id, ("sample", sample_id), ("result", rid), "result_of")
         return {**state, "revision": rec.revision, "duplicate": False}
 

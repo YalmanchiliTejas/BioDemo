@@ -1,0 +1,88 @@
+{
+  "selection": "Post-hoc illustrative case where agent C differs from nominal deterministic C; not a separate efficacy estimate",
+  "case_id": "LYO-8f799557ef",
+  "task": "forecast",
+  "submissions": {
+    "A": {
+      "status": "no_submission",
+      "submission": null
+    },
+    "B": {
+      "status": "completed",
+      "submission": {
+        "action_id": "keep",
+        "capacity_warning": false,
+        "completion_time_h": 36.96,
+        "evidence": [
+          "physical_forward_model(keep): completion_time_h 36.96, thermal_warning false, min critical margin +0.479 C, min capacity margin 0.623 kg/h",
+          "physical_forward_model(warm): 39.72 h, no warnings; physical_forward_model(moderate): 50.46 h; physical_forward_model(cool): 68.27 h \u2014 all slower than KEEP",
+          "Observations 0\u20136 h: product temp -43.4\u2192-37.1 C (critical -28 C, ample margin), pressure stable ~8.0 Pa, ice 0.00222\u21920.00194 kg/vial, no past excursions",
+          "Model warnings: reconstruction only, quasi-steady representative vial, sampled constraint onset; unknowns include thermometry bias and receiving capacity curve"
+        ],
+        "rationale": "Forward-model trajectories for all four allowed schedules show KEEP (shelf -31.4 C \u2192 -20 C at 8 h, 8 Pa) completes primary drying fastest at ~36.96 h absolute elapsed, with minimum critical-temperature margin +0.48 C (no excursion past -28 C) and minimum vapor-capacity margin ~0.62 kg/h (peak sublimation ~0.51 kg/h vs 1.14 kg/h capacity). Counterintuitively, warmer shelf steps are predicted slower: at 8 Pa the process is mass-transfer/vapor-flow limited, so added heat lowers margin without increasing sublimation throughput. No past thermal or capacity excursion is evident in observations (product stayed \u2264 -37 C through 6 h, pressure ~8 Pa). Therefore KEEP is both the forecast schedule and the highest-throughput feasible action.",
+        "thermal_warning": false,
+        "uncertainty": "The forward model is a calibrated quasi-steady reconstruction (kv_scale 1.08, rp_scale 1.39, residual RMS 0.72) from only 6 h of synthetic early thermometry/mass data; late-cycle Kv/Rp shifts, thermometry bias (weighted lump interface channel, not bottom thermometry), and the receiving equipment's true pressure-dependent vapor-capacity curve (listed as missing parameters) could change completion time by several hours and could produce thermal excursions in edge-vial or lower-Kv populations not captured by the representative-vial model. The thin +0.48 C thermal margin under KEEP means model error, not just the schedule choice, governs whether the critical temperature is approached late in drying."
+      }
+    },
+    "C": {
+      "status": "completed",
+      "submission": {
+        "action_id": "warm",
+        "capacity_warning": false,
+        "completion_time_h": 37.1,
+        "evidence": [
+          "Forward model KEEP run: completion_time_h=37.1066, minimum_critical_margin_c=0.0175, minimum_capacity_margin_kg_h=0.5897, nominal_feasible=true, applicability=within_declared_model_domain",
+          "Forward model WARM run: completion_time_h=39.88, minimum_critical_margin_c=1.046, no warnings",
+          "Forward model MODERATE run: completion_time_h=50.67, minimum_critical_margin_c=3.26 \u2014 dominated by both KEEP and WARM",
+          "Observations at 0\u20136 h: product temp rose -43.4\u2192-37.1\u00b0C, ice 0.00222\u21920.001936 kg/vial, pressure stable ~8.0 Pa, consistent with model trajectory (no measured pressure mismatch)",
+          "Calibration: kv_scale=1.154, rp_scale=1.346, residual RMS 0.514 (nfev 9) \u2014 margin uncertainty exceeds 0.018\u00b0C"
+        ],
+        "rationale": "KEEP schedule forecasts 37.1 h completion with no capacity warning (min capacity margin ~0.59 kg/h against 1.14 kg/h limit) and no nominal thermal warning, but its minimum critical margin is only 0.018\u00b0C at Tcrit=-28\u00b0C. Given calibration residual RMS 0.51, Kv RSD 0.11, approximate population factors, and unknown receiving heat/resistance shifts and possible thermometry bias, KEEP's margin is within noise and a real excursion risk \u2014 and any excursion invalidates the whole batch. WARM (-22\u00b0C shelf) costs only ~2.8 h more (39.9 h) with ~1.05\u00b0C margin and no capacity or thermal warnings; MODERATE (-26\u00b0C) is slower (50.7 h) and dominated since the KEEP plan itself steps to -20\u00b0C at 8h. Warm is therefore the highest-throughput action with a defensible safety margin under model uncertainty.",
+        "thermal_warning": false,
+        "uncertainty": "Completion time and margins come from an experimental, unqualified lumped population model calibrated on only 6 h of early thermography/mass data (kv_scale 1.15, rp_scale 1.35, residual RMS 0.51); true Kv/Rp in the receiving equipment, condenser deposition-rate behavior, pressure-dependent vapor capacity, shared utility headroom, and possible thermometry bias are unknown. Thermal margin extrema are solver-mesh samples, not certified continuous extrema. KEEP's 0.018\u00b0C margin could realistically be negative; warm's 1.05\u00b0C margin could also be eroded. Completion forecast uncertainty estimated at roughly \u00b14-6 h."
+      }
+    }
+  },
+  "reference_summaries": {
+    "keep": {
+      "reference_version": "two-population-event-safe-synthetic-1",
+      "classification": "synthetic_evaluation_only",
+      "completion_time_h": 37.276587351950994,
+      "first_critical_h": 30.5,
+      "first_capacity_h": null,
+      "rhs_evaluations": 3969,
+      "limitation": "Unvalidated two-population reference derived from existing equations; event times and sampled constraint times have different resolutions."
+    },
+    "cool": {
+      "reference_version": "two-population-event-safe-synthetic-1",
+      "classification": "synthetic_evaluation_only",
+      "completion_time_h": 69.09584530548827,
+      "first_critical_h": null,
+      "first_capacity_h": null,
+      "rhs_evaluations": 3935,
+      "limitation": "Unvalidated two-population reference derived from existing equations; event times and sampled constraint times have different resolutions."
+    },
+    "moderate": {
+      "reference_version": "two-population-event-safe-synthetic-1",
+      "classification": "synthetic_evaluation_only",
+      "completion_time_h": 50.981680383936435,
+      "first_critical_h": null,
+      "first_capacity_h": null,
+      "rhs_evaluations": 3952,
+      "limitation": "Unvalidated two-population reference derived from existing equations; event times and sampled constraint times have different resolutions."
+    },
+    "warm": {
+      "reference_version": "two-population-event-safe-synthetic-1",
+      "classification": "synthetic_evaluation_only",
+      "completion_time_h": 40.08462089158519,
+      "first_critical_h": null,
+      "first_capacity_h": null,
+      "rhs_evaluations": 3950,
+      "limitation": "Unvalidated two-population reference derived from existing equations; event times and sampled constraint times have different resolutions."
+    }
+  },
+  "source_sha256": {
+    "backend/results/lyo-study-20261102/recovered-agents/results.json": "d1347553ac378965f18ca4c8685d18002cf6dfd4f1424c9225a214d5e1279533",
+    "backend/results/lyo-study-20261102/frozen/evaluator/LYO-8f799557ef/forecast.json": "53d833f9064a65316f2288bb2fab927a38eefe199f857b78b65f043fc62803e8"
+  }
+}

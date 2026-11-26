@@ -77,6 +77,8 @@ def test_handler_serves_http_and_scheduled_ticks(monkeypatch):
     from src.lifesci.store import RecordStore
 
     monkeypatch.delenv('AWS_LAMBDA_FUNCTION_NAME', raising=False)
+    # This exercises the handler plumbing with development identity headers from a remote address.
+    monkeypatch.setenv('LIFESCI_DEV_AUTH_ALLOW_REMOTE', '1')
     platform = Platform(RecordStore(), providers={})
     seed(platform)
     app = create_app(platform)
@@ -101,6 +103,7 @@ def _cmo_app(root, monkeypatch, tasks):
                  'CMO_API_TOKEN', 'LIFESCI_DATABASE_URL']:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv('CMO_INGESTION_ROOT', str(root))
+    monkeypatch.setenv('CMO_ALLOW_UNAUTHENTICATED_TENANT_HEADER', '1')  # standalone router, no token
     monkeypatch.setenv('CMO_PACKAGES_ROOT', str(root / 'none'))
     monkeypatch.setenv('CMO_DEMO_ROOT', str(root / 'none'))
     app = FastAPI()
@@ -171,8 +174,8 @@ def test_large_files_upload_through_storage(tmp_path, monkeypatch):
     client = _cmo_app(tmp_path / 'u', monkeypatch, TaskRunner())
     assert client.get('/api/cmo-ingestion/catalog').json()['upload'] == {'mode': 'storage', 'max_bytes': 64 * 1024 * 1024}
     delivery = client.post('/api/cmo-ingestion/deliveries', json={'cmo': 'Acme', 'name': 'Big'}).json()
-    assert client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/uploads",
-                       json={'filename': 'run.exe', 'size': 3}).status_code == 400
+    blocked = client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/uploads", json={'filename': 'run.exe', 'size': 3}).json()
+    assert blocked['skipped'] and 'upload_id' not in blocked and blocked['intake'][-1]['outcome'] == 'blocked'
     assert client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/uploads",
                        json={'filename': 'lot.csv', 'size': 65 * 1024 * 1024}).status_code == 413
     begun = client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/uploads", json={'filename': 'lot.csv', 'size': 30}).json()
@@ -181,7 +184,7 @@ def test_large_files_upload_through_storage(tmp_path, monkeypatch):
     storage.objects[pending] = b'batch_id,elapsed_h,pH [pH]\nB,0,7\n'  # what the browser PUT
     item = client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/uploads/{begun['upload_id']}/complete").json()
     assert [f['path'] for f in item['files']] == ['lot.csv'] and pending not in storage.objects
-    assert f"deliveries/{delivery['id']}/lot.csv" in storage.objects
+    assert f"deliveries/lambda-tenant/{delivery['id']}/lot.csv" in storage.objects
     forged = begun['upload_id'].split('-')[0] + '-Li4vZXRjL3Bhc3N3ZA'  # "../etc/passwd"
     assert client.post(f"/api/cmo-ingestion/deliveries/{delivery['id']}/uploads/{forged}/complete").status_code in (400, 404, 410)
 

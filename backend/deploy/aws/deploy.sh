@@ -81,11 +81,18 @@ import json, os, sys
 names = {"ImageUri": "IMAGE", "FunctionName": "FUNCTION", "DatabaseUrl": "DATABASE_URL", "SupabaseUrl": "SUPABASE_URL",
          "SupabaseServiceRoleKey": "SUPABASE_SERVICE_ROLE_KEY", "DeploymentTenant": "DEPLOYMENT_TENANT",
          "CorsOrigins": "CORS_ORIGINS", "StorageBucket": "CMO_STORAGE_BUCKET", "ModalBaseUrl": "MODAL_BASE_URL",
-         "ModalProxyToken": "MODAL_PROXY_TOKEN", "LlmModel": "LIFESCI_LLM_MODEL",
+         "ModalProxyToken": "MODAL_PROXY_TOKEN", "ModalEmbeddingsUrl": "MODAL_EMBEDDINGS_URL", "LlmModel": "LIFESCI_LLM_MODEL",
+         "AssistantLoop": "ASSISTANT_LOOP", "InterpreterReasoningEffort": "LIFESCI_INTERPRETER_REASONING_EFFORT",
+         "ReasoningEffort": "MODAL_REASONING_EFFORT",
          "AllowUnqualifiedRoutes": "LIFESCI_ALLOW_UNQUALIFIED_ROUTES", "SupabaseJwtSecret": "SUPABASE_JWT_SECRET",
+         "ConnectorCredentialKey": "LIFESCI_CONNECTOR_KEY",
          "RuntimeSchedule": "RUNTIME_SCHEDULE", "MemorySize": "MEMORY_SIZE", "ApiDomain": "API_DOMAIN",
          "CertificateArn": "CERTIFICATE_ARN", "MultiTenant": "LIFESCI_MULTI_TENANT",
-         "ReservedConcurrency": "RESERVED_CONCURRENCY"}
+         "ReservedConcurrency": "RESERVED_CONCURRENCY",
+         "InvestigationExecutorUrl": "INVESTIGATION_EXECUTOR_URL", "InvestigationsEnabledTenants": "INVESTIGATIONS_ENABLED_TENANTS", "InvestigationExecutorAudience": "INVESTIGATION_EXECUTOR_AUDIENCE",
+         "InvestigationExecutorTenant": "INVESTIGATION_EXECUTOR_TENANT", "InvestigationExecutorProject": "INVESTIGATION_EXECUTOR_PROJECT",
+         "InvestigationIssuer": "INVESTIGATION_ISSUER", "InvestigationSigningKeySecretArn": "INVESTIGATION_SIGNING_KEY_SECRET_ARN",
+         "InvestigationSigningKeyId": "INVESTIGATION_SIGNING_KEY_ID"}
 params = {k: os.environ[v] for k, v in names.items() if os.environ.get(v)}
 json.dump({"Parameters": params}, open(sys.argv[1], "w"))  # the form `deploy --parameter-overrides file://` accepts
 PY
@@ -132,6 +139,16 @@ echo "API URL: ${URL%/}"
 [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] && echo "API URL: \`${URL%/}\` (image \`$TAG\`)" >> "$GITHUB_STEP_SUMMARY"
 # A healthy deployment answers, and refuses an anonymous caller.
 DIRECT="$(output FunctionUrl)"
-STATUS="$(curl -s -o /dev/null -w '%{http_code}' "${DIRECT%/}/v1/me" || true)"
+STATUS=000
+for _ in 1 2 3 4 5 6; do   # a fresh function can take a few seconds to answer
+  STATUS="$(curl -s -o /dev/null --max-time 30 -w '%{http_code}' "${DIRECT%/}/v1/me" || true)"
+  [[ "$STATUS" == "401" ]] && break
+  sleep 5
+done
 echo "GET /v1/me without sign-in -> HTTP $STATUS (expected 401)"
+if [[ "$STATUS" != "401" ]]; then
+  echo "Deployment check failed: the API did not refuse an anonymous caller with 401. The new version is live;" >&2
+  echo "inspect its logs, then redeploy the previous image tag if it is not serving." >&2
+  exit 1
+fi
 echo "Next: set NEXT_PUBLIC_LIFESCI_API_URL=${URL%/} in Vercel and redeploy the frontend."

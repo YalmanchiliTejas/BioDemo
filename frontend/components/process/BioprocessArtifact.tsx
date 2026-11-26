@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Check, TriangleAlert } from 'lucide-react';
 import { ScientificPlot } from '@/components/ScientificPlot';
 import { processRequest } from '@/lib/process-api';
+import { cached } from '@/lib/cache';
 import type { ArtifactRef } from './AnalysisArtifact';
 
 type Prediction = { value: number; unit: string; time_h: number; state: string };
@@ -20,7 +21,8 @@ type Data = {
   observed?: { completed_source_batch: History[]; current_batch: History[] }; targets?: Record<string, { time_h: number; state: string; unit: string }>;
   // CHO fit
   batch?: string; cutoff_h?: number; horizon_h?: number; delivery_name?: string; dataset_id?: string; equations?: string;
-  fit?: { parameters: Record<string, number>; training_batches: string[]; optimizer_converged: boolean; parameters_at_bounds: string[] };
+  fit?: { parameters: Record<string, number>; training_batches: string[]; optimizer_converged: boolean; parameters_at_bounds: string[];
+    training_fit?: Record<string, Record<string, { readings: number; mean_absolute_error: number; unit: string }>> };
   trajectory?: { time_h: number; viable_cell_density: number; glucose: number }[];
   holdout_comparison?: Comparison[]; holdout_errors?: Record<string, { readings: number; mean_absolute_error: number; median_measured: number; unit: string }>;
 };
@@ -116,12 +118,18 @@ function ChoView({ data }: { data: Data }) {
       <table className="mt-2 w-full text-left"><thead><tr className="text-text-tertiary"><th className="py-1">Time</th><th>Field</th><th>Measured</th><th>Forecast</th><th>Source</th></tr></thead>
         <tbody>{data.holdout_comparison.map(c => <tr key={`${c.field}-${c.time_h}`} className="border-t border-border-hairline"><td className="py-1.5">{c.time_h} h</td><td>{label(c.field)}</td><td className="tabular-nums">{fmt(c.measured)} {c.unit}</td><td className="tabular-nums">{fmt(c.predicted)}</td><td className="text-text-tertiary">{c.sources.join('; ')}</td></tr>)}</tbody></table>
     </details>}
+    {data.fit?.training_fit && <details className="mt-3 text-xs"><summary className="cursor-pointer">How closely the model fits the other runs</summary>
+      <p className="mt-2 text-text-tertiary">Fit to the runs it was fitted to (in-sample), from each run's first reading. Not a forecast test.</p>
+      <table className="mt-2 w-full text-left"><thead><tr className="text-text-tertiary"><th className="py-1">Run</th>{fields.map(([f, name, unit]) => <th key={f}>{name} error ({unit})</th>)}</tr></thead>
+        <tbody>{Object.entries(data.fit.training_fit).map(([run, e]) => <tr key={run} className="border-t border-border-hairline"><td className="py-1.5">{run}</td>
+          {fields.map(([f]) => <td key={f} className="tabular-nums">{e[f] ? fmt(e[f].mean_absolute_error) : '—'}</td>)}</tr>)}</tbody></table>
+    </details>}
     <p className="mt-3 text-xs text-text-tertiary">{data.equations}. Fitted parameters: {Object.entries(data.fit?.parameters ?? {}).map(([k, v]) => `${label(k)} ${fmt(v, 4)}`).join(', ')}{data.fit?.parameters_at_bounds.length ? ` (at bound: ${data.fit.parameters_at_bounds.map(label).join(', ')})` : ''}.</p>
   </>;
 }
 
 export function BioprocessArtifact({ threadId, artifact }: { threadId: string; artifact: ArtifactRef }) {
-  const [data, setData] = useState<Data | null>(null);
+  const [data, setData] = useState<Data | null>(() => cached<Data>(`/v1/process-model/conversations/${threadId}/artifacts/${artifact.kind}/${artifact.id}`) ?? null);
   const [error, setError] = useState('');
   useEffect(() => {
     let current = true;

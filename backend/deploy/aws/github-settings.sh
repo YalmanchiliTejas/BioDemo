@@ -19,14 +19,15 @@ ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
 AWS_DEPLOY_ROLE_ARN="${AWS_DEPLOY_ROLE_ARN:-arn:aws:iam::$ACCOUNT:role/biodemo-github-deployer}"
 
 gh api -X PUT "repos/$REPO/environments/$ENVIRONMENT" >/dev/null
-for name in DATABASE_URL SUPABASE_SERVICE_ROLE_KEY MODAL_PROXY_TOKEN SUPABASE_JWT_SECRET; do
+for name in DATABASE_URL SUPABASE_SERVICE_ROLE_KEY MODAL_PROXY_TOKEN SUPABASE_JWT_SECRET LIFESCI_CONNECTOR_KEY; do
   if [[ -n "${!name:-}" ]]; then
     printf '%s' "${!name}" | gh secret set "$name" --repo "$REPO" --env "$ENVIRONMENT"
     echo "secret   $name"
   fi
 done
 for name in AWS_REGION AWS_DEPLOY_ROLE_ARN SUPABASE_URL DEPLOYMENT_TENANT CORS_ORIGINS MODAL_BASE_URL \
-            LIFESCI_LLM_MODEL LIFESCI_ALLOW_UNQUALIFIED_ROUTES API_DOMAIN CERTIFICATE_ARN; do
+            LIFESCI_LLM_MODEL LIFESCI_ALLOW_UNQUALIFIED_ROUTES API_DOMAIN CERTIFICATE_ARN \
+            ASSISTANT_LOOP LIFESCI_INTERPRETER_REASONING_EFFORT MODAL_REASONING_EFFORT; do
   if [[ -n "${!name:-}" ]]; then
     gh variable set "$name" --repo "$REPO" --env "$ENVIRONMENT" --body "${!name}"
     echo "variable $name"

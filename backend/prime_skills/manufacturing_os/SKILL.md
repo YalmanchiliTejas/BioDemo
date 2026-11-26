@@ -85,6 +85,16 @@ submit an explicitly partial report when required work cannot be completed.
    source hash and transcribes the exact source cell/text.
 6. `get_process_context(entity_id="batch-id")` to gather all records + linked
    entities for one batch/equipment/sample.
+   `entity_graph(entity_id="batch-id", hops=2)` to follow links across files
+   (batch -> lot -> material, batch -> equipment -> other batches, deviation ->
+   batch). Use it for any question about a specific ID before free-text search.
+   Each link gives its `basis`, `status` and cited cell: `extracted` links are
+   read from one source row; `candidate` links come from filenames or document
+   co-occurrence and must be stated as unconfirmed; `confirmed` was reviewed.
+   Links say *what was recorded together*, not *why*: read the cited row before
+   claiming "processed on" or "consumed". `aliases` lists IDs that differ only by
+   case or separators (B-001 = B001). An empty result covers only the permitted
+   sources it reports; never state that no related records exist.
 7. `normalize_measurements(observation_ids=[...], target_unit="...")` only for
    unit conversion of already-retrieved numeric observations.
 8. `reconcile_entities()` when the same batch/equipment appears under
@@ -101,6 +111,7 @@ search_evidence(query="viable cell density", entity_id="reactor-id",
                 time_min=12, time_max=48, time_basis="elapsed_hours", limit=20)
 search_evidence(query="assay holding time", evidence_type="narrative", limit=10)
 get_process_context(entity_id="batch-id")
+entity_graph(entity_id="batch-id", hops=2)
 verify_evidence(observation_id="observation-id")
 normalize_measurements(observation_ids=["id"], target_unit="milligram/liter")
 query_data(sql="SELECT id, name, value_number, unit FROM observations WHERE name = 'pH'", limit=50)

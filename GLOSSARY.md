@@ -42,5 +42,9 @@ _Avoid_: Treating approval as execution
 **Qualified route**:
 A model assignment for one task kind that a recorded evaluation has shown to meet that task's quality thresholds. Tasks without a qualified route are not sent to a model by default.
 
+**Worklist**:
+Everything across the product that is waiting on one person, in progress for them, or recently finished for them, read from the records that own each item. The worklist owns nothing: a decision made from it is recorded by the service that owns the record.
+_Avoid_: Inbox (the alert inbox is one of its sources), dashboard
+
 **Transfer package**:
 The versioned process knowledge, procedures, parameters, resource mappings, and supporting evidence shared with a receiving site or partner for technology transfer. Receipt of the package does not establish readiness to execute the process.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -44,7 +45,10 @@ def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
         token = os.environ.get("BIODEMO_PRIME_BRIDGE_TOKEN")
     if not base or not token:
         raise BridgeError("Manufacturing OS bridge is not configured")
-    payload={**payload,'_caller':{'depth':int(os.environ.get('RLM_DEPTH','0'))}}
+    session_dir = os.environ.get('RLM_SESSION_DIR')
+    # The SDK gives child kernels their own RLM_SESSION_DIR, not a child id; the host maps this key to the child.
+    session = hashlib.sha256(session_dir.encode()).hexdigest()[:16] if session_dir else None
+    payload={**payload,'_caller':{'depth':int(os.environ.get('RLM_DEPTH','0')),'session':session}}
     request = Request(base.rstrip("/") + path,
                       data=json.dumps(payload).encode("utf-8"),
                       headers={"Authorization": f"Bearer {token}",
@@ -171,6 +175,10 @@ def get_process_context(**kwargs: Any) -> dict[str, Any]:
     return call_tool("get_process_context", **kwargs)
 
 
+def entity_graph(**kwargs: Any) -> dict[str, Any]:
+    return call_tool("entity_graph", **kwargs)
+
+
 def get_state_at(**kwargs: Any) -> dict[str, Any]:
     return call_tool("get_state_at", **kwargs)
 
@@ -192,4 +200,4 @@ __all__ = ["BridgeError", "context", "call_tool", "evidence", "submit_report", "
            "assemble_report", "stopping_decision", "evidence_packet",
            "infer_schema", "reconcile_entities", "normalize_measurements",
            "query_data", "search_evidence", "verify_evidence", "extract_region",
-           "get_process_context", "get_state_at", "summarize_series", "calculate_metrics", "align_series"]
+           "get_process_context", "entity_graph", "get_state_at", "summarize_series", "calculate_metrics", "align_series"]

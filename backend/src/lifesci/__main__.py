@@ -150,6 +150,11 @@ def main() -> None:
         cmd.add_argument("--tenant", default=None, help="default: DEPLOYMENT_TENANT")
         cmd.add_argument("--by", default=None, help="operator recorded in the audit trail (default: $USER)")
         cmd.add_argument("--reason", default=None)
+    purge = sub.add_parser("demo-purge", help="delete expired demo workspaces and corpus entries older than 90 days (schema owner)")
+    purge.add_argument("--owner-url", help="schema owner connection (default: LIFESCI_MIGRATION_DATABASE_URL)")
+    export = sub.add_parser("demo-corpus-export", help="write demo feedback and transcripts as JSONL for harness evaluation")
+    export.add_argument("--since", default=None, help="ISO timestamp; default: everything kept")
+    export.add_argument("--out", default="-", help="file path, or - for stdout")
     list_roles = sub.add_parser("list-roles", help="list active stored role assignments")
     list_roles.add_argument("--tenant", default=None, help="default: DEPLOYMENT_TENANT")
     list_roles.add_argument("--all", action="store_true", help="include revoked assignments")
@@ -170,11 +175,22 @@ def main() -> None:
         print(json.dumps(import_legacy(args.source, Repository(database_url(root)), default=args.tenant), indent=2))
         return
 
+    if args.cmd == "demo-purge":
+        from .demo import purge
+        url = args.owner_url or os.environ.get("LIFESCI_MIGRATION_DATABASE_URL") or os.environ.get("LIFESCI_DATABASE_URL", DEV_DB)
+        print(json.dumps(purge(url), indent=2))
+        return
     os.environ.setdefault("LIFESCI_DATABASE_URL", DEV_DB)
     from .container import Platform
     from .devseed import seed
 
     platform = Platform.from_env()
+    if args.cmd == "demo-corpus-export":
+        from .demo import export_corpus
+        stream = sys.stdout if args.out == "-" else open(args.out, "w", encoding="utf-8")
+        for item in export_corpus(platform.store, args.since):
+            stream.write(json.dumps(item, default=str) + "\n")
+        return
     if args.cmd in ("grant-role", "revoke-role", "list-roles"):
         _roles(args, platform)
         return

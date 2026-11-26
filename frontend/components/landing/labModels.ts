@@ -538,7 +538,7 @@ function pallet(c: Ctx, b: B) {
 
 export function goodsReceipt(c: Ctx, b: B) {
   const { g, m } = c;
-  // pallet 1: wrapped cartons from the CMO
+  // pallet 1: wrapped cartons from the CDMO
   const p1 = b.at(T(0, 0, 0, 0.04));
   pallet(c, p1);
   for (let lx = 0; lx < 2; lx++) for (let lz = 0; lz < 2; lz++) for (let ly = 0; ly < 3; ly++) {
@@ -546,8 +546,8 @@ export function goodsReceipt(c: Ctx, b: B) {
     p1.add(g.rbox(0.58, 0.4, 0.39, 0.012), m.cardboard, T(-0.3 + lx * 0.6, 0.345 + ly * 0.405, -0.2 + lz * 0.4));
   }
   p1.add(g.rbox(1.22, 1.0, 0.82, 0.03), m.film, T(0, 0.66, 0), false, false);
-  label(c, p1, 0.2, 0.14, ['CMO DELIVERY', 'CMP-26-10 · 8 files', 'CoA enclosed'], T(-0.3, 0.75, 0.401));
-  label(c, p1, 0.2, 0.14, ['CMO DELIVERY', 'Lot DS-2610-03', 'Quarantine'], T(0.6 + 0.001, 0.45, 0.1, Math.PI / 2));
+  label(c, p1, 0.2, 0.14, ['CDMO DELIVERY', 'CMP-26-10 · 8 files', 'CoA enclosed'], T(-0.3, 0.75, 0.401));
+  label(c, p1, 0.2, 0.14, ['CDMO DELIVERY', 'Lot DS-2610-03', 'Quarantine'], T(0.6 + 0.001, 0.45, 0.1, Math.PI / 2));
   blob(c, p1, 1.2, 0.8);
 
   // pallet 2: sealed totes

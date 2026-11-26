@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { useWorkspace } from './workspace-context';
 
 export const GUIDE_TOPICS = [
-  { id: 'dashboard', label: 'Find your bearings', href: '/dashboard/', target: 'dashboard', title: 'Your work, in one place', body: 'The dashboard shows real connection status, deliveries that need attention, and recent work. Choose the next step that fits your goal.' },
+  { id: 'dashboard', label: 'Find your bearings', href: '/dashboard/', target: 'dashboard', title: 'Your work, in one place', body: 'The overview summarizes what needs you, arranged for your role. Each summary opens the page behind it, and View switches to another role.' },
   { id: 'connections', label: 'Connect your data', href: '/sources/', target: 'connections', title: 'Start with a source you already use', body: 'Choose an authorized source, configure its access, and test the mapping. You control when collection starts and can pause it later.' },
   { id: 'deliveries', label: 'Check a delivery', href: '/cmo/', target: 'deliveries', title: 'Follow a value back to its source', body: 'Bring in a delivery or choose an available sample. Open the original beside the extracted values, then review mappings and flagged items before accepting them.' },
   { id: 'assistant', label: 'Ask with context', href: '/home/', target: 'assistant', title: 'Bring a question and the relevant evidence', body: 'Attach verified deliveries or use your authorized connected sources. Inspect cited evidence, assumptions and gaps before acting on an answer.' },

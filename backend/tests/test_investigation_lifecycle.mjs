@@ -82,6 +82,14 @@ test('reserve cancellation of an in-flight lead prompt still enters synthesis',a
   await runInvestigation(session,options);assert.deepEqual(state.prompts,[options.prompt,FINALIZE_PROMPT]);
 });
 
+test('a report submitted while the lead drains cancellation notices ends the run',async()=>{
+  const {state,session,options}=setup();options.timeoutSeconds=0.5;options.finalizationReserveSeconds=0.45;
+  session.waitForRlmQuiescence=signal=>new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(Error('cancelled')),{once:true}));
+  session.waitForHeadlessIdle=async()=>{state.submitted=true;};
+  await runInvestigation(session,options);
+  assert.deepEqual(state.prompts,[options.prompt]);
+});
+
 test('hard deadline bounds a stuck final synthesis and preserves failure',async()=>{
   const {session,options}=setup();options.timeoutSeconds=0.1;options.finalizationReserveSeconds=0.05;
   session.waitForRlmQuiescence=signal=>new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(Error('cancelled')),{once:true}));

@@ -2,19 +2,21 @@
 import { useEffect, useState } from 'react';
 import { redirectToSignIn, selectedOrganization, selectOrganization, signInAvailable, useSession } from '@/lib/auth';
 import { getAccount, organizationDestination } from '@/lib/organizations-api';
+import { cached } from '@/lib/cache';
 
 /** Supabase accounts and local test accounts follow the same path: signed in, a member, an organization selected. */
 export function SessionGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useSession();
   const userId = user?.id;
-  const [ready, setReady] = useState(false);
+  // A cached account means this tab already passed the gate; still re-check in the background.
+  const [ready, setReady] = useState(() => !!cached('connector:/account'));
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   useEffect(()=>{
     if (loading || !signInAvailable()) return;
     if (!userId) { redirectToSignIn('required'); return; }
     let active = true;
-    setReady(false);
+    if (!cached('connector:/account')) setReady(false);
     getAccount().then(async account=>{
       if (!active) return;
       const selected = selectedOrganization(userId);

@@ -104,6 +104,10 @@ def geometry(product: dict) -> tuple[float, float, float]:
     return ap, av, height
 
 
+# Relative mismatch between integrated sublimation and ice removed above which a run is reported as failed.
+MASS_TOLERANCE = .02
+
+
 def state_at(config: dict, time_h: float, dried_m: float) -> dict:
     p, e = config["product"], config["equipment"]
     ap, av, height = geometry(p)
@@ -192,6 +196,16 @@ def simulate(config: dict, *, sample_step_h: float = .25) -> dict:
                                "timing_resolution_h": sample_step_h})
     if completion is None and failure is None:
         violations.append({"constraint": "incomplete_primary_drying", "first_time_h": end})
+    # Independent check on the integration: the sublimation rate, integrated over the reported samples, must
+    # remove the ice the dried layer says is gone. Sampling coarser than a quarter hour cannot support it.
+    mass_error = None
+    if failure is None and len(points) >= 3 and sample_step_h <= .25:
+        removed = float(np.trapezoid([r["rate_kg_s_per_vial"] for r in points], [r["time_h"]*3600 for r in points]))
+        expected = initial_ice - points[-1]["remaining_ice_kg_per_vial"]
+        if expected > .05*initial_ice:
+            mass_error = abs(removed-expected)/expected
+            if mass_error > MASS_TOLERANCE:
+                failure = f"sublimed mass does not match the ice removed (relative error {mass_error:.3f})"
     warnings = ["Reconstruction, not numerical reproduction or a qualified process model.",
                 "No residual moisture, potency, release suitability, energy or biological yield is predicted.",
                 "Quasi-steady representative vial; no pressure dynamics, edge-vial population or sensible-heat model.",
@@ -210,6 +224,7 @@ def simulate(config: dict, *, sample_step_h: float = .25) -> dict:
             "minimum_critical_margin_c": min((r["critical_margin_c"] for r in points), default=None),
             "minimum_capacity_margin_kg_h": min((r["capacity_margin_kg_h"] for r in points), default=None),
             "initial_ice_kg_per_vial": initial_ice,
+            "mass_balance_relative_error": mass_error, "mass_balance_tolerance": MASS_TOLERANCE,
             "primary_drying_throughput_vials_h": config["load_vials"]/completion if completion and not violations else None,
             "calibration_scope": "Published pilot Kv/Rp characterization only; no fitting to withheld outcomes.",
             "warnings": warnings}

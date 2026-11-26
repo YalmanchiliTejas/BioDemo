@@ -28,10 +28,16 @@ class SolverBudget:
         self.started = perf_counter()
 
     def run(self, adapter, config):
+        return self.call(lambda: adapter.run(config))
+
+    def call(self, operation):
         if self.calls >= self.maximum or perf_counter()-self.started >= self.seconds:
             raise BudgetExceeded("physical pipeline solver-call or wall-time admission budget exhausted")
         self.calls += 1
-        return adapter.run(config)
+        result = operation()
+        if perf_counter()-self.started > self.seconds:
+            raise BudgetExceeded("solver completed after wall-time budget; result withheld")
+        return result
 
 
 def visible_rows(rows, cutoff):

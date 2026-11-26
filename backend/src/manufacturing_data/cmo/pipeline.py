@@ -16,6 +16,7 @@ import json
 import math
 import os
 import re
+import shutil
 import threading
 import time
 import uuid
@@ -29,8 +30,8 @@ from ..verification import verify_originals
 from ...ingestion.verification import validate_measurement, validate_collection
 from . import quality
 from .classify import by_content, by_filename
-from .evidence import evidence_store, original_key, restore
-from .persistence import repository
+from .evidence import evidence_store, legacy_original_key, original_key, restore
+from .persistence import repository, tenant_segment
 from .providers import ClairicProvider, Provider, Unavailable
 from .schema import Classification, Extraction, Mapping, TYPES, VOCAB, draft_mapping, header_parts, key, normalize, time_key
 
@@ -107,6 +108,13 @@ def fingerprint(kind, sheet, headers, extension):
     return digest({'kind':kind,'sheet':sheet,'headers':names,'format':extension})
 
 
+def aliases_cover(mapping,headers):
+    """Aliases already name batch, time and every other header: a mapping model adds cost, not information.
+    The layout still needs human confirmation either way."""
+    return bool(mapping.batch_column and mapping.time_column and
+                all(h in mapping.columns or h in {mapping.batch_column,mapping.time_column} for h in headers))
+
+
 class IngestionService:
     def __init__(self, root):
         from .settings import load_local_settings
@@ -171,6 +179,8 @@ class IngestionService:
     def save(self,run): self.repo.save_run(run)
 
     def get(self,run_id): return self.repo.get_run(run_id)
+
+    def link_reviews(self): return self.repo.link_reviews()
 
     def runs(self,cmo=None): return sorted(self.repo.runs(cmo),key=lambda r:r.get('started_at',''))
 
@@ -262,7 +272,7 @@ class IngestionService:
             if queued['status'] not in {'queued','running'}: raise ValueError(f"Run {run['id']} was already processed")
             run['started_at']=queued['started_at']
             run.update({k:queued[k] for k in ('package_id','delivery_name','disclosure') if queued[k] is not None})
-        store=ManufacturingStore(self.root/'stores'/run['id'])
+        store=self._seeded_store(self.root/'stores'/tenant_segment()/run['id'],supersedes,package_ref)
         run['store']=str(store.root)
         def stage(name,state='running'):
             if run['stages'] and run['stages'][-1]['state']=='running':
@@ -288,7 +298,8 @@ class IngestionService:
             stage('Ingest')
             # Reuses the original parser, immutable source storage, native sheet readers and OCR.
             ingestion=ingest_package(package,store,access_scope=cmo,
-                document_backend='docling' if configuration in {'decisions','clairic_decisions'} else 'pypdf',workers=2)
+                document_backend='docling' if configuration in {'decisions','clairic_decisions'} else 'pypdf',workers=2,
+                source_namespace=package_ref)
             run['ingestion']=ingestion
             for error in ingestion['errors']: issue('PARSE_ERROR',**error)
             stage('Classify')
@@ -296,7 +307,7 @@ class IngestionService:
             sources={s['id']:s for s in store.visible_sources(scopes=(cmo,))}
             for source in sources.values():
                 suffix=Path(source['path']).suffix.lower()
-                self.evidence.put(original_key(source['sha256'],suffix),store.originals/source['sha256'][:2]/(source['sha256']+suffix))
+                self.evidence.put(original_key(source['sha256'],suffix,tenant_segment()),store.originals/source['sha256'][:2]/(source['sha256']+suffix))
             grouped=defaultdict(list)
             for obs in observations: grouped[obs['source_id']].append(obs)
             routes={r['path']:r for r in ingestion['routes']}
@@ -420,7 +431,11 @@ class IngestionService:
                 if fp not in mappings:
                     proposed=draft_mapping(headers)
                     decisions=[]; based_on=None
-                    if template: proposed=Mapping.model_validate_json(template['mapping']).check(headers)
+                    if template:
+                        proposed,respelled=Mapping.model_validate_json(template['mapping']).respell(headers)
+                        proposed.check(headers)
+                        # Visible, and blocks auto-acceptance for this layout until a reviewer confirms.
+                        if respelled: issue('HEADER_RESPELLED',path=doc['path'],fingerprint=fp,renamed=respelled)
                     else:
                         closest=self.closest_template(cmo,doc['doc_type'],headers)
                         if closest:
@@ -440,7 +455,7 @@ class IngestionService:
                                       'added_headers':[h for h in headers if h not in old],
                                       'removed_headers':[h for h in old if h not in headers],
                                       'reused_headers':sorted(shared)}
-                        if mapping_provider:
+                        if mapping_provider and not aliases_cover(proposed,headers):
                             try:
                                 suggested=mapping_provider.call('map_headers',{'headers':headers,'vocabulary':VOCAB,
                                     'sample_rows':[{h:v[0] for h,v in values.items()}]},Mapping).check(headers)
@@ -658,6 +673,28 @@ class IngestionService:
         with self._lock, self.repo.transaction():
             return self._carry_over(old_id,self.get(new_run['id']))
 
+    NAMESPACE_FILE='source_namespace.txt'
+
+    def _seeded_store(self,target,supersedes,package_ref):
+        """Start a reprocess from the superseded run's parsed store so unchanged files are not re-parsed or re-OCR'd.
+        Only when both runs ingest the same delivery identity: ingest_package skips a file only if its source id,
+        bytes and parser signature all match, so anything else is still parsed fresh."""
+        if supersedes and package_ref and not target.exists():
+            try:
+                previous=Path(self.get(supersedes).get('store') or '')
+                marker=previous/self.NAMESPACE_FILE
+                if marker.is_file() and marker.read_text()==package_ref:
+                    shutil.copytree(previous,target)
+                    store=ManufacturingStore(target)
+                    (target/self.NAMESPACE_FILE).write_text(package_ref)
+                    return store
+            except Exception:
+                # ponytail: any seeding problem falls back to a full parse; it costs time, never correctness.
+                shutil.rmtree(target,ignore_errors=True)
+        store=ManufacturingStore(target)
+        if package_ref: (target/self.NAMESPACE_FILE).write_text(package_ref)
+        return store
+
     def _carry_over(self,old_id,run):
         """Apply to an in-memory result inside the caller's lock/transaction."""
         carried=[]; skipped=[]
@@ -694,10 +731,12 @@ class IngestionService:
         run=run or self.get(run_id); doc=next((d for d in run['documents'] if d['source_id']==source_id),None)
         if not doc: raise KeyError('Unknown source')
         suffix=Path(doc['path']).suffix.lower()
-        path=self.root/'stores'/run['id']/'originals'/doc['sha256'][:2]/(doc['sha256']+suffix)
+        path=self.root/'stores'/tenant_segment()/run['id']/'originals'/doc['sha256'][:2]/(doc['sha256']+suffix)
         if run.get('store') and not path.exists():
             path=Path(run['store'])/'originals'/doc['sha256'][:2]/(doc['sha256']+suffix)
-        return restore(self.evidence,original_key(doc['sha256'],suffix),path,doc['sha256']),doc
+        # The run was read under this tenant, so it owns this hash: a pre-tenant original may be read back.
+        return restore(self.evidence,original_key(doc['sha256'],suffix,tenant_segment()),path,doc['sha256'],
+                       legacy=[legacy_original_key(doc['sha256'],suffix)]),doc
 
     def export(self,run_id,*,format='csv',wide=False):
         run=self.get(run_id)
@@ -716,16 +755,40 @@ class IngestionService:
                 group[name]=row['value']; group[name+'_unit']=row['unit']
                 group[name+'_sources']=group.get(name+'_sources','')+row['source']+'\n'
             rows=list(groups.values())
+        return self.table(rows,format=format,title='Verified measurements')
+
+    def table(self,rows,*,format='csv',title='Values'):
+        """Rows as a CSV or XLSX file, with spreadsheet formulas neutralized."""
         headers=list(dict.fromkeys(k for row in rows for k in row)) or ['batch','time','parameter','value','unit','source']
         if format=='xlsx':
             from openpyxl import Workbook
-            book=Workbook(); sheet=book.active; sheet.title='Verified measurements'; sheet.append(headers)
+            book=Workbook(); sheet=book.active; sheet.title=title; sheet.append(headers)
             for row in rows: sheet.append([self.safe_cell(row.get(h,'')) for h in headers])
             output=io.BytesIO(); book.save(output); return output.getvalue()
         if format!='csv': raise ValueError('Unsupported export format')
         output=io.StringIO(newline=''); writer=csv.DictWriter(output,fieldnames=headers); writer.writeheader()
         writer.writerows({k:self.safe_cell(v) for k,v in row.items()} for row in rows)
         return output.getvalue().encode()
+
+    def trend_rows(self,*,parameters=None,keys=None,layout='long',columns=None,time_from=None,time_to=None,
+                   celsius=False,verified_only=False,check_sources=True):
+        """Accepted values across deliveries, shaped as chosen. With ``check_sources`` every source behind a
+        value is checked against its recorded hash first, exactly as a single-delivery export does."""
+        from . import trends
+        chosen=trends.select(trends.batches(self.runs()),parameters=parameters,keys=keys,time_from=time_from,
+                             time_to=time_to,verified_only=verified_only)
+        if check_sources:
+            for entry in chosen:
+                for source_id in {r['measurement']['source_id'] for r in entry['rows']}:
+                    self.original(entry['run_id'],source_id,run=entry['run'])
+        return trends.choose_columns(trends.export_rows(chosen,layout,celsius=celsius),columns)
+
+    def trend_export(self,*,format='csv',**options):
+        """The chosen values as one CSV, XLSX or JSON file."""
+        if format not in {'csv','xlsx','json'}: raise ValueError('Unsupported export format')
+        rows=self.trend_rows(**options)
+        if format=='json': return json.dumps(rows,ensure_ascii=False,indent=1).encode()
+        return self.table(rows,format=format,title='Batch values')
 
     @staticmethod
     def safe_cell(value):

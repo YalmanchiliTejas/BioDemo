@@ -102,18 +102,36 @@ def diagnose(config: dict, measurements: list[dict], cutoff_h: float) -> dict:
             # Temperature-only likelihood surrogate. Capacity cannot be inferred
             # from temperature with prescribed chamber pressure: explicitly unidentifiable.
             return float(np.mean((pred-np.array([r["product_temperature_c"] for r in visible]))**2))
-        fit = minimize_scalar(loss, bounds=bounds, method="bounded", options={"xatol": .005})
-        c = deepcopy(config)
-        c[block][key] = float(fit.x)
         identifiable = name != "reduced_vapor_capacity"
-        hypotheses.append({"hypothesis": name, "parameter": f"{block}.{key}", "estimate": float(fit.x) if identifiable else None,
-                           "temperature_rmse_c": float(np.sqrt(fit.fun)), "identifiable": identifiable,
+        if identifiable:
+            fit = minimize_scalar(loss, bounds=bounds, method="bounded", options={"xatol": .005})
+            estimate, cost = float(fit.x), float(fit.fun)
+        else:  # nothing to estimate from temperature; report how the unchanged model fits
+            estimate, cost = float(config[block][key]), loss(config[block][key])
+        # An estimate resting on the edge of the search range is the range talking, not the data.
+        span = bounds[1]-bounds[0]
+        pegged = identifiable and (estimate-bounds[0] < .02*span or bounds[1]-estimate < .02*span)
+        unsolved = cost >= 1e9
+        c = deepcopy(config)
+        c[block][key] = estimate
+        hypotheses.append({"hypothesis": name, "parameter": f"{block}.{key}", "estimate": estimate if identifiable else None,
+                           "temperature_rmse_c": None if unsolved else float(np.sqrt(cost)), "identifiable": identifiable,
+                           "search_range": list(bounds) if identifiable else None, "estimate_at_search_limit": pegged,
+                           "simulation_failed": unsolved,
                            "config": c if identifiable else deepcopy(config),
                            "interpretation": "Temperature fit alone is not causal proof." if identifiable else
                            "Capacity is not identifiable in a prescribed-pressure model. Pressure-control and sublimation-rate characterization required; estimate withheld."})
-    ranked = sorted([h for h in hypotheses if h["identifiable"]], key=lambda h: h["temperature_rmse_c"])
+    ranked = sorted([h for h in hypotheses if h["identifiable"] and not h["simulation_failed"]], key=lambda h: h["temperature_rmse_c"])
+    if not ranked:
+        raise ValueError("no hypothesis could be simulated up to the cutoff; diagnosis unavailable")
     plausible = [h["hypothesis"] for h in ranked if h["temperature_rmse_c"] <= ranked[0]["temperature_rmse_c"]+.5]
+    reliable = not ranked[0]["estimate_at_search_limit"]
     return {"hypotheses": hypotheses, "best_temperature_fit": ranked[0]["hypothesis"], "plausible_temperature_explanations": plausible,
+            "estimate_reliable": reliable,
+            "estimate_reliability_note": None if reliable else
+            f"The best-fitting estimate of {ranked[0]['parameter']} sits at the edge of its search range "
+            f"({ranked[0]['search_range'][0]:g} to {ranked[0]['search_range'][1]:g}); the true change may lie outside it, "
+            "so forecasts built on it are not a basis for a schedule change.",
             "diagnostic_config": ranked[0]["config"], "evidence_cutoff_h": cutoff_h, "observations": visible,
             "ambiguity": "Kv/Rp can compensate; thermal lag, vial position and sensor bias are alternative explanations. Reduced capacity is not ruled out.",
             "discriminating_experiment": "Pair gravimetric sublimation rate with center/edge product thermometry; independently characterize pressure control and condenser capacity at a controlled vapor load."}
@@ -133,9 +151,11 @@ def operations(config: dict, measurements: list[dict], *, cutoff_h: float = 6.) 
         options.append(summarize(f"At {cutoff_h:g} h → {shelf:g}°C", c, simulate(c)))
     past_damage = any(r["product_temperature_c"] >= config["product"]["critical_temperature_c"] for r in diagnosis["observations"])
     feasible = [(i, r) for i, r in enumerate(options) if r["feasible"]]
-    selected = min(feasible, key=lambda item: item[1]["completion_time_h"])[0] if feasible and not past_damage else None
+    selected = (min(feasible, key=lambda item: item[1]["completion_time_h"])[0]
+                if feasible and not past_damage and diagnosis["estimate_reliable"] else None)
     return {"audience": "cdmo_operation", "evidence_cutoff_h": cutoff_h, "diagnosis": diagnosis, "options": options,
             "recommended_index": selected, "irreversible_damage_possible": past_damage,
             "intervention_boundary": "No rescue claim. Prior critical-temperature excursion requires quality assessment." if past_damage else
+            diagnosis["estimate_reliability_note"] + " No option is recommended." if not diagnosis["estimate_reliable"] else
             "Conditional forecasts from t=0 using cutoff-fitted parameters; not a validated state estimator. Changes apply only after cutoff.",
             "verification": verification_plan(), "runtime_seconds": perf_counter()-start}

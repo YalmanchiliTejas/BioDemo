@@ -1,3 +1,4 @@
+import { forgetMutable, remember } from './cache';
 import { authHeaders, authMode, redirectToSignIn, SIGNED_OUT_MESSAGE } from './auth';
 import { PROCESS_API } from './process-api';
 export type Identity = {
@@ -34,6 +35,30 @@ export type Connector = {
     last_sync?: string;
     last_error?: string;
     revision?: number;
+    credential_fields?: string[];
+};
+export type ProductField = {
+    key: string;
+    label: string;
+    secret: boolean;
+    credential: boolean;
+    placeholder: string;
+    help: string;
+    required: boolean;
+    choices?: [string, string][];
+    when?: Record<string, string[]>;
+};
+export type Product = {
+    product: string;
+    name: string;
+    category: string;
+    family: string | null;
+    description: string;
+    help: string;
+    resource: string | null;
+    multiple: boolean;
+    table: boolean;
+    fields: ProductField[];
 };
 export type Catalog = {
     families: {
@@ -45,7 +70,11 @@ export type Catalog = {
         transport: string;
         available: boolean;
     }[];
+    products: Product[];
 };
+export type Resource = { id: string; label: string; detail: string };
+export type SourceField = { name: string; label: string; type: string };
+export type Discovery = { resources?: Resource[]; fields?: SourceField[]; suggested_mapping?: Mapping };
 export async function connectorRequest<T>(path: string, body?: unknown): Promise<T> {
     let response: Response;
     try {
@@ -61,6 +90,7 @@ export async function connectorRequest<T>(path: string, body?: unknown): Promise
     const data = await response.json().catch(() => null);
     if (!response.ok)
         throw new Error(response.status === 403 ? 'Your account does not have permission for this action at this site. Ask your administrator for access.' : typeof data?.detail === 'string' ? data.detail : `The request failed (${response.status}). Check your configuration and try again.`);
+    if (body === undefined) remember(`connector:${path}`, data); else forgetMutable();
     return data as T;
 }
 // Never send status fields back as configuration; the server remains authoritative.

@@ -1,0 +1,38 @@
+{
+  "id": "cmo-agg-duplicate-delivery",
+  "family": "expert",
+  "review_status": "draft",
+  "reviewer": "",
+  "provenance": "AI-drafted (Claude) from a customer interview: CMO data aggregation/filtering across deliveries. Synthetic. Needs QA/MSAT expert review before it counts as evidence.",
+  "prompt": "How many distinct batches did Alder deliver in October, and what is their mean titer?",
+  "sources": [
+    {
+      "key": "cmo-a-oct-1",
+      "content": "CMO Alder Biologics, October delivery 1 of 2. Columns: Batch,Titer (g/L)\nA-101,2.9\nA-102,2.3"
+    },
+    {
+      "key": "cmo-a-oct-2",
+      "content": "CMO Alder Biologics, October delivery 2 of 2 (includes a resend of A-102). Columns: Batch,Titer (g/L)\nA-102,2.3\nA-103,3.1"
+    }
+  ],
+  "cases": [],
+  "truth": {
+    "required_read": [
+      "cmo-a-oct-1",
+      "cmo-a-oct-2"
+    ],
+    "required_facts": [
+      "there are 3 distinct batches: A-101, A-102 and A-103",
+      "A-102 appears in both deliveries and is counted once",
+      "the mean titer is about 2.77 g/L"
+    ],
+    "forbidden_claims": [
+      "Alder delivered 4 batches",
+      "the mean titer is 2.65 g/L"
+    ],
+    "banned_tokens": [],
+    "expected_proposals": false,
+    "answerable": true
+  },
+  "notes": "Aggregation: a resent row must not be double-counted."
+}

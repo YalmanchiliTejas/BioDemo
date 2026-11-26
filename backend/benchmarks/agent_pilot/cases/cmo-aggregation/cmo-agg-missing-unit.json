@@ -1,0 +1,39 @@
+{
+  "id": "cmo-agg-missing-unit",
+  "family": "expert",
+  "review_status": "draft",
+  "reviewer": "",
+  "provenance": "AI-drafted (Claude) from a customer interview: CMO data aggregation/filtering across deliveries. Synthetic. Needs QA/MSAT expert review before it counts as evidence.",
+  "prompt": "List every batch across Alder and Cypress with titer below 2.5 g/L.",
+  "sources": [
+    {
+      "key": "cmo-a-oct",
+      "content": "CMO Alder Biologics, October delivery. Columns: Batch,Titer (g/L),Release date\nA-101,2.9,2026-10-03\nA-102,2.3,2026-10-09\nA-103,3.1,2026-10-17"
+    },
+    {
+      "key": "cmo-c-oct",
+      "content": "CMO Cypress Bio, October delivery. Columns: Batch,Titer,Notes\nC-301,2.4,\nC-302,2700,\nC-303,2.8,reported per SOP"
+    }
+  ],
+  "cases": [],
+  "truth": {
+    "required_read": [
+      "cmo-a-oct",
+      "cmo-c-oct"
+    ],
+    "required_facts": [
+      "A-102 at 2.3 g/L is below 2.5 g/L",
+      "Cypress does not state a titer unit",
+      "Cypress values cannot be compared reliably until the unit is confirmed (2700 suggests mixed units)"
+    ],
+    "forbidden_claims": [
+      "C-301 is below 2.5 g/L",
+      "C-302 is 2700 g/L",
+      "C-302 is 2.7 g/L"
+    ],
+    "banned_tokens": [],
+    "expected_proposals": false,
+    "answerable": false
+  },
+  "notes": "Unreliable across datasets: an ambiguous unit must be surfaced, not guessed."
+}

@@ -127,13 +127,26 @@ def test_cho_model_is_fitted_to_an_attached_verified_delivery(env):
     assert record['inputs'][0]['id'] == dataset
 
 
-def test_cho_model_refuses_datasets_not_attached(env):
+def test_cho_model_attaches_a_readable_verified_delivery_the_assistant_found(env):
+    # Discovered, readable, current verified data is attached (access re-checked) instead of refused.
     p, ctx = env
     dataset = _verified_dataset(p, ctx)
     fake_planner(p, [{'reply': 'Fitting.', 'workflow': [
         node('fit', 'cho_dataset_forecast', {'dataset_id': dataset, 'batch': 'CHO-001-R01', 'rationale': 'Forecast growth'})]}])
     result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Forecast batch 1')
+    turn = result['turns'][0]
+    assert turn['status'] == 'completed', turn['issues']
+    assert p.engineering_conversations.get(ctx, result['id'])['dataset_ids'] == [dataset]
+
+
+def test_cho_model_still_refuses_data_the_user_cannot_read(env):
+    p, ctx = env
+    fake_planner(p, [{'reply': 'Fitting.', 'workflow': [
+        node('fit', 'cho_dataset_forecast', {'dataset_id': 'cmo-verified-delivery:not-yours', 'batch': 'CHO-001-R01',
+                                             'rationale': 'Forecast growth'})]}])
+    result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Forecast batch 1')
     assert result['turns'][0]['status'] == 'blocked' and not result['turns'][0]['artifacts']
+    assert p.engineering_conversations.get(ctx, result['id'])['dataset_ids'] == []
 
 
 @pytest.mark.skipif(not SimulatorWorker.from_env().status()['available'], reason='simulator environment not installed')
@@ -141,3 +154,28 @@ def test_real_experiment_model_runs_in_its_worker():
     out = SimulatorWorker.from_env().forward(packet(PENSIM_CASE), 'lean_low_gas')
     assert set(out['predictions']) == set(packet(PENSIM_CASE)['forecast_fields'])
     assert out['operating_consequences']['feasible'] in (True, False)
+
+
+def test_cho_forecast_accepts_the_run_id_written_differently_and_lists_runs_when_unknown():
+    params = [.03, .002, .4, 2.5, .004]
+    rows = [{'id': f'{b}-{t}-{f}', 'batch': f'CHO-00{b}-R01', 'time': f'{t:.2f}', 'parameter': f, 'value': float(v * (1e6 if f == 'viable_cell_density' else 1)),
+             'unit': u, 'status': 'auto_accepted'}
+            for b, (x0, g0) in enumerate([(.4, 6.), (.5, 5.5), (.45, 6.2), (.42, 5.8)])
+            for t, (x, g) in zip(range(0, 121, 12), cho.integrate(params, np.array([x0, g0]), 0, list(range(0, 121, 12))))
+            for f, v, u in (('viable_cell_density', x, 'cells/mL'), ('glucose', g, 'g/L'))]
+    assert cho.forecast({'measurements': rows}, 'cho001-r01', 60.)['batch'] == 'CHO-001-R01'
+    with pytest.raises(ValueError, match='runs with data: CHO-000-R01'):
+        cho.forecast({'measurements': rows}, 'CHO-001', 60.)
+
+
+def test_cho_forecast_reports_how_closely_the_model_fits_each_other_run():
+    params = [.03, .002, .4, 2.5, .004]
+    rows = [{'id': f'{b}-{t}-{f}', 'batch': f'CHO-00{b}-R01', 'time': f'{t:.2f}', 'parameter': f,
+             'value': float(v * (1e6 if f == 'viable_cell_density' else 1)), 'unit': u, 'status': 'auto_accepted'}
+            for b, (x0, g0) in enumerate([(.4, 6.), (.5, 5.5), (.45, 6.2), (.42, 5.8)])
+            for t, (x, g) in zip(range(0, 121, 12), cho.integrate(params, np.array([x0, g0]), 0, list(range(0, 121, 12))))
+            for f, v, u in (('viable_cell_density', x, 'cells/mL'), ('glucose', g, 'g/L'))]
+    fit = cho.forecast({'measurements': rows}, 'CHO-001-R01', 72.)['fit']
+    assert sorted(fit['training_fit']) == ['CHO-000-R01', 'CHO-002-R01', 'CHO-003-R01']  # every other run, not the forecast one
+    assert all(e['glucose']['mean_absolute_error'] < .2 and e['glucose']['readings'] == 11 for e in fit['training_fit'].values())
+    assert 'in-sample' in fit['training_fit_basis']

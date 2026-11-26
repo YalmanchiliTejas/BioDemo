@@ -1,0 +1,39 @@
+{
+  "id": "cmo-agg-recall-units",
+  "family": "expert",
+  "review_status": "draft",
+  "reviewer": "",
+  "provenance": "AI-drafted (Claude) from a customer interview: CMO data aggregation/filtering across deliveries. Synthetic. Needs QA/MSAT expert review before it counts as evidence.",
+  "prompt": "Across both CMOs' October deliveries, which batches had titer below 2.5 g/L?",
+  "sources": [
+    {
+      "key": "cmo-a-oct",
+      "content": "CMO Alder Biologics, October delivery. Columns: Batch,Titer (g/L),Release date\nA-101,2.9,2026-10-03\nA-102,2.3,2026-10-09\nA-103,3.1,2026-10-17"
+    },
+    {
+      "key": "cmo-b-oct",
+      "content": "CMO Birchwood CDMO, October delivery. Columns: Lot ID,Product concentration (mg/L),Run end\nB-201,2650,2026-10-05\nB-202,2420,2026-10-12\nB-203,3050,2026-10-20"
+    }
+  ],
+  "cases": [],
+  "truth": {
+    "required_read": [
+      "cmo-a-oct",
+      "cmo-b-oct"
+    ],
+    "required_facts": [
+      "A-102 at 2.3 g/L is below 2.5 g/L",
+      "B-202 at 2420 mg/L (2.42 g/L) is below 2.5 g/L",
+      "Birchwood reports mg/L and must be converted before comparison"
+    ],
+    "forbidden_claims": [
+      "B-201 is below 2.5 g/L",
+      "only A-102 is below 2.5 g/L",
+      "B-202 meets 2.5 g/L"
+    ],
+    "banned_tokens": [],
+    "expected_proposals": false,
+    "answerable": true
+  },
+  "notes": "Misses relevant information: the second CMO uses different column names and units."
+}

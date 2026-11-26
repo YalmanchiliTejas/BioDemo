@@ -18,7 +18,7 @@ TENANT = "demo-northfield"
 SITE = "NF1"
 PEOPLE = [
     ("priya", "msat", SITE), ("quinn", "qa", SITE), ("sam", "supervisor", SITE),
-    ("olu", "operator", SITE), ("exec-svc", "system_executor", None),
+    ("olu", "operator", SITE), ("alex", "admin", None), ("exec-svc", "system_executor", None),
 ]
 
 
@@ -26,6 +26,21 @@ def seed(platform: Platform) -> dict[str, Any]:
     idn = platform.identity
     for actor, role, site in PEOPLE:
         idn.assign_role(TENANT, actor, role, site_id=site)
+    # Make the people members of the organization so local sign-in lands in it (not "no organization yet").
+    from .organizations import DIRECTORY, OrganizationService
+    orgs = OrganizationService(platform.store, idn)
+    with platform.store.transaction("devseed") as tx:
+        if tx.get(TENANT, "organization", TENANT) is None:
+            tx.put(TENANT, "organization", TENANT, {"name": "Northfield (SYNTHETIC)", "created_by": "devseed",
+                   "created_at": "2026-10-20T00:00:00+00:00", "onboarding_complete": True},
+                   expected_revision=None, action="seed_organization")
+    with platform.store.transaction("devseed") as tx:
+        if tx.get(DIRECTORY, "organization_index", TENANT) is None:
+            tx.put(DIRECTORY, "organization_index", TENANT, {"tenant_id": TENANT}, expected_revision=None,
+                   action="index_organization")
+    for actor, _, _ in PEOPLE:
+        if actor != "exec-svc":
+            orgs.remember(actor, TENANT)
     for op, system in [("place_hold", "MES"), ("request_retest", "LIMS"), ("submit_deviation", "QMS")]:
         platform.ownership.assign(TENANT, Ownership(op, SITE, "external", system, (op,)), by="devseed",
                                   reason="synthetic development configuration")
@@ -50,5 +65,7 @@ def seed(platform: Platform) -> dict[str, Any]:
         priya, objective="SYNTHETIC: understand the lower titer in F-2408", owner_id="priya",
         scope={"site_ids": [SITE], "batch": "F-2408"}, constraints=["no recipe change without QA approval"],
         subscriptions=[{"type": "evidence.", "site_id": SITE}])
-    return {"tenant": TENANT, "site": SITE, "mission_id": mission["mission_id"], "evidence": refs,
+    from .demo_seed import seed_model_library
+    library = seed_model_library(platform, idn.context_for(TENANT, "priya"), SITE)
+    return {"model_library_contexts": library, "tenant": TENANT, "site": SITE, "mission_id": mission["mission_id"], "evidence": refs,
             "people": [{"actor_id": a, "role": r} for a, r, _ in PEOPLE]}

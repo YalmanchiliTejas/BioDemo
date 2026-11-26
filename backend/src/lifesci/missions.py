@@ -27,6 +27,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Protocol
 
 from .identity import AccessContext, IdentityService
+from .memory import MemoryGrants
 from .ids import canonical_json, content_hash, iso, new_id, parse_iso, utc_now
 from .store import ConflictError, LeaseError, RecordStore, Transaction
 
@@ -75,6 +76,7 @@ class MissionService:
         self.store = store
         self.identity = identity
         self.scheduler = scheduler or InProcessScheduler()
+        self.memory = MemoryGrants(store, identity)
 
     # --- lifecycle ---------------------------------------------------------------
     def start_or_resume(self, ctx: AccessContext, *, objective: str, owner_id: str, scope: dict[str, Any],
@@ -84,7 +86,7 @@ class MissionService:
         if mission_id:
             rec = self.store.read().get(ctx.tenant_id, KIND, mission_id)
             if rec is not None:
-                self._require_access(ctx, rec.state)
+                self._require_access(ctx, rec.state, write=True)
                 return {**rec.state, "revision": rec.revision, "resumed": True}
         self.identity.require(ctx, "propose", KIND, site_id=(scope.get("site_ids") or [None])[0])
         mission_id = mission_id or new_id("msn")
@@ -105,7 +107,14 @@ class MissionService:
     def get(self, ctx: AccessContext, mission_id: str) -> dict[str, Any]:
         rec = self.store.read().require(ctx.tenant_id, KIND, mission_id)
         self._require_access(ctx, rec.state)
-        return {**rec.state, "revision": rec.revision, "updated_at": rec.updated_at}
+        return self._view(ctx, rec)
+
+    def _view(self, ctx: AccessContext, rec: Any) -> dict[str, Any]:
+        out = {**rec.state, "revision": rec.revision, "updated_at": rec.updated_at}
+        # A colleague reading under a 'conversations' grant sees corrections only with the 'corrections' scope.
+        if not self.memory.can_read(ctx, rec.state.get("owner_id", ""), "corrections"):
+            out.update(corrections=[], rejected_hypotheses=[])
+        return out
 
     def set_status(self, ctx: AccessContext, mission_id: str, status: str, reason: str) -> dict[str, Any]:
         if status not in (ACTIVE, PAUSED_BUDGET, BLOCKED, CANCELLED, ARCHIVED):
@@ -118,8 +127,9 @@ class MissionService:
         out = []
         for rec in self.store.read().list(ctx.tenant_id, KIND):
             sites = rec.state["scope"].get("site_ids") or [None]
-            if all(self.identity.check(ctx, "read", KIND, rec.id, site_id=site) for site in sites):
-                out.append({**rec.state, "revision": rec.revision, "updated_at": rec.updated_at})
+            if (all(self.identity.check(ctx, "read", KIND, rec.id, site_id=site) for site in sites)
+                    and self.memory.can_read(ctx, rec.state.get("owner_id", ""), "conversations")):
+                out.append(self._view(ctx, rec))
         out.sort(key=lambda m: m["updated_at"], reverse=True)
         return out[:limit]
 
@@ -214,9 +224,11 @@ class MissionService:
                          "answered_at": iso(utc_now())}
                 out.append(d)
             return {**s, "pending_decisions": out}
-        result = self._update(ctx, mission_id, change, action="answer_decision", event="mission.decision_answered")
+        # The decider (e.g. QA) answers the owner's question without gaining read access to the rest of their memory.
+        result = self._update(ctx, mission_id, change, action="answer_decision", event="mission.decision_answered",
+                              decider=True)
         self.scheduler.schedule_wakeup(ctx.tenant_id, mission_id, f"decision:{decision_id}")
-        return result
+        return {k: result[k] for k in ("mission_id", "pending_decisions", "revision")}
 
     def record_correction(self, ctx: AccessContext, mission_id: str, *, text: str, source_ref: dict[str, Any] | None,
                           claim_ref: dict[str, Any] | None, rejects_hypothesis: str | None = None) -> dict[str, Any]:
@@ -233,6 +245,18 @@ class MissionService:
         self._update(ctx, mission_id, change, action="record_correction", event="mission.corrected")
         self.scheduler.schedule_wakeup(ctx.tenant_id, mission_id, f"correction:{corr['correction_id']}")
         return corr
+
+    def owner_corrections(self, ctx: AccessContext, owner_id: str, *, exclude_mission_id: str | None = None,
+                          limit: int = 10) -> list[dict[str, Any]]:
+        """The owner's corrections from their other missions, newest first, so a new conversation keeps them."""
+        if owner_id != (ctx.delegated_from or ctx.actor_id):
+            raise PermissionError("corrections are carried only for their own owner")
+        out = [{**c, "mission_id": rec.id}
+               for rec in self.store.read().list(ctx.tenant_id, KIND, lambda s: s.get("owner_id") == owner_id)
+               if rec.id != exclude_mission_id for c in rec.state.get("corrections", [])
+               if c.get("by") in (owner_id, f"agent:{owner_id}")]
+        out.sort(key=lambda c: c.get("at", ""), reverse=True)
+        return out[:limit]
 
     # --- events and wakeups -----------------------------------------------------------
     def deliver_events(self, tenant_id: str) -> dict[str, int]:
@@ -260,24 +284,75 @@ class MissionService:
                 self.scheduler.schedule_wakeup(tenant_id, rec.id, "events")
         return woke
 
-    @staticmethod
-    def _subscribed(state: dict[str, Any], event: Any) -> bool:
+    def _subscribed(self, state: dict[str, Any], event: Any) -> bool:
         for sub in state["subscriptions"]:
             if sub.get("type") and not event.type.startswith(sub["type"]):
                 continue
             if sub.get("aggregate_id") and sub["aggregate_id"] != event.aggregate_id:
                 continue
-            if sub.get("site_id") and event.payload.get("site_id") not in (None, sub["site_id"]):
+            source = self.store.read().get(event.tenant_id, event.aggregate_kind, event.aggregate_id)
+            source_state = source.state if source else {}
+            # Event labels never override the actual record's scope. Legacy generic
+            # subscriptions may accept site-less events; assistant work requires a site.
+            site = source_state.get('site_id') or event.payload.get('site_id')
+            if sub.get("site_id") and site not in (None, sub["site_id"]):
+                continue
+            if sub.get('require_site') and (not source or source_state.get('site_id') != sub.get('site_id')):
+                continue
+            if source_state.get('site_id') and event.payload.get('site_id') not in (None, source_state['site_id']):
+                continue
+            if sub.get('owner_id') and source_state.get('owner_id') != sub['owner_id']:
+                continue
+            if sub.get('authorized_owner_id'):
+                owner = self.identity.context_for(event.tenant_id, sub['authorized_owner_id'])
+                if (not source or not self.identity.check(owner, 'read', event.aggregate_kind, event.aggregate_id, site_id=site)
+                        or not self.memory.readable(owner, event.aggregate_kind, source_state)):
+                    continue
+                if event.aggregate_kind == 'evidence' and source_state.get('source_system') in (
+                    'engineering-user-instruction', 'scientific-model-catalog',
+                    'process-analysis-assumptions', 'pharmaceutical-run-packet', 'assistant-routine', 'workspace-task'):
+                    continue
+                if event.aggregate_kind in ('workspace_task_request', 'workspace_task_result',
+                    'assistant_routine', 'assistant_routine_run'):
+                    continue
+            subjects = set(sub.get('subjects') or [])
+            if subjects and not subjects.intersection(self._event_subjects(event, source_state)):
                 continue
             return True
         return False
+
+    @staticmethod
+    def _event_subjects(event: Any, state: dict[str, Any]) -> set[str]:
+        """Explicit identifiers only: a free-text mention is not a subject relationship."""
+        subjects = {event.aggregate_id}
+        from .quality_evidence import typed_identifiers
+        subjects.update(typed_identifiers(state))
+        fields = ('batch_id', 'batch', 'sample_id', 'case_id', 'equipment_id', 'dataset_id', 'source_record_id',
+                  'product_id', 'material_id', 'lot_id')
+        metadata = state.get('metadata') or {}
+        for data in (state, metadata, metadata.get('mapped') or {}, state.get('associations') or {}):
+            for key in fields:
+                value = data.get(key)
+                if isinstance(value, (str, int)):
+                    subjects.add(str(value))
+                    subjects.add(f'{key}:{value}')
+            for key in ('batches', 'batch_ids', 'dataset_ids'):
+                subjects.update(str(v) for v in data.get(key) or [] if isinstance(v, (str, int)))
+                if key == 'batch_ids':
+                    subjects.update(f'batch_id:{v}' for v in data.get(key) or [] if isinstance(v, (str, int)))
+            subject = data.get('subject') or {}
+            if isinstance(subject, dict) and subject.get('id'):
+                subjects.add(str(subject['id']))
+            for key in ('record_refs', 'source_refs', 'evidence_refs', 'inputs'):
+                subjects.update(str(ref['id']) for ref in data.get(key) or [] if isinstance(ref, dict) and ref.get('id'))
+        return subjects
 
     # --- activations, checkpoints, merging ------------------------------------------------
     def activate(self, ctx: AccessContext, mission_id: str, worker_id: str, ttl_seconds: int = 900) -> Activation:
         """Admit a single coordinator. A replaced worker's token becomes stale immediately."""
         with self.store.transaction(ctx.actor_id) as tx:
             rec = tx.require(ctx.tenant_id, KIND, mission_id)
-            self._require_access(ctx, rec.state, tx)
+            self._require_access(ctx, rec.state, tx, write=True)
             if rec.state["status"] in (CANCELLED, ARCHIVED):
                 raise ValueError(f"mission is {rec.state['status']}")
             token = tx.acquire_lease(ctx.tenant_id, KIND, mission_id, worker_id, ttl_seconds)
@@ -419,7 +494,7 @@ class MissionService:
 
         with self.store.transaction(ctx.actor_id) as tx:
             rec = tx.require(ctx.tenant_id, KIND, mission_id)
-            self._require_access(ctx, rec.state, tx)
+            self._require_access(ctx, rec.state, tx, write=True)
             new = change(rec.state)
             if new is rec.state:
                 return {**rec.state, "revision": rec.revision}
@@ -452,16 +527,26 @@ class MissionService:
     def _head_seq(self, tenant_id: str) -> int:
         return self.store.head_seq(tenant_id)
 
-    def _require_access(self, ctx: AccessContext, state: dict[str, Any], tx: Transaction | None = None) -> None:
+    def _require_access(self, ctx: AccessContext, state: dict[str, Any], tx: Transaction | None = None,
+                        write: bool = False) -> None:
         sites = state["scope"].get("site_ids") or [None]
         for site in sites:
             self.identity.require(ctx, "read", KIND, state["mission_id"], site_id=site, tx=tx)
+        # A mission is its owner's memory: colleagues read only under a grant, and never write.
+        if write:
+            self.memory.require_owner_write(ctx, state.get("owner_id", ""))
+        else:
+            self.memory.require_read(ctx, state.get("owner_id", ""), "conversations")
 
     def _update(self, ctx: AccessContext, mission_id: str, change: Callable[[dict[str, Any]], dict[str, Any]], *,
-                action: str, event: str | None = None) -> dict[str, Any]:
+                action: str, event: str | None = None, decider: bool = False) -> dict[str, Any]:
         with self.store.transaction(ctx.actor_id) as tx:
             rec = tx.require(ctx.tenant_id, KIND, mission_id)
-            self._require_access(ctx, rec.state, tx)
+            if decider:  # the change itself checks the decider's role
+                for site in rec.state["scope"].get("site_ids") or [None]:
+                    self.identity.require(ctx, "read", KIND, mission_id, site_id=site, tx=tx)
+            else:
+                self._require_access(ctx, rec.state, tx, write=True)
             out = tx.put(ctx.tenant_id, KIND, mission_id, change(rec.state), expected_revision=rec.revision,
                          action=action, event_type=event, event_payload={"mission_id": mission_id})
         return {**out.state, "revision": out.revision}

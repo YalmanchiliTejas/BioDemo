@@ -35,6 +35,10 @@ Parameters:
   ModalBaseUrl:
     Type: String
     Default: ""
+  ModalEmbeddingsUrl:
+    Type: String
+    Default: "https://gauntlet--biodemo-embeddings.us-east.modal.run"
+    Description: Embedding service for assistant memory recall (backend/deploy/modal/embeddings_app.py)
   ModalProxyToken:
     Type: String
     NoEcho: true
@@ -42,6 +46,60 @@ Parameters:
   LlmModel:
     Type: String
     Default: zai-org/GLM-5.3
+  AssistantLoop:
+    Type: String
+    Default: tools
+    AllowedValues: ["tools", "planner", "demo"]
+    Description: >
+      Which loop answers in the assistant. tools: the tool-calling loop for every organization
+      (12/12 answered at a 62 s median on the demo scenarios, against 8/12 and about 3.5 min
+      for the planner). demo: the tool loop for demo workspaces only and the planner for
+      everyone else, as before 2026-11-16. planner: the planner for everyone.
+  InterpreterReasoningEffort:
+    Type: String
+    Default: low
+    AllowedValues: ["low", "high", "max", "default"]
+    Description: >
+      How hard the model thinks on the one-call explanation of a result the host has already
+      calculated (6/6 right at low in 3-5 s, against 17 s at the model's own default, max).
+      default sends nothing.
+  ReasoningEffort:
+    Type: String
+    Default: high
+    AllowedValues: ["low", "high", "max", "default"]
+    Description: >
+      How hard the model thinks on each step of the assistant's tool loop. Measured 2026-11-16:
+      high answered as well as max and two to four times sooner. Below max, the first step that
+      saves a proposal or a result is taken again at max and the turn stays there. default sends
+      nothing, which GLM-5.3 treats as max. Change it only with an evaluation behind it.
+  InvestigationsEnabledTenants:
+    Type: String
+    Default: ""
+    Description: Paid feature switch. Comma-separated organization ids that may run multi-agent investigations; empty means none.
+  InvestigationExecutorUrl:
+    Type: String
+    Default: ""
+    Description: HTTPS base URL of the investigation executor (cloud_backend). Empty disables multi-agent investigations.
+  InvestigationExecutorAudience:
+    Type: String
+    Default: ""
+  InvestigationExecutorTenant:
+    Type: String
+    Default: ""
+  InvestigationExecutorProject:
+    Type: String
+    Default: ""
+  InvestigationIssuer:
+    Type: String
+    Default: ""
+    Description: Issuer the executor trusts, e.g. https://api.example.com (JWKS at /.well-known/investigation-jwks.json)
+  InvestigationSigningKeySecretArn:
+    Type: String
+    Default: ""
+    Description: Secrets Manager ARN holding the RS256 private key PEM (kept out of the 4 KB Lambda environment)
+  InvestigationSigningKeyId:
+    Type: String
+    Default: investigation-1
   AllowUnqualifiedRoutes:
     Type: String
     Default: "1"
@@ -54,6 +112,13 @@ Parameters:
     NoEcho: true
     Default: ""
     Description: Only for Supabase projects still on the legacy shared JWT secret.
+  ConnectorCredentialKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: >
+      32 random bytes, base64 (openssl rand -base64 32). Encrypts credentials people enter
+      for guided data connections. Changing it makes saved credentials unreadable.
   RuntimeSchedule:
     Type: String
     Default: rate(1 minute)
@@ -84,6 +149,7 @@ Parameters:
 Conditions:
   HasReservedConcurrency: !Not [!Equals [!Ref ReservedConcurrency, "0"]]
   HasModal: !Not [!Equals [!Ref ModalProxyToken, ""]]
+  HasInvestigationKey: !Not [!Equals [!Ref InvestigationSigningKeySecretArn, ""]]
   HasDomain: !And
     - !Not [!Equals [!Ref ApiDomain, ""]]
     - !Not [!Equals [!Ref CertificateArn, ""]]
@@ -118,14 +184,34 @@ Resources:
           SUPABASE_URL: !Ref SupabaseUrl
           SUPABASE_SERVICE_ROLE_KEY: !Ref SupabaseServiceRoleKey
           SUPABASE_JWT_SECRET: !Ref SupabaseJwtSecret
+          LIFESCI_CONNECTOR_KEY: !Ref ConnectorCredentialKey
           CMO_STORAGE_BUCKET: !Ref StorageBucket
           LIFESCI_LLM_PROVIDER: !If [HasModal, modal, !Ref AWS::NoValue]
           LIFESCI_LLM_MODEL: !If [HasModal, !Ref LlmModel, !Ref AWS::NoValue]
+          ASSISTANT_LOOP: !Ref AssistantLoop
+          LIFESCI_INTERPRETER_REASONING_EFFORT: !Ref InterpreterReasoningEffort
+          MODAL_REASONING_EFFORT: !Ref ReasoningEffort
           MODAL_BASE_URL: !Ref ModalBaseUrl
           MODAL_PROXY_TOKEN: !Ref ModalProxyToken
+          MODAL_EMBEDDINGS_URL: !Ref ModalEmbeddingsUrl
           LIFESCI_ALLOW_UNQUALIFIED_ROUTES: !Ref AllowUnqualifiedRoutes
+          INVESTIGATION_EXECUTOR_URL: !Ref InvestigationExecutorUrl
+          INVESTIGATIONS_ENABLED_TENANTS: !Ref InvestigationsEnabledTenants
+          INVESTIGATION_EXECUTOR_AUDIENCE: !Ref InvestigationExecutorAudience
+          INVESTIGATION_EXECUTOR_TENANT: !Ref InvestigationExecutorTenant
+          INVESTIGATION_EXECUTOR_PROJECT: !Ref InvestigationExecutorProject
+          INVESTIGATION_ISSUER: !Ref InvestigationIssuer
+          INVESTIGATION_SIGNING_KEY_SECRET_ARN: !Ref InvestigationSigningKeySecretArn
+          INVESTIGATION_SIGNING_KEY_ID: !Ref InvestigationSigningKeyId
       Policies:
         - Statement:
+            - !If
+              - HasInvestigationKey
+              - Sid: ReadInvestigationSigningKey
+                Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref InvestigationSigningKeySecretArn
+              - !Ref AWS::NoValue
             - Sid: RunOwnBackgroundTasks
               Effect: Allow
               Action: lambda:InvokeFunction

@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { Button, Callout } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { kindLabel, postJson, type Layout, type MappingSpec, type Parameter, type Run } from '@/lib/cmo-api';
+import { parameterLabel, kindLabel, postJson, type Layout, type MappingSpec, type Parameter, type Run } from '@/lib/cmo-api';
+import { cmoName } from '@/lib/cmo-demo';
 
 const BATCH = '__batch__', TIME = '__time__', IGNORE = '__ignore__', UNDECIDED = '';
 const LABEL: Record<string, string> = { [BATCH]: 'batch', [TIME]: 'time', [IGNORE]: 'ignored' };
@@ -41,7 +42,7 @@ function Select({ header, value, parameters, onChange }: { header: string; value
     <select aria-label={`Meaning of ${header}`} value={value} onChange={e => onChange(e.target.value)}
       className={cn('h-7 rounded-control border px-1.5 text-xs', value === UNDECIDED ? 'border-amber-400 bg-amber-50' : 'border-border-strong')}>
       <option value={UNDECIDED}>Choose…</option><option value={BATCH}>Batch / lot</option><option value={TIME}>Process time</option><option value={IGNORE}>Ignore</option>
-      <optgroup label="Parameter">{parameters.map(p => <option key={p.id} value={p.id}>{p.id.replace(/_/g, ' ')} ({p.unit})</option>)}</optgroup>
+      <optgroup label="Parameter">{parameters.map(p => <option key={p.id} value={p.id}>{parameterLabel(p.id)} ({p.unit})</option>)}</optgroup>
     </select>
   );
 }
@@ -75,7 +76,7 @@ export function Mappings({ run, layouts, parameters, reviewer, onApplied }: { ru
     <section className="rounded-2xl border border-border-hairline bg-white" data-testid="mappings">
       <div className="border-b border-border-hairline px-6 py-5">
         <h2 className="font-display text-[20px] font-light text-ink">Check how we read {layouts.length === 1 ? 'this file' : `these ${layouts.length} files`}</h2>
-        <p className="mt-1 text-[13px] text-text-secondary">Confirm once and {run.cmo}’s future deliveries in the same format are read automatically.</p>
+        <p className="mt-1 text-[13px] text-text-secondary">Confirm once, and future deliveries from {cmoName(run.cmo)} in the same format are read automatically.</p>
       </div>
       <ul className="divide-y divide-border-hairline">
         {layouts.map(layout => {
@@ -86,7 +87,7 @@ export function Mappings({ run, layouts, parameters, reviewer, onApplied }: { ru
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <p className="text-[14px] font-medium text-ink">{layout.path}{layout.sheet ? ` · ${layout.sheet}` : ''} <span className="font-normal text-text-tertiary">· {kindLabel(layout.kind)}</span></p>
                 <div className="flex gap-2 text-xs">
-                  {!ignoreTable && <button className="text-text-tertiary hover:text-text-primary" onClick={() => setChoices({ ...choices, [layout.fingerprint]: Object.fromEntries(layout.headers.map(h => [h, IGNORE])) })}>Not process data</button>}
+                  {!ignoreTable && <button className="text-text-tertiary hover:text-text-primary" onClick={() => setChoices({ ...choices, [layout.fingerprint]: Object.fromEntries(layout.headers.map(h => [h, IGNORE])) })} title="Leave this file out of the extracted data">Skip this file</button>}
                   <button className="text-brand-teal hover:underline" onClick={() => setEditing(open ? null : layout.fingerprint)}>{open ? 'Done' : 'Edit'}</button>
                 </div>
               </div>
@@ -108,7 +109,7 @@ export function Mappings({ run, layouts, parameters, reviewer, onApplied }: { ru
                   {layout.headers.map(h => choice[h] === UNDECIDED
                     ? <span key={h} className="flex items-center gap-1 text-xs"><b>{h}</b><ArrowRight className="h-3 w-3 text-text-muted" /><Select header={h} value={choice[h]} parameters={parameters} onChange={v => set(layout.fingerprint, h, v)} /></span>
                     : <span key={h} className={cn('rounded-pill border px-2 py-0.5 text-xs', choice[h] === IGNORE ? 'border-border-hairline text-text-muted line-through' : 'border-border-hairline bg-surface-secondary text-text-secondary')}>
-                        {shown(h)} → {LABEL[choice[h]] ?? choice[h].replace(/_/g, ' ')}</span>)}
+                        {shown(h)} → {LABEL[choice[h]] ?? parameterLabel(choice[h])}</span>)}
                 </div>
               )}
             </li>

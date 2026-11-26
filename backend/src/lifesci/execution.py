@@ -370,7 +370,7 @@ class ExecutionService:
                        expected_revision=None, action="exception", event_type="exec.exception",
                        event_payload={"instance_id": instance_id, "step_id": step_id, "exception_id": exc_id,
                                       "parameter": v["name"], "value": v["value"], "low": v["low"], "high": v["high"],
-                                      "site_id": inst["site_id"]})
+                                      "site_id": inst["site_id"], "batch_id": inst["context"].get("batch_id")})
                 st.update(status="exception", version=st["version"] + 1)
                 tx.put(ctx.tenant_id, "procedure_instance", instance_id, new, expected_revision=rec.revision, action="step_exception")
                 return {**result, "status": "exception", "exception_id": exc_id, "violations": ev["violations"]}

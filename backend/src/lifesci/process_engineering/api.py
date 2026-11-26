@@ -1,6 +1,7 @@
 from fastapi import Depends, Header
 
 from .schemas import AdapterProposalIn, AgentPlanIn, PipelineSpec, ReviewIn
+from .library_schemas import LibraryPipelineSpec,ConfigurationIn,DatasetIn,ModelExtensionIn
 
 
 def install_analysis_api(p, app, ctx_dep, idempotent):
@@ -8,6 +9,28 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
     @app.get("/v1/process-model/catalog")
     def catalog(simulation_id: str | None = None, candidate_index: int = 0, ctx=Depends(ctx_dep)):
         return service.models(ctx, simulation_id, candidate_index)
+
+    @app.post("/v1/process-model/configurations")
+    def configuration(body: ConfigurationIn, ctx=Depends(ctx_dep), key: str | None = Header(None, alias="Idempotency-Key")):
+        return idempotent(ctx,key,"library-configuration",body.model_dump(),lambda:service.create_configuration(ctx,body))
+
+    @app.post("/v1/process-model/datasets")
+    def dataset(body: DatasetIn, ctx=Depends(ctx_dep), key: str | None = Header(None, alias="Idempotency-Key")):
+        return idempotent(ctx,key,"library-dataset",body.model_dump(),lambda:service.import_runs(ctx,body))
+
+    @app.get("/v1/process-model/library/artifacts/{kind}/{record_id}")
+    def library_artifact(kind: str,record_id: str,ctx=Depends(ctx_dep)):
+        if kind not in ('physical_analysis_context','physical_model_dataset','physical_model_checkpoint','physical_interval_calibration','physical_analysis_result','physical_analysis_plan'):
+            raise ValueError('Unsupported library artifact')
+        return service._library_record(ctx,kind,record_id)
+
+    @app.post("/v1/process-model/configurations/{context_id}/refresh")
+    def refresh(context_id: str, ctx=Depends(ctx_dep), key: str | None = Header(None, alias="Idempotency-Key")):
+        return idempotent(ctx,key,"library-refresh:"+context_id,{},lambda:service.refresh_configuration(ctx,context_id))
+
+    @app.post("/v1/process-model/model-extension-proposals")
+    def model_extension_proposal(body: ModelExtensionIn, ctx=Depends(ctx_dep), key: str | None = Header(None, alias="Idempotency-Key")):
+        return idempotent(ctx, key, "model-extension-proposal", body.model_dump(), lambda: service.propose_model_extension(ctx, body))
 
     @app.post("/v1/process-model/adapter-proposals")
     def adapter_proposal(body: AdapterProposalIn, ctx=Depends(ctx_dep), key: str | None = Header(None, alias="Idempotency-Key")):
@@ -18,7 +41,7 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
         return idempotent(ctx, key, "physical-agent-plan", body.model_dump(), lambda: service.agent_plan(ctx, body))
 
     @app.post("/v1/process-model/pipelines")
-    def prepare(body: PipelineSpec, ctx=Depends(ctx_dep), key: str | None = Header(None, alias="Idempotency-Key")):
+    def prepare(body: PipelineSpec | LibraryPipelineSpec, ctx=Depends(ctx_dep), key: str | None = Header(None, alias="Idempotency-Key")):
         return idempotent(ctx, key, "physical-plan", body.model_dump(), lambda: service.prepare(ctx, body))
 
     @app.get("/v1/process-model/pipelines/{plan_id}")
@@ -41,25 +64,35 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
     def assess(result_id: str, ctx=Depends(ctx_dep), key: str | None = Header(None, alias="Idempotency-Key")):
         return idempotent(ctx, key, f"physical-agent-assessment:{result_id}", {}, lambda: service.interpret(ctx, result_id))
 
-    from .conversation_schemas import ConversationIn, MessageIn, WatchIn
+    from .conversation_schemas import ConversationIn, ConversationUpdate, MessageIn, WatchIn
     conversations = p.engineering_conversations
     tasks = app.state.tasks
 
     def turn_task(payload):
         # Rebuilt from stored role assignments, so revoked access also stops queued work.
-        ctx = p.identity.context_for(payload['tenant'], payload['actor'], actor_kind=payload['actor_kind'],
-                                     partner_org_id=payload.get('partner_org_id'))
+        if payload.get('delegated_from'):
+            # Background work (e.g. signal triage) runs as the agent on behalf of its owner; rebuild that delegation.
+            from ..roles import agent_context_for
+            ctx = agent_context_for(p.identity.context_for(payload['tenant'], payload['delegated_from']), p.identity)
+        else:
+            ctx = p.identity.context_for(payload['tenant'], payload['actor'], actor_kind=payload['actor_kind'],
+                                         partner_org_id=payload.get('partner_org_id'))
         return conversations.run_turn(ctx, payload['thread_id'], payload['turn_id'])
 
     tasks.register('engineering_turn', turn_task)
 
     def queue_turn(ctx, thread_id, turn_id):
         tasks.submit('engineering_turn', {'tenant': ctx.tenant_id, 'actor': ctx.actor_id, 'actor_kind': ctx.actor_kind,
-                                          'partner_org_id': ctx.partner_org_id, 'thread_id': thread_id, 'turn_id': turn_id})
+                                          'partner_org_id': ctx.partner_org_id, 'thread_id': thread_id, 'turn_id': turn_id,
+                                          'delegated_from': ctx.delegated_from})
+
+    # Signal triage turns go through the same task runner (asynchronous on Lambda), never inline in a request.
+    if getattr(p, 'triage', None) is not None:
+        p.triage.submit_turn = queue_turn
 
     @app.get('/v1/process-model/conversations')
-    def list_conversations(ctx=Depends(ctx_dep)):
-        return {'conversations': conversations.list_for(ctx)}
+    def list_conversations(archived: bool = False, ctx=Depends(ctx_dep)):
+        return {'conversations': conversations.list_for(ctx, archived=archived)}
 
     @app.post('/v1/process-model/conversations')
     def new_conversation(body: ConversationIn, ctx=Depends(ctx_dep), key: str | None = Header(None, alias='Idempotency-Key')):
@@ -72,6 +105,10 @@ def install_analysis_api(p, app, ctx_dep, idempotent):
     @app.get('/v1/process-model/conversations/{thread_id}')
     def get_conversation(thread_id: str, ctx=Depends(ctx_dep)):
         return conversations.get(ctx, thread_id)
+
+    @app.post('/v1/process-model/conversations/{thread_id}/update')
+    def update_conversation(thread_id: str, body: ConversationUpdate, ctx=Depends(ctx_dep)):
+        return conversations.update(ctx, thread_id, body)
 
     @app.post('/v1/process-model/conversations/{thread_id}/responsibility')
     def configure_responsibility(thread_id: str, body: WatchIn, ctx=Depends(ctx_dep)):

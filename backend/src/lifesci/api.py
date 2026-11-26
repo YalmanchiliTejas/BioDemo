@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from .container import Platform
 from .identity import AccessContext, AuthorizationError
 from .ids import content_hash
+from .memory import MemoryAccessDenied, principal
 from .store import ConflictError, CrossTenantError, LeaseError, NotFoundError
 
 API_VERSION = "v1"
@@ -63,6 +64,32 @@ class MissionIn(BaseModel):
     subscriptions: list[dict[str, Any]] = []
     mission_id: str | None = None
 
+class RuleIn(BaseModel):
+    scope: str = Field(pattern="^(user|site|org)$")
+    text: str = Field(min_length=1, max_length=2000)
+    site_id: str | None = None
+    reason: str = ""
+
+
+class RuleDecisionIn(BaseModel):
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class InvestigationBudgetIn(BaseModel):
+    max_tool_calls: int | None = Field(default=None, ge=1, le=200)
+    minutes: int | None = Field(default=None, ge=1, le=60)
+    max_tokens: int | None = Field(default=None, ge=1000, le=5_000_000)
+
+class InvestigationIn(BaseModel):
+    objective: str = Field(default="", max_length=8000)
+    site_id: str = Field(default="NF1", min_length=1, max_length=100)
+    case_id: str | None = Field(default=None, max_length=160)
+    conversation_id: str | None = Field(default=None, max_length=160)
+    proposal_id: str | None = Field(default=None, max_length=160)
+    dataset_ids: list[str] = Field(default_factory=list, max_length=10)
+    record_refs: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
+    budget: InvestigationBudgetIn | None = None
+
 class CorrectionIn(BaseModel):
     text: str
     source_ref: dict[str, Any] | None = None
@@ -71,6 +98,28 @@ class CorrectionIn(BaseModel):
 
 class AnswerIn(BaseModel):
     answer: str
+
+class MemoryRequestIn(BaseModel):
+    owner_email: str = Field(min_length=3, max_length=320)
+    scopes: list[str] = Field(min_length=1, max_length=3)
+    reason: str = Field(min_length=1, max_length=1000)
+    days: int = Field(30, ge=1, le=90)
+
+
+class MemoryDecisionIn(BaseModel):
+    days: int | None = Field(None, ge=1, le=90)
+    reason: str = Field("", max_length=1000)
+
+
+# Evidence that only the platform itself writes: a person's chat instructions and verified CMO deliveries.
+RESERVED_SOURCES = ("engineering-user-instruction", "verified-source-snapshot", "scientific-model-catalog",
+                    "process-analysis-assumptions", "process-model-inputs", "fermentation-transfer",
+                    "pharmaceutical-run-packet", "simulated-bioprocess-case")
+RESERVED_SOURCE_PREFIXES = ("cmo-", "edge:")
+HIDDEN_KINDS = ("quality_export", "idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization",
+                "organization_member", "account_organizations", "connector_credential", "memory_grant", "alert_inbox",
+                "quality_intent")
+
 
 class NoteIn(BaseModel):
     body: str = Field(min_length=1, max_length=4000)
@@ -102,6 +151,14 @@ class ConnectorIn(BaseModel):
     enabled: bool = True
     mapping_confirmed: bool = False
     source_group: str | None = Field(default=None, min_length=1, max_length=120)
+    # Write-only: sealed server-side for guided connections and never returned.
+    credentials: dict[str, str] | None = None
+
+
+class DiscoverIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    resource: str | None = Field(default=None, max_length=300)
+    search: str | None = Field(default=None, max_length=120)
 
 
 class SourceReviewIn(BaseModel):
@@ -139,9 +196,20 @@ class IdentityResolver(Protocol):
     def __call__(self, request: Any) -> AccessContext: ...
 
 
+# Loopback addresses, plus the in-process test client's placeholder host.
+LOCAL_CLIENTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
+
+
 def dev_header_resolver(platform: Platform) -> IdentityResolver:
     """Development only. Roles are loaded from the store, not from headers."""
     def resolve(request: Any) -> AccessContext:
+        # Header identity is a local convenience. A server that is reachable from another machine must not
+        # take a caller's word for who they are, so remote callers are refused unless that is asked for.
+        client = getattr(request, "client", None)
+        host = getattr(client, "host", None)
+        if host not in LOCAL_CLIENTS and os.environ.get("LIFESCI_DEV_AUTH_ALLOW_REMOTE") != "1":
+            raise HTTPException(401, "This server uses development sign-in and only accepts local requests. "
+                                     "Set LIFESCI_AUTH_MODE=supabase or oidc for shared use.")
         tenant = request.headers.get("x-tenant-id")
         actor = request.headers.get("x-actor-id")
         if not tenant or not actor:
@@ -160,8 +228,12 @@ def oidc_resolver(platform: Platform) -> IdentityResolver:
                         os.environ["DEPLOYMENT_TENANT"])
 
     def resolve(request: Any) -> AccessContext:
+        from dataclasses import replace
+        from .identity import Authentication
         identity = verifier.verify(request.headers.get("authorization"))
-        return platform.identity.context_for(identity.tenant, identity.subject)
+        # These tokens carry no sign-in time, so they cannot satisfy a required re-authentication.
+        return replace(platform.identity.context_for(identity.tenant, identity.subject),
+                       authentication=Authentication("oidc"))
     return resolve
 
 
@@ -214,20 +286,69 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     from .tasks import TaskRunner
     app.state.tasks = TaskRunner()
     app.state.tasks.register("runtime_tick", lambda payload: runtime_tick(platform))
+    # How long each request took: a Server-Timing header for the browser and a recent window per route
+    # (GET /v1/latency). Measured only; nothing is cut off at the ten-second target.
+    import time as _time
+    from .latency import RequestLatency
+    app.state.latency = RequestLatency()
+
+    class RequestTiming:
+        """Plain ASGI wrapper: it never buffers a response or touches background work."""
+        def __init__(self, inner: Any) -> None:
+            self.inner = inner
+
+        async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
+            if scope["type"] != "http":
+                await self.inner(scope, receive, send)
+                return
+            started, status = _time.perf_counter(), 500
+
+            async def timed_send(message: dict[str, Any]) -> None:
+                nonlocal status
+                if message["type"] == "http.response.start":
+                    status = message["status"]
+                    duration = f"app;dur={(_time.perf_counter() - started) * 1000:.1f}".encode()
+                    message = {**message, "headers": [*message.get("headers", []), (b"server-timing", duration)]}
+                await send(message)
+            try:
+                await self.inner(scope, receive, timed_send)
+            finally:
+                route = scope.get("route")
+                app.state.latency.record(scope["method"], getattr(route, "path", None) or scope["path"],
+                                         _time.perf_counter() - started, status)
+
+    app.add_middleware(RequestTiming)
+
     # The statically exported Next workspace can connect to the existing API.
     # Production cross-origin access must be configured explicitly.
     from fastapi.middleware.cors import CORSMiddleware
     origins = os.environ.get("LIFESCI_CORS_ORIGINS", "http://127.0.0.1:5180,http://localhost:5180" if auth_mode == "development_headers" else "")
     if origins:
         app.add_middleware(CORSMiddleware, allow_origins=origins.split(","), allow_methods=["GET", "POST"],
-                           allow_headers=["Authorization", "Content-Type", "X-Tenant-Id", "X-Actor-Id", "Idempotency-Key", "X-CMO-Token", "X-Organization-Id"],
-                           expose_headers=["X-Package-Complete", "X-Open-Issues", "X-Values-Pending", "X-Page-Width",
+                           allow_headers=["Authorization", "Content-Type", "X-Tenant-Id", "X-Actor-Id", "Idempotency-Key", "X-CMO-Token", "X-Organization-Id", "X-Demo-Visitor"],
+                           expose_headers=["Server-Timing", "X-Package-Complete", "X-Open-Issues", "X-Values-Pending", "X-Page-Width",
                                            "X-Page-Height", "X-Page-Count"])
 
     def ctx_dep(request: Request) -> AccessContext:
+        requested = request.headers.get("x-organization-id") or request.headers.get("x-tenant-id")
+        demo = getattr(platform, "demo", None)
+        if demo is not None and requested and requested.startswith("demo_") and demo.expired(requested):
+            raise HTTPException(410, "This demo workspace has expired. Start a new one, or talk to us.")
         ctx = resolver(request)
         platform.runtime.track(ctx.tenant_id)
         return ctx
+
+    def demo_visitor(request: Request) -> str:
+        """Only anonymous demo sign-ins may create demo workspaces; real accounts never get one."""
+        verifier = getattr(resolver, "verifier", None)
+        if verifier is not None:
+            claims = verifier.verify(request.headers.get("authorization"))
+            if claims.get("is_anonymous") is not True:
+                raise HTTPException(403, "Demo workspaces are for demo visitors; you are signed in with an organization account")
+            return claims["sub"]
+        if auth_mode == "development_headers" and request.headers.get("x-demo-visitor") == "1" and request.headers.get("x-actor-id"):
+            return request.headers["x-actor-id"]
+        raise HTTPException(403, "Demo workspaces are not available on this deployment")
 
     @app.exception_handler(AuthorizationError)
     async def _auth(_: Request, exc: AuthorizationError):  # noqa: ANN202
@@ -236,6 +357,12 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.exception_handler(PermissionError)
     async def _perm(_: Request, exc: PermissionError):  # noqa: ANN202
         return JSONResponse({"error": "forbidden", "detail": str(exc)}, status_code=403)
+
+    from .demo import DemoLimit
+
+    @app.exception_handler(DemoLimit)
+    async def _demo_limit(_: Request, exc: DemoLimit):  # noqa: ANN202
+        return JSONResponse({"error": "limit_reached", "detail": str(exc)}, status_code=429)
 
     @app.exception_handler(ConflictError)
     async def _conflict(_: Request, exc: ConflictError):  # noqa: ANN202
@@ -277,6 +404,27 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
                        expected_revision=None, action="idempotency")
         return response
 
+    def command(ctx: AccessContext, key: str | None, route: str, body: Any, run: Callable[[], Any]) -> Any:
+        """Store-only commands: the change and its replay receipt commit together, and a concurrent retry
+        with the same key waits for that commit instead of running the command a second time."""
+        if not key:
+            return run()
+        with platform.store.transaction(ctx.actor_id):
+            return idempotent(ctx, key, route, body, run)
+
+    from .demo import DemoExpired, demo_routes
+    demo_routes(app, platform, ctx_dep, demo_visitor)
+
+    @app.exception_handler(DemoExpired)
+    async def _demo_expired(_: Request, __: DemoExpired):  # noqa: ANN202
+        return JSONResponse({"error": "expired", "detail": "This demo workspace has expired. Start a new one, or talk to us."}, status_code=410)
+
+    from .signals import signal_routes
+    from .alerts import alert_routes
+    signal_routes(app, platform, ctx_dep)
+    alert_routes(app, platform, ctx_dep)
+    from .triage import triage_routes
+    triage_routes(app, platform, ctx_dep)
     from .organization_api import install_organization_api
     install_organization_api(app, platform, resolver, ctx_dep, os.environ.get("LIFESCI_MULTI_TENANT") == "1",
                              development=auth_mode == "development_headers")
@@ -302,15 +450,24 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/evidence", status_code=201)
     def ingest(body: EvidenceIn, ctx: AccessContext = Depends(ctx_dep),
                idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
-        return idempotent(ctx, idem, "evidence", body.model_dump(), lambda: platform.evidence.ingest(
+        if body.source_system in RESERVED_SOURCES or body.source_system.startswith(RESERVED_SOURCE_PREFIXES):
+            raise HTTPException(403, "this source is written only by the platform")
+        # Reading evidence is not authority to add or correct it.
+        platform.identity.require(ctx, "propose", "evidence", site_id=body.site_id)
+        current = platform.store.read().get(ctx.tenant_id, "evidence", f"{body.source_system}:{body.source_record_id}")
+        if current is not None and current.state.get("metadata") and current.state["metadata"].get("intake") != "manual":
+            # Records a connector, gateway or platform service brought in are corrected by that source only.
+            raise HTTPException(403, "this record is maintained by its source; a correction must come from that source")
+        return command(ctx, idem, "evidence", body.model_dump(), lambda: platform.evidence.ingest(
             ctx, source_system=body.source_system, source_record_id=body.source_record_id,
             content=body.content_text.encode(), media_type=body.media_type, site_id=body.site_id,
-            event_time=body.event_time, source_revision=body.source_revision))
+            event_time=body.event_time, source_revision=body.source_revision,
+            metadata={"intake": "manual", "submitted_by": ctx.actor_id}))
 
     @app.get(f"/{API_VERSION}/records/{{kind}}")
     def list_records(kind: str, cursor: str | None = None, limit: int = 50,
                      ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
-        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization", "organization_member", "account_organizations"):
+        if kind in HIDDEN_KINDS:
             raise HTTPException(404, "not a public record kind")
         limit = max(1, min(limit, 200))
         tx = platform.store.read()
@@ -321,13 +478,27 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
             if kind == "transfer_package" and not any(platform.identity.check(ctx, "read", kind, r.id, site_id=r.state[s])
                                                        for s in ("sending_site", "receiving_site")):
                 continue
-            if platform.identity.check(ctx, "read", kind, r.id, site_id=r.state.get("site_id")):
+            if (platform.identity.check(ctx, "read", kind, r.id, site_id=r.state.get("site_id"))
+                    and platform.memory.readable(ctx, kind, r.state)):
                 if "inputs" in r.state:
                     try:
                         platform.evidence.read_derived(ctx, kind, r.id)
                     except (PermissionError, ValueError, KeyError):
                         continue
-                visible.append({"id": r.id, "revision": r.revision, "state": r.state})
+                if platform.process_models.analysis.is_library_record(kind,r.state):
+                    try:platform.process_models.analysis._library_memory(ctx,kind,r.state)
+                    except PermissionError:continue
+                if kind == 'deviation_signal' and not platform.signals._readable(ctx, r.state):
+                    continue
+                state = r.state
+                if kind == 'case' and state.get('workflow'):
+                    try:
+                        platform.cases.get(ctx, r.id)
+                    except (PermissionError, ValueError, KeyError):
+                        continue
+                if kind == 'workspace_task_result':
+                    state = {k: v for k, v in platform.workspace_tasks.get(ctx, r.id).items() if k not in ('id', 'revision')}
+                visible.append({"id": r.id, "revision": r.revision, "state": state})
                 if len(visible) == limit:
                     break
         next_cursor = visible[-1]["id"] if len(visible) == limit else None
@@ -335,13 +506,22 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
 
     @app.get(f"/{API_VERSION}/records/{{kind}}/{{record_id:path}}")
     def get_record(kind: str, record_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
-        if kind in ("idempotency", "model_cache", "role_assignment", "grant", "budget", "partner_membership", "organization", "organization_member", "account_organizations"):
+        if kind in HIDDEN_KINDS:
             raise HTTPException(404, "not a public record kind")
         rec = platform.store.read().require(ctx.tenant_id, kind, record_id)
+        if kind == 'deviation_signal':
+            platform.signals.get(ctx, record_id)
+        if kind == 'case' and rec.state.get('workflow'):
+            platform.cases.get(ctx, record_id)
+        if platform.process_models.analysis.is_library_record(kind,rec.state):platform.process_models.analysis._library_memory(ctx,kind,rec.state)
         if kind == "transfer_package" and not any(platform.identity.check(ctx, "read", kind, rec.id, site_id=rec.state[s])
                                                    for s in ("sending_site", "receiving_site")):
             raise HTTPException(403, "transfer outside actor site scope")
         platform.identity.require(ctx, "read", kind, record_id, site_id=rec.state.get("site_id"))
+        if not platform.memory.readable(ctx, kind, rec.state):
+            raise MemoryAccessDenied()
+        if kind == 'workspace_task_result':
+            return platform.workspace_tasks.get(ctx, record_id)
         if rec.state.get("inputs") is not None:
             return platform.evidence.read_derived(ctx, kind, record_id)
         return {"id": rec.id, "revision": rec.revision, "state": rec.state,
@@ -350,19 +530,20 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/proposals", status_code=201)
     def propose(body: ProposalIn, ctx: AccessContext = Depends(ctx_dep),
                 idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
-        return idempotent(ctx, idem, "proposals", body.model_dump(),
+        return command(ctx, idem, "proposals", body.model_dump(),
                           lambda: platform.actions.propose(ctx, **body.model_dump()))
 
     @app.post(f"/{API_VERSION}/proposals/{{proposal_id}}/decisions")
     def decide(proposal_id: str, body: DecisionIn, ctx: AccessContext = Depends(ctx_dep),
                idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
-        return idempotent(ctx, idem, f"decisions:{proposal_id}", body.model_dump(),
+        return command(ctx, idem, f"decisions:{proposal_id}", body.model_dump(),
                           lambda: platform.actions.decide(ctx, proposal_id, **body.model_dump()))
 
     def _proposal_view(tx: Any, rec: Any, ctx: AccessContext) -> dict[str, Any]:
         approvals = [a.state for a in tx.find(ctx.tenant_id, "approval", "proposal_id", rec.id)]
         outcomes = [o.state for o in tx.find(ctx.tenant_id, "outcome", "proposal_id", rec.id)]
         can = [r for r in rec.state["required_roles"] if r in ctx.roles and ctx.actor_id != rec.state["requested_by"]
+               and ctx.actor_id not in rec.state.get("revised_by", [])
                and ctx.actor_kind != "agent" and rec.state["status"] == "proposed"
                and not any(a["role"] == r and a["content_hash"] == rec.state["content_hash"] for a in approvals)]
         return {**rec.state, "revision": rec.revision, "updated_at": rec.updated_at, "approvals": approvals,
@@ -390,7 +571,9 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/missions", status_code=201)
     def start_mission(body: MissionIn, ctx: AccessContext = Depends(ctx_dep),
                       idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
-        return idempotent(ctx, idem, "missions", body.model_dump(),
+        if body.owner_id != principal(ctx):
+            raise HTTPException(403, "a mission is started for yourself")
+        return command(ctx, idem, "missions", body.model_dump(),
                           lambda: platform.missions.start_or_resume(ctx, **body.model_dump()))
 
     @app.get(f"/{API_VERSION}/missions")
@@ -404,7 +587,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/missions/{{mission_id}}/notes", status_code=201)
     def add_note(mission_id: str, body: NoteIn, ctx: AccessContext = Depends(ctx_dep),
                  idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
-        return idempotent(ctx, idem, f"notes:{mission_id}", body.model_dump(),
+        return command(ctx, idem, f"notes:{mission_id}", body.model_dump(),
                           lambda: platform.missions.add_note(ctx, mission_id, body.body))
 
     @app.post(f"/{API_VERSION}/missions/{{mission_id}}/obligations", status_code=201)
@@ -412,7 +595,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
                        idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
         platform.missions.get(ctx, mission_id)
         platform.identity.require(ctx, "propose", "mission", mission_id)
-        return idempotent(ctx, idem, f"obligations:{mission_id}", body.model_dump(),
+        return command(ctx, idem, f"obligations:{mission_id}", body.model_dump(),
             lambda: platform.missions.add_obligation(ctx, mission_id, **body.model_dump()))
 
     @app.post(f"/{API_VERSION}/missions/{{mission_id}}/obligations/{{obligation_id}}/retry")
@@ -429,7 +612,8 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
 
     @app.get(f"/{API_VERSION}/missions/{{mission_id}}/proposals")
     def mission_proposals(mission_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
-        platform.missions.get(ctx, mission_id)  # authorization on the mission
+        # Proposals are organization records with their own approvers (e.g. QA), not the mission owner's memory:
+        # each one is authorized by itself, exactly as GET /proposals?mission_id= does.
         tx = platform.store.read()
         items = [_proposal_view(tx, r, ctx) for r in tx.find(ctx.tenant_id, "proposal", "mission_id", mission_id)
                  if platform.identity.check(ctx, "read", "proposal", r.id, site_id=r.state.get("site_id"))]
@@ -443,7 +627,7 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/proposals/{{proposal_id}}/outcomes", status_code=201)
     def outcome(proposal_id: str, body: OutcomeIn, ctx: AccessContext = Depends(ctx_dep),
                 idem: str | None = Header(None, alias="Idempotency-Key")) -> dict[str, Any]:
-        return idempotent(ctx, idem, f"outcomes:{proposal_id}", body.model_dump(),
+        return command(ctx, idem, f"outcomes:{proposal_id}", body.model_dump(),
                           lambda: platform.actions.record_outcome(ctx, proposal_id, **body.model_dump()))
 
     @app.get(f"/{API_VERSION}/missions/{{mission_id}}/stream")
@@ -454,6 +638,164 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     def correct(mission_id: str, body: CorrectionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
         return platform.missions.record_correction(ctx, mission_id, **body.model_dump())
 
+    # --- memory sharing: a colleague reads someone's assistant memory only under their approved grant --------
+    def _emails(tenant: str) -> dict[str, str]:
+        return {r.id: r.state.get("email") for r in platform.store.read().list(tenant, "organization_member")}
+
+    def _grant_view(g: dict[str, Any], emails: dict[str, str]) -> dict[str, Any]:
+        return {**g, "owner_email": emails.get(g["owner_id"]), "grantee_email": emails.get(g["grantee_id"])}
+
+    @app.get(f"/{API_VERSION}/memory-grants")
+    def list_memory_grants(ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        emails, grants = _emails(ctx.tenant_id), platform.memory.list_for(ctx)
+        return {k: [_grant_view(g, emails) for g in v] for k, v in grants.items()}
+
+    @app.post(f"/{API_VERSION}/memory-grants", status_code=201)
+    def request_memory_grant(body: MemoryRequestIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        emails = _emails(ctx.tenant_id)  # this organization's members only
+        owner = next((i for i, e in emails.items() if (e or "").lower() == body.owner_email.strip().lower()), None)
+        if owner is None:
+            raise HTTPException(404, "No member with that email in this organization")
+        grant = platform.memory.request(ctx, owner_id=owner, scopes=body.scopes, reason=body.reason, days=body.days)
+        alerts = getattr(platform, "alerts", None)
+        if alerts is not None:
+            who = emails.get(ctx.actor_id) or ctx.actor_id
+            alerts.notify(ctx.tenant_id, owner, key=grant["grant_id"], kind="memory_request",
+                          title=f"{who} asks to read your assistant memory ({', '.join(grant['scopes'])})",
+                          link="/settings/?tab=memory")
+        return _grant_view(grant, emails)
+
+    @app.post(f"/{API_VERSION}/memory-grants/{{grant_id}}/approve")
+    def approve_memory_grant(grant_id: str, body: MemoryDecisionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return _grant_view(platform.memory.approve(ctx, grant_id, days=body.days, reason=body.reason), _emails(ctx.tenant_id))
+
+    @app.post(f"/{API_VERSION}/memory-grants/{{grant_id}}/deny")
+    def deny_memory_grant(grant_id: str, body: MemoryDecisionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return _grant_view(platform.memory.deny(ctx, grant_id, reason=body.reason), _emails(ctx.tenant_id))
+
+    @app.post(f"/{API_VERSION}/memory-grants/{{grant_id}}/revoke")
+    def revoke_memory_grant(grant_id: str, body: MemoryDecisionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return _grant_view(platform.memory.revoke(ctx, grant_id, reason=body.reason), _emails(ctx.tenant_id))
+
+    @app.get(f"/{API_VERSION}/memory/{{owner_id}}/conversations")
+    def shared_conversations(owner_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return {"conversations": platform.engineering_conversations.shared_list(ctx, owner_id)}
+
+    @app.get(f"/{API_VERSION}/memory/{{owner_id}}/conversations/{{thread_id}}")
+    def shared_conversation(owner_id: str, thread_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.engineering_conversations.shared_get(ctx, owner_id, thread_id)
+
+    @app.get(f"/{API_VERSION}/memory/{{owner_id}}/corrections")
+    def shared_corrections(owner_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        platform.memory.require_read(ctx, owner_id, "corrections")
+        out = [{**c, "mission_id": r.id} for r in platform.store.read().list(ctx.tenant_id, "mission")
+               if r.state.get("owner_id") == owner_id for c in r.state.get("corrections", [])
+               if c.get("by") in (owner_id, f"agent:{owner_id}")]
+        return {"corrections": sorted(out, key=lambda c: c.get("at", ""), reverse=True)}
+
+    @app.get(f"/{API_VERSION}/memory/{{owner_id}}/rules")
+    def shared_rules(owner_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        platform.memory.require_read(ctx, owner_id, "rules")
+        return {"rules": [{**r.state, "revision": r.revision} for r in platform.store.read().list(ctx.tenant_id, "assistant_rule")
+                          if r.state.get("scope") == "user" and r.state.get("owner_id") == owner_id]}
+
+    # --- the assistant's own memory (agent_memory.py): owner's notes, entity pages, consolidation ---
+    @app.get(f"/{API_VERSION}/assistant-memory")
+    def my_memory(ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        me = principal(ctx)
+        state = platform.store.read().get(ctx.tenant_id, "memory_state", me)
+        return {"notes": platform.agent_memory.notes(ctx), "pages": platform.agent_memory.pages(ctx),
+                "index": platform.agent_memory.index(ctx, me),
+                "last_consolidated_at": state.state.get("last_dream_at") if state else None,
+                "last_report": state.state.get("last_report") if state else None,
+                "rule_suggestions": state.state.get("rule_suggestions", []) if state else [],
+                "semantic_search": platform.agent_memory.embedder is not None}
+
+    @app.get(f"/{API_VERSION}/memory/{{owner_id}}/notes")
+    def shared_notes(owner_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return {"notes": platform.agent_memory.notes(ctx, owner_id), "pages": platform.agent_memory.pages(ctx, owner_id)}
+
+    class NoteStatusIn(BaseModel):
+        status: str
+        reason: str = ""
+
+    @app.post(f"/{API_VERSION}/assistant-memory/notes/{{note_id}}/status")
+    def note_status(note_id: str, body: NoteStatusIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.agent_memory.set_status(ctx, note_id, body.status, body.reason)
+
+    @app.post(f"/{API_VERSION}/assistant-memory/consolidate")
+    def consolidate(ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        if ctx.actor_kind != "person" or ctx.delegated_from:
+            raise PermissionError("only the person can consolidate their memory")
+        platform.identity.require(ctx, "read", "model_run")
+        if getattr(platform, "demo", None) is not None:
+            platform.demo.consume_message(ctx)
+        return platform.agent_memory.dream(ctx.tenant_id, ctx.actor_id)
+
+    @app.get(f"/{API_VERSION}/assistant-rules")
+    def list_rules(site_id: str | None = None, status: str | None = None,
+                   ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return {"items": platform.rules.visible(ctx, site_id=site_id, status=status)}
+
+    @app.post(f"/{API_VERSION}/assistant-rules", status_code=201)
+    def propose_rule(body: RuleIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.rules.propose(ctx, **body.model_dump())
+
+    @app.post(f"/{API_VERSION}/assistant-rules/{{rule_id}}/activate")
+    def activate_rule(rule_id: str, body: RuleDecisionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.rules.activate(ctx, rule_id, body.reason)
+
+    @app.post(f"/{API_VERSION}/assistant-rules/{{rule_id}}/retire")
+    def retire_rule(rule_id: str, body: RuleDecisionIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.rules.retire(ctx, rule_id, body.reason)
+
+    @app.get("/.well-known/investigation-jwks.json")
+    def investigation_jwks() -> dict[str, Any]:
+        if not platform.investigations.issuer:
+            raise HTTPException(404, "Investigation execution is not configured")
+        return platform.investigations.issuer.jwks()
+
+    @app.post(f"/{API_VERSION}/investigation-runs", status_code=201)
+    def start_investigation(body: InvestigationIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.start(ctx, body.model_dump())
+
+    @app.get(f"/{API_VERSION}/investigation-runs")
+    def list_investigations(case_id: str | None = None, conversation_id: str | None = None,
+                            ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        items = platform.investigations.list(ctx, case_id=case_id, conversation_id=conversation_id)
+        return {"items": items, "runs": items}
+
+    @app.get(f"/{API_VERSION}/investigation-runs/{{run_id}}")
+    def get_investigation(run_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.get(ctx, run_id)
+
+    @app.get(f"/{API_VERSION}/investigation-runs/{{run_id}}/events")
+    def investigation_events(run_id: str, after: int = 0, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.events(ctx, run_id, after)
+
+    @app.post(f"/{API_VERSION}/investigation-runs/{{run_id}}/stop")
+    def stop_investigation(run_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.stop(ctx, run_id)
+
+    @app.post(f"/{API_VERSION}/investigation-runs/{{run_id}}/send-for-review")
+    def send_investigation_for_review(run_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.send_for_review(ctx, run_id)
+
+    @app.get(f"/{API_VERSION}/investigation-runs/{{run_id}}/citations/{{citation_id:path}}")
+    def investigation_citation(run_id: str, citation_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.citation(ctx,run_id,citation_id)
+
+    @app.get(f"/{API_VERSION}/investigation-runs/{{run_id}}/report")
+    def investigation_report(run_id: str, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        return platform.investigations.report(ctx, run_id)
+
+    @app.get(f"/{API_VERSION}/cases/{{case_id}}/similar")
+    def similar_cases(case_id: str, site_id: str, include_open: bool = False,
+                      ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
+        # The workspace tools authorize by site and owner; outside a conversation the caller is the owner.
+        scope = {"site_id": site_id, "owner_id": ctx.delegated_from or ctx.actor_id}
+        return platform.engineering_conversations.workspace.similar_cases(ctx, scope, case_id=case_id, include_open=include_open)
+
     @app.post(f"/{API_VERSION}/missions/{{mission_id}}/decisions/{{decision_id}}")
     def answer(mission_id: str, decision_id: str, body: AnswerIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
         return platform.missions.answer_decision(ctx, mission_id, decision_id, body.answer)
@@ -461,6 +803,10 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
     @app.post(f"/{API_VERSION}/tasks")
     def run_task(body: TaskIn, ctx: AccessContext = Depends(ctx_dep)) -> dict[str, Any]:
         from .gateway import TaskRequest
+        # A signed-in account with no role in this organization gets no model work.
+        platform.identity.require(ctx, "read", "model_run")
+        if getattr(platform, "demo", None) is not None:
+            platform.demo.consume_message(ctx)  # demo workspaces spend their message allowance here too
         return platform.gateway.run(TaskRequest(body.task_kind, ctx, prompt=body.prompt, payload=body.payload,
                                                 inputs=body.inputs, mission_id=body.mission_id)).to_dict()
 
@@ -498,6 +844,10 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
         except (ImportError, OSError) as exc:
             raise HTTPException(503, "Connector unavailable; check its driver, endpoint and credentials") from exc
 
+    @app.post(f"/{API_VERSION}/connectors/{{connector_id}}/discover")
+    def discover_connector(connector_id: str, body: DiscoverIn, ctx: AccessContext = Depends(ctx_dep)):
+        return platform.connectors.discover(ctx, connector_id, body.resource, body.search)
+
     @app.post(f"/{API_VERSION}/connectors/{{connector_id}}/sync")
     def sync_connector(connector_id: str, ctx: AccessContext = Depends(ctx_dep)):
         try:
@@ -532,10 +882,17 @@ def create_app(platform: Platform | None = None, resolver: IdentityResolver | No
 
     @app.post(f"/{API_VERSION}/webhooks/{{tenant_id}}/{{connector_id}}", status_code=202)
     async def receive_webhook(tenant_id: str, connector_id: str, request: Request):
-        body = await request.body()
-        if len(body) > 1_000_000:
+        declared = request.headers.get("content-length", "")
+        if declared.isdigit() and int(declared) > 1_000_000:
             raise HTTPException(413, "Webhook exceeds 1 MB")
-        return platform.connectors.receive(tenant_id, connector_id, body, dict(request.headers))
+        data = bytearray()
+        async for chunk in request.stream():
+            data.extend(chunk)
+            if len(data) > 1_000_000:
+                raise HTTPException(413, "Webhook exceeds 1 MB")
+        from starlette.concurrency import run_in_threadpool
+        return await run_in_threadpool(platform.connectors.receive, tenant_id, connector_id, bytes(data),
+                                       dict(request.headers))
 
     platform.extend_api(app, ctx_dep, idempotent)
     from .edge import install_edge_api

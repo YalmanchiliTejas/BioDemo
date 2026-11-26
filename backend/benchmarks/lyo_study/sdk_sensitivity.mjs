@@ -1,0 +1,151 @@
+/** Restricted research session using the existing Prime SDK and provider config.
+ * JSON-line IPC: the model can invoke only the enumerated host tools. No native
+ * kernel, filesystem, shell, browser, plugins, memories or child agents are active.
+ */
+import { createInterface } from 'node:readline';
+import { applySubmissionOnlyPolicy } from './sdk_sensitivity_policy.mjs';
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
+import { configureProjectProvider, validateModalAuthentication } from '../../src/prime_runtime/provider_config.mjs';
+
+const pending = new Map();
+let initialResolve;
+const initial = new Promise(resolve => { initialResolve = resolve; });
+const reader = createInterface({ input: process.stdin });
+reader.on('line', line => {
+  const value = JSON.parse(line);
+  if (value.type === 'initialize') initialResolve(value);
+  else if (value.type === 'tool_result' && pending.has(value.id)) {
+    pending.get(value.id)(value.result); pending.delete(value.id);
+  }
+});
+const input = await initial;
+const emit = value => process.stdout.write(JSON.stringify(value) + '\n');
+const sdk = await import(pathToFileURL(join(input.bundle_root, 'packages/coding-agent/dist/index.js')).href);
+const require = createRequire(join(input.bundle_root, 'packages/coding-agent/package.json'));
+const { Type } = await import(pathToFileURL(require.resolve('typebox')).href);
+const { AuthStorage, ModelRegistry, DefaultResourceLoader, SettingsManager, SessionManager, createAgentSession } = sdk;
+const authStorage = AuthStorage.create();
+const modelRegistry = ModelRegistry.create(authStorage);
+configureProjectProvider(authStorage, modelRegistry);
+const slash = input.model.indexOf('/');
+const configured = modelRegistry.find(input.model.slice(0, slash), input.model.slice(slash + 1));
+if (!configured) throw Error('Configured research model is unavailable');
+// Same response ceiling, reasoning setting and model object in all arms.
+const model = { ...configured, maxTokens: input.max_output_tokens };
+const settings = SettingsManager.inMemory({ packages: [], extensions: [], skills: [], promptTemplates: [],
+  compaction: { enabled: false }, retry: { enabled: false } });
+const loader = new DefaultResourceLoader({ cwd: input.cwd, agentDir: input.cwd,
+  settingsManager: settings, bundledSkillsDir: null, noThemes: true, noExtensions: true,
+  noSkills: true, noPromptTemplates: true, noContextFiles: true, systemPrompt: input.system_prompt });
+await loader.reload();
+let ordinal = 0;
+let modelCalls = 0;
+let submitted = null;
+let session;
+const bridge = async (name, args) => {
+  if (ordinal >= 8) {
+    setTimeout(() => session?.abort().catch(() => {}), 0);
+    return { content: [{ type: 'text', text: 'Host tool budget exhausted' }], details: {} };
+  }
+  const id = String(++ordinal);
+  emit({ type: 'tool_request', id, name, args });
+  const result = await new Promise(resolve => pending.set(id, resolve));
+  if (name === 'submit_decision' && result.accepted) {
+    submitted = args;
+    // Submission freezes the decision. Do not spend another model turn to
+    // paraphrase it or let the model revise after receiving evaluator feedback.
+    setTimeout(() => session?.abort().catch(() => {}), 0);
+  }
+  return { content: [{ type: 'text', text: JSON.stringify(result) }], details: {} };
+};
+const choice = values => Type.Union(values.map(value => Type.Literal(value)));
+const ids = input.public_schema;
+const submissionFields = {
+  completion_time_h: Type.Union([Type.Number({ minimum: 0 }), Type.Null()], {
+    description: 'Absolute elapsed hours from batch start for the KEEP schedule, independent of selected action. Null if unknown.' }),
+  thermal_warning: Type.Union([Type.Boolean(), Type.Null()], {
+    description: 'Thermal limit excursion under the KEEP schedule. Null if unknown.' }),
+  capacity_warning: Type.Union([Type.Boolean(), Type.Null()], {
+    description: 'Equipment vapor capacity exceedance under the KEEP schedule. Null if unknown.' }),
+  action_id: choice(ids.actions), rationale: Type.String(), uncertainty: Type.String(),
+  evidence: Type.Array(Type.String()),
+};
+const definitions = [
+  { name: 'python_analysis', description: 'Run numerical Python in an OS sandbox with network and hidden-file access denied. data is the public packet; np, math, json, integrate, optimize and stats are available. Print a compact result. No persistent kernel.',
+    parameters: Type.Object({ code: Type.String({ maxLength: 18000 }) }, { additionalProperties: false }) },
+  { name: 'submit_decision', description: 'Submit once and stop. Forecast completion time and thermal/capacity warnings for KEEP regardless of action_id; separately choose an allowed action or characterize. Use null for an unknown forecast or warning. Supply rationale, uncertainty and concrete evidence references. This is a synthetic recommendation, never authorization for real equipment.',
+    parameters: Type.Object(submissionFields, { additionalProperties: false }) },
+];
+if (input.arm === 'B' || input.arm === 'C') definitions.push({ name: 'physical_forward_model',
+  description: 'Execute the supplied physical forward model for one allowed action. Outputs are predictions and limitations, never hidden truth or an optimal-action oracle. No parameter overrides are accepted. Forecast KEEP independently of the action selected in your final decision.',
+  parameters: Type.Object({ action_id: choice(ids.actions) }, { additionalProperties: false }) });
+const customTools = definitions.map(d => ({ ...d, label: d.name, executionMode: 'sequential',
+  execute: async (_id, args) => bridge(d.name, args) }));
+const names = definitions.map(d => d.name);
+({ session } = await createAgentSession({ cwd: input.cwd, agentDir: input.cwd, authStorage, modelRegistry,
+  settingsManager: settings, resourceLoader: loader, sessionManager: SessionManager.inMemory(input.cwd),
+  model, thinkingLevel: 'low', tools: names, allowedToolNames: names, initialActiveToolNames: names,
+  customTools, noTools: 'builtin', includeGoals: false, includeCompactSkill: false,
+  rlmMaxDepth: 0, prewarmIpythonKernel: false, telemetryDisabled: true }));
+const active = session.getActiveToolNames().sort();
+if (JSON.stringify(active) !== JSON.stringify([...names].sort())) throw Error('Unexpected active SDK capability');
+// GLM-5.3 always thinks; the old generic SDK "off" setting leaves the native
+// template at its maximum default. Apply the documented native low setting to
+// ALL arms, without changing the user's saved provider or production routes.
+// https://recipes.vllm.ai/zai-org/GLM-5.3#reasoning-modes
+const previousPayload = session.agent.onPayload;
+session.agent.onPayload = async (payload, currentModel) => {
+  if (modelCalls >= input.max_model_calls) throw Error('Model call budget exhausted');
+  modelCalls += 1;
+  emit({ type: 'model_start', ordinal: modelCalls });
+  const altered = previousPayload ? await previousPayload(payload, currentModel) : undefined;
+  const actual = altered ?? payload;
+  applySubmissionOnlyPolicy(actual, modelCalls, input.max_model_calls);
+  actual.max_tokens = input.max_output_tokens;
+  actual.reasoning_effort = 'low';
+  actual.chat_template_kwargs = { ...(actual.chat_template_kwargs ?? {}), reasoning_effort: 'low' };
+  emit({ type: 'request_configuration', reasoning_effort: 'low',
+    final_turn_submit_only: modelCalls === input.max_model_calls,
+    max_tokens: actual.max_tokens ?? actual.max_completion_tokens,
+    tool_names: (actual.tools ?? []).map(t => t.function?.name).filter(Boolean) });
+  return actual;
+};
+await validateModalAuthentication(session.model, modelRegistry);
+emit({ type: 'capability_audit', active_tools: active, native_kernel: false, children: false,
+  external_retrieval: false, cwd_memory_loaded: false, model: input.model,
+  shared_tool_schema_sha256: createHash('sha256').update(JSON.stringify(definitions.filter(d=>d.name!=='physical_forward_model'))).digest('hex') });
+const usage = [];
+const unsubscribe = session.subscribe(event => {
+  if (event.type === 'tool_execution_end') {
+    emit({ type: 'sdk_tool_execution', name: event.toolName, is_error: !!event.isError,
+      error: event.isError ? (event.result?.content ?? []).filter(b=>b.type==='text').map(b=>b.text).join('\n').slice(0,1500) : null });
+  }
+  if (event.type === 'message_end' && event.message?.role === 'assistant') {
+    usage.push(event.message.usage ?? null);
+    emit({ type: 'model_usage', usage: event.message.usage ?? null,
+      stop_reason: event.message.stopReason,
+      content_types: (event.message.content ?? []).map(block => block.type) });
+  }
+});
+let timedOut = false;
+const timer = setTimeout(() => { timedOut = true; void session.abort(); }, input.timeout_seconds * 1000);
+try {
+  if (!input.preflight) {
+    await session.prompt(input.prompt);
+    if (!submitted && !timedOut && modelCalls < input.max_model_calls) {
+      await session.prompt('Finish the task now using submit_decision. Explicitly state uncertainty if you cannot establish a conclusion.');
+    }
+  }
+  emit({ type: 'finished', status: input.preflight ? 'preflight_passed' : submitted ? 'completed' : timedOut ? 'timeout' : 'no_submission',
+    decision: submitted, model_calls: modelCalls, usage,
+    error: submitted ? null : session.agent.state.errorMessage ?? null });
+} catch (error) {
+  emit({ type: 'finished', status: submitted ? 'completed' : timedOut ? 'timeout' : 'failed',
+    decision: submitted, model_calls: modelCalls, usage,
+    error: submitted ? null : String(error.message ?? error).slice(0, 1200) });
+} finally {
+  clearTimeout(timer); unsubscribe(); session.dispose(); reader.close();
+}

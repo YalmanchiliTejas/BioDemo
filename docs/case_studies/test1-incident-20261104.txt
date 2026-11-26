@@ -1,0 +1,127 @@
+Test1 manual-test investigation — November 4, 2026
+
+Conclusion
+
+Both reported unavailable requests reached the model and received responses
+that passed the configured output validation. The application then withheld
+them because it mistook another conversation's progress for changed evidence.
+This establishes an application failure, not the correctness of the withheld
+model answers. Local fixes require deployment and a deployed retest.
+
+Saved production evidence inspected
+
+Organization: Test1
+Revision conversation: engchat_01M6JJ3JVPKG36YRT4YBEVV1CM
+  Failed boundary turn: engturn_01M6JJ68KVR97E8QHMFEQRK5T6
+  Model run: run_01M6JJ6D90YQRRFRFPWQ57TDHW
+  Provider attempt succeeded; final gateway status was stale_basis.
+  Another conversation's referenced turn changed revision 3 -> 6.
+
+pH conversation: engchat_01M6JJ47YA1B3JFQR5GE5RZHQR
+  Failed turn: engturn_01M6JJ48FZD50K7G9JAWNYKDGA
+  Model run: run_01M6JJ4CMJR94PF7T502CVJ2E1
+  Provider attempt succeeded; final gateway status was stale_basis.
+  Another conversation's referenced turn changed revision 21 -> 31.
+
+In both cases the original user text and instruction evidence were unchanged.
+The changed fields were worker progress, replies, artifacts, elapsed time,
+execution records and statuses. The same inappropriate dependency explains
+warnings on reopening previously completed answers.
+
+Production access used SELECT-only diagnostics. The final diagnostic pass
+explicitly enforced and verified a read-only database transaction. No sources,
+saved conversations, imports, settings, permissions or credentials were changed.
+Scoped diagnostic JSON is retained locally under output/verification/.
+
+Local changes
+
+1. Discovery labels depend on original instruction evidence, including saved-
+   work search artifacts. Inspecting an actual saved reply still checks its
+   record revision. Real manufacturing evidence changes still invalidate work.
+2. A genuine evidence change during inference now reports an evidence check
+   and a retry path instead of incorrectly describing a connection outage.
+3. After Stop acknowledgment, a late workspace read or action-draft creation
+   cannot persist and attach a new result: cancellation is rechecked inside the
+   same transaction as persistence and attachment. Existing artifacts survive.
+4. Stop displays its pending acknowledgment per turn, including when polling
+   observes cancellation before the Stop response arrives.
+5. The failed Northfield import recorded:
+   'cmo_run_stages 0: elapsed_seconds cannot change after it is recorded'.
+   PostgreSQL extra_float_digits=0 rounded unchanged timing values on reads.
+   Transactions now request lossless float output. Exact immutability remains
+   enforced, including rejection of a one-bit changed timing value.
+6. A separate reproduced gateway defect is also corrected: request-specific
+   output-limit and HTTP 400 failures no longer disable the model profile for
+   unrelated requests. Actual outage/auth/timeout/rate-limit cooldowns remain.
+   Model selection, qualification, inference limits and retry caps are unchanged.
+
+Setup and retained limitations
+
+F-2408 is part of a separate demo tenant's seed, not automatically provisioned
+into new organizations. Test1 had no evidence metadata matching that identifier.
+Its failed Northfield public delivery is a different dataset. Zero connected
+sources alone does not mean zero evidence; Test1 had 92 evidence records,
+including saved user-instruction evidence.
+
+Historical runs retain their recorded dependency manifests and warnings; these
+were not silently rewritten. Rerun affected work after deploying the fix.
+An in-flight external model/solver call can continue until it returns; Stop is
+not a guarantee that external computation or billing ceases instantly. The new
+atomic rollback tests specifically cover workspace results and draft proposals;
+other scientific services can create internal records before attachment checks.
+
+The route qualification badge remains accurate. Passing host tests does not
+qualify the model, validate manufacturing decisions, or prove long-horizon skill.
+No new paid model evaluation or manufacturing action was run in this repair.
+
+Before inviting testers
+
+- Deploy the reviewed fixes and repeat revision boundary and conflicting-pH
+  cases three times, including overlapping conversations and reopening.
+- Repeat Stop during a workspace lookup and confirm the final cancelled state
+  and no new result/draft after acknowledgment. Test pause separately.
+- Explicitly provision synthetic source records in the tester organization,
+  verify ingestion succeeds, and then rerun evidence retrieval and causation.
+- Complete the outstanding scheduling, correction/return, review-only draft,
+  organization isolation, background-follow-up and fresh-user onboarding cases.
+- Record each result as pass, fail, blocked or not tested. An incomplete case
+  provides no evidence that the behavior works.
+
+Issue: https://github.com/YalmanchiliTejas/BioDemo/issues/5
+
+Verification completed November 4, 2026
+
+Resumed the existing authenticated browser session and confirmed the current
+organization is Test1. No credentials were requested or changed.
+
+Focused repair tests: 21 passed, 2 skipped.
+Expanded conversation/discovery/demo regression tests: 62 passed, 2 skipped.
+The skipped tests require CMO_TEST_DATABASE_URL pointing to an isolated
+PostgreSQL database; the SQLite timing checks passed. Production PostgreSQL
+write behavior has therefore not been verified by this test run.
+
+TypeScript: npm run lint passed.
+Production frontend build: npm run build passed; 48 static pages generated.
+Stop UI browser regression: all three scenarios passed against the local
+preview with intercepted API responses: delayed acknowledgment with polling
+and conversation switching; failed Stop with retry; late running poll after
+acknowledged cancellation. These establish UI behavior, not deployed Stop
+behavior or the correctness of a live model answer.
+
+Commands:
+  cd backend
+  ../.venv/bin/python -m pytest -q -p no:cacheprovider \
+    tests/lifesci/test_engineering_conversation.py \
+    tests/lifesci/test_demo_answers.py \
+    tests/lifesci/test_discovery_clarification.py \
+    tests/lifesci/test_conversation_instruction_provenance.py \
+    tests/lifesci/test_gateway_request_failures.py \
+    tests/lifesci/test_stop_observation_regression.py \
+    tests/test_cmo_stage_timing.py
+  cd ../frontend
+  npm run lint
+  PLAYWRIGHT_MODULE=<installed-playwright-path> node scripts/check_assistant_stop.cjs
+
+The repairs remain local pending deployment. Historical failed conversations
+were preserved. No production-data repair, source provisioning, or manufacturing
+action was performed during this continuation.

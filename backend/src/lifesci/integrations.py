@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Protocol, Sequence
+from http.client import HTTPException as HTTPProtocolError
 from urllib.error import HTTPError, URLError
 
 from .connector_contracts import _source_record as source_record_from
@@ -1104,8 +1105,11 @@ class ConnectorWriter:
             if exc.code >= 500:
                 raise DeliveryUnknown(f"destination error {exc.code}") from exc
             raise
-        except (TimeoutError, socket.timeout, URLError) as exc:
-            raise DeliveryUnknown(str(exc)) from exc
+        except PermissionError:
+            raise  # refused before anything was sent
+        except (OSError, HTTPProtocolError) as exc:
+            # Timeouts, resets and truncated replies can all follow a write the destination applied.
+            raise DeliveryUnknown(str(exc) or type(exc).__name__) from exc
         return {"source_record_id": ack.source_record_id, "idempotency_key": intent["idempotency_key"]}
 
     def lookup(self, idempotency_key: str) -> dict[str, Any] | None:

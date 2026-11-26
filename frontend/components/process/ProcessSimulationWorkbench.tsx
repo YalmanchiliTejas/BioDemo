@@ -1,11 +1,15 @@
 'use client';
 
 import { useState } from 'react';
+import { useDemo } from '@/lib/demo-api';
+import dynamic from 'next/dynamic';
+const PharmaceuticalModelLibrary = dynamic<{ autoTransferCheck?: number }>(() => import('./PharmaceuticalModelLibrary'), {loading:()=> <p>Loading model library…</p>});
 import { ArrowDownToLine, Play, FlaskConical } from 'lucide-react';
 import { Callout, Card, CardBody, CardHeader, Pill, Stat } from '@/components/ui';
 import { WorkspacePageHeader } from '@/components/shell/WorkspacePageHeader';
 import { ScientificPlot } from '@/components/ScientificPlot';
 import { AnalysisWorkbench } from '@/components/process/AnalysisWorkbench';
+import { EXAMPLES, ExampleReadingGuide, SimulationExamples, type Example, type ExampleId } from '@/components/process/SimulationExamples';
 import { authHeaders, authMode, redirectToSignIn, SIGNED_OUT_MESSAGE } from '@/lib/auth';
 
 type Row = { time_h: number; interface_temperature_c: number; remaining_ice_kg_per_vial: number; sublimation_kg_h: number; capacity_margin_kg_h: number; critical_margin_c: number };
@@ -33,6 +37,9 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export default function ProcessSimulation() {
+  const { demo } = useDemo();
+  const [libraryChoice,setLibraryOpen]=useState<boolean | null>(null);
+  const libraryOpen = libraryChoice ?? Boolean(demo);
   const [audience, setAudience] = useState<'technology_transfer' | 'cdmo_operation'>('technology_transfer');
   const [shelf, setShelf] = useState(-24);
   const [load, setLoad] = useState(11000);
@@ -46,19 +53,36 @@ export default function ProcessSimulation() {
   const [error, setError] = useState('');
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [stale, setStale] = useState(false);
+  // The worked example in progress or on screen, and a counter that tells the model library to start its check.
+  const [example, setExample] = useState<ExampleId | null>(null);
+  const [runningExample, setRunningExample] = useState<ExampleId | null>(null);
+  const [libraryCheck, setLibraryCheck] = useState(0);
+  const [examplesOpen, setExamplesOpen] = useState(true);
   const workspace = run?.workspace;
   const option = workspace?.options[selected];
   const chosen = workspace?.recommended_index != null ? workspace.options[workspace.recommended_index] : null;
   const changeInput = () => { setStale(true); setProposal(null); };
 
-  async function calculate() {
+  async function calculate(inputs: { audience: typeof audience; shelf: number; load: number; capacity: number; futureShelf: number } = { audience, shelf, load, capacity, futureShelf }) {
     setBusy(true); setError(''); setProposal(null); setStale(true);
     try {
-      const result = await request<Run>('/v1/process-model/runs', { audience, shelf_c: shelf, load_vials: load, capacity_kg_h: capacity, samples, seed: 2025, cdmo_future_shelf_c: futureShelf });
-      setRun(result); setAnalysisContext(null); setSelected(result.workspace.recommended_index ?? (audience === 'technology_transfer' ? 1 : 0)); setStale(false);
+      const result = await request<Run>('/v1/process-model/runs', { audience: inputs.audience, shelf_c: inputs.shelf, load_vials: inputs.load, capacity_kg_h: inputs.capacity, samples, seed: 2025, cdmo_future_shelf_c: inputs.futureShelf });
+      setRun(result); setAnalysisContext(null); setSelected(result.workspace.recommended_index ?? (inputs.audience === 'technology_transfer' ? 1 : 0)); setStale(false);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
+
+  /** Set the inputs an example uses, so they stay visible and editable, then run it. */
+  async function runExample(chosen: Example) {
+    setExample(chosen.id); setExamplesOpen(false);
+    if (chosen.id === 'pre-transfer') { setLibraryOpen(true); setLibraryCheck(n => n + 1); return; }
+    const inputs = { audience: chosen.id === 'deviation' ? 'cdmo_operation' as const : 'technology_transfer' as const,
+      shelf: -24, load: 11000, capacity: chosen.id === 'measured-capacity' ? 1.49 : 0.65, futureShelf: -14 };
+    setLibraryOpen(false); setAudience(inputs.audience); setShelf(inputs.shelf); setLoad(inputs.load); setCapacity(inputs.capacity); setFutureShelf(inputs.futureShelf);
+    setRun(null); setAnalysisContext(null); setRunningExample(chosen.id);
+    try { await calculate(inputs); } finally { setRunningExample(null); }
+  }
+  const shownExample = EXAMPLES.find(e => e.id === example);
 
   async function startModelSelection() {
     setBusy(true); setError(''); setProposal(null); setStale(true);
@@ -99,14 +123,19 @@ export default function ProcessSimulation() {
   if (bands) for (const q of [0, 2]) tempSeries.push({ id: q === 0 ? 'Sample P05 · active vials' : 'Sample P95 · active vials', color: '#94a3b8', dataPoints: bands.map(r => ({ elapsedHours: r.time_h, value: r.temperature_c_p05_p50_p95[q] })) });
 
   return <div className="workspace-page space-y-4">
+    {examplesOpen ? <SimulationExamples demo={Boolean(demo)} busy={busy} running={runningExample} onRun={runExample} />
+      : <button type="button" className="text-[13px] text-brand-teal hover:underline" onClick={() => setExamplesOpen(true)}>What simulation is for, and examples</button>}
+    <nav className="flex gap-3 border-b border-border-hairline pb-3" aria-label="Process simulation workspace"><button className="rounded border border-border-strong px-4 py-2 text-sm" aria-pressed={libraryOpen} onClick={()=>setLibraryOpen(true)}>Pharmaceutical model library</button><button className="rounded border border-border-strong px-4 py-2 text-sm" aria-pressed={!libraryOpen} onClick={()=>setLibraryOpen(false)}>Freeze-drying examples</button></nav>
+    {libraryOpen && shownExample?.id === 'pre-transfer' && <ExampleReadingGuide example={shownExample} onDismiss={() => setExample(null)} />}
+    {libraryOpen ? <PharmaceuticalModelLibrary autoTransferCheck={libraryCheck} /> : <>
     <WorkspacePageHeader title="Process simulation"
-      status={<Pill tone="info">Executed physics · unqualified demonstration</Pill>}
-      description="Select physical models, generate reproducible analysis pipelines, and review predictions for technology transfer and CDMO operation." />
-    <Callout tone="warning" title="Published case, reconstructed demonstration">
-      <a className="underline" href="https://doi.org/10.1186/s41120-025-00115-5" target="_blank" rel="noreferrer">Vanbillemont et al., AAPS Open (2025)</a> supplies formulation and heat/mass-transfer parameters. Raw experimental trajectories are unavailable. Local capacity derating and CDMO observations are synthetic. This workspace calls the live API; the platform’s general agent dock remains a sample experience.
+      status={<Pill tone="info">Demonstration</Pill>}
+      description="Compare operating scenarios and predicted outcomes for technology transfer and CDMO operation." />
+    <Callout tone="warning" title="Demonstration data">
+      Formulation and heat/mass-transfer parameters from <a className="underline" href="https://doi.org/10.1186/s41120-025-00115-5" target="_blank" rel="noreferrer">Vanbillemont et al., AAPS Open (2025)</a>. Capacity derating and CDMO observations are synthetic.
     </Callout>
     <div className="flex flex-wrap gap-2" role="group" aria-label="Audience">
-      {(['technology_transfer', 'cdmo_operation'] as const).map(a => <button key={a} aria-pressed={audience === a} className={`rounded px-4 py-2 border ${audience === a ? 'bg-teal-50 border-teal-700 text-teal-900' : 'bg-surface border-border'}`} onClick={() => { setAudience(a); setRun(null); setAnalysisContext(null); setProposal(null); setError(''); }}>{a === 'technology_transfer' ? 'Technology transfer' : 'CDMO operation'}</button>)}
+      {(['technology_transfer', 'cdmo_operation'] as const).map(a => <button key={a} aria-pressed={audience === a} className={`rounded px-4 py-2 border ${audience === a ? 'bg-teal-50 border-teal-700 text-teal-900' : 'bg-surface border-border'}`} onClick={() => { setAudience(a); setExample(null); setRun(null); setAnalysisContext(null); setProposal(null); setError(''); }}>{a === 'technology_transfer' ? 'Technology transfer' : 'CDMO operation'}</button>)}
     </div>
     <Card><CardHeader title={audience === 'technology_transfer' ? 'Assess a receiving dryer' : 'Forecast from an evidence cutoff'} subtitle={audience === 'technology_transfer' ? 'BSA / sucrose / Tris formulation · 2.50 mL in 6R vials · critical interface temperature −28°C' : 'Synthetic current run · observations available through 6 h · known scheduled shelf change at 8 h'} />
       <CardBody>
@@ -115,16 +144,20 @@ export default function ProcessSimulation() {
           <label>Receiving load (vials)<input className={inputStyle} type="number" min={100} max={11000} step={100} value={load} onChange={e => { setLoad(+e.target.value); changeInput(); }} /></label>
           <label>Assumed vapor capacity (kg/h)<input className={inputStyle} type="number" min={.1} max={2} step={.05} value={capacity} onChange={e => { setCapacity(+e.target.value); changeInput(); }} /></label>
           <label>Uncertainty samples<select className={inputStyle} value={samples} onChange={e => { setSamples(+e.target.value); changeInput(); }}>{[8, 16, 32].map(n => <option key={n}>{n}</option>)}</select></label>
-        </div> : <div className="grid gap-4 md:grid-cols-[1fr_240px]"><p>The same Kv–Rp model tests changed heat transfer, changed product resistance and reduced vapor capacity. Independent transient, two-population calculations generate the labeled synthetic observations. Future outcomes stay outside the analysis inputs.</p><label>Planned shelf at 8 h (°C)<input type="number" min={-24} max={-10} value={futureShelf} className={inputStyle} onChange={e => { setFutureShelf(+e.target.value); changeInput(); }} /></label></div>}
-        <div className="mt-4 flex flex-wrap items-center gap-3"><button disabled={busy} onClick={startModelSelection} className={buttonStyle}>Start model selection</button><button disabled={busy} onClick={calculate} className="rounded border px-4 py-2 disabled:opacity-50"><Play size={15} className="inline mr-2" />{busy ? 'Preparing analysis…' : audience === 'technology_transfer' ? 'Run transfer comparison' : 'Run CDMO analysis'}</button><span className="text-xs text-text-secondary">Development API · stored MSAT actor priya · seed 2025</span></div>
-        <p className="mt-3 text-xs text-text-secondary">{audience === 'technology_transfer' ? 'Published commercial deposition capacity: 1.49 kg/h. The default 0.65 kg/h represents an uncharacterized derated receiving site. Site names do not enter the equations.' : 'Only information available at the cutoff is fitted. Temperature measurements alone cannot identify vapor capacity; ambiguous causes remain open.'}</p>
+        </div> : <div className="grid gap-4 md:grid-cols-[1fr_240px]"><p>Tests three explanations against the observations: changed heat transfer, changed product resistance and reduced vapor capacity.</p><label>Planned shelf at 8 h (°C)<input type="number" min={-24} max={-10} value={futureShelf} className={inputStyle} onChange={e => { setFutureShelf(+e.target.value); changeInput(); }} /></label></div>}
+        <div className="mt-4 flex flex-wrap items-center gap-3"><button disabled={busy} onClick={startModelSelection} className={buttonStyle}>Start model selection</button><button disabled={busy} onClick={() => calculate()} className="rounded border px-4 py-2 disabled:opacity-50"><Play size={15} className="inline mr-2" />{busy ? 'Preparing analysis…' : audience === 'technology_transfer' ? 'Run transfer comparison' : 'Run CDMO analysis'}</button></div>
+        <p className="mt-3 text-xs text-text-secondary">{audience === 'technology_transfer' ? 'Published commercial deposition capacity: 1.49 kg/h. The default 0.65 kg/h represents an uncharacterized, derated receiving site.' : 'Only data available at the cutoff is fitted. Temperature alone cannot identify vapor capacity.'}</p>
       </CardBody>
     </Card>
-    {error && <div role="alert"><Callout tone="critical" title="Calculation or review unavailable">{error}. Start the seeded life-sciences API at {API}; no sample results have been substituted.</Callout></div>}
+    {error && <div role="alert"><Callout tone="critical" title="Calculation or review unavailable">{error}. Check that the simulation service is available, then try again.</Callout></div>}
     {stale && run && <Callout tone="warning" title="Inputs changed or result is stale">The plots still show the previous input revision. Run the comparison again before drafting a recommendation.</Callout>}
-    {analysisContext && <><p className="text-xs text-text-secondary">Versioned input context prepared. Model choices and executed results appear in the saved pipeline below.</p>{stale && <Callout tone="warning" title="Source inputs changed">Start model selection again to use the changed source revision.</Callout>}<AnalysisWorkbench simulationId={analysisContext.id} candidateIndex={0} sourceStale={stale} hasObservations={analysisContext.has_observations} /></>}
+    {analysisContext && <>{stale && <Callout tone="warning" title="Source inputs changed">Start model selection again to use the changed source revision.</Callout>}<AnalysisWorkbench simulationId={analysisContext.id} candidateIndex={0} sourceStale={stale} hasObservations={analysisContext.has_observations} /></>}
     {workspace && option && run && <>
-      <AnalysisWorkbench simulationId={run.id} candidateIndex={selected} sourceStale={stale} hasObservations={!!workspace.diagnosis} />
+      {shownExample && shownExample.id !== 'pre-transfer' && <ExampleReadingGuide example={shownExample} onDismiss={() => setExample(null)} />}
+      {/* In an example the results come first; choosing models by hand is one click away. */}
+      {shownExample ? <details className="rounded-card border border-border-hairline bg-surface px-5 py-3 text-sm"><summary className="cursor-pointer text-text-secondary">Advanced: choose and compare the models yourself</summary>
+        <div className="mt-3"><AnalysisWorkbench simulationId={run.id} candidateIndex={selected} sourceStale={stale} hasObservations={!!workspace.diagnosis} /></div></details>
+        : <AnalysisWorkbench simulationId={run.id} candidateIndex={selected} sourceStale={stale} hasObservations={!!workspace.diagnosis} />}
       <div className="grid gap-4 md:grid-cols-4">
         <Stat label="Selected candidate" value={option.feasible ? 'Nominally feasible' : 'Constraint / incomplete'} kind="calculated" />
         <Stat label="Primary drying completion" value={fmt(option.completion_time_h)} unit="h" kind="calculated" />
@@ -148,9 +181,10 @@ export default function ProcessSimulation() {
         {chosen && <p>Predicted completion: {fmt(chosen.completion_time_h)} h; critical margin: {fmt(chosen.critical_margin_c)}°C. {audience === 'technology_transfer' ? 'The bounded comparison prioritizes primary-drying throughput. Lower loading reduces batch size; lower shelf temperature extends drying.' : 'The bounded comparison prioritizes cycle duration subject to nominal constraints. Thermometry leaves competing explanations; additional characterization can change the recommendation.'}</p>}
         {chosen?.uncertainty && <p className="mt-3">{chosen.uncertainty.samples} samples · seed {chosen.uncertainty.seed}. Conditional completion P05 / P50 / P95: {chosen.uncertainty.completion_time_h_p05_p50_p95_conditional_on_completion?.map(v => fmt(v)).join(' / ') ?? 'unavailable'} h. {chosen.uncertainty.not_completed_samples} samples did not complete. Constraint sample frequency: {fmt(100*chosen.uncertainty.constraint_sample_frequency, 1)}%. {chosen.uncertainty.interpretation}</p>}
         <p className="mt-3 font-medium">Reviewer: {run.verification.responsible_reviewer}</p><ol className="mt-3 space-y-3 list-decimal pl-5">{run.verification.experiments.map(e => <li key={e.experiment}>{e.experiment}<p className="text-xs text-text-secondary mt-1">Acceptance: {e.acceptance_criteria}</p></li>)}</ol><p className="mt-3">{run.verification.release_boundary}</p>
-        {proposal && <div className="mt-4 p-4 bg-teal-50 rounded" role="status"><p className="font-medium">Review package saved · {proposal.proposal_id}</p><p>Status: {proposal.status} · execution: {proposal.execution_status} · required reviewers: {proposal.required_roles.join(', ')}</p><p>Owner: {proposal.owner_id} · {proposal.expected_result}</p><p className="mt-2">This is an existing version-bound proposal. Separate MSAT and QA decisions and required authentication are enforced by the platform. No production action was dispatched.</p></div>}
+        {proposal && <div className="mt-4 p-4 bg-teal-50 rounded" role="status"><p className="font-medium">Review package saved · {proposal.proposal_id}</p><p>Status: {proposal.status} · execution: {proposal.execution_status} · required reviewers: {proposal.required_roles.join(', ')}</p><p>Owner: {proposal.owner_id} · {proposal.expected_result}</p><p className="mt-2">No production action was taken. MSAT and QA must each review this proposal.</p></div>}
       </CardBody></Card>
-      <Card><CardHeader title="Scientific record" subtitle={`${run.id} · ${run.model_version} · ${run.status} · executed in ${fmt(workspace.runtime_seconds)} s`} actions={<><button onClick={refresh} className="underline text-xs">Check currentness</button><button onClick={download} className="flex items-center gap-1 text-xs underline"><ArrowDownToLine size={14} />Export record</button></>} /><CardBody><p>Input lineage: {run.source_revision_manifest.map(r => `${r.id} @ revision ${r.revision}`).join(', ')}. Parameters, solver settings, source revisions, schedules, uncertainty seed, trajectories and warnings are retained.</p><details className="mt-3"><summary className="cursor-pointer font-medium">Inspect parameters and provenance</summary><div className="overflow-auto max-h-80"><table className="w-full text-xs text-left mt-2"><thead><tr>{['Parameter', 'Value / unit', 'Category', 'Source location / extraction'].map(h => <th className="p-2" key={h}>{h}</th>)}</tr></thead><tbody>{run.input_bundle.parameter_manifest.map(p => <tr key={p.parameter}><td className="p-2">{p.parameter}</td><td className="p-2">{p.value} {p.unit}</td><td className="p-2">{p.category}</td><td className="p-2">{p.location_or_transformation}</td></tr>)}</tbody></table></div></details><details className="mt-3"><summary className="cursor-pointer font-medium">Applicability and numerical warnings</summary><ul className="list-disc pl-5 mt-2 space-y-1">{option.result.warnings.map(w => <li key={w}>{w}</li>)}</ul></details></CardBody></Card>
+      <Card><CardHeader title="Scientific record" subtitle={`${run.id} · ${run.model_version} · ${run.status} · executed in ${fmt(workspace.runtime_seconds)} s`} actions={<><button onClick={refresh} className="underline text-xs">Check currentness</button><button onClick={download} className="flex items-center gap-1 text-xs underline"><ArrowDownToLine size={14} />Export record</button></>} /><CardBody><p>Input lineage: {run.source_revision_manifest.map(r => `${r.id} @ revision ${r.revision}`).join(', ')}.</p><details className="mt-3"><summary className="cursor-pointer font-medium">Inspect parameters and provenance</summary><div className="overflow-auto max-h-80"><table className="w-full text-xs text-left mt-2"><thead><tr>{['Parameter', 'Value / unit', 'Category', 'Source location / extraction'].map(h => <th className="p-2" key={h}>{h}</th>)}</tr></thead><tbody>{run.input_bundle.parameter_manifest.map(p => <tr key={p.parameter}><td className="p-2">{p.parameter}</td><td className="p-2">{p.value} {p.unit}</td><td className="p-2">{p.category}</td><td className="p-2">{p.location_or_transformation}</td></tr>)}</tbody></table></div></details><details className="mt-3"><summary className="cursor-pointer font-medium">Applicability and numerical warnings</summary><ul className="list-disc pl-5 mt-2 space-y-1">{option.result.warnings.map(w => <li key={w}>{w}</li>)}</ul></details></CardBody></Card>
+    </>}
     </>}
   </div>;
 }

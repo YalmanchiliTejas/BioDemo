@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable
 
 from .identity import AccessContext, IdentityService
+from .memory import MemoryGrants, owner_of
 from .ids import content_hash, iso, new_id, utc_now
 from .store import RecordStore, Transaction
 
@@ -70,6 +71,7 @@ class EvidenceService:
     def __init__(self, store: RecordStore, identity: IdentityService) -> None:
         self.store = store
         self.identity = identity
+        self.memory = MemoryGrants(store, identity)
 
     # --- intake ----------------------------------------------------------------
     def ingest(self, ctx: AccessContext, *, source_system: str, source_record_id: str, content: bytes,
@@ -89,6 +91,10 @@ class EvidenceService:
                                       site_id=current.state.get("site_id"), tx=tx)
                 if current.state.get("site_id") != site_id:
                     raise PermissionError("evidence site cannot be changed by ingestion; use a new source identity")
+                # A person's instruction is their memory: nobody else may correct (overwrite) it.
+                owned = owner_of(self.store, ctx.tenant_id, "evidence", current.state)
+                if owned is not None:
+                    self.memory.require_owner_write(ctx, owned[0])
             digest = tx.put_blob(ctx.tenant_id, content, media_type)
             if current and current.state["digest"] == digest:
                 return {**current.state, "revision": current.revision, "duplicate": True}
@@ -104,7 +110,10 @@ class EvidenceService:
                          expected_revision=current.revision if current else None,
                          action="ingest" if not current else "correct",
                          event_type="evidence.ingested" if not current else "evidence.corrected",
-                         event_payload={"evidence_id": evidence_id, "digest": digest, "site_id": site_id})
+                         event_payload={"evidence_id": evidence_id, "digest": digest, "site_id": site_id,
+                                        "source_system": source_system,
+                                        "record_type": ((metadata or {}).get("mapped") or {}).get("record_type")
+                                        or (metadata or {}).get("record_type")})
             stale: list[str] = []
             if current:
                 stale = self._invalidate(tx, ctx.tenant_id, "evidence", evidence_id,
@@ -118,6 +127,7 @@ class EvidenceService:
         if rec is None:
             raise KeyError(evidence_id)
         self.identity.require(ctx, "read", "evidence", evidence_id, site_id=rec.state.get("site_id"), tx=tx)
+        self.memory.require_record(ctx, "evidence", rec.state)
         blob = tx.get_blob(ctx.tenant_id, rec.state["digest"])
         if blob is None:
             raise LookupError(f"original bytes for {evidence_id} missing (staging not committed)")

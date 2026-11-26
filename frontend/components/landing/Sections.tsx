@@ -10,7 +10,7 @@ const Eyebrow = ({ children, className }: { children: ReactNode; className?: str
 
 /* ---------- Rolling list of what the platform covers ---------- */
 
-const USES = ['CMO deliveries', 'Batch monitoring', 'Deviation investigations', 'Root-cause evidence', 'Physics-based forecasts', 'Freeze-drying design', 'Yield optimization', 'Tech transfer', 'Quality reviews', 'Lab results', 'Knowledge search', 'Operator shifts', 'Tech transfer data'];
+const USES = ['CDMO deliveries', 'Batch monitoring', 'Deviation investigations', 'Root-cause evidence', 'Physics-based forecasts', 'Freeze-drying design', 'Yield optimization', 'Tech transfer', 'Quality reviews', 'Lab results', 'Knowledge search', 'Operator shifts', 'Tech transfer data'];
 
 export function UsesRoll() {
   const reduced = useReducedMotion();
@@ -100,7 +100,7 @@ export function Problem() {
 /* ---------- Platform ---------- */
 
 const PILLARS = [
-  { icon: Database, title: 'Connect', body: 'Verified CMO deliveries today; read-only access to MES, historian, LIMS and QMS records. Every value keeps its source and timestamp.' },
+  { icon: Database, title: 'Connect', body: 'Review CDMO files alongside their sources. Explore read-only connections to MES, historian, LIMS and QMS records in the synthetic demo.' },
   { icon: GitCompareArrows, title: 'Investigate', body: 'Agents assemble timelines and candidate causes, with the evidence for and against each one labelled.' },
   { icon: Atom, title: 'Predict', body: 'Physics-based process models forecast what a change will do, with their inputs and assumptions on record.' },
   { icon: ClipboardCheck, title: 'Act', body: 'Findings become proposals with an owner, expected effect and required signatures. Nothing executes on its own.' },
@@ -214,7 +214,7 @@ function PreviewProposal() {
 }
 
 const TOOLS = [
-  { title: 'CMO deliveries, verified', body: 'Spreadsheets, LIMS exports and certificates become one dataset. Every value links to its source cell; a verified delivery can go straight to the assistant as evidence.', preview: <PreviewDelivery /> },
+  { title: 'CDMO data, with the source in view', body: 'Bring spreadsheets, LIMS exports and certificates together. Review extracted values against their sources, resolve flagged items and share the resulting dataset with the assistant.', preview: <PreviewDelivery /> },
   { title: 'Operations on one timeline', body: 'Batches, equipment events and lab results on a shared time axis. Gaps and imputed values are marked and kept out of statistics.', preview: <PreviewTimeline /> },
   { title: 'Investigations that show their evidence', body: 'Every candidate cause carries the records that support or contradict it, each one linked to its source.', preview: <PreviewInvestigation /> },
   { title: 'Physics-based forecasts', body: 'Mechanistic models predict the process under conditions you have not run yet, and say what they leave out.', preview: <PreviewPhysics /> },
@@ -375,17 +375,17 @@ export function RealData() {
     <section id="results" className="scroll-mt-24 bg-white px-6 py-28 sm:py-36">
       <div className="mx-auto grid max-w-6xl gap-14 lg:grid-cols-[0.9fr_1.1fr]">
         <div>
-          <Reveal><Eyebrow>Working now · CMO deliveries</Eyebrow></Reveal>
-          <Reveal delay={80}><h2 className="lp-h3 mt-6">Verified data from your contract manufacturers, inside the same platform.</h2></Reveal>
-          <Reveal delay={140}><p className="mt-6 text-[15.5px] leading-relaxed text-text-secondary">Drop in a delivery as it arrived. The platform reads each file, traces every value to its source cell and lists what it cannot account for. Once a delivery is verified, send it to the assistant: it answers with the batch, time and source file behind each value.</p></Reveal>
-          <Reveal delay={170}><p className="mt-4 text-[13.5px] leading-relaxed text-text-tertiary">Measured on 24 real CHO bioreactor runs from a published dataset, repackaged as monthly deliveries from a fictional CMO.</p></Reveal>
+          <Reveal><Eyebrow>Working now · CDMO deliveries</Eyebrow></Reveal>
+          <Reveal delay={80}><h2 className="lp-h3 mt-6">From CDMO files to evidence your team can review.</h2></Reveal>
+          <Reveal delay={140}><p className="mt-6 text-[15.5px] leading-relaxed text-text-secondary">Start with the files your CDMO sends. Inspect extracted values beside their source cells, review mappings and resolve gaps. Share the source-linked dataset with the assistant to ask batch and process questions. Matching a value to a file does not establish manufacturing quality or batch release.</p></Reveal>
+          <Reveal delay={170}><p className="mt-4 text-[13.5px] leading-relaxed text-text-tertiary">Measured on 24 real CHO bioreactor runs from a published dataset, repackaged as monthly deliveries from a fictional CDMO.</p></Reveal>
           <Reveal delay={200} className="mt-8 flex flex-wrap gap-3"><Link href="/demo/" className="lp-btn lp-btn-primary">Try the live demo<ArrowRight className="h-4 w-4" /></Link><Link href="/cmo/" className="lp-btn lp-btn-outline">Use your own files</Link></Reveal>
         </div>
         <div className="grid gap-px self-start overflow-hidden rounded-[6px] border border-border-hairline bg-border-hairline sm:grid-cols-2">
           {[
-            { v: 100, s: '%', d: 0, label: 'Values verified automatically on a repeat delivery', note: '1,843 of 1,843' },
+            { v: 100, s: '%', d: 0, label: 'Values matched to source on a repeat delivery', note: '1,843 of 1,843' },
             { v: 0, s: '', d: 0, label: 'Wrong values accepted without review', note: 'scored against independent answer keys' },
-            { v: 99.7, s: '%', d: 1, label: 'Verified automatically after a layout change', note: 'after one confirmation' },
+            { v: 99.7, s: '%', d: 1, label: 'Matched to source after a layout change', note: 'after one confirmation' },
             { v: 0, s: '', d: 0, label: 'Source cells left unaccounted for', note: 'every condition tested' },
           ].map((r, i) => (
             <Reveal key={r.label} delay={i * 90} className="bg-white p-7">
@@ -404,7 +404,7 @@ export function RealData() {
 /* ---------- How it works ---------- */
 
 const STEPS = [
-  { title: 'Start with the data you receive', body: 'Drop in a CMO delivery today, or connect your MES, historian, LIMS and QMS read-only. Nothing is written back, and every value keeps its source, version and timestamp.' },
+  { title: 'Start with the data you receive', body: 'Drop in a CDMO delivery today, or connect your MES, historian, LIMS and QMS read-only. Nothing is written back, and every value keeps its source, version and timestamp.' },
   { title: 'Start from a question or an event', body: 'A deviation, a yield drop, a transfer or a partner delivery. Agents gather the evidence and show each step they took.' },
   { title: 'Review, sign, then act', body: 'Proposals carry a rationale, expected effect and required approvals. Implementation stays in your systems, with an audit trail designed to support 21 CFR Part 11.' },
 ];
@@ -461,7 +461,7 @@ export function Systems() {
             </Reveal>
             <Reveal delay={220} className="rounded-[6px] bg-brand-teal p-8 text-white sm:p-10">
               <Database className="h-5 w-5 text-white/80" strokeWidth={1.5} />
-              <h3 className="mt-5 text-[19px] font-medium">CMO deliveries · working now</h3>
+              <h3 className="mt-5 text-[19px] font-medium">CDMO deliveries · working now</h3>
               <p className="mt-3 text-[15px] leading-relaxed text-white/80">Excel exports, LIMS CSVs, PDF certificates and ZIP packages are read, checked and traced to their source files, then shared with the assistant as evidence.</p>
             </Reveal>
           </div>
@@ -497,7 +497,7 @@ export function Footer() {
             <div className="flex flex-wrap items-start justify-between gap-10">
               <div>
                 <p className="font-display text-[34px] font-light tracking-[-0.02em] text-white sm:text-[44px]">Sievance</p>
-                <p className="mt-2 max-w-sm text-[14px] text-white/60">The AI operating system for pharmaceutical manufacturing.</p>
+                <p className="mt-2 max-w-sm text-[14px] text-white/60">Pharmaceutical manufacturing intelligence, with evidence in view.</p>
               </div>
               <nav className="grid grid-cols-2 gap-x-14 gap-y-2.5 text-[14px] text-white/70" aria-label="Footer">
                 <a href="#platform" className="hover:text-white">Platform</a>

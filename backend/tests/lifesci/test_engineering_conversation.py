@@ -107,8 +107,7 @@ def test_workspace_search_private_threads_and_stale_revision_boundaries(env):
     assert 'PRIVATE-SENTINEL' not in json.dumps(found)
     with pytest.raises(PermissionError):
         tools.read(ctx, thread, kind='engineering_chat_turn', record_id=secret['turn_ids'][-1], revision=1)
-    with pytest.raises(ValueError, match='changed'):
-        tools.read(ctx, thread, kind='case', record_id='visible', revision=99)
+    assert 'current revision' in tools.read(ctx, thread, kind='case', record_id='visible', revision=99)['revision_note']
     # Even a valid-looking explicit id cannot bypass site or tenant boundaries.
     with p.store.transaction('fixture') as tx:
         tx.put(TENANT, 'case', 'other-site', {'site_id': 'NF2', 'opened_at': '2026-11-02T12:00:00Z'}, expected_revision=None, action='fixture')
@@ -124,7 +123,8 @@ def test_workspace_reasoning_is_bounded_across_retry(env):
     result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Investigate the available cases')
     turn = result['turns'][-1]
     assert turn['status'] == 'blocked' and turn['planning_calls_admitted'] == 3
-    assert len(turn['flow_run_ids']) == 3 and len(turn['gateway_runs']) == 3
+    # The third round may not start another search; it must answer, so only two searches run.
+    assert len(turn['flow_run_ids']) == 2 and len(turn['gateway_runs']) == 3
     queued = p.engineering_conversations.queue_retry(ctx, result['id'])
     retried = p.engineering_conversations.run_turn(ctx, result['id'], queued['turn_ids'][-1])
     assert retried['turns'][-1]['planning_calls_admitted'] == 3
@@ -151,6 +151,9 @@ def test_workspace_draft_requires_inspected_basis_and_never_dispatches(env):
     props = p.store.read().list(TENANT, 'proposal')
     assert len(props) == 1 and props[0].state['status'] == 'proposed'
     assert props[0].state['execution_status'] == 'not_started'
+    # The turn ran with the person's authority, and the record still says the assistant wrote the draft.
+    assert props[0].state['requested_by'] == 'priya' and props[0].state['origin']['drafted_by'] == 'assistant'
+    assert props[0].state['origin']['conversation_id'] == allowed['id']
     assert not p.store.read().list(TENANT, 'action_intent')
 
 
@@ -252,18 +255,17 @@ def test_stop_during_model_call_does_not_commit_plan_or_execute_tools(env, monke
     assert not p.store.read().list(TENANT, 'data_flow_run')
 
 
-def test_stale_workspace_read_is_observed_and_replanned_with_current_revision(env):
+def test_out_of_date_revision_reads_the_current_record_without_replanning(env):
+    # A guessed or stale revision used to block the step and cost a full re-plan.
     p, ctx = env
     p.cases.open(ctx, 'STALE-READ', 'priya', 'quinn', 'NF1')
     fake_planner(p, [
         {'reply': 'Inspecting a case.', 'workflow': [node('read', 'workspace_read', {'kind': 'case', 'record_id': 'STALE-READ', 'revision': 99})]},
-        {'reply': 'Using its current revision.', 'workflow': [node('read', 'workspace_read', {'kind': 'case', 'record_id': 'STALE-READ', 'revision': 1})]},
         {'reply': 'The case has no timeline evidence yet; cause is unknown.'}])
-    result = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Inspect the latest case')
-    turn = result['turns'][-1]
-    assert turn['status'] == 'completed' and turn['planning_calls_admitted'] == 3
-    assert len(turn['artifacts']) == 1 and not turn['issues']
-    assert p.store.read().require(TENANT, 'data_flow_run', turn['flow_run_ids'][0]).state['status'] == 'blocked'
+    turn = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Inspect the latest case')['turns'][-1]
+    assert turn['status'] == 'completed' and turn['planning_calls_admitted'] == 2 and len(turn['artifacts']) == 1
+    saved = p.store.read().require(TENANT, 'assistant_workspace_result', turn['artifacts'][0]['id']).state
+    assert 'current revision 1' in saved['revision_note'] and saved['record']['revision'] == 1
 
 
 def test_event_batch_limit_retains_records_not_in_the_agent_envelope(env):
@@ -651,3 +653,28 @@ def test_valid_attached_source_needs_no_correction_and_prompt_explains_ids(env):
     assert 'literal id string' in prompt['binding']['attached_record']
     assert 'language of the latest user message' in ' '.join(prompt['instructions'])
     assert 'plan_id/result_id wrapper' in prompt['binding']['output_id_field']
+
+
+def test_final_planning_round_must_answer_instead_of_reading():
+    from src.lifesci.process_engineering.conversation import EngineeringConversationService as S
+    read = {'reply': "I'll read it now.", 'workflow': [node('read', 'workspace_read', {'kind': 'case', 'record_id': 'C', 'revision': 1})]}
+    S._validate_decision(read)  # earlier rounds may read
+    with pytest.raises(ValueError, match='final planning call'):
+        S._validate_decision(read, final=True)
+    forecast = {'reply': "I'll backtest two more runs.", 'workflow': [node('fit', 'cho_dataset_forecast',
+                {'dataset_id': 'd', 'batch': 'B', 'cutoff_h': 72, 'rationale': 'Backtest another run'})]}
+    with pytest.raises(ValueError, match='final planning call'):  # live: the turn ended "planning call limit reached"
+        S._validate_decision(forecast, final=True)
+    S._validate_decision({'reply': 'Answer.', 'workflow': []}, final=True)
+
+
+def test_a_read_of_a_record_that_does_not_exist_does_not_stop_the_other_reads(env):
+    # Live demo: one guessed ID stopped 6 independent reads and forced slow replanning.
+    p, ctx = env
+    p.cases.open(ctx, 'REAL-1', 'priya', 'quinn', 'NF1')
+    fake_planner(p, [
+        {'reply': 'Reading both.', 'workflow': [node('ghost', 'workspace_read', {'kind': 'case', 'record_id': 'NOPE-9', 'revision': 1}),
+                                                node('real', 'workspace_read', {'kind': 'case', 'record_id': 'REAL-1', 'revision': 1})]},
+        {'reply': 'NOPE-9 does not exist; REAL-1 is open with no timeline yet.'}])
+    turn = send(p, ctx, p.engineering_conversations.create(ctx, {}), 'Compare NOPE-9 and REAL-1')['turns'][-1]
+    assert turn['status'] == 'completed' and turn['planning_calls_admitted'] == 2 and len(turn['artifacts']) == 2

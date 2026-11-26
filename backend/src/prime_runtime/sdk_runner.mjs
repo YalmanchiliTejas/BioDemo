@@ -1,5 +1,6 @@
 /** Single-run TypeScript SDK host. JSON on stdin; structured events on stdout. */
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { configureProjectProvider, validateModalAuthentication } from "./provider_config.mjs";
@@ -101,7 +102,9 @@ try {
       // Metadata only: never copy answer previews, notes, source text or errors
       // into profiling receipts. Snapshot duration is not per-model-call time.
       console.log(JSON.stringify({type:"child_activity",recorded_at:new Date().toISOString(),
-        child_id:child.id,parent_id:child.parentId,status:child.status,model:child.model,
+        child_id:child.id,parent_id:child.parentId,status:child.status,model:child.model,label:child.label,
+        // Same key the child kernel sends with bridge calls (sha256 of its RLM_SESSION_DIR), for attribution.
+        session_key:child.sessionDir ? createHash("sha256").update(child.sessionDir).digest("hex").slice(0, 16) : null,
         duration_ms:child.durationMs,last_activity_at:child.lastActivityAt,
         stale_ms:child.activityStaleMs,activity:child.activity?.kind,
         tool:child.activity?.toolName,tool_use_count:child.toolUseCount,

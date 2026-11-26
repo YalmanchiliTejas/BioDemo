@@ -2,20 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { ModelLibraryResult,type LibraryResult } from './ModelLibraryResult';
 import { ScientificPlot } from '@/components/ScientificPlot';
 import { processRequest } from '@/lib/process-api';
+import { cached } from '@/lib/cache';
 import type { GeometryRecord } from './VialScene';
 
 const VialScene = dynamic(() => import('./VialScene'), { ssr: false, loading: () => <p>Loading 3D review…</p> });
 export type ArtifactRef = { id: string; kind: string; title: string; status?: string };
 type Point = { time_h: number; interface_temperature_c: number; rate_kg_s_per_vial: number; remaining_ice_kg_per_vial: number; capacity_margin_kg_h: number };
 type Model = { model_id: string; status: string; error?: string; applicability?: { missing_inputs: string[] }; rationale: string; prediction?: { completion_time_h: number | null; minimum_critical_margin_c: number | null; minimum_capacity_margin_kg_h: number | null; trajectory: Point[]; violations: { constraint: string; first_time_h: number }[] }; geometry?: GeometryRecord; holdout_evaluation?: { rmse_c: number | null; points: number }; uncertainty?: { completion_p05_p50_p95_h: number[] | null; interpretation: string } };
-type RecordData = { id: string; status: string; models?: Model[]; warnings?: string[]; spec?: { views: string[] }; resource_usage?: { solver_calls: number; runtime_seconds: number }; series?: { id: string; trajectory: Point[] }[]; rows?: { label: string; result_id: string; model_id: string; completion_time_h: number | null; minimum_critical_margin_c: number | null; minimum_capacity_margin_kg_h: number | null; violations: { constraint: string; first_time_h: number; last_time_h: number }[]; holdout_rmse_c: number | null }[]; source_snapshot?: unknown; pinned_models?: { title: string; rationale: string }[]; scenario_changes?: { label: string; rationale: string }; input_bundle?: { observation_provenance: string; parameter_manifest: unknown[] }; workspace?: { audience: string }; summary?: string; verification_experiments?: string[]; proposal_id?: string; operation?: string; rationale?: string; owner_id?: string; required_roles?: string[]; execution_status?: string; follow_up_measure?: string; expected_result?: string; constraints?: string[] };
+type RecordData = { id: string; status: string; models?: Model[]; warnings?: string[]; spec?: { views?: string[]; mode?: string }; resource_usage?: { solver_calls: number; runtime_seconds: number }; series?: { id: string; trajectory: Point[] }[]; rows?: { label: string; result_id: string; model_id: string; completion_time_h: number | null; minimum_critical_margin_c: number | null; minimum_capacity_margin_kg_h: number | null; violations: { constraint: string; first_time_h: number; last_time_h: number }[]; holdout_rmse_c: number | null }[]; source_snapshot?: unknown; pinned_models?: { title: string; rationale: string }[]; scenario_changes?: { label: string; rationale: string }; input_bundle?: { observation_provenance: string; parameter_manifest: unknown[] }; workspace?: { audience: string }; summary?: string; verification_experiments?: string[]; proposal_id?: string; operation?: string; rationale?: string; owner_id?: string; required_roles?: string[]; execution_status?: string; follow_up_measure?: string; expected_result?: string; constraints?: string[] };
 const fmt = (v: number | null | undefined) => v == null ? '—' : v.toFixed(2);
 const colors = ['#0e7490', '#c26a31', '#7c3aed'];
 
 export function AnalysisArtifact({ threadId, artifact }: { threadId: string; artifact: ArtifactRef }) {
-  const [data, setData] = useState<RecordData | null>(null);
+  const [data, setData] = useState<RecordData | null>(() => cached<RecordData>(`/v1/process-model/conversations/${threadId}/artifacts/${artifact.kind}/${artifact.id}`) ?? null);
   const [error, setError] = useState('');
   const [view, setView] = useState<'charts' | '3d'>('charts');
   const [selected, setSelected] = useState(0);
@@ -25,6 +27,7 @@ export function AnalysisArtifact({ threadId, artifact }: { threadId: string; art
       .then(result => { if (current) setData(result); }).catch(e => { if (current) setError(String(e)); });
     return () => { current = false; };
   }, [threadId, artifact.id, artifact.kind, artifact.status]);
+  if (data && (data.spec?.mode==='model_library' || (data.workspace?.audience==='model_library') || ['physical_model_dataset','physical_model_checkpoint','physical_interval_calibration'].includes(artifact.kind))) return <ModelLibraryResult data={data as unknown as LibraryResult}/>;
   const models = data?.models?.filter(m => m.prediction) ?? [];
   const active = models[selected] ?? models[0];
   const stale = ['stale', 'quarantined'].includes(data?.status ?? artifact.status ?? '');
@@ -68,7 +71,6 @@ export function AnalysisArtifact({ threadId, artifact }: { threadId: string; art
           <p className="mt-2">{data.rationale ?? data.expected_result}</p>
           <dl className="mt-3 grid grid-cols-2 gap-3 text-xs"><div><dt className="text-text-tertiary">Review</dt><dd>{data.status}</dd></div><div><dt className="text-text-tertiary">Execution</dt><dd>{data.execution_status?.replaceAll('_', ' ') ?? 'not started'}</dd></div><div><dt className="text-text-tertiary">Owner</dt><dd>{data.owner_id ?? 'Not assigned'}</dd></div><div><dt className="text-text-tertiary">Required approval</dt><dd>{data.required_roles?.join(', ') ?? 'Designated reviewer'}</dd></div></dl>
           {data.follow_up_measure && <p className="mt-3 text-xs">Follow-up: {data.follow_up_measure}</p>}
-          <p className="mt-3 text-xs text-text-tertiary">A proposal is distinct from approval and execution. Review the evidence before authorizing an action.</p>
         </>}
         {!!data?.warnings?.length && <details className="mt-4 text-xs"><summary className="cursor-pointer">Limits and applicability</summary><ul className="mt-2 list-disc pl-5">{data.warnings.map(w => <li key={w}>{w}</li>)}</ul></details>}
         <details className="mt-3 text-xs"><summary className="cursor-pointer text-text-tertiary">Inspect source, parameters and record</summary><pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded bg-surface-secondary p-3">{JSON.stringify(data, null, 2)}</pre></details>

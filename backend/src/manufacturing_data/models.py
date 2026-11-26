@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
-EntityKind = Literal["site", "process", "campaign", "batch", "run", "equipment", "sample", "document", "event", "deviation", "investigation", "maintenance"]
+EntityKind = Literal["site", "process", "campaign", "batch", "lot", "material", "run", "equipment", "sample", "document", "event", "deviation", "capa", "investigation", "maintenance"]
 ValidationStatus = Literal["source_transcribed", "normalized", "ambiguous", "unverified", "rejected"]
 
 class SourceRef(BaseModel):

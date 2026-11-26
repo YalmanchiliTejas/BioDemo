@@ -19,6 +19,12 @@ from pydantic import BaseModel, Field
 
 SOURCE_SYSTEM = "cmo-verified-delivery"
 CLASSIFICATION = "verified_cmo_dataset"
+# A delivery still in review, shared at a person's request for work that says it used unreviewed values.
+# Everything that requires a verified dataset (forecasts, the assistant's sources, signals) keeps refusing it.
+PROVISIONAL_SOURCE = "cmo-provisional-delivery"
+PROVISIONAL = "provisional_cmo_dataset"
+DOCUMENT_SOURCE = "cmo-delivery-document"
+DOCUMENT_CLASSIFICATION = "unverified_cmo_document"
 _FIELDS = ("id", "source_id", "batch", "time", "parameter", "value", "unit", "value_raw", "unit_raw", "status",
            "source", "source_sha256")
 log = logging.getLogger(__name__)
@@ -38,6 +44,17 @@ def _hours(value: Any) -> float | None:
 
 def dataset_content(payload: dict[str, Any]) -> bytes:
     """Deterministic bytes, so republishing an unchanged delivery is idempotent."""
+    if not payload.get("verified", True):
+        body = {
+            "schema_version": "platform-provisional-cmo-1",
+            "run_id": payload["run_id"], "cmo": payload["cmo"], "package_id": payload.get("package_id"),
+            "delivery_name": payload.get("delivery_name"), "completed_at": payload.get("completed_at"),
+            "disclosure": payload.get("disclosure"), "coverage": payload.get("coverage"),
+            "guarantee": {"holds": False, "checks": []}, "review": payload["review"],
+            "measurements": sorted(({k: m.get(k) for k in _FIELDS} for m in payload["measurements"]),
+                                   key=lambda m: (str(m["batch"]), _hours(m["time"]) or 0.0, str(m["parameter"]), str(m["id"]))),
+        }
+        return json.dumps(body, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
     body = {
         "schema_version": "platform-verified-cmo-1",
         "run_id": payload["run_id"], "cmo": payload["cmo"], "package_id": payload.get("package_id"),
@@ -62,7 +79,29 @@ def _source_label(source: dict[str, Any] | None) -> str:
     return str(source.get("path", ""))
 
 
-def summarize(data: dict[str, Any], *, sample_rows: int = 40) -> dict[str, Any]:
+def standouts(per_batch: dict[str, dict[str, list[dict[str, Any]]]], *, top: int = 3) -> dict[str, Any]:
+    """Where runs differ most, calculated from measured values at measured times only (nothing is interpolated).
+
+    Per parameter: the largest changes between consecutive samples of one run, with the typical change for scale,
+    and the largest differences from the other runs sampled at exactly the same time (three or more runs).
+    A reader should not have to work these out from the series by hand, and should not get them wrong."""
+    from ..manufacturing_data.cmo import trends  # the one implementation, shared with the Trends page
+
+    by_parameter: dict[str, dict[str, list[tuple[float, float]]]] = {}
+    for batch, params in per_batch.items():
+        for name, items in params.items():
+            points = [(t, m["value"]) for m in items if (t := _hours(m["time"])) is not None
+                      and isinstance(m["value"], (int, float)) and not isinstance(m["value"], bool)]
+            if points:
+                by_parameter.setdefault(name, {})[batch] = points
+    found = {name: trends.standouts(runs, top=top) for name, runs in sorted(by_parameter.items())}
+    return {name: entry for name, entry in found.items() if entry}
+
+
+SERIES_MAX = 3000  # ponytail: beyond this, page the raw rows; a per-run downsample would be the upgrade
+
+
+def summarize(data: dict[str, Any], *, sample_rows: int = 40, series: bool = False) -> dict[str, Any]:
     """A bounded, model-readable view of the dataset. Full values stay in the evidence record."""
     rows = data["measurements"]
     by_param: dict[str, list[dict[str, Any]]] = {}
@@ -88,19 +127,37 @@ def summarize(data: dict[str, Any], *, sample_rows: int = 40) -> dict[str, Any]:
             batches[batch][name] = {"n": len(ordered),
                                     "first": {"time_h": _hours(ordered[0]["time"]), "value": ordered[0]["value"]},
                                     "last": {"time_h": _hours(ordered[-1]["time"]), "value": ordered[-1]["value"]},
-                                    "min": min(values) if values else None, "max": max(values) if values else None}
+                                    # Measured extremes with when they occurred: compare runs on these, never on guesses.
+                                    "min": min(values) if values else None, "max": max(values) if values else None,
+                                    "min_at_h": _hours(min(ordered, key=lambda m: m["value"])["time"]) if values else None,
+                                    "max_at_h": _hours(max(ordered, key=lambda m: m["value"])["time"]) if values else None}
+    extra: dict[str, Any] = {}
+    if series and len(rows) <= SERIES_MAX:
+        # Every value as [time_h, value] per run and parameter: answers "when did it diverge" without paging raw rows.
+        # First, so it is never the part cut off when a long result is shortened for the model.
+        extra["standouts"] = {"basis": "calculated from the series at measured times; not an interpretation",
+                              **standouts(per_batch)}
+        extra["series"] = {b: {name: [[_hours(m["time"]), m["value"]] for m in sorted(items, key=lambda m: _hours(m["time"]) or 0.0)]
+                               for name, items in params.items()} for b, params in sorted(per_batch.items())}
+        extra["series_units"] = {p["parameter"]: p["unit"] for p in parameters}
+        sample_rows = min(sample_rows, 5)  # the series carries the values; a few rows show source citations
     return {
+        **extra,
         "measurement_count": len(rows), "batches": sorted(per_batch), "parameters": parameters, "per_batch": batches,
         "coverage": data.get("coverage"), "guarantee_holds": data["guarantee"]["holds"],
+        "guarantee_checks": [{k: c.get(k) for k in ("label", "passed")} for c in data["guarantee"].get("checks", [])],
         "example_rows": [{"batch": m["batch"], "time_h": _hours(m["time"]), "parameter": m["parameter"],
                           "value": m["value"], "unit": m["unit"], "source": _source_label(m.get("source"))}
                          for m in rows[:sample_rows]],
     }
 
 
-def _record(p, ctx, evidence_id: str, site_id: str | None = None):
+def _record(p, ctx, evidence_id: str, site_id: str | None = None, *, allow_provisional: bool = False):
     rec = p.store.read().get(ctx.tenant_id, "evidence", evidence_id)
-    if rec is None or rec.state.get("metadata", {}).get("classification") != CLASSIFICATION:
+    kind = None if rec is None else rec.state.get("metadata", {}).get("classification")
+    if kind == PROVISIONAL and not allow_provisional:
+        raise ValueError("this delivery is still in review; only work that explicitly includes unreviewed values can use it")
+    if kind not in (CLASSIFICATION, PROVISIONAL):
         raise ValueError("unknown verified delivery dataset")
     p.identity.require(ctx, "read", "evidence", evidence_id, site_id=rec.state.get("site_id"))
     if site_id is not None and rec.state.get("site_id") != site_id:
@@ -108,8 +165,8 @@ def _record(p, ctx, evidence_id: str, site_id: str | None = None):
     return rec
 
 
-def require_dataset(p, ctx, evidence_id: str, site_id: str):
-    rec = _record(p, ctx, evidence_id, site_id)
+def require_dataset(p, ctx, evidence_id: str, site_id: str, *, allow_provisional: bool = False):
+    rec = _record(p, ctx, evidence_id, site_id, allow_provisional=allow_provisional)
     if rec.state.get("status") != "current":
         raise ValueError("verified dataset was superseded or withdrawn; publish the current delivery again")
     basis = rec.state.get('metadata', {}).get('verification_basis', [])
@@ -121,6 +178,8 @@ def require_dataset(p, ctx, evidence_id: str, site_id: str):
 def listing(rec) -> dict[str, Any]:
     meta = rec.state["metadata"]
     return {"id": rec.id, "revision": rec.revision, "status": rec.state["status"], "site_id": rec.state["site_id"],
+            "verification": "provisional" if meta.get("classification") == PROVISIONAL else "verified",
+            **({"review": meta.get("review")} if meta.get("classification") == PROVISIONAL else {}),
             "run_id": rec.state["source_record_id"], "cmo": meta.get("cmo"), "delivery_name": meta.get("delivery_name"),
             "measurements": meta.get("measurements"), "batches": meta.get("batches"), "parameters": meta.get("parameters"),
             "published_at": rec.state["recorded_at"]}
@@ -140,6 +199,41 @@ def conversation_source(p, ctx, evidence_id: str, site_id: str) -> tuple[dict[st
     return entry, EvidenceRef("evidence", evidence_id, rec.revision, rec.state["site_id"])
 
 
+def _prepare(p, ctx, evidence_id: str, site_id: str) -> None:
+    """Calculate the delivery's profile now, when the source changes, so later work reads it instead of recomputing.
+    Preparation never blocks publication: on failure the profile is calculated on first use."""
+    tasks = getattr(p, "workspace_tasks", None)
+    if tasks is None:
+        return
+    try:
+        tasks.profile(ctx, evidence_id, site_id)
+    except Exception:
+        log.exception("Preparing the profile of delivery %s was deferred", evidence_id)
+    worklist = getattr(p, "worklist", None)
+    if worklist is not None:
+        try:  # checked against approved requirements now, so that what is missing is waiting for the person with a drafted request
+            worklist.prepare_delivery(ctx, evidence_id, site_id)
+        except Exception:
+            log.exception("Checking delivery %s against approved requirements was deferred", evidence_id)
+
+
+def share_provisional(p, ctx, payload: dict[str, Any], site_id: str) -> dict[str, Any]:
+    """Store a delivery that is still in review as labelled provisional evidence. It is never readable as verified."""
+    if payload.get("superseded_by"):
+        raise HTTPException(409, "A newer check of this delivery exists; share the current run")
+    if payload["review"]["verified_package"]:
+        raise HTTPException(409, "This delivery is verified; publish it as a verified dataset instead")
+    meta = {"classification": PROVISIONAL, "cmo": payload["cmo"], "delivery_name": payload.get("delivery_name"),
+            "package_id": payload.get("package_id"), "measurements": len(payload["measurements"]),
+            "batches": sorted({str(m["batch"]) for m in payload["measurements"] if m.get("batch")}),
+            "parameters": sorted({str(m["parameter"]) for m in payload["measurements"] if m.get("parameter")}),
+            "review": payload["review"]}
+    return p.evidence.ingest(ctx, source_system=PROVISIONAL_SOURCE, source_record_id=payload["run_id"],
+                             content=dataset_content(payload), media_type="application/json", site_id=site_id,
+                             event_time=payload.get("completed_at"), source_revision=payload["run_id"],
+                             mapping_version="provisional-cmo-1", metadata=meta)
+
+
 def install_cmo_api(p, app: FastAPI, ctx_dep) -> None:
     """Mount delivery verification in this API and expose verified deliveries as evidence."""
     cmo = None
@@ -152,6 +246,7 @@ def install_cmo_api(p, app: FastAPI, ctx_dep) -> None:
         cmo = cmo_router(repository, tenant_dependency=ctx_dep, tasks=app.state.tasks,
                          permission_check=lambda ctx, action: p.identity.require(ctx, action, "cmo_delivery"))
         app.include_router(cmo)
+        p.worklist.deliveries = cmo.review_counts  # what still waits for review in each delivery, for the worklist
 
     @app.post("/v1/cmo-datasets", status_code=201)
     def publish(body: PublishIn, ctx=Depends(ctx_dep)):
@@ -168,18 +263,76 @@ def install_cmo_api(p, app: FastAPI, ctx_dep) -> None:
                                content=dataset_content(payload), media_type="application/json", site_id=body.site_id,
                                event_time=payload.get("completed_at"), source_revision=body.run_id,
                                mapping_version="verified-cmo-1", metadata=meta)
+        signals = getattr(p, "signals", None)
+        if signals is not None:
+            try:  # verified CMO values against approved specifications; a detection failure never blocks publication
+                signals.check_delivery_measurements(ctx.tenant_id, site_id=body.site_id, measurements=[
+                    {"parameter": m["parameter"], "value": m.get("value"), "unit": m.get("unit"), "batch_id": m.get("batch"),
+                     "measurement_id": m.get("measurement_id") or m.get("id"), "event_time": m.get("event_time"),
+                     "product_id": m.get("product_id"), "equipment_id": m.get("equipment_id"),
+                     "observation_type": m.get("observation_type", "measurement")}
+                    for m in payload["measurements"]],
+                    delivery_ref={"kind": "evidence", "id": ev["evidence_id"], "revision": ev["revision"], "site_id": body.site_id})
+            except Exception:
+                log.exception("Specification check of delivery %s failed", body.run_id)
+        _prepare(p, ctx, ev["evidence_id"], body.site_id)
         return listing(p.store.read().require(ctx.tenant_id, "evidence", ev["evidence_id"]))
 
+    @app.post("/v1/cmo-datasets/provisional", status_code=201)
+    def publish_provisional(body: PublishIn, ctx=Depends(ctx_dep)):
+        """Share a delivery that is still in review, for direct work that states it used unreviewed values.
+
+        This accepts nothing on the reviewer's behalf and is not readable as a verified dataset: forecasts, the
+        assistant's attached sources and specification checks keep refusing it until the delivery is verified."""
+        if cmo is None:
+            raise HTTPException(503, "File-delivery verification is not installed on this server")
+        ev = share_provisional(p, ctx, cmo.provisional_payload(body.run_id, tenant=ctx.tenant_id), body.site_id)
+        _prepare(p, ctx, ev["evidence_id"], body.site_id)
+        return listing(p.store.read().require(ctx.tenant_id, "evidence", ev["evidence_id"]))
+
+    @app.post("/v1/cmo-documents", status_code=201)
+    def share_documents(body: PublishIn, ctx=Depends(ctx_dep)):
+        """Share a delivery's emails, notes and reports with the assistant, at a reviewer's request.
+
+        Each becomes evidence labelled as unverified correspondence: what the CMO wrote, not a checked value.
+        Re-sharing identical text is idempotent; changed text becomes a new revision.
+        """
+        if cmo is None:
+            raise HTTPException(503, "File-delivery verification is not installed on this server")
+        found = cmo.delivery_documents(body.run_id, tenant=ctx.tenant_id)
+        shared = []
+        for doc in found["documents"]:
+            label = (f"UNVERIFIED CMO DOCUMENT as received from {found['cmo']} in delivery "
+                     f"\"{found['delivery_name']}\", file {doc['path']}. Not checked against verified measurements.\n\n")
+            ev = p.evidence.ingest(ctx, source_system=DOCUMENT_SOURCE, source_record_id=f"{found['package_id']}/{doc['path']}",
+                                   content=(label + doc["text"]).encode(), media_type="text/plain", site_id=body.site_id,
+                                   event_time=None, source_revision=doc["sha256"], mapping_version="cmo-document-1",
+                                   metadata={"classification": DOCUMENT_CLASSIFICATION, "cmo": found["cmo"],
+                                             "delivery_name": found["delivery_name"], "package_id": found["package_id"],
+                                             "path": doc["path"], "original_sha256": doc["sha256"]})
+            shared.append({"evidence_id": ev["evidence_id"], "path": doc["path"]})
+        return {"package_id": found["package_id"], "shared": shared}
+
+    @app.get("/v1/cmo-documents")
+    def shared_documents(package_id: str, site_id: str = "NF1", ctx=Depends(ctx_dep)):
+        out = [{"evidence_id": rec.id, "path": rec.state["metadata"].get("path"), "revision": rec.revision}
+               for rec in p.store.read().list(ctx.tenant_id, "evidence")
+               if rec.state.get("metadata", {}).get("package_id") == package_id and rec.state.get("site_id") == site_id
+               and rec.state.get("metadata", {}).get("classification") == DOCUMENT_CLASSIFICATION
+               and p.identity.check(ctx, "read", "evidence", rec.id, site_id=site_id)]
+        return {"documents": sorted(out, key=lambda d: d["path"] or "")}
+
     @app.get("/v1/cmo-datasets")
-    def datasets(site_id: str = "NF1", ctx=Depends(ctx_dep)):
+    def datasets(site_id: str = "NF1", include_provisional: bool = False, ctx=Depends(ctx_dep)):
         out = []
+        wanted = (CLASSIFICATION, PROVISIONAL) if include_provisional else (CLASSIFICATION,)
         for rec in p.store.read().list(ctx.tenant_id, "evidence"):
-            if rec.state.get("metadata", {}).get("classification") != CLASSIFICATION or rec.state.get("site_id") != site_id:
+            if rec.state.get("metadata", {}).get("classification") not in wanted or rec.state.get("site_id") != site_id:
                 continue
             if rec.state.get("status") == "current" and p.identity.check(ctx, "read", "evidence", rec.id, site_id=site_id):
                 item = listing(rec)
                 try:
-                    require_dataset(p, ctx, rec.id, site_id)
+                    require_dataset(p, ctx, rec.id, site_id, allow_provisional=include_provisional)
                 except (ValueError, PermissionError):
                     item['status'] = 'stale_basis'
                 out.append(item)
