@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Run with: ./slurm.sh --simulation-dir /path/to/splits --smoke
 # Set SBATCH_ACCOUNT, SBATCH_PARTITION, or SBATCH_TIMELIMIT to override site defaults.
-# BIOCORE_PYTHON can point to an existing Python environment on shared storage.
 
 #SBATCH --job-name=biocore-lyo
 #SBATCH --nodes=1
@@ -31,11 +30,11 @@ if [[ -z "${SLURM_JOB_ID:-}" ]]; then
         "$experiment_dir/slurm.sh" "$@"
 fi
 
-python_bin="${BIOCORE_PYTHON:-.venv/bin/python}"
-if ! command -v "$python_bin" >/dev/null 2>&1; then
-    echo "Cannot find $python_bin. Install the experiment in .venv or set BIOCORE_PYTHON." >&2
-    exit 1
-fi
+module load anaconda
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate rl
+python_bin="$(command -v python)"
+"$python_bin" -m pip install -e .
 
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 run_dir="$BIOCORE_RUN_ROOT/run-$SLURM_JOB_ID"

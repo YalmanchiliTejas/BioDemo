@@ -51,13 +51,19 @@ the layer remaining. The run records the source split seeds and hashes.
 
 ### Submit to Slurm
 
-Install the experiment in `.venv` on the cluster with the setup commands above,
-or set `BIOCORE_PYTHON` to the Python executable of a shared environment where
-the experiment is installed. From this directory, submit the smoke job.
+The Slurm launcher loads Anaconda, activates the existing `rl` Conda environment
+and installs the experiment and its runtime dependencies from `pyproject.toml`.
+The environment needs Python 3.11 or 3.12. To generate the splits on the cluster
+before submitting the smoke job, run these commands from this directory.
 
 ```bash
+module load anaconda
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate rl
+python -m pip install -e .
+
 SIM_DATA="$SCRATCH/biocore-lyo/simulation"
-.venv/bin/python -m biocore.simulation --output "$SIM_DATA"
+python -m biocore.simulation --output "$SIM_DATA"
 SBATCH_TIMELIMIT=00:15:00 ./slurm.sh --simulation-dir "$SIM_DATA" --smoke
 ```
 
