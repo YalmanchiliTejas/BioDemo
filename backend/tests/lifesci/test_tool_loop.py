@@ -47,7 +47,8 @@ def revision(p, case_id='DEV-77'):
     return p.store.read().require(TENANT, 'case', case_id).revision
 
 
-def test_reads_then_answers_with_steps_artifacts_and_grounding(env):
+def test_reads_then_answers_with_steps_artifacts_and_grounding(env, monkeypatch):
+    monkeypatch.setattr(tool_loop, 'MAX_SECONDS', float('inf'))  # Workbook readers can pause inside the turn.
     p, ctx = env
     turn, fake = run(p, ctx, [
         {'tool_calls': [call('workspace_read', kind='case', record_id='DEV-77', revision=revision(p))]},
@@ -80,6 +81,26 @@ def test_budget_ends_in_a_tools_off_answer_never_in_unplanned_work(env, monkeypa
     turn, fake = run(p, ctx, [search, search, 'Two foaming cases found; DEV-77 is the open one.'])
     assert turn['status'] == 'completed' and turn['reply'].startswith('Two foaming')
     assert fake.calls[-1]['tool_choice'] == 'none' and 'Budget reached' in fake.calls[-1]['messages'][-1]['content']
+
+
+def test_one_model_response_cannot_execute_more_tools_than_the_turn_allows(env, monkeypatch):
+    p, ctx = env
+    monkeypatch.setattr(tool_loop, 'MAX_TOOL_CALLS', 1)
+    searches = [call('workspace_search', kinds=['case'], query=query) for query in ('foaming', 'pressure')]
+    turn, fake = run(p, ctx, [{'tool_calls': searches}, 'I checked the foaming records.'])
+    assert len(turn['artifacts']) == 1
+    assert fake.calls[-1]['tool_choice'] == 'none'
+    replies = [m for m in fake.calls[-1]['messages'] if m['role'] == 'tool']
+    assert len(replies) == 2 and 'budget' in replies[-1]['content'].lower()
+
+
+def test_invalid_tool_arguments_cannot_crash_the_progress_label(env):
+    p, ctx = env
+    turn, _ = run(p, ctx, [
+        {'tool_calls': [call('workspace_search', kinds=42, query='foaming')]},
+        'I could not search the records.'])
+    assert turn['status'] == 'completed'
+    assert turn['steps'][0]['status'] == 'blocked'
 
 
 def test_one_question_ends_the_turn_waiting_for_the_person(env):

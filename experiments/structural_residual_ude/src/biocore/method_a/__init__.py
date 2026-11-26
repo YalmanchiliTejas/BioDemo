@@ -1,1 +1,1 @@
-"""Structurally constrained, inner kinetic residual UDE."""
+"""Primary-drying residual UDE, fitting, frozen evaluation and legacy replay."""

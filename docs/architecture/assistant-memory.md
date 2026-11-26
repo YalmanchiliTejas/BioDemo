@@ -10,20 +10,33 @@ The assistant should build on earlier work, for the same person and across conve
 the person decided and prefers, and what is still open, and find it again when asked in different words. In a regulated
 plant it must never let memory stand in for the records.
 
+## How a note changes over time
+
+Open the [current system architecture in draw.io](sievance-current-architecture.drawio) and select **04 · Assistant memory**. Follow the diagram from a finished turn or a `remember` call to a later turn that uses memory.
+
+1. **Saving the turn and saving a note are two writes.** A finished reply stays in its conversation. The tool loop can index its question and answer for recall, and the conversation service marks the owner active. A note is created or reaffirmed when the model calls `remember` or when consolidation proposes a note that passes the same write checks. The note has its own ID, owner, classification, basis, and history. [Finish the turn](../../backend/src/lifesci/process_engineering/tool_loop.py#L453) · [Mark activity after the turn](../../backend/src/lifesci/process_engineering/conversation.py#L889) · [Write a note](../../backend/src/lifesci/agent_memory.py#L78).
+2. **A note can cite the `DEV-77` artifact's source.** The model supplies the case kind and ID. `inspected_refs` resolves these from the conversation's inspection receipts and artifact inputs. `remember` requires a source reference for an observed, calculated, or inferred note and checks the resolved references again before saving. A `user_stated` note can be saved from the person's statement and records an excerpt of the user message. Saving twice can reaffirm the same note rather than add a second copy. [Resolve inspected sources](../../backend/src/lifesci/agent_memory.py#L57) · [Save or reaffirm](../../backend/src/lifesci/agent_memory.py#L85).
+3. **Changing the case changes how the note is presented.** Suppose a note points to `DEV-77` revision 2 and the case advances to revision 3. Opening the note or building a fresh index checks the saved source revision and presents the note as stale. It still points to revision 2. Consolidation can persist the stale status and add a history entry. A new read of the case is how an assistant can establish what the current record says. [Present a note](../../backend/src/lifesci/agent_memory.py#L195) · [Consolidation](../../backend/src/lifesci/agent_memory.py#L349).
+4. **A later turn gets a small index and can search for more.** The native tool loop supplies recent exchanges and a bounded `memory_index`. `recall` searches permitted earlier answers, notes, and entity pages. It filters by site and the applicable owner grants before ranking by meaning or words. A recall snippet is a lead. `open_memory` retrieves the note view, including its source references and stale reasons. [Assemble turn context](../../backend/src/lifesci/process_engineering/tool_loop.py#L241) · [Recall](../../backend/src/lifesci/agent_memory.py#L273) · [Open a note or page](../../backend/src/lifesci/agent_memory.py#L234).
+
+The owner can mark a note wrong, forget it, or restore it in Settings › Memory & sharing. These are recorded status changes. Background consolidation runs on the application runtime tick for eligible owners. The same panel can trigger an explicit pass with **Tidy now**. [Note status and consolidate endpoints](../../backend/src/lifesci/api.py#L719) · [Runtime tick](../../backend/src/lifesci/runtime.py#L154) · [Memory panel](../../frontend/components/memory/AssistantMemoryPanel.tsx#L31).
+
+Prime keeps investigation state in its SDK sessions, specialist checkpoints, and incident blackboard. The draw.io memory tab describes the workspace assistant's per-person notes. See the [Prime runtime map](../../backend/docs/manufacturing_os_architecture_map.md#runtime-boundary) and [workbook memory exercise](../../backend/docs/agent-code.md#4-find-what-survives-a-turn-and-what-happens-when-you-stop-it) to trace each kind of persistence in code.
+
 ## Layers (after Anthropic's hierarchy)
 
 | Layer | Here | Loaded |
 |---|---|---|
-| Transcripts | Conversation turns, tool steps and results, saved with provenance | On demand: `recall`, `open_result`, `workspace_read` |
+| Conversation history | Conversation turns, tool steps and results, saved with provenance | Bounded recent exchanges in the native loop. Older work on demand through `recall`, `open_result`, and `workspace_read`. |
 | Notes | `memory_note`: lesson, decision, preference, open thread or warning; with its basis (observed, calculated, user-stated, inferred) and the records it rests on | On demand: `recall`, `open_memory` |
 | Representations | `memory_page`: one page per entity (batch, lot, equipment, case), the owner's notes about it quoted verbatim | On demand: `recall`, `open_memory` |
-| Injected | Standing rules, corrections, and `memory_index`: up to 12 notes / 3 KB | Every turn |
+| Injected | Standing rules and corrections in mission context, plus `memory_index` of up to 12 notes / 3 KB | Assembled for each native tool-loop turn |
 
 ## Where we differ from general-purpose memory
 
-- **Records are the ground truth, not the transcript.** A note may cite only records this conversation actually read
-  (host-checked), or be the person's own statement. Every read re-checks the cited records' current revision; a changed
-  record makes the note *stale* until it is checked again. Consolidation persists that status.
+- **Records ground the note.** A note may cite only sources the conversation has inspected, or record the person's own
+  statement. The note view checks whether cited records still exist at the saved revision. A change can surface as
+  *stale* before consolidation persists the status.
 - **Private by default, permission before ranking.** Notes, pages and vectors are the owner's memory (scope
   `conversations`); candidates are filtered by ownership and grants before any similarity search, so a colleague's notes
   never surface without their grant. Grants are read-only: a colleague's agent cannot write into someone's memory.
@@ -34,10 +47,10 @@ plant it must never let memory stand in for the records.
 
 ## Writing
 
-The model decides what is worth keeping (Anthropic: rules like "record only failures" cost strong models most of the
-benefit). It is told what memory is for, not when to write: what the records will not tell next time — validated
-lessons and how they were established, decisions, preferences, open threads, traps; never record values. Near-duplicates
-(cosine ≥ 0.93) reaffirm the existing note instead of adding a copy.
+The workspace prompt asks the model to use `remember` before its final answer for information worth keeping across
+turns, such as lessons, decisions, preferences, open threads, and warnings. The source records keep their own values.
+An exact or sufficiently similar active note can be reaffirmed. The host retains its ID and adds a history entry.
+[Workspace prompt](../../backend/src/lifesci/process_engineering/assistant_prompt.py) · [Duplicate check](../../backend/src/lifesci/agent_memory.py#L153).
 
 ## Recall
 

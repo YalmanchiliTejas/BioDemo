@@ -8,8 +8,8 @@ from pathlib import Path
 import torch
 from safetensors.torch import load_file, save_file
 
-from .config import DTYPE, ModelConfig
-from .model import HybridBioprocessUDE
+from .config import DTYPE, LyoModelConfig, ModelConfig
+from .model import HybridBioprocessUDE, HybridLyophilizationUDE
 
 
 def write_json(path: Path, value: object) -> None:
@@ -20,7 +20,11 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def save_artifact(model: HybridBioprocessUDE, path: Path, metadata: dict) -> None:
+def save_artifact(model: HybridBioprocessUDE | HybridLyophilizationUDE, path: Path, metadata: dict) -> None:
+    if not isinstance(model, (HybridBioprocessUDE, HybridLyophilizationUDE)):
+        raise ValueError("Unsupported model type")
+    if any(t.dtype != DTYPE or not torch.isfinite(t).all() for t in model.state_dict().values()):
+        raise ValueError("Artifact tensors must be finite float64")
     path = Path(path)
     if path.suffix != ".safetensors":
         raise ValueError("Weights must use .safetensors")
@@ -30,7 +34,10 @@ def save_artifact(model: HybridBioprocessUDE, path: Path, metadata: dict) -> Non
     tmp.replace(path)
     config_path = path.with_suffix(".json")
     write_json(config_path, {
-        "schema_version": 1, "dtype": "float64", "device": "cpu",
+        "schema_version": 2, "dtype": "float64", "device": "cpu",
+        "model_type": "lyophilization" if isinstance(model, HybridLyophilizationUDE) else "fermentation",
+        "units": ({"time": "s", "temperature": "K", "pressure": "Pa", "length": "m"}
+                  if isinstance(model, HybridLyophilizationUDE) else {"time": "h"}),
         "model": model.config.model_dump(), "weights_sha256": sha256(path),
         "versions": {"python": platform.python_version(), **{
             name: importlib.metadata.version(name)
@@ -41,7 +48,7 @@ def save_artifact(model: HybridBioprocessUDE, path: Path, metadata: dict) -> Non
                {path.name: sha256(path), config_path.name: sha256(config_path)})
 
 
-def load_artifact(path: Path) -> tuple[HybridBioprocessUDE, dict]:
+def load_artifact(path: Path) -> tuple[HybridBioprocessUDE | HybridLyophilizationUDE, dict]:
     path = Path(path)
     config_path = path.with_suffix(".json")
     manifest = json.loads(path.with_suffix(".sha256.json").read_text())
@@ -49,16 +56,24 @@ def load_artifact(path: Path) -> tuple[HybridBioprocessUDE, dict]:
         if manifest.get(candidate.name) != sha256(candidate):
             raise ValueError(f"SHA-256 mismatch: {candidate.name}")
     document = json.loads(config_path.read_text())
-    if document["schema_version"] != 1 or document["dtype"] != "float64":
+    if document["schema_version"] not in (1, 2) or document["dtype"] != "float64":
         raise ValueError("Unsupported artifact schema or dtype")
     if document["weights_sha256"] != sha256(path):
         raise ValueError("Weights do not match config")
-    model = HybridBioprocessUDE(ModelConfig.model_validate(document["model"]))
+    model_type = document.get("model_type") if document["schema_version"] == 2 else "fermentation"
+    if model_type == "lyophilization":
+        if document["units"] != {"time": "s", "temperature": "K", "pressure": "Pa", "length": "m"}:
+            raise ValueError("Unsupported lyophilization units")
+        model = HybridLyophilizationUDE(LyoModelConfig.model_validate(document["model"]))
+    elif model_type == "fermentation":
+        model = HybridBioprocessUDE(ModelConfig.model_validate(document["model"]))
+    else:
+        raise ValueError("Unsupported artifact model_type")
     tensors = load_file(str(path), device="cpu")
     if any(t.dtype != DTYPE for t in tensors.values()):
         raise ValueError("Artifact contains non-float64 tensors")
     model.load_state_dict(tensors, strict=True)
-    if not torch.equal(model.state_scale, torch.tensor(model.config.state_scale, dtype=DTYPE)):
+    if isinstance(model, HybridBioprocessUDE) and not torch.equal(model.state_scale, torch.tensor(model.config.state_scale, dtype=DTYPE)):
         raise ValueError("Config/weights scaling mismatch")
     if not all(torch.isfinite(t).all() for t in model.state_dict().values()):
         raise ValueError("Artifact contains nonfinite weights")

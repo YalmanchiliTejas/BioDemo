@@ -1,5 +1,11 @@
 # Recorded synthetic experiment
 
+Historical fermentation run: the results below predate the lyophilization
+conversion. They do not validate the current lyophilization model, trainer,
+losses, evaluator, or their experimental accuracy. See README.md for the current
+pipeline and its software checks. The original figures are retained as evidence
+of that earlier experiment.
+
 Executed on Python 3.11.16, macOS arm64 CPU, torch 2.15.0, torchode 1.0.1,
 using `requirements-tested.txt`, seed 2023. Editable package installation succeeded.
 All work and output are confined to this experiment; dependencies were installed

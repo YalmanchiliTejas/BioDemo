@@ -2,7 +2,33 @@
 
 Code audit: 2026-11-07. Open [the editable seven-page draw.io diagram](sievance-agent-architecture.drawio) in diagrams.net or the draw.io desktop app. The [overview SVG](sievance-agent-architecture-overview.svg) provides a quick preview. Every diagram node has a source-file tooltip and `sourceFiles` metadata.
 
-This describes checked-in implementations, not a deployment or model-performance audit. It introduces no new architecture. Existing design documents may describe earlier targets; this map follows current code where those differ.
+The editable drawings document the checked-in implementation at the time of that audit. The code maps below give you the current paths to follow in the repository. Deployment and model performance are verified separately.
+
+## Current system and assistant paths
+
+Open the [current system architecture in draw.io](sievance-current-architecture.drawio). The four editable tabs follow the [agent code workbook](../../backend/docs/agent-code.md). Hover over a component to see its repository source path. Runtime and provider availability depend on configuration.
+
+### Platform overview
+
+Open **01 · Platform overview** for the paths from workspace requests and evidence intake to stored results and authorized actions.
+
+- The platform's **versioned records and evidence** hold conversations, missions, artifacts, memory notes, and action records. Domain services share that store and enforce the caller's authority at their entry points. Ingestion connects original sources to inspectable evidence. [Platform wiring](../../backend/src/lifesci/container.py#L65) · [Evidence service](../../backend/src/lifesci/evidence.py) · [Source ingestion](shared-ingestion.md).
+- The **workspace conversation service** handles ordinary turns and can save an investigation proposal. A person's Start request creates a scoped snapshot for the configured executor. Prime reads the staged evidence through its own bridge, saves specialist progress, and produces a report. The platform syncs progress and retrieves the report. [Proposal operator](../../backend/src/lifesci/process_engineering/conversation.py#L1157) · [Investigation start](../../backend/src/lifesci/investigations.py#L376) · [Sync and report retrieval](../../backend/src/lifesci/investigations.py#L469) · [Prime entry](../../backend/src/prime_runtime/harness.py#L192).
+- **Actions** have their own authorization path. The action service records the approved version and checks it again before dispatch to the owning system. The report and workspace answer can inform that decision. [Action intents and dispatch](../../backend/src/lifesci/actions.py#L218).
+
+### One workspace turn
+
+Open **02 · Workspace turn** to follow the routing decision, tool calls, checkpointing, and grounding.
+
+In the workbook, the router reaches the tool loop and the scripted model requests `workspace_read`. The host reads the case under the person's authority, stores a derived result tied to the source revision, and sends the model the tool result. The last model response finishes the turn. If the exploration budget runs out first, the loop asks the model to answer with tools off. [Turn routing](../../backend/src/lifesci/process_engineering/conversation.py#L641) · [Tool loop](../../backend/src/lifesci/process_engineering/tool_loop.py#L290) · [Finish and grounding](../../backend/src/lifesci/process_engineering/tool_loop.py#L453).
+
+For what survives across turns and how a note's references age, follow the [assistant memory lifecycle](assistant-memory.md#how-a-note-changes-over-time).
+
+### One Prime investigation
+
+Open **03 · Prime investigation** to follow an explicitly started run through specialist work and report submission.
+
+The Node host checks for an accepted report after the lead runs and after pending specialist work settles. It asks the lead to continue when it still needs a submission. An accepted partial report carries an incomplete investigation status. Session files, checkpoints, and the incident blackboard preserve Prime's state. [Node lifecycle](../../backend/src/prime_runtime/investigation_lifecycle.mjs#L85) · [Bridge submission](../../backend/src/prime_runtime/bridge.py#L531) · [Workbook handoff exercise](../../backend/docs/agent-code.md#5-watch-prime-finish-after-a-specialist-hands-back-work).
 
 ## Product context
 

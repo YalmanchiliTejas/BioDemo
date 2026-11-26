@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import fcntl
-import hashlib
 import json
 import os
 import shlex
@@ -21,6 +20,7 @@ from src.workflows import ManufacturingInvestigationWorkflow
 from src.paths import DEFAULT_PRIME_BUNDLE
 
 from .bridge import ManufacturingBridge, finalization_reserve
+from .telemetry import host_receipt, session_usage
 
 DEFAULT_COMPACTION_TARGET_TOKENS = 128_000
 
@@ -151,6 +151,44 @@ class PrimeManufacturingHarness:
                    runtime_root=blackboards.root / "prime-runtime",
                    model=os.getenv("BIODEMO_PRIME_MODEL"))
 
+    def _request(self, bridge, workdir, session_dir, prior_file, problem):
+        """Bind the prompt and run limits to the existing SDK host protocol."""
+        if self.response_mode == "task_answer":
+            system = (
+                "Solve this bounded evaluation task using scoped manufacturing_os evidence and the persistent Python kernel. "
+                "Distinguish hypotheses from verified causes and preserve human approval for manufacturing operations. "
+                "Native child agents are available for independent questions. Return only JSON with task_answer (an object) "
+                "and evidence_ids (supporting observation IDs from the tools). Use visible evidence only. "
+                "Investigation submissions, backend code, evaluation references and credentials are outside this task."
+            )
+            skill_source = str(self.skill_path.parent / "src")
+            prompt = (
+                f"Objective: {problem}\nInitialize the tool client in the kernel: "
+                f"import sys; sys.path.insert(0, {skill_source!r}); import manufacturing_os as mo. "
+                "Read mo.context() and scoped records using mo.evidence_packet or other tools. "
+                "Return the structured answer in your final assistant message."
+            )
+        else:
+            system = self.system_path.read_text(encoding="utf-8")
+            prompt = (
+                f"Investigate incident {bridge.incident_id} as of {bridge.as_of}.\nObjective: {problem}\n"
+                "Load the manufacturing_os skill and start with context() and work_queue()."
+            )
+        remaining = self.timeout_seconds - (time.monotonic() - bridge.started_monotonic)
+        return {
+            "bundle_root": str(self.bundle), "cwd": str(workdir),
+            "session_dir": str(session_dir), "session_file": prior_file,
+            "skill_paths": [str(self.skill_path), str(self.message_skill_path)],
+            "system_prompt": system, "model": self.model, "prompt": prompt,
+            "evaluation_mode": self.evaluation_mode,
+            "rlm_max_depth": getattr(self, "rlm_max_depth", None),
+            "timeout_seconds": max(0, remaining),
+            "finalization_reserve_seconds": bridge.finalization_reserve_seconds,
+            "specialist_wrapup_seconds": bridge.specialist_wrapup_seconds,
+            "compaction_target_tokens": self.compaction_target_tokens,
+            "response_mode": self.response_mode,
+        }
+
     def run(self, *, incident_id: str, problem: str, new_evidence_ids: list[str],
             as_of: str) -> dict[str, Any]:
         if self.response_mode not in {'investigation', 'task_answer'} or (self.response_mode=='task_answer' and not self.evaluation_mode):
@@ -202,110 +240,14 @@ class PrimeManufacturingHarness:
             prior_file = previous.get("session_file")
             if prior_file and not Path(prior_file).is_file():
                 raise RuntimeError("saved Prime SDK session file is missing")
-            prompt = (
-                f"Investigate incident {incident_id} as of {as_of}. Objective: {problem}. "
-                "Load the manufacturing_os skill. Call context(), investigate with the scoped tools, "
-                "use native rlm.spawn for useful independent questions, then call submit_report(). "
-                "Only the lead submits the final report; children save submit_subreport(). "
-                "Cover every scoped screening unit with an explicit review disposition and synthesize across sources. "
-                "Use context analysis_preparation and summarize_series before exploring. Use calculate_metrics and align_series for numerical claims. "
-                "Report unresolved evidence honestly. Do not claim completion unless submit_report succeeds."
+            request = self._request(bridge, workdir, session_dir, prior_file, problem)
+            process, log_path, tools_path = self._run_host(bridge, bridge_config, request, workdir, session_dir, log_dir)
+            session_id, session_file, task_response, usage = host_receipt(
+                process.stdout, trace_sink=self.trace_sink, model=self.model, system_prompt=request["system_prompt"],
             )
-            request = {
-                "bundle_root": str(self.bundle), "cwd": str(workdir),
-                "session_dir": str(session_dir), "session_file": prior_file,
-                "skill_paths": [str(self.skill_path), str(self.message_skill_path)],
-                "system_prompt": self.system_path.read_text(encoding="utf-8"),
-                "model": self.model, "prompt": prompt,
-                "evaluation_mode": self.evaluation_mode,
-                "rlm_max_depth": getattr(self, 'rlm_max_depth', None),
-                "timeout_seconds":max(0,self.timeout_seconds-(time.monotonic()-bridge.started_monotonic)) if self.timeout_seconds is not None else None,
-                "finalization_reserve_seconds":bridge.finalization_reserve_seconds,
-                "specialist_wrapup_seconds":bridge.specialist_wrapup_seconds,
-                "compaction_target_tokens":self.compaction_target_tokens,
-                "response_mode":self.response_mode,
-            }
-            if self.response_mode=='task_answer':
-                request['system_prompt']=(
-                    'You are the Manufacturing OS task agent. Solve the requested bounded task using the scoped '
-                    'manufacturing_os tools and persistent Python kernel. Use only visible source evidence; '
-                    'preserve uncertainty and human approval for manufacturing operations. Native child agents '
-                    'are available when useful. This evaluation asks for a structured task answer, not a QA '
-                    'investigation package. Do not build or submit an investigation report for this task. '
-                    'Return only JSON with task_answer (the requested object) and evidence_ids (supporting '
-                    'observation IDs retrieved through the tools). Do not read backend implementation code, '
-                    'evaluation references or credential files. Distinguish hypotheses from verified causes.')
-                request['prompt']=(f'Objective: {problem}\nInitialize the existing tool client once in the kernel: '
-                    f'import sys; sys.path.insert(0, {str(self.skill_path.parent/"src")!r}); import manufacturing_os as mo. '
-                    'Read mo.context() and scoped source records with mo.evidence_packet or other tools. '
-                    'Then compute the task answer and return the requested JSON in your final assistant message.')
-            environment = os.environ.copy()
-            environment.pop("BIODEMO_MANUFACTURING_STORE", None)
-            environment.pop("BIODEMO_MANUFACTURING_SCOPE", None)
-            environment["BIODEMO_PRIME_BRIDGE_CONFIG"] = str(bridge_config)
-            run_tag = uuid.uuid4().hex[:12]
-            log_path = log_dir / f"{incident_id}-{run_tag}.jsonl"
-            error_path = log_dir / f"{incident_id}-{run_tag}.stderr"
-            tools_path = log_dir / f"{incident_id}-{run_tag}.tools.jsonl"
-            try:
-                process = _stream(self.command, cwd=workdir, env=environment, input_text=json.dumps(request),
-                                  timeout=request['timeout_seconds'], on_line=self.on_event,
-                                  started=lambda child: setattr(self, '_process', child))
-            except subprocess.TimeoutExpired as exc:
-                for destination,content in ((log_path,exc.stdout),(error_path,exc.stderr)):
-                    destination.write_text(content.decode(errors='replace') if isinstance(content,bytes) else content or '')
-                    destination.chmod(0o600)
-                bridge._checkpoint()
-                raise
-            finally:
-                from .telemetry import session_usage
-                telemetry=session_usage(session_dir)
-                (log_dir/f'{incident_id}-{run_tag}.usage.json').write_text(json.dumps(telemetry,indent=2)+'\n')
-                tools_path.write_text(
-                    "\n".join(json.dumps(entry, default=str) for entry in bridge.tool_history) + "\n",
-                    encoding="utf-8")
-                tools_path.chmod(0o600)
-            log_path.write_text(process.stdout, encoding="utf-8")
-            log_path.chmod(0o600)
-            error_path = log_dir / f"{incident_id}-{run_tag}.stderr"
-            error_path.write_text(process.stderr, encoding="utf-8")
-            error_path.chmod(0o600)
-            session_id = session_file = None
-            task_response = None
-            usage = {"model_calls": 0, "input_tokens": 0, "output_tokens": 0,
-                     "cached_input_tokens": 0, "inference_cost_usd": None,
-                     "total_cost_usd":None, "cost_status":"unknown_provider_or_child_telemetry",
-                     "root_reported_cost_usd":0.0}
-            for line in process.stdout.splitlines():
-                try:
-                    event = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if event.get("type") == "session" and event.get("id"):
-                    session_id, session_file = str(event["id"]), event.get("file")
-                    if event.get("model"):
-                        usage["model_id"] = event["model"]
-                if event.get('type')=='task_answer':
-                    task_response=event.get('response')
-                if event.get("type") == "message_end" and event.get("message", {}).get("role") == "assistant":
-                    tokens = event["message"].get("usage")
-                    if isinstance(tokens, dict):
-                        usage["model_calls"] += 1
-                        usage["input_tokens"] += int(tokens.get("input", 0))
-                        usage["output_tokens"] += int(tokens.get("output", 0))
-                        usage["cached_input_tokens"] += int(tokens.get("cacheRead", 0))
-                        usage["root_reported_cost_usd"] += float((tokens.get("cost") or {}).get("total", 0.0))
-                        if self.trace_sink is not None:
-                            self.trace_sink.emit(actor="agent", stage="analysis", action="model_usage",
-                                                 model_id=usage.get("model_id", self.model),
-                                                 prompt_version=hashlib.sha256(self.system_path.read_bytes()).hexdigest(),
-                                                 input_tokens=tokens.get("input"), output_tokens=tokens.get("output"),
-                                                 estimated_cost_usd=(tokens.get("cost") or {}).get("total"),
-                                                 started_at=event.get('started_at'),ended_at=event.get('ended_at'),
-                                                 usage_scope="root_sdk_session_only")
             if process.returncode != 0:
                 raise RuntimeError(f"Prime SDK host exited with code {process.returncode}; "
-                                   f"stdout: {log_path} stderr: {error_path} tools: {tools_path}")
+                                   f"stdout: {log_path} stderr: {log_path.with_suffix('.stderr')} tools: {tools_path}")
             if self.response_mode=='task_answer':
                 if not isinstance(task_response,dict) or not isinstance(task_response.get('task_answer'),dict):
                     raise RuntimeError('Agent returned no structured task answer')
@@ -333,3 +275,37 @@ class PrimeManufacturingHarness:
                 bridge_config.unlink(missing_ok=True)
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
             lock.close()
+
+    def _run_host(self, bridge, bridge_config, request, workdir, session_dir, log_dir):
+        """Start the existing host and retain progress and usage receipts."""
+        incident_id = bridge.incident_id
+        environment = os.environ.copy()
+        environment.pop("BIODEMO_MANUFACTURING_STORE", None)
+        environment.pop("BIODEMO_MANUFACTURING_SCOPE", None)
+        environment["BIODEMO_PRIME_BRIDGE_CONFIG"] = str(bridge_config)
+        run_tag = uuid.uuid4().hex[:12]
+        log_path = log_dir / f"{incident_id}-{run_tag}.jsonl"
+        error_path = log_path.with_suffix(".stderr")
+        tools_path = log_dir / f"{incident_id}-{run_tag}.tools.jsonl"
+        try:
+            process = _stream(self.command, cwd=workdir, env=environment, input_text=json.dumps(request),
+                              timeout=request['timeout_seconds'], on_line=self.on_event,
+                              started=lambda child: setattr(self, '_process', child))
+        except subprocess.TimeoutExpired as exc:
+            for destination,content in ((log_path,exc.stdout),(error_path,exc.stderr)):
+                destination.write_text(content.decode(errors='replace') if isinstance(content,bytes) else content or '')
+                destination.chmod(0o600)
+            bridge._checkpoint()
+            raise
+        finally:
+            telemetry=session_usage(session_dir)
+            (log_dir/f'{incident_id}-{run_tag}.usage.json').write_text(json.dumps(telemetry,indent=2)+'\n')
+            tools_path.write_text(
+                "\n".join(json.dumps(entry, default=str) for entry in bridge.tool_history) + "\n",
+                encoding="utf-8")
+            tools_path.chmod(0o600)
+        log_path.write_text(process.stdout, encoding="utf-8")
+        log_path.chmod(0o600)
+        error_path.write_text(process.stderr, encoding="utf-8")
+        error_path.chmod(0o600)
+        return process, log_path, tools_path
