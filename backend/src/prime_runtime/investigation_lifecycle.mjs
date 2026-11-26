@@ -60,9 +60,17 @@ export async function runInvestigation(session, {
   }, Math.max(0, timeoutSeconds - finalizationReserveSeconds) * 1000);
   const bounded = operation => Promise.race([operation, deadline]);
   const checkError = () => {
-    const error = getFatalError() ?? session.agent?.state?.errorMessage;
+    const fatal = getFatalError();
+    if (fatal) throw Error(fatal);
+    const error = session.agent?.state?.errorMessage;
     if (error && !finalizing) throw Error(error);
-    if (getFatalError()) throw Error(getFatalError());
+  };
+  const submittedReport = async () => {
+    checkError();
+    const status = await bounded(readStatus());
+    if (!status.final_report_submitted) return;
+    emit({type:'investigation_report_persisted', timestamp:new Date().toISOString(), report_status:status.report_status});
+    return status;
   };
   const promptTurn = async text => {
     try {
@@ -77,13 +85,8 @@ export async function runInvestigation(session, {
   try {
     await promptTurn(prompt);
     while (true) {
-      checkError();
-      const submitted = await bounded(readStatus());
-      if (submitted.final_report_submitted) {
-        emit({type:'investigation_report_persisted', timestamp:new Date().toISOString(),
-          report_status:submitted.report_status});
-        return submitted;
-      }
+      const submitted = await submittedReport();
+      if (submitted) return submitted;
       // Strong SDK fan-in includes descendants, queued terminal messages,
       // automatic parent turns, and children spawned by those parent turns.
       if (!finalizing) {
@@ -95,28 +98,21 @@ export async function runInvestigation(session, {
           if (!finalizing) throw error;
         }
       }
-      if (stopping) await bounded(stopping);
-      checkError();
-      const status = await bounded(readStatus());
-      if (status.final_report_submitted) {
-        emit({type:'investigation_report_persisted', timestamp:new Date().toISOString(),
-          report_status:status.report_status});
-        return status;
-      }
       if (finalizing) {
-        // Drain cancellation notices before admitting the synthesis prompt;
-        // otherwise it can race an SDK-generated parent continuation.
+        // Cancellation notices can queue a parent turn that submits on its own.
+        if (stopping) await bounded(stopping);
         if (session.waitForHeadlessIdle) await bounded(session.waitForHeadlessIdle());
+        const settled = await submittedReport();
+        if (settled) return settled;
         await bounded(session.prompt(FINALIZE_PROMPT));
         await bounded(session.waitForHeadlessIdle?.() ?? Promise.resolve());
-        checkError();
-        const final = await bounded(readStatus());
-        if (final.final_report_submitted) {
-          emit({type:'investigation_report_persisted', timestamp:new Date().toISOString(),report_status:final.report_status});
-          return final;
-        }
+        const final = await submittedReport();
+        if (final) return final;
         throw Error('Final synthesis ended without submitting a validated report; inspect saved checkpoints and report validation issues');
       }
+      const settled = await submittedReport();
+      if (settled) return settled;
+      if (finalizing) continue; // The reserve may have started during the status request.
       continuations += 1;
       emit({type:'lead_resumed_for_submission', continuation:continuations,
         timestamp:new Date().toISOString()});

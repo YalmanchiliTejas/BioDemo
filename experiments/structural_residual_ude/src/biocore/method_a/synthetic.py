@@ -1,4 +1,4 @@
-"""Independent NumPy RK4 plant; no plant kinetics enter model training."""
+"""Legacy fermentation NumPy plant. Current CLI fixtures live in lyo_data.py."""
 from dataclasses import dataclass
 
 import numpy as np

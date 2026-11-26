@@ -4,11 +4,13 @@ import pytest
 import torch
 
 from biocore.method_a.artifact import load_artifact, save_artifact
-from biocore.method_a.config import DTYPE, ModelConfig, TrainConfig, seed_everything
+from biocore.method_a.config import DTYPE, LyoTrainConfig, ModelConfig, seed_everything
 from biocore.method_a.evaluate import auroc, evaluate
 from biocore.method_a.loss import fit_state_scale, masked_trajectory_mse
 from biocore.method_a.model import BioprocessSolver, HybridBioprocessUDE
 from biocore.method_a.synthetic import make_dataset
+from biocore.method_a.lyo_data import make_dataset as make_lyo_dataset, load_dataset
+from biocore.method_a.model import HybridLyophilizationUDE, LyophilizationSolver
 from biocore.method_a.train import train, validate_splits
 
 
@@ -97,7 +99,9 @@ def test_masked_nan_backward():
 
 
 def test_synthetic_splits_masks_and_train_only_scaling(data):
-    validate_splits(data)
+    # The converted trainer must reject legacy fermentation data explicitly.
+    with pytest.raises(ValueError, match="lyophilization"):
+        validate_splits(data)
     assert [len(getattr(data, name)) for name in ("train", "val", "test", "faults")] == [15, 10, 15, 10]
     for group in (data.train, data.val, data.test, data.faults):
         for batch in group:
@@ -111,8 +115,6 @@ def test_synthetic_splits_masks_and_train_only_scaling(data):
     repeated = make_dataset(2023)
     assert repeated.split_ids() == data.split_ids()
     assert torch.equal(repeated.train[0].truth, data.train[0].truth)
-    with pytest.raises(ValueError, match="disjoint"):
-        validate_splits(replace(data, val=(data.train[0],)))
 
 
 @pytest.mark.parametrize("target", ["weights", "config"])
@@ -144,21 +146,24 @@ def test_auroc_ties():
     assert auroc([0., 1.], [2., 3.]) == 1.
 
 
-def test_training_artifact_evaluation_and_repeatability(data, tmp_path):
-    small = replace(data, train=data.train[:3], val=data.val[:2])
-    config = TrainConfig(epochs=2, warmup_fraction=.5)
+def test_training_artifact_evaluation_and_repeatability(tmp_path):
+    small = make_lyo_dataset(2023, (2, 1, 1, 1))
+    config = LyoTrainConfig(epochs=2, warmup_fraction=.5)
     path_a = train(small, tmp_path / "a", config)
     path_b = train(small, tmp_path / "b", config)
     model_a, doc_a = load_artifact(path_a)
     model_b, doc_b = load_artifact(path_b)
+    assert isinstance(model_a, HybridLyophilizationUDE)
     assert all(torch.equal(v, model_b.state_dict()[k]) for k, v in model_a.state_dict().items())
     assert doc_a == doc_b
-    y, t, args = inputs()
+    batch = small.test[0]
     with torch.no_grad():
-        solver = BioprocessSolver(model_a)
-        assert torch.equal(solver.solve(y[:1], t[:1], args[:1]).ys[0],
-                           solver.solve(y, t, args).ys[0])
-    report = evaluate(path_a, small, tmp_path / "eval", strict=False)
-    assert report["fault_qP_auroc"] > .9
-    assert report["rate_isolation_pass"]
+        solver = LyophilizationSolver(model_a)
+        assert torch.equal(solver.solve(batch.y0[None], batch.times[None], batch.process_args[None]).ys,
+                           LyophilizationSolver(model_b).solve(batch.y0[None], batch.times[None], batch.process_args[None]).ys)
+    report = evaluate(path_a, load_dataset(path_a.parent/"dataset.json"), tmp_path / "eval")
+    assert report["model_type"] == "lyophilization"
+    assert report["normal_test"]["endpoint_metrics_s"]["n_observed"] == 1
+    assert report["normal_test"]["temperature_coverage"]["eligible"] > 0
+    assert report["physical_validity_pass"]
     assert (tmp_path / "eval" / "method_b_handoff.json").exists()

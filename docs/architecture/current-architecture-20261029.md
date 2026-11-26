@@ -1,5 +1,7 @@
 # Current architecture and handoff — 29 October 2026
 
+For onboarding in the current code, open the [platform and assistant diagrams](sievance-agent-architecture.md#current-system-and-assistant-paths). The handoff below records the October 29 snapshot.
+
 This document describes the whole system **as it is in the working tree now**, including uncommitted changes. It covers every running and deployable part, not only CMO delivery verification. §13a maps the duplication, layering problems and size that make the repository feel bloated. Read [`Main_Culture_andETHOS.md`](../../Main_Culture_andETHOS.md) and [`AGENTS.md`](../../AGENTS.md) first. They govern design and product decisions: the four pillars (Easy to Start, Trust, Act, Adopt), provenance, permissions, human authorization, and no claims of validated results without evidence.
 
 **About 300 files are uncommitted**, including every real-backend frontend screen and its API clients. Run `git status` before changing anything. Treat unfamiliar changes as user work.
