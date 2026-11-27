@@ -82,6 +82,23 @@ for a full run.
 ./slurm.sh --simulation-dir "$SIM_DATA" --epochs 120
 ```
 
+### Continue training within a wall-time limit
+
+Point the launcher at the best checkpoint from the previous job. This uses the
+original `dataset.json` and fit settings from that run, starts a fresh Adam
+optimizer, and trains both parameter groups from the first additional epoch.
+Choose an epoch budget based on the previous job's pace.
+
+```bash
+PREVIOUS="$SCRATCH/biocore-lyo/run-12345/best.safetensors"
+./slurm.sh --init-from "$PREVIOUS" --epochs 2500
+```
+
+Each submission writes a new run directory. The starting weights are saved at
+once as the baseline best checkpoint, labeled epoch `-1` in checkpoint metadata.
+If validation improves, the new best replaces it. The CSV numbers additional
+epochs from zero. Use the best checkpoint from the new job to start another.
+
 ### Plot loss and learning rates
 
 From this directory, with your Python environment activated, install Matplotlib

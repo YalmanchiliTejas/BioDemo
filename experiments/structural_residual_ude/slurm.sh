@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Run with: ./slurm.sh --simulation-dir /path/to/splits --smoke
+# Arguments are forwarded to biocore.method_a.train.
+# Smoke test: ./slurm.sh --simulation-dir /path/to/splits --smoke
+# Continue from a checkpoint: ./slurm.sh --init-from /path/to/run/best.safetensors --epochs 2500
 # Override the Scholar settings with SBATCH_ACCOUNT, SBATCH_PARTITION, SBATCH_QOS, or SBATCH_TIMELIMIT.
 
 #SBATCH --job-name=biocore-lyo

@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from .artifact import save_artifact, sha256, write_json
+from .artifact import load_artifact, save_artifact, sha256, write_json
 from .config import LyoModelConfig, LyoTrainConfig, seed_everything
 from .loss import LOSS_COMPONENTS, lyophilization_loss, weighted_loss_components
 from .lyo_data import (
@@ -88,15 +88,45 @@ def train(data: LyoDataset, output: Path, config: LyoTrainConfig | None = None,
     validate_splits(data)
     model_config = model_config or LyoModelConfig(
         completion_remaining_fraction=data.completion_remaining_fraction)
-    if model_config.completion_remaining_fraction != data.completion_remaining_fraction:
-        raise ValueError("Model and observed endpoint definitions must use the same completion fraction")
     seed_everything(config.seed)
-    output = Path(output)
+    return _fit(data, Path(output), config, HybridLyophilizationUDE(model_config))
+
+
+def warm_start(checkpoint: Path, output: Path, epochs: int, seed: int | None = None) -> Path:
+    """Fit the original dataset starting from a verified checkpoint's weights."""
+    checkpoint, output = Path(checkpoint), Path(output)
+    if output.resolve() == checkpoint.parent.resolve():
+        raise ValueError("Choose an output directory separate from the input checkpoint")
+    model, document = load_artifact(checkpoint)
+    if not isinstance(model, HybridLyophilizationUDE):
+        raise ValueError("Warm starts require a lyophilization checkpoint")
+    metadata = document["metadata"]
+    snapshot = checkpoint.parent / "dataset.json"
+    if sha256(snapshot) != metadata["dataset_sha256"]:
+        raise ValueError("Saved dataset snapshot SHA-256 mismatch")
+    data = load_dataset(snapshot)
+    settings = {**metadata["train"], "epochs": epochs, "warmup_fraction": 0.}
+    if seed is not None:
+        settings["seed"] = seed
+    config = LyoTrainConfig.model_validate(settings)
+    seed_everything(config.seed)
+    model.requires_grad_(True)
+    initialization = {
+        "source_checkpoint_sha256": document["weights_sha256"],
+        "source_best_epoch": metadata["best_epoch"],
+        "source_validation_loss": metadata["val_loss"],
+    }
+    return _fit(data, output, config, model, initialization)
+
+
+def _fit(data: LyoDataset, output: Path, config: LyoTrainConfig,
+         model: HybridLyophilizationUDE, initialization: dict | None = None) -> Path:
+    if model.config.completion_remaining_fraction != data.completion_remaining_fraction:
+        raise ValueError("Model and observed endpoint definitions must use the same completion fraction")
     output.mkdir(parents=True, exist_ok=True)
     # Snapshot actual observations/splits so evaluation never regenerates a
     # different dataset or reads a synthetic plant as an experimental source.
     save_dataset(data, output / "dataset.json")
-    model = HybridLyophilizationUDE(model_config)
     solver = LyophilizationSolver(model)
     optimizer = torch.optim.Adam([
         {"params": model.physics_core.parameters(), "lr": config.physics_lr, "weight_decay": 0.},
@@ -105,6 +135,21 @@ def train(data: LyoDataset, output: Path, config: LyoTrainConfig | None = None,
     rng = np.random.default_rng(config.seed)
     history, best, stale = [], float("inf"), 0
     checkpoint = output / "best.safetensors"
+    split_ids = data.split_ids()
+    metadata = {
+        "train": config.model_dump(), "dataset_seed": data.seed, "split_ids": split_ids,
+        "data_sha256": {name: data_fingerprint(getattr(data, name)) for name in split_ids},
+        "dataset_file": "dataset.json", "dataset_sha256": sha256(output / "dataset.json"),
+        "data_provenance": data.provenance,
+        "objective": "equal-vial normalized temperature/layer/endpoint + validity/coverage/residual penalties",
+        "initial_state_source": "explicit supplied initial dried-layer state",
+        "warmup": "freeze residual network; always solve full time window",
+    }
+    if initialization is not None:
+        metadata.update(warm_start=initialization, warmup="skip warmup; load fitted weights")
+        best = validation_terms(model, solver, data.val, config)["total"]
+        save_artifact(model, checkpoint, {**metadata, "best_epoch": -1, "val_loss": best})
+        print(f"warm_start_validation_loss={best:.7g}", flush=True)
     warmup_epochs = int(config.epochs*config.warmup_fraction)
     metrics_columns = ("epoch", "phase", "train_loss", "val_loss", "physics_lr", "residual_lr")
     component_columns = tuple(f"{split}_{name}_loss" for split in ("train", "val") for name in LOSS_COMPONENTS)
@@ -158,15 +203,7 @@ def train(data: LyoDataset, output: Path, config: LyoTrainConfig | None = None,
                   f"residual_lr={residual_lr:g} nfe={row['mean_n_f_evals']:.1f}", flush=True)
             if row["val_loss"] < best-config.min_delta:
                 best, stale = row["val_loss"], 0
-                save_artifact(model, checkpoint, {
-                    "train": config.model_dump(), "dataset_seed": data.seed, "split_ids": data.split_ids(),
-                    "data_sha256": {name: data_fingerprint(getattr(data, name)) for name in data.split_ids()},
-                    "dataset_file": "dataset.json", "dataset_sha256": sha256(output / "dataset.json"),
-                    "data_provenance": data.provenance, "best_epoch": epoch, "val_loss": best,
-                    "objective": "equal-vial normalized temperature/layer/endpoint + validity/coverage/residual penalties",
-                    "initial_state_source": "explicit supplied initial dried-layer state",
-                    "warmup": "freeze residual network; always solve full time window",
-                })
+                save_artifact(model, checkpoint, {**metadata, "best_epoch": epoch, "val_loss": best})
             elif not warmup:
                 stale += 1
             if stale >= config.patience:
@@ -180,22 +217,28 @@ def main():
     source = parser.add_mutually_exclusive_group()
     source.add_argument("--data", type=Path, help="SI lyophilization dataset JSON")
     source.add_argument("--simulation-dir", type=Path, help="Split files generated by biocore.simulation")
+    source.add_argument("--init-from", type=Path, help="Warm-start from a checkpoint and its saved dataset")
     parser.add_argument("--output", type=Path, default=Path("artifacts/lyophilization"))
     parser.add_argument("--epochs", type=int, help="Maximum epochs (default: 120, or 5 in smoke mode)")
     parser.add_argument("--smoke", action="store_true", help="Use one batch from each available split")
-    parser.add_argument("--seed", type=int, default=2023)
+    parser.add_argument("--seed", type=int, help="Training seed (default: source checkpoint seed or 2023)")
     args = parser.parse_args()
     epochs = args.epochs if args.epochs is not None else (5 if args.smoke else 120)
-    config = LyoTrainConfig(seed=args.seed, epochs=epochs)
-    if args.simulation_dir:
-        data = load_simulation_dataset(args.simulation_dir)
-    elif args.data:
-        data = load_dataset(args.data)
+    if args.init_from:
+        if args.smoke:
+            parser.error("--smoke cannot be used with --init-from; the checkpoint's full split is reused")
+        path = warm_start(args.init_from, args.output, epochs, args.seed)
     else:
-        data = make_dataset(args.seed)
-    if args.smoke:
-        data = replace(data, train=data.train[:1], val=data.val[:1], test=data.test[:1], faults=data.faults[:1])
-    path = train(data, args.output, config)
+        config = LyoTrainConfig(seed=2023 if args.seed is None else args.seed, epochs=epochs)
+        if args.simulation_dir:
+            data = load_simulation_dataset(args.simulation_dir)
+        elif args.data:
+            data = load_dataset(args.data)
+        else:
+            data = make_dataset(config.seed)
+        if args.smoke:
+            data = replace(data, train=data.train[:1], val=data.val[:1], test=data.test[:1], faults=data.faults[:1])
+        path = train(data, args.output, config)
     print(f"Lyophilization checkpoint: {path}")
 
 

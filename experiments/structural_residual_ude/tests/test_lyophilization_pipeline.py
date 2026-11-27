@@ -14,7 +14,7 @@ from biocore.method_a.lyo_data import (
     load_dataset, load_simulation_dataset, make_dataset, save_dataset, validate_splits,
 )
 from biocore.method_a.model import HybridLyophilizationUDE, LyophilizationSolver
-from biocore.method_a.train import data_fingerprint, minibatches, solve_batches, train
+from biocore.method_a.train import data_fingerprint, minibatches, solve_batches, train, warm_start
 
 
 @pytest.fixture(scope="module")
@@ -260,6 +260,28 @@ def test_fitting_ignores_all_benchmark_truth(data, tmp_path):
     model_b, document_b = load_artifact(b)
     assert document_a == document_b
     assert all(torch.equal(value, model_b.state_dict()[key]) for key, value in model_a.state_dict().items())
+
+
+def test_warm_start_keeps_source_checkpoint_as_baseline(data, tmp_path):
+    small = replace(data, train=data.train[:1], val=data.val[:1], test=data.test[:1], faults=())
+    config = LyoTrainConfig(epochs=1, min_delta=1e6)
+    source = train(small, tmp_path/"source", config)
+    with pytest.raises(ValueError, match="separate"):
+        warm_start(source, source.parent, 2)
+    target = warm_start(source, tmp_path/"target", 2)
+    _, source_doc = load_artifact(source)
+    _, target_doc = load_artifact(target)
+    parent, result = source_doc["metadata"], target_doc["metadata"]
+    assert target_doc["weights_sha256"] == source_doc["weights_sha256"]
+    assert result["best_epoch"] == -1
+    assert result["val_loss"] == pytest.approx(parent["val_loss"])
+    assert result["split_ids"] == parent["split_ids"]
+    assert result["dataset_sha256"] == parent["dataset_sha256"]
+    assert result["warm_start"]["source_best_epoch"] == parent["best_epoch"]
+    assert result["train"] == {**parent["train"], "epochs": 2, "warmup_fraction": 0.}
+    history = json.loads((target.parent/"training_history.json").read_text())
+    assert len(history) == 2
+    assert all(row["phase"] == "hybrid" and row["grad_norm_mlp"] > 0 for row in history)
 
 
 def test_few_shot_reports_actual_subset_sizes_without_inventing_a_trend(data, tmp_path):
