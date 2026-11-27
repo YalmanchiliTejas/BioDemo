@@ -67,8 +67,10 @@ python -m biocore.simulation --output "$SIM_DATA"
 SBATCH_TIMELIMIT=00:15:00 ./slurm.sh --simulation-dir "$SIM_DATA" --smoke
 ```
 
-Set `SBATCH_ACCOUNT` or `SBATCH_PARTITION` if your cluster requires them. The
-launcher requests one CPU and 4 GB of memory by default. It writes job logs to
+The launcher defaults to Purdue Scholar's `scholar` account, `cpu` partition,
+and `normal` QoS. It requests one CPU and 4 GB of memory. Set `SBATCH_ACCOUNT`,
+`SBATCH_PARTITION`, or `SBATCH_QOS` to override those scheduler settings.
+It writes job logs to
 `$SCRATCH/biocore-lyo/slurm-<jobid>.out` and `.err`, and training artifacts to
 `$SCRATCH/biocore-lyo/run-<jobid>/`. Set `BIOCORE_RUN_ROOT` to use a different
 shared output directory.
@@ -79,6 +81,24 @@ for a full run.
 ```bash
 ./slurm.sh --simulation-dir "$SIM_DATA" --epochs 120
 ```
+
+### Plot loss and learning rates
+
+From this directory, with your Python environment activated, install Matplotlib
+and replace `12345` with the job ID.
+
+```bash
+python -m pip install matplotlib
+JOB_ID=12345
+RUN_DIR="$SCRATCH/biocore-lyo/run-${JOB_ID}"
+python plot_training.py "$RUN_DIR"
+```
+
+Open `$RUN_DIR/training_curves.png` to see the training and validation loss,
+both optimizer learning rates, and where hybrid training begins. The residual
+group's logged learning rate is its optimizer setting. Its parameters are frozen
+during the physics-only warmup. Rerun the command to refresh the plot after more
+epochs finish. For a local smoke test, use `python plot_training.py artifacts/smoke`.
 
 ## Observations and SI data contract
 

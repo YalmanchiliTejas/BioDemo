@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # Run with: ./slurm.sh --simulation-dir /path/to/splits --smoke
-# Set SBATCH_ACCOUNT, SBATCH_PARTITION, or SBATCH_TIMELIMIT to override site defaults.
+# Override the Scholar settings with SBATCH_ACCOUNT, SBATCH_PARTITION, SBATCH_QOS, or SBATCH_TIMELIMIT.
 
 #SBATCH --job-name=biocore-lyo
+#SBATCH --account=scholar
+#SBATCH --partition=cpu
+#SBATCH --qos=normal
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
 #SBATCH --time=04:00:00
 #SBATCH --open-mode=append
-#SBATCH --account=gpu
 
 set -euo pipefail
 
