@@ -100,6 +100,18 @@ group's logged learning rate is its optimizer setting. Its parameters are frozen
 during the physics-only warmup. Rerun the command to refresh the plot after more
 epochs finish. For a local smoke test, use `python plot_training.py artifacts/smoke`.
 
+If a job is still running or stopped before training finished, the detailed
+`training_history.json` may be absent. Recompute the weighted validation-loss
+components for the saved best epoch using that run's checkpoint and dataset
+snapshot.
+
+```bash
+python -m biocore.method_a.evaluate "$RUN_DIR/best.safetensors" --validation-loss-only
+```
+
+The command uses the original validation split. The printed components sum to
+the recomputed validation loss, up to floating-point rounding.
+
 ## Observations and SI data contract
 
 `lyo_data.py` defines `LyoBatch` and `LyoDataset`. A batch has:
@@ -268,7 +280,7 @@ declare process accuracy based on synthetic thresholds.
 | `best.json` | Schema v2, model type, SI units, model/training config, software versions, best validation epoch, source provenance, split IDs and fingerprints. |
 | `best.sha256.json` | Weight/sidecar integrity hashes. Hashes detect changes, not publisher authenticity. |
 | `dataset.json` | Actual observed input snapshot; no synthetic truth. Its hash is frozen in artifact metadata. |
-| `training_metrics.csv` | Flushed after each epoch. Contains train/validation loss, phase and both Adam learning rates. The residual group is frozen during `physics_only`. |
+| `training_metrics.csv` | Flushed after each epoch. Contains train/validation totals and weighted loss components, phase and both Adam learning rates. The residual group is frozen during `physics_only`. |
 | `training_history.json` | Written at the end of training. Contains loss components, phase, learning rates, gradient norms and solver work. |
 | `evaluation.json` | Held-out metrics, coverage/censoring, coefficient values, physical-validity diagnostics and limitations. |
 | `method_b_handoff.json` | Schema v2 SI trajectories with observed masks, discrepancies, heat/sublimation, Kv/Rp priors/corrections, endpoint status and validity flags. Undefined temperatures are null. |

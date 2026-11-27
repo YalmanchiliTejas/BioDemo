@@ -13,7 +13,7 @@ import torch
 
 from .artifact import save_artifact, sha256, write_json
 from .config import LyoModelConfig, LyoTrainConfig, seed_everything
-from .loss import lyophilization_loss
+from .loss import LOSS_COMPONENTS, lyophilization_loss, weighted_loss_components
 from .lyo_data import (
     LyoBatch, LyoDataset, load_dataset, load_simulation_dataset, make_dataset, save_dataset,
     validate_splits,
@@ -62,7 +62,11 @@ def gradient_norm(parameters) -> float:
                          for p in parameters if p.grad is not None))
 
 
-def _validation(model, solver, batches, config):
+def validation_terms(
+    model: HybridLyophilizationUDE, solver: LyophilizationSolver,
+    batches: tuple[LyoBatch, ...], config: LyoTrainConfig,
+) -> dict[str, float]:
+    """Evaluate the frozen validation objective with the training aggregation."""
     sums, count = defaultdict(float), 0
     with torch.no_grad():
         for group in minibatches(batches, config.batch_size):
@@ -102,11 +106,10 @@ def train(data: LyoDataset, output: Path, config: LyoTrainConfig | None = None,
     history, best, stale = [], float("inf"), 0
     checkpoint = output / "best.safetensors"
     warmup_epochs = int(config.epochs*config.warmup_fraction)
+    metrics_columns = ("epoch", "phase", "train_loss", "val_loss", "physics_lr", "residual_lr")
+    component_columns = tuple(f"{split}_{name}_loss" for split in ("train", "val") for name in LOSS_COMPONENTS)
     with (output / "training_metrics.csv").open("w", newline="") as metrics_file:
-        metrics = csv.DictWriter(
-            metrics_file, ("epoch", "phase", "train_loss", "val_loss", "physics_lr", "residual_lr"),
-            extrasaction="ignore",
-        )
+        metrics = csv.DictWriter(metrics_file, metrics_columns + component_columns, extrasaction="ignore")
         metrics.writeheader()
         metrics_file.flush()
         for epoch in range(config.epochs):
@@ -135,7 +138,7 @@ def train(data: LyoDataset, output: Path, config: LyoTrainConfig | None = None,
                 count += len(group)
                 nfes.extend(solution.stats["n_f_evals"].tolist())
             model.eval()
-            validation = _validation(model, solver, data.val, config)
+            validation = validation_terms(model, solver, data.val, config)
             row = {"epoch": epoch, "phase": "physics_only" if warmup else "hybrid",
                    "train": {name: value/count for name, value in sums.items()}, "validation": validation,
                    "train_loss": sums["total"]/count, "val_loss": validation["total"],
@@ -143,7 +146,12 @@ def train(data: LyoDataset, output: Path, config: LyoTrainConfig | None = None,
                    "grad_norm_phys": float(np.mean(grad_phys)), "grad_norm_mlp": float(np.mean(grad_mlp)),
                    "mean_n_f_evals": float(np.mean(nfes))}
             history.append(row)
-            metrics.writerow(row)
+            contributions = {
+                f"{split}_{name}_loss": value
+                for split, terms in (("train", row["train"]), ("val", validation))
+                for name, value in weighted_loss_components(terms, config).items()
+            }
+            metrics.writerow({**row, **contributions})
             metrics_file.flush()
             print(f"epoch={epoch} phase={row['phase']} train_loss={row['train_loss']:.7g} "
                   f"val_loss={row['val_loss']:.7g} physics_lr={physics_lr:g} "

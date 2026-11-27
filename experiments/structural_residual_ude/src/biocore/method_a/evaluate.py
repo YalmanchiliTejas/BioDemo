@@ -1,6 +1,7 @@
 """Frozen lyophilization scoring with coverage, endpoint censoring and provenance."""
 import argparse
 from dataclasses import replace
+import json
 from pathlib import Path
 
 import numpy as np
@@ -8,7 +9,7 @@ import torch
 
 from .artifact import load_artifact, sha256, write_json
 from .config import DTYPE, LyoTrainConfig, seed_everything
-from .loss import drying_duration_loss
+from .loss import drying_duration_loss, weighted_loss_components
 from .lyo_data import LyoBatch, LyoDataset, load_dataset, validate_batch, validate_splits
 from .model import HybridLyophilizationUDE, LyophilizationSolver
 
@@ -145,8 +146,7 @@ def score_model(model: HybridLyophilizationUDE, batches: tuple[LyoBatch, ...]) -
             "per_batch": per_batch, "handoff": handoff}
 
 
-@torch.no_grad()
-def evaluate(path: Path, data: LyoDataset, output: Path, strict: bool = True) -> dict:
+def _verified_model(path: Path, data: LyoDataset) -> tuple[HybridLyophilizationUDE, dict]:
     model, document = load_artifact(path)
     if not isinstance(model, HybridLyophilizationUDE):
         raise ValueError("This evaluator accepts lyophilization artifacts; fermentation artifacts retain their own model type")
@@ -160,6 +160,27 @@ def evaluate(path: Path, data: LyoDataset, output: Path, strict: bool = True) ->
         raise ValueError("Dataset provenance, split IDs or endpoint definition differs from frozen training")
     if any(data_fingerprint(getattr(data, name)) != meta["data_sha256"][name] for name in data.split_ids()):
         raise ValueError("Dataset observations/controls/endpoints differ from frozen provenance")
+    return model, meta
+
+
+def checkpoint_validation_loss(path: Path, data: LyoDataset) -> dict:
+    """Recompute the validation loss recorded when the checkpoint was saved."""
+    from .train import validation_terms
+
+    model, meta = _verified_model(path, data)
+    config = LyoTrainConfig.model_validate(meta["train"])
+    terms = validation_terms(model, LyophilizationSolver(model), data.val, config)
+    return {
+        "checkpoint_epoch": meta["best_epoch"],
+        "recorded_validation_loss": meta["val_loss"],
+        "recomputed_validation_loss": terms["total"],
+        "weighted_components": weighted_loss_components(terms, config),
+    }
+
+
+@torch.no_grad()
+def evaluate(path: Path, data: LyoDataset, output: Path, strict: bool = True) -> dict:
+    model, _ = _verified_model(path, data)
     normal = score_model(model, data.test)
     faults = score_model(model, data.faults)
     normal_rows, fault_rows = normal.pop("handoff"), faults.pop("handoff")
@@ -223,7 +244,10 @@ def main():
     parser.add_argument("artifact", type=Path)
     parser.add_argument("--data", type=Path, help="Defaults to the hashed dataset.json beside the checkpoint")
     parser.add_argument("--output", type=Path, default=Path("artifacts/lyophilization-evaluation"))
-    parser.add_argument("--few-shot-epochs", type=int, default=0)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--few-shot-epochs", type=int, default=0)
+    mode.add_argument("--validation-loss-only", action="store_true",
+                      help="Print the checkpoint's validation loss and weighted components")
     parser.add_argument("--report-only", action="store_true", help="Write melt-bound diagnostics without a strict physical-validity error")
     args = parser.parse_args()
     _, document = load_artifact(args.artifact)
@@ -231,6 +255,9 @@ def main():
     if args.data is None and sha256(path) != document["metadata"]["dataset_sha256"]:
         raise ValueError("Saved dataset snapshot SHA-256 mismatch")
     data = load_dataset(path)
+    if args.validation_loss_only:
+        print(json.dumps(checkpoint_validation_loss(args.artifact, data), indent=2))
+        return
     report = evaluate(args.artifact, data, args.output, strict=not args.report_only)
     if args.few_shot_epochs > 0:
         report["few_shot_scaling"] = few_shot_scaling(data, args.output/"few_shot", args.few_shot_epochs)

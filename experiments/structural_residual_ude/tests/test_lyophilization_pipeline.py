@@ -8,7 +8,7 @@ import torch
 
 from biocore.method_a.artifact import load_artifact, save_artifact, sha256, write_json
 from biocore.method_a.config import DTYPE, LyoModelConfig, LyoTrainConfig, seed_everything
-from biocore.method_a.evaluate import evaluate, few_shot_scaling, score_model
+from biocore.method_a.evaluate import checkpoint_validation_loss, evaluate, few_shot_scaling, score_model
 from biocore.method_a.loss import lyophilization_loss
 from biocore.method_a.lyo_data import (
     load_dataset, load_simulation_dataset, make_dataset, save_dataset, validate_splits,
@@ -212,12 +212,27 @@ def test_training_provenance_warmup_and_evaluation(data, tmp_path):
         assert metric["phase"] == row["phase"]
         for key in ("train_loss", "val_loss", "physics_lr", "residual_lr"):
             assert float(metric[key]) == row[key]
+        for split, history_key in (("train", "train"), ("val", "validation")):
+            contributions = {
+                name: float(metric[f"{split}_{name}_loss"])
+                for name in row[history_key] if name != "total"
+            }
+            assert sum(contributions.values()) == pytest.approx(row[f"{split}_loss"])
+            assert contributions["duration"] == row[history_key]["duration"] * config.duration_weight
         assert row["physics_lr"] == config.physics_lr
         assert row["residual_lr"] == config.residual_lr
     assert history[0]["phase"] == "physics_only" and history[0]["grad_norm_mlp"] == 0.
     assert history[1]["phase"] == "hybrid" and history[1]["grad_norm_mlp"] > 0.
     assert {"temperature", "duration", "coverage", "operating", "residual", "state", "total"} == set(history[0]["train"])
     assert all(row["grad_norm_phys"] > 0 for row in history)
+    breakdown = checkpoint_validation_loss(path, load_dataset(path.parent/"dataset.json"))
+    best = history[breakdown["checkpoint_epoch"]]
+    assert breakdown["recorded_validation_loss"] == best["val_loss"]
+    assert breakdown["recomputed_validation_loss"] == pytest.approx(best["val_loss"])
+    assert breakdown["weighted_components"] == pytest.approx({
+        name: float(metrics[best["epoch"]][f"val_{name}_loss"])
+        for name in best["validation"] if name != "total"
+    })
     report = evaluate(path, data, tmp_path/"eval")
     assert report["model_type"] == "lyophilization"
     assert report["auroc_cohort_sizes"] == {"normal": 2, "fault": 2}

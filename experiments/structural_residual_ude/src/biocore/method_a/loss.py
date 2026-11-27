@@ -7,6 +7,14 @@ from .model import HybridLyophilizationUDE, LyophilizationSolution
 from .lyo_data import LyoBatch
 
 
+LOSS_COMPONENTS = ("temperature", "state", "duration", "operating", "coverage", "residual")
+
+
+def weighted_loss_components(terms, config: LyoTrainConfig):
+    """Return each term's contribution to the total objective."""
+    return {name: terms[name]*getattr(config, f"{name}_weight") for name in LOSS_COMPONENTS}
+
+
 def fit_state_scale(batches: tuple[Batch, ...]) -> torch.Tensor:
     """Legacy fermentation-only scaling; not used by lyophilization fitting."""
     scales = []
@@ -115,7 +123,7 @@ def lyophilization_loss(model: HybridLyophilizationUDE, solution: Lyophilization
     prior, correction = model.rates(solution.ys, args, solution.ts)
     ratio = solution.ys.new_tensor(model.config.completion_remaining_fraction / model.config.depletion_fraction)
     threshold = ratio + torch.log(-torch.expm1(-ratio))
-    terms = {name: [] for name in ("temperature", "state", "duration", "operating", "coverage", "residual")}
+    terms = {name: [] for name in LOSS_COMPONENTS}
     for i, batch in enumerate(batches):
         d = {key: value[i] for key, value in diagnostics.items()}
         temperature_mask = batch.obs_mask[:, 0] & batch.primary_mask
@@ -137,5 +145,5 @@ def lyophilization_loss(model: HybridLyophilizationUDE, solution: Lyophilization
         # A relative correction per coefficient avoids mixing Kv and Rp units.
         terms["residual"].append((correction[i]/prior[i]).square().mean())
     result = {name: torch.stack(values).mean() for name, values in terms.items()}
-    result["total"] = sum(getattr(config, f"{name}_weight")*value for name, value in result.items())
+    result["total"] = sum(weighted_loss_components(result, config).values())
     return result
