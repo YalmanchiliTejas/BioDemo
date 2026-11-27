@@ -8,10 +8,11 @@
 #SBATCH --qos=normal
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
-#SBATCH --mem=4G
+#SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:2
+#SBATCH --mem=64G
 #SBATCH --time=04:00:00
-#SBATCH --open-mode=append
+#SBATCH --partition=gpu
 
 set -euo pipefail
 
