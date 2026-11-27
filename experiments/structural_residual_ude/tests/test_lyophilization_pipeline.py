@@ -14,7 +14,7 @@ from biocore.method_a.lyo_data import (
     load_dataset, load_simulation_dataset, make_dataset, save_dataset, validate_splits,
 )
 from biocore.method_a.model import HybridLyophilizationUDE, LyophilizationSolver
-from biocore.method_a.train import data_fingerprint, minibatches, solve_batches, train, warm_start
+from biocore.method_a.train import data_fingerprint, minibatches, solve_batches, train, validation_terms, warm_start
 
 
 @pytest.fixture(scope="module")
@@ -235,6 +235,13 @@ def test_training_provenance_warmup_and_evaluation(data, tmp_path):
     })
     report = evaluate(path, data, tmp_path/"eval")
     assert report["model_type"] == "lyophilization"
+    assert report["checkpoint_epoch"] == best["epoch"]
+    assert report["checkpoint_validation_loss"] == best["val_loss"]
+    model, _ = load_artifact(path)
+    test_objective = validation_terms(model, LyophilizationSolver(model), data.test, config)
+    test_loss = report["normal_test"]["loss"]
+    assert test_loss["total"] == pytest.approx(test_objective["total"])
+    assert sum(test_loss["weighted_components"].values()) == pytest.approx(test_loss["total"])
     assert report["auroc_cohort_sizes"] == {"normal": 2, "fault": 2}
     assert report["normal_test"]["endpoint_metrics_s"]["rmse"] is not None
     handoff = json.loads((tmp_path/"eval"/"method_b_handoff.json").read_text())

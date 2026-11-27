@@ -180,8 +180,16 @@ def checkpoint_validation_loss(path: Path, data: LyoDataset) -> dict:
 
 @torch.no_grad()
 def evaluate(path: Path, data: LyoDataset, output: Path, strict: bool = True) -> dict:
-    model, _ = _verified_model(path, data)
+    from .train import validation_terms
+
+    model, meta = _verified_model(path, data)
+    config = LyoTrainConfig.model_validate(meta["train"])
+    test_terms = validation_terms(model, LyophilizationSolver(model), data.test, config)
     normal = score_model(model, data.test)
+    normal["loss"] = {
+        "total": test_terms["total"],
+        "weighted_components": weighted_loss_components(test_terms, config),
+    }
     faults = score_model(model, data.faults)
     normal_rows, fault_rows = normal.pop("handoff"), faults.pop("handoff")
     # Labels are attached only after each label-blind prediction/score.
@@ -193,6 +201,7 @@ def evaluate(path: Path, data: LyoDataset, output: Path, strict: bool = True) ->
     auc = auroc(normal_scores, fault_scores) if normal_scores and fault_scores else None
     report = {
         "schema_version": 2, "model_type": "lyophilization", "artifact_sha256": sha256(Path(path)),
+        "checkpoint_epoch": meta["best_epoch"], "checkpoint_validation_loss": meta["val_loss"],
         "data_provenance": data.provenance, "normal_test": normal, "fault_test": faults,
         "forecast_conditioning": "supplied initial dried layer and known controls only; no observations assimilated",
         "physical_constants": {name: float(v) for name, v in model.physics_core.constants().items()},
@@ -262,8 +271,20 @@ def main():
     if args.few_shot_epochs > 0:
         report["few_shot_scaling"] = few_shot_scaling(data, args.output/"few_shot", args.few_shot_epochs)
         write_json(args.output/"evaluation.json", report)
-    print(f"Temperature metrics: {report['normal_test']['metrics']['bottom_temperature_k']}")
-    print(f"Endpoint metrics (s): {report['normal_test']['endpoint_metrics_s']}")
+    normal = report["normal_test"]
+    coverage = normal["temperature_coverage"]
+    endpoints = normal["endpoints"]
+    print(f"Checkpoint epoch: {report['checkpoint_epoch']}")
+    print(f"Validation loss at checkpoint: {report['checkpoint_validation_loss']:.7g}")
+    print(f"Normal test loss ({len(normal['per_batch'])} batches): {normal['loss']['total']:.7g}")
+    print(f"Temperature metrics: {normal['metrics']['bottom_temperature_k']}")
+    print(f"Temperature coverage: {coverage['scored']}/{coverage['eligible']} eligible observations")
+    print(f"Dried layer metrics (m): {normal['metrics']['dried_layer_m']}")
+    print(f"Endpoint metrics (s): {normal['endpoint_metrics_s']}")
+    print(f"Endpoint counts: {endpoints}")
+    print(f"Fault endpoint AUROC: {report['fault_endpoint_auroc']} (cohorts: {report['auroc_cohort_sizes']})")
+    print(f"Physical validity pass: {report['physical_validity_pass']}")
+    print(f"Evaluation report: {args.output / 'evaluation.json'}")
 
 
 if __name__ == "__main__":

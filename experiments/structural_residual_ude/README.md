@@ -129,6 +129,24 @@ python -m biocore.method_a.evaluate "$RUN_DIR/best.safetensors" --validation-los
 The command uses the original validation split. The printed components sum to
 the recomputed validation loss, up to floating-point rounding.
 
+### Score a checkpoint on the test split
+
+With the experiment's Python environment active, pass the Slurm job ID or the
+run directory containing `best.safetensors` and `dataset.json`.
+
+```bash
+./test_checkpoint.sh 495909
+# For a local run, use its directory.
+./test_checkpoint.sh artifacts/smoke
+```
+
+The evaluator uses the original frozen test split. It prints the saved
+validation loss and the comparable normal-test loss, plus RMSE, MAE, R²,
+temperature coverage and drying-endpoint counts. Fault AUROC is reported
+separately. The full results go to `evaluation/evaluation.json` inside the run
+directory. Choose training and model changes using validation results so the
+test split remains a held-out check.
+
 ## Observations and SI data contract
 
 `lyo_data.py` defines `LyoBatch` and `LyoDataset`. A batch has:

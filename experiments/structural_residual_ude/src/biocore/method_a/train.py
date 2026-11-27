@@ -66,7 +66,7 @@ def validation_terms(
     model: HybridLyophilizationUDE, solver: LyophilizationSolver,
     batches: tuple[LyoBatch, ...], config: LyoTrainConfig,
 ) -> dict[str, float]:
-    """Evaluate the frozen validation objective with the training aggregation."""
+    """Score a frozen split using the training objective and equal-vial averaging."""
     sums, count = defaultdict(float), 0
     with torch.no_grad():
         for group in minibatches(batches, config.batch_size):
@@ -76,7 +76,7 @@ def validation_terms(
             count += len(group)
     result = {name: value/count for name, value in sums.items()}
     if not all(math.isfinite(value) for value in result.values()):
-        raise RuntimeError("Nonfinite validation objective")
+        raise RuntimeError("Nonfinite evaluation objective")
     return result
 
 
