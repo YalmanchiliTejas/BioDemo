@@ -91,12 +91,13 @@ function GuideNarration({ text }: { text: string }) {
   </div>;
 }
 
-export function PointingGuide({ label, anchor, focusKey, narration, locate, onClose, children }: {
+export function PointingGuide({ label, anchor, focusKey, narration, locate, reveal, onClose, children }: {
   label: string;
   anchor?: string;
   focusKey?: string;
   narration?: string;
   locate?: boolean;
+  reveal?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -109,6 +110,7 @@ export function PointingGuide({ label, anchor, focusKey, narration, locate, onCl
     const cursor = cursorRef.current!;
     let highlighted: HTMLElement | null = null;
     let observed: HTMLElement | null = null;
+    let revealPending = reveal;
     let frame = 0;
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(place);
@@ -117,7 +119,14 @@ export function PointingGuide({ label, anchor, focusKey, narration, locate, onCl
     function place() {
       frame = 0;
       const node = findAnchor(anchor);
-      const rect = visibleRect(node);
+      let rect = visibleRect(node);
+      if (node && revealPending) {
+        revealPending = false;
+        if (!rect) {
+          node.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+          rect = visibleRect(node);
+        }
+      }
       if (observed !== node) {
         if (observed) resize.unobserve(observed);
         observed = node;
@@ -153,7 +162,7 @@ export function PointingGuide({ label, anchor, focusKey, narration, locate, onCl
       window.removeEventListener('resize', schedule);
       window.removeEventListener('scroll', schedule, true);
     };
-  }, [anchor, locate]);
+  }, [anchor, locate, reveal]);
 
   useEffect(() => {
     panelRef.current?.focus({ preventScroll: true });

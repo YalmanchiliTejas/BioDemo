@@ -19,7 +19,7 @@ export function SummaryCardView({ icon, title, about, href, value, status, tone 
   const state = TONES.includes(tone as Tone) ? tone : 'quiet';
   // A view may only lead to a registered destination, whatever it declares.
   const target = (DESTINATIONS as readonly string[]).includes(href) ? href : '/dashboard/';
-  return <Link href={target} className="summary-card" data-tone={state} aria-busy={state === 'loading' || undefined}>
+  return <Link href={target} className="summary-card" data-guide="overview-summary" data-tone={state} aria-busy={state === 'loading' || undefined}>
     <span className="summary-card-head"><span className="summary-card-icon" aria-hidden><Icon size={16} strokeWidth={1.75} /></span><strong>{title}</strong><ArrowRight size={15} className="summary-card-arrow" aria-hidden /></span>
     {(value || status) && <span className="summary-card-figure">{value && <b>{value}</b>}{status && <span>{status}</span>}</span>}
     <span className="summary-card-about">{about}</span>

@@ -17,6 +17,7 @@ import { useView } from '@/lib/use-view';
 import { summarize, type Conversation, type Loaded, type State } from '@/lib/overview-summaries';
 import { WorkspacePageHeader } from '@/components/shell/WorkspacePageHeader';
 import { NativeOverview } from '@/components/overview/SummaryViews';
+import { OverviewGuideButton, OverviewOnboarding } from '@/components/overview/OverviewOnboarding';
 import { Worklist } from '@/components/worklist/Worklist';
 
 const LOADERS: Record<Source, (siteId: string) => Promise<unknown>> = {
@@ -50,7 +51,7 @@ export function WorkspaceDashboard() {
   const [loaded, setLoaded] = useState<Loaded>(() => cached<Kept>(cacheKey)?.loaded ?? {});
   const [state, setState] = useState<State>({});
   const [attempt, setAttempt] = useState(0);
-  // The worklist leads the page. The one-sentence summary is what remains if the worklist cannot be read.
+  // The worklist leads the page. The summaries can still load if the worklist cannot be read.
   const [worklist, setWorklist] = useState<'loading' | 'ready' | 'failed'>('loading');
   const sources = useMemo(() => sourcesFor(icp, isDemo), [icp, isDemo]);
   useEffect(() => {
@@ -84,12 +85,16 @@ export function WorkspaceDashboard() {
 
   return <div className="workspace-page" data-testid="workspace-dashboard">
     <WorkspacePageHeader title={firstName ? `Welcome back, ${firstName}` : 'Overview'} description=""
-      actions={<label className="overview-view">View<select id="overview-view" data-guide="overview-view" value={icp} onChange={e => choose(e.target.value as Icp)}>
+      actions={<><OverviewGuideButton /><label className="overview-view">View<select id="overview-view" data-guide="overview-view" value={icp} onChange={e => choose(e.target.value as Icp)}>
         {(Object.keys(ICP_LABEL) as Icp[]).map(key => <option key={key} value={key}>{ICP_LABEL[key]}</option>)}
-      </select></label>} />
+      </select></label></>} />
+    <OverviewOnboarding worklist={worklist} />
     {!!failures.length && <div role="alert" className="workspace-alert compact"><div><strong>Some information is unavailable.</strong> The affected summaries say why. Nothing has been changed.</div><button type="button" className="chrome-button" onClick={() => setAttempt(i => i + 1)}><RotateCw size={13} />Try again</button></div>}
     {organization && <Worklist key={`${orgId}:${siteId}:${attempt}`} siteId={siteId} onState={setWorklist} retryElsewhere={!!failures.length} />}
-    {(!organization || worklist === 'failed') && <section className="attention-summary" aria-label="Workspace status" aria-busy={busy}><p className="lead" role="status">{organization ? model.lead : 'Checking what needs your attention…'}</p></section>}
+    {(!organization || worklist === 'failed') && <section className="attention-summary" aria-label="Workspace status" aria-busy={busy}>
+      <p className="lead" role="status" tabIndex={-1} data-guide="overview-status">{organization ? 'The latest worklist couldn’t be read.' : 'Checking what needs your attention…'}</p>
+      {organization && <p className="mt-1 text-sm text-text-secondary">Use the summaries below to see which areas are available.</p>}
+    </section>}
     {/* Wait for the organization so a person never sees someone else's view flash by before their own. */}
     {organization && <SurfaceBoundary key={`${icp}:${isDemo}`} fallback={fallback}>
       {/* The plain view paints first; the A2UI surface replaces it once its code has loaded. */}

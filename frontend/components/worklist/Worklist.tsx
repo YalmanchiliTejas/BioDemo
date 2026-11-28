@@ -60,7 +60,7 @@ export function Worklist({ siteId, onState, retryElsewhere }: { siteId: string; 
   if (!data) return <section className="worklist" aria-label="Your work" data-testid="worklist" aria-busy={!error}>
     {error ? <p role="alert" className="text-xs text-status-warning">The list of what needs you could not be read. {error}{' '}
       {!retryElsewhere && <button type="button" className="text-brand-teal underline" onClick={() => void load()}>Try again</button>}</p>
-      : <p role="status" className="text-sm text-text-secondary">Checking what needs you…</p>}
+      : <p role="status" tabIndex={-1} data-guide="overview-worklist-loading" className="text-sm text-text-secondary">Checking what needs you…</p>}
   </section>;
 
   const rest = [data.counts.in_progress && `${data.counts.in_progress} in progress`, data.counts.done && `${data.counts.done} done in the last week`].filter(Boolean).join(' · ');
@@ -89,7 +89,7 @@ function ItemGroup({ group, title, empty, items, total, siteId, onDecided, onCha
   // An empty "in progress" or "done" says nothing a person needs; only "needs you" states that it is empty.
   if (!items.length && group !== 'needs_you') return null;
   return <div className="mt-5" data-testid={`worklist-${group}`}>
-    <h3 className="worklist-group-title">{title}{total > 0 && <span className="font-normal"> · {total}</span>}</h3>
+    <h3 className="worklist-group-title" tabIndex={group === 'needs_you' ? -1 : undefined} data-guide={group === 'needs_you' ? 'overview-needs-you' : undefined}>{title}{total > 0 && <span className="font-normal"> · {total}</span>}</h3>
     {!items.length ? <p className="mt-2 text-xs text-text-tertiary">{empty}</p>
       : <ul className="mt-2 divide-y divide-border-hairline rounded-control border border-border-hairline">{shown.map(item => <Row key={item.id} item={item} group={group} siteId={siteId} onDecided={onDecided} onChanged={onChanged} />)}</ul>}
     {items.length > shown.length && <button type="button" className="mt-2 text-xs text-brand-teal underline" onClick={() => setAll(true)}>Show all {items.length}</button>}

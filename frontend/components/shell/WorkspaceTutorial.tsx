@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ArrowLeft, ArrowUpRight, Check, CheckCircle2 } from 'lucide-react';
@@ -12,8 +12,16 @@ import { PointingGuide } from './PointingGuide';
 const demoDestinations = new Set(navGroups(true).flatMap(group => group.items.map(item => `${item.href}/`)));
 
 export function WorkspaceTutorial() {
-  const { opened } = useTutorial();
-  return opened ? <OpenWorkspaceGuide /> : null;
+  const { opened, topic, close } = useTutorial();
+  const onOverview = usePathname().replace(/\/$/, '') === '/dashboard';
+  const wasOnOverview = useRef(onOverview);
+  const dashboardTour = topic === 'dashboard' && (onOverview || wasOnOverview.current);
+  useEffect(() => {
+    const leftOverview = wasOnOverview.current && !onOverview;
+    wasOnOverview.current = onOverview;
+    if (leftOverview && topic === 'dashboard') close();
+  }, [onOverview, topic, close]);
+  return opened && !dashboardTour ? <OpenWorkspaceGuide /> : null;
 }
 
 function OpenWorkspaceGuide() {
@@ -35,7 +43,7 @@ function OpenWorkspaceGuide() {
       <button type="button" className="guide-back" onClick={() => guide.open()}><ArrowLeft size={14} /> All topics</button>
       <div aria-live="polite"><h2>{current.title}</h2><p>{current.body}</p></div>
       <div className="guide-actions">
-        {!arrived && <Link className="chrome-button primary" href={current.href}>Open {current.id === 'connections' ? 'connections' : current.id} <ArrowUpRight size={15} /></Link>}
+        {!arrived && <Link className="chrome-button primary" href={current.href}>Open {current.id === 'dashboard' ? 'Overview' : current.id} <ArrowUpRight size={15} /></Link>}
         <button type="button" className={`chrome-button${arrived ? ' primary' : ''}`} onClick={() => { guide.markSeen(current.id); guide.open(); }}><Check size={15} /> Got it</button>
       </div>
     </> : <>

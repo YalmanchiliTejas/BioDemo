@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { useWorkspace } from './workspace-context';
 
 export const GUIDE_TOPICS = [
-  { id: 'dashboard', label: 'Find your bearings', href: '/dashboard/', target: 'dashboard', control: 'overview-view', title: 'Find the work that needs you', body: 'Use View to see the summaries for your role. Open a summary to go straight to the work.' },
+  { id: 'dashboard', label: 'Find your bearings', href: '/dashboard/', target: 'dashboard', control: 'overview-view', title: 'Get oriented on Overview', body: 'See where to find work waiting for you, change your view, and open the records behind a summary.' },
   { id: 'connections', label: 'Connect your data', href: '/sources/', target: 'connections', control: 'setup-source-search', title: 'Start with a source you already use', body: 'Find an authorized system and check a sample against its source. You choose when collection starts.' },
   { id: 'deliveries', label: 'Check a delivery', href: '/cmo/', target: 'deliveries', control: 'delivery-files', title: 'Follow a value back to its source', body: 'Choose a delivery or upload approved files. Compare the extracted values with their originals before accepting them.' },
   { id: 'assistant', label: 'Ask with context', href: '/home/', target: 'assistant', control: 'assistant-question', title: 'Bring a question and the relevant evidence', body: 'Describe what you want to check and attach the relevant records. Inspect cited evidence and gaps before acting on an answer.' },
@@ -12,9 +12,19 @@ export const GUIDE_TOPICS = [
   { id: 'organization', label: 'Set up your team', href: '/settings/organization/', target: 'organization', control: 'team-access', title: 'Check your team’s access', body: 'Review the roles and site scopes. Organization administrators can grant access to people with an account.' },
 ] as const;
 export type GuideTopic = typeof GUIDE_TOPICS[number]['id'];
-type Progress = { seen: GuideTopic[] };
-type Guide = { opened: boolean; topic: GuideTopic | null; seen: GuideTopic[]; open: (topic?: GuideTopic) => void; close: () => void; markSeen: (topic: GuideTopic) => void };
+type Progress = { seen: GuideTopic[]; overviewDismissed: boolean };
+type Guide = {
+  opened: boolean;
+  topic: GuideTopic | null;
+  seen: GuideTopic[];
+  showOverviewIntro: boolean;
+  open: (topic?: GuideTopic) => void;
+  close: () => void;
+  markSeen: (topic: GuideTopic) => void;
+  dismissOverviewIntro: () => void;
+};
 const Context = createContext<Guide | null>(null);
+const emptyProgress: Progress = { seen: [], overviewDismissed: false };
 
 export function TutorialProvider({ children }: { children: ReactNode }) {
   const { user, organization, mode, loadingAccount } = useWorkspace();
@@ -26,17 +36,30 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setOpened(false); setTopic(null);
     if (loadingAccount) return;
-    let seen: GuideTopic[] = [];
-    try { const value = JSON.parse(localStorage.getItem(key) ?? 'null'); if (Array.isArray(value?.seen)) seen = GUIDE_TOPICS.map(t => t.id).filter(id => value.seen.includes(id)); } catch { /* Optional guidance. */ }
-    setStored({ key, progress: { seen } });
-  }, [key, loadingAccount]);
-  const seen = stored?.key === key ? stored.progress.seen : [];
-  const markSeen = (id: GuideTopic) => {
-    const progress = { seen: Array.from(new Set([...seen, id])) };
+    let progress = emptyProgress;
+    try {
+      const value = JSON.parse(localStorage.getItem(key) ?? 'null');
+      progress = {
+        seen: Array.isArray(value?.seen) ? GUIDE_TOPICS.map(t => t.id).filter(id => value.seen.includes(id)) : [],
+        overviewDismissed: value?.overviewDismissed === true,
+      };
+    } catch { /* Optional guidance. */ }
     setStored({ key, progress });
-    try { localStorage.setItem(key, JSON.stringify(progress)); } catch { /* Keep progress for this session. */ }
+  }, [key, loadingAccount]);
+  const ready = !loadingAccount && stored?.key === key;
+  const progress = ready ? stored.progress : emptyProgress;
+  const saveProgress = (next: Progress) => {
+    setStored({ key, progress: next });
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* Keep progress for this session. */ }
   };
-  return <Context.Provider value={{ opened, topic, seen, open: id => { setTopic(id ?? null); setOpened(true); }, close, markSeen }}>{children}</Context.Provider>;
+  return <Context.Provider value={{
+    opened, topic, seen: progress.seen,
+    showOverviewIntro: ready && !progress.overviewDismissed && !progress.seen.includes('dashboard'),
+    open: id => { setTopic(id ?? null); setOpened(true); },
+    close,
+    markSeen: id => saveProgress({ ...progress, seen: Array.from(new Set([...progress.seen, id])) }),
+    dismissOverviewIntro: () => saveProgress({ ...progress, overviewDismissed: true }),
+  }}>{children}</Context.Provider>;
 }
 export function useTutorial() {
   const value = useContext(Context);
