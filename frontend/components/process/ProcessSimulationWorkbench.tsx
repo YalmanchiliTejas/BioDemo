@@ -124,7 +124,7 @@ export default function ProcessSimulation() {
 
   return <div className="workspace-page space-y-4">
     {examplesOpen ? <SimulationExamples demo={Boolean(demo)} busy={busy} running={runningExample} onRun={runExample} />
-      : <button type="button" className="text-[13px] text-brand-teal hover:underline" onClick={() => setExamplesOpen(true)}>What simulation is for, and examples</button>}
+      : <button type="button" data-guide="simulation-examples" className="text-[13px] text-brand-teal hover:underline" onClick={() => setExamplesOpen(true)}>What simulation is for, and examples</button>}
     <nav className="flex gap-3 border-b border-border-hairline pb-3" aria-label="Process simulation workspace"><button className="rounded border border-border-strong px-4 py-2 text-sm" aria-pressed={libraryOpen} onClick={()=>setLibraryOpen(true)}>Pharmaceutical model library</button><button className="rounded border border-border-strong px-4 py-2 text-sm" aria-pressed={!libraryOpen} onClick={()=>setLibraryOpen(false)}>Freeze-drying examples</button></nav>
     {libraryOpen && shownExample?.id === 'pre-transfer' && <ExampleReadingGuide example={shownExample} onDismiss={() => setExample(null)} />}
     {libraryOpen ? <PharmaceuticalModelLibrary autoTransferCheck={libraryCheck} /> : <>

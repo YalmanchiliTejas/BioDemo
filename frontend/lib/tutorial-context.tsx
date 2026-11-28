@@ -1,15 +1,15 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useWorkspace } from './workspace-context';
 
 export const GUIDE_TOPICS = [
-  { id: 'dashboard', label: 'Find your bearings', href: '/dashboard/', target: 'dashboard', title: 'Your work, in one place', body: 'The overview summarizes what needs you, arranged for your role. Each summary opens the page behind it, and View switches to another role.' },
-  { id: 'connections', label: 'Connect your data', href: '/sources/', target: 'connections', title: 'Start with a source you already use', body: 'Choose an authorized source, configure its access, and test the mapping. You control when collection starts and can pause it later.' },
-  { id: 'deliveries', label: 'Check a delivery', href: '/cmo/', target: 'deliveries', title: 'Follow a value back to its source', body: 'Bring in a delivery or choose an available sample. Open the original beside the extracted values, then review mappings and flagged items before accepting them.' },
-  { id: 'assistant', label: 'Ask with context', href: '/home/', target: 'assistant', title: 'Bring a question and the relevant evidence', body: 'Attach verified deliveries or use your authorized connected sources. Inspect cited evidence, assumptions and gaps before acting on an answer.' },
-  { id: 'simulation', label: 'Explore a scenario', href: '/process-simulation/', target: 'simulation', title: 'Compare possibilities before taking action', body: 'Simulation lets you explore assumptions and predicted outcomes. It does not change your manufacturing systems or approve an action.' },
-  { id: 'organization', label: 'Set up your team', href: '/settings/organization/', target: 'organization', title: 'Keep access clear', body: 'See your organization and scope here. Organization administrators can grant specific roles and site access. Your personal details live separately under My profile.' },
+  { id: 'dashboard', label: 'Find your bearings', href: '/dashboard/', target: 'dashboard', control: 'overview-view', title: 'Find the work that needs you', body: 'Use View to see the summaries for your role. Open a summary to go straight to the work.' },
+  { id: 'connections', label: 'Connect your data', href: '/sources/', target: 'connections', control: 'setup-source-search', title: 'Start with a source you already use', body: 'Find an authorized system and check a sample against its source. You choose when collection starts.' },
+  { id: 'deliveries', label: 'Check a delivery', href: '/cmo/', target: 'deliveries', control: 'delivery-files', title: 'Follow a value back to its source', body: 'Choose a delivery or upload approved files. Compare the extracted values with their originals before accepting them.' },
+  { id: 'assistant', label: 'Ask with context', href: '/home/', target: 'assistant', control: 'assistant-question', title: 'Bring a question and the relevant evidence', body: 'Describe what you want to check and attach the relevant records. Inspect cited evidence and gaps before acting on an answer.' },
+  { id: 'simulation', label: 'Explore a scenario', href: '/process-simulation/', target: 'simulation', control: 'simulation-examples', title: 'Explore a process change', body: 'Use an example to see a forecast and its assumptions. Keep it as evidence for engineering review.' },
+  { id: 'organization', label: 'Set up your team', href: '/settings/organization/', target: 'organization', control: 'team-access', title: 'Check your team’s access', body: 'Review the roles and site scopes. Organization administrators can grant access to people with an account.' },
 ] as const;
 export type GuideTopic = typeof GUIDE_TOPICS[number]['id'];
 type Progress = { seen: GuideTopic[] };
@@ -22,6 +22,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const [stored, setStored] = useState<{ key: string; progress: Progress } | null>(null);
   const [opened, setOpened] = useState(false);
   const [topic, setTopic] = useState<GuideTopic | null>(null);
+  const close = useCallback(() => setOpened(false), []);
   useEffect(() => {
     setOpened(false); setTopic(null);
     if (loadingAccount) return;
@@ -35,7 +36,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     setStored({ key, progress });
     try { localStorage.setItem(key, JSON.stringify(progress)); } catch { /* Keep progress for this session. */ }
   };
-  return <Context.Provider value={{ opened, topic, seen, open: id => { setTopic(id ?? null); setOpened(true); }, close: () => setOpened(false), markSeen }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ opened, topic, seen, open: id => { setTopic(id ?? null); setOpened(true); }, close, markSeen }}>{children}</Context.Provider>;
 }
 export function useTutorial() {
   const value = useContext(Context);

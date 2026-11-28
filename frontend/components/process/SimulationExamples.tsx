@@ -38,7 +38,7 @@ export function SimulationExamples({ demo, busy, running, onRun }: { demo: boole
   return (
     <section className="rounded-2xl border border-border-hairline bg-white" aria-labelledby="simulation-purpose" data-testid="simulation-examples">
       <div className="border-b border-border-hairline px-6 py-5">
-        <h2 id="simulation-purpose" className="font-display text-[20px] font-light text-ink">What simulation is for</h2>
+        <h2 id="simulation-purpose" tabIndex={-1} data-guide="simulation-examples" className="font-display text-[20px] font-light text-ink">What simulation is for</h2>
         <p className="mt-1.5 max-w-3xl text-[13.5px] leading-6 text-text-secondary">
           Ask a process model a “what if” before spending a batch on it: whether a recipe will run on different equipment, how sensitive the result is to a value nobody has measured, or which explanation fits a run that is going wrong.
           Every result states its inputs, what was measured and what was assumed, and the experiments that would confirm it. It is a basis for an engineering review, never an approval to run.

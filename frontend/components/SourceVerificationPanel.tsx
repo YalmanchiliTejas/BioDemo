@@ -46,7 +46,7 @@ export function SourceVerificationPanel({ connectorId }: { connectorId: string }
     finally { setBusy(false); }
   };
   return <section className="source-verification" aria-label="Source verification" aria-busy={busy}>
-    <div className="source-verification-header"><h3>Verify collected data</h3><button className="setup-text-link" disabled={busy} onClick={load}>Refresh</button></div>
+    <div className="source-verification-header"><h3 tabIndex={-1} data-guide="setup-verify">Verify collected data</h3><button className="setup-text-link" disabled={busy} onClick={load}>Refresh</button></div>
     <p className="setup-fine">Files and connected measurements use the same checks. Records with unresolved checks stay out of published snapshots. This live collection does not establish batch completeness.</p>
     {error && <div className="setup-message error" role="alert">{error}</div>}
     {notice && <div className="setup-message" role="status">{notice}</div>}

@@ -216,7 +216,7 @@ function Start({ catalog, runs, onError, onCreated }: { catalog: Catalog | null;
               className="mt-2 h-11 w-full rounded-[3px] border border-border-strong bg-white px-3 text-[15px] focus:border-brand-teal focus:outline-none" />
             <datalist id="cmo-names">{catalog?.cmos.filter(c => !c.includes('· demo')).map(c => <option key={c} value={c} />)}</datalist>
           </label>
-          <button onClick={() => input.current?.click()} disabled={!!busy}
+          <button data-guide="delivery-files" onClick={() => input.current?.click()} disabled={!!busy}
             onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); void dropped(e.dataTransfer).then(check); }}
             className={cn('flex h-[260px] w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed text-center transition-colors',
               dragging ? 'border-brand-teal bg-brand-teal-light/50' : 'border-border-strong bg-white hover:border-brand-teal')}>

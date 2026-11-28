@@ -84,7 +84,7 @@ export function WorkspaceDashboard() {
 
   return <div className="workspace-page" data-testid="workspace-dashboard">
     <WorkspacePageHeader title={firstName ? `Welcome back, ${firstName}` : 'Overview'} description=""
-      actions={<label className="overview-view">View<select id="overview-view" value={icp} onChange={e => choose(e.target.value as Icp)}>
+      actions={<label className="overview-view">View<select id="overview-view" data-guide="overview-view" value={icp} onChange={e => choose(e.target.value as Icp)}>
         {(Object.keys(ICP_LABEL) as Icp[]).map(key => <option key={key} value={key}>{ICP_LABEL[key]}</option>)}
       </select></label>} />
     {!!failures.length && <div role="alert" className="workspace-alert compact"><div><strong>Some information is unavailable.</strong> The affected summaries say why. Nothing has been changed.</div><button type="button" className="chrome-button" onClick={() => setAttempt(i => i + 1)}><RotateCw size={13} />Try again</button></div>}

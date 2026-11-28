@@ -195,7 +195,7 @@ export function GuidedConnection({ product, me, existing, taken, onStep, onChang
 
     if (step === 'signin') return <>
         {back(null, 'All systems')}
-        <h2>Connect {product.name}</h2>
+        <h2 tabIndex={-1} data-guide="setup-signin">Connect {product.name}</h2>
         <p className="setup-subtitle">{product.help}</p>
         {errorBox}
         <form className="connector-form" onSubmit={signIn}>
@@ -226,7 +226,7 @@ export function GuidedConnection({ product, me, existing, taken, onStep, onChang
         <h2>Choose what to collect</h2>
         <p className="setup-subtitle">Signed in to {product.name}. {product.multiple ? `Select the ${product.resource} to read.` : `Select a ${product.resource}.`}</p>
         {errorBox}
-        <form className="source-catalog-search" onSubmit={searchResources}><Search size={15} /><input aria-label={`Search ${product.resource}`} type="search" placeholder={`Search ${product.resource}…`} value={search} onChange={e => setSearch(e.target.value)} />{product.multiple && <button className="setup-text-link" disabled={!!busy}>Search</button>}</form>
+        <form className="source-catalog-search" onSubmit={searchResources}><Search size={15} /><input data-guide="setup-resources" aria-label={`Search ${product.resource}`} type="search" placeholder={`Search ${product.resource}…`} value={search} onChange={e => setSearch(e.target.value)} />{product.multiple && <button className="setup-text-link" disabled={!!busy}>Search</button>}</form>
         <div className="resource-list" role={product.multiple ? 'group' : 'radiogroup'} aria-label={product.resource ?? 'Choices'}>
             {filtered.length ? filtered.map(r => <label key={r.id} className={`resource-option ${chosen.includes(r.id) ? 'selected' : ''}`}>
                 <input type={product.multiple ? 'checkbox' : 'radio'} name="resource" checked={chosen.includes(r.id)} onChange={() => pick(r)} />
@@ -246,7 +246,7 @@ export function GuidedConnection({ product, me, existing, taken, onStep, onChang
         const problems = preview?.preview?.errors ?? [];
         return <>
             {back(product.resource ? 'choose' : 'signin', product.resource ? `Choose ${product.resource}` : 'Connection details')}
-            <h2>Check the fields</h2>
+            <h2 tabIndex={-1} data-guide="setup-mapping">Check the fields</h2>
             <p className="setup-subtitle">We matched {product.name}&rsquo;s fields to ours. Change any that look wrong.</p>
             {errorBox}
             {preview && !preview.ok && <div className="setup-message error" role="alert">{preview.error ?? (problems.length ? `${problems.length} value${problems.length === 1 ? '' : 's'} could not be read. ${problems.slice(0, 2).map(p => `${p.field}: ${p.error}`).join('; ')}` : 'The sample could not be read.')}</div>}
@@ -267,7 +267,7 @@ export function GuidedConnection({ product, me, existing, taken, onStep, onChang
         <h2>Start collecting</h2>
         <p className="setup-subtitle">The first sync reads the data now. After that, Sievance checks for new records on the schedule you choose. Nothing is written back to {product.name}.</p>
         {errorBox}
-        <label className="setup-poll">How often should we check for new data?<select value={schedule} onChange={e => setSchedule(Number(e.target.value))}>{SCHEDULES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+        <label className="setup-poll">How often should we check for new data?<select data-guide="setup-schedule" value={schedule} onChange={e => setSchedule(Number(e.target.value))}>{SCHEDULES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
         <button className="setup-primary" disabled={!!busy} onClick={start}>{busy === 'collect' ? <><Loader2 size={16} className="animate-spin" /> Collecting…</> : <>Run first sync <ArrowRight size={17} /></>}</button>
     </>;
 
@@ -275,7 +275,7 @@ export function GuidedConnection({ product, me, existing, taken, onStep, onChang
         <span><Check size={28} /></span>
         <h2>{product.name} is connected</h2>
         <p>{result?.ingested ?? 0} new record{result?.ingested === 1 ? '' : 's'} collected{result?.duplicates ? `, ${result.duplicates} already present` : ''}. {schedule ? `Next check: ${SCHEDULES.find(([v]) => v === schedule)?.[1].toLowerCase()}.` : 'Sync manually from the list below.'}</p>
-        <button className="setup-primary" onClick={() => onVerify(draft.connector_id)}>Review collected data <ArrowRight size={17} /></button>
+        <button className="setup-primary" data-guide="setup-review" onClick={() => onVerify(draft.connector_id)}>Review collected data <ArrowRight size={17} /></button>
         <button className="setup-text-link" onClick={onExit}>Connect another system</button>
     </div>;
 }
